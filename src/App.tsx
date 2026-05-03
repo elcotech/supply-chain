@@ -1,4 +1,4 @@
-import React, { useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult } from './types';
 import {
@@ -112,8 +112,10 @@ function App() {
       }
     };
     initializeData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Persistence effects
   useEffect(() => {
     safeLocalStorage.setItem('materials', JSON.stringify(materials));
   }, [materials]);
@@ -516,8 +518,7 @@ function App() {
     return { totalRevenue, pendingOrders, deliveredOrders, totalOrders: userOrders.length };
   };
 
-  // ======================= RENDER FUNCTIONS (exactly as in your original code) =======================
-  // ScrollableTable component
+  // ======================= RENDER FUNCTIONS =======================
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
     <div className="table-responsive-wrapper">
       <div className="table-scroll-container" style={{ minWidth }}>
