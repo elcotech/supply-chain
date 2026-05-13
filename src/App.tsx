@@ -1044,7 +1044,34 @@ function App() {
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
         <div className="card"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button></div>
-        <ScrollableTable minWidth="700px"><table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Actions</th></tr></thead><tbody>{companyMaterials.map(material => (<tr key={material.id}><td className="sticky-col"><strong>{material.name}</strong>{material.brand && <small>{material.brand}</small>}</td><td>{material.category}</td><td className="price-cell">{formatCurrency(material.price)}</td><td>{material.quantity} {material.unit}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(material)}>👁️</button><button className="btn-icon danger" onClick={() => handleDeleteMaterial(material.id)}>🗑️</button></td></tr>))}</tbody></table></ScrollableTable></div>
+        <ScrollableTable minWidth="700px">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="sticky-col">Product</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {companyMaterials.map(material => (
+                <tr key={material.id}>
+                  <td className="sticky-col"><strong>{material.name}</strong>{material.brand && <small>{material.brand}</small>}</td>
+                  <td>{material.category}</td>
+                  <td className="price-cell">{formatCurrency(material.price)}</td>
+                  <td>{material.quantity} {material.unit}</td>
+                  <td>
+                    <button className="btn-icon" onClick={() => setSelectedMaterial(material)}>👁️</button>
+                    <button className="btn-icon danger" onClick={() => handleDeleteMaterial(material.id)}>🗑️</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollableTable>
+        </div>
       </main>
     );
   };
@@ -1063,7 +1090,34 @@ function App() {
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
         <div className="card"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button></div>
-        <ScrollableTable minWidth="700px"><table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{userOrders.slice(0,5).map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td></tr>); })}</tbody></table></ScrollableTable></div>
+        <ScrollableTable minWidth="700px">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="sticky-col">Order ID</th>
+                <th>Product</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {userOrders.slice(0,5).map(order => { 
+                const material = getMaterialById(order.materialId); 
+                return (
+                  <tr key={order.id}>
+                    <td className="sticky-col">{order.id}</td>
+                    <td>{material?.name}</td>
+                    <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
+                    <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
+                    <td>{formatDate(order.orderDate)}</td>
+                  </tr>
+                ); 
+              })}
+            </tbody>
+          </table>
+        </ScrollableTable>
+        </div>
       </main>
     );
   };
@@ -1102,36 +1156,67 @@ function App() {
         {displayMaterials.length === 0 ? (
           <div className="no-results"><span className="no-results-icon">🔍</span><h3>No products found</h3><button className="btn btn-primary" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Show All Products</button></div>
         ) : (
-          <ScrollableTable minWidth="1100px"><table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => {
-            const company = getCompanyById(item.companyId);
-            const isInCart = cart.some(cartItem => cartItem.materialId === item.id);
-            const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
-            const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
-            
-            return (<tr key={item.id}><td className="sticky-col"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `${item.quantity}` : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td>
-              <button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button>
-              <button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>
-              {currentUser && currentUser.userType === 'customer' && (
-                isInCart ? (
-                  <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
-                ) : (
-                  <button className="btn-icon" onClick={() => {
-                    const quantity = prompt(`Enter quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
-                    if (quantity && !isNaN(parseInt(quantity))) {
-                      if (!canAddToCart && currentSupplierInCart) {
-                        if (window.confirm(`Your cart has items from another supplier. Clear cart and add this item?`)) {
-                          clearCart();
-                          addToCart(item, parseInt(quantity));
-                        }
-                      } else {
-                        addToCart(item, parseInt(quantity));
-                      }
-                    }
-                  }}>➕</button>
-                )
-              )}
-            </td></tr>);
-          })}</tbody></td></ScrollableTable>
+          <ScrollableTable minWidth="1100px">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th className="sticky-col">Product</th>
+                  <th>Category</th>
+                  <th>Supplier</th>
+                  <th>City</th>
+                  <th>Price</th>
+                  <th>Unit</th>
+                  <th>Stock</th>
+                  <th>Rating</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(displayMaterials as SearchResult[]).map(item => {
+                  const company = getCompanyById(item.companyId);
+                  const isInCart = cart.some(cartItem => cartItem.materialId === item.id);
+                  const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
+                  const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
+                  
+                  return (
+                    <tr key={item.id}>
+                      <td className="sticky-col"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
+                      <td>{item.category}</td>
+                      <td>{company?.name || 'Unknown'}</td>
+                      <td>{company?.city || 'N/A'}</td>
+                      <td className="price-cell">{formatCurrency(item.price)}</td>
+                      <td>{item.unit}</td>
+                      <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `${item.quantity}` : 'Out'}</td>
+                      <td>⭐ {item.rating || 'N/A'}</td>
+                      <td>
+                        <button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button>
+                        <button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>
+                        {currentUser && currentUser.userType === 'customer' && (
+                          isInCart ? (
+                            <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
+                          ) : (
+                            <button className="btn-icon" onClick={() => {
+                              const quantity = prompt(`Enter quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
+                              if (quantity && !isNaN(parseInt(quantity))) {
+                                if (!canAddToCart && currentSupplierInCart) {
+                                  if (window.confirm(`Your cart has items from another supplier. Clear cart and add this item?`)) {
+                                    clearCart();
+                                    addToCart(item, parseInt(quantity));
+                                  }
+                                } else {
+                                  addToCart(item, parseInt(quantity));
+                                }
+                              }
+                            }}>➕</button>
+                          )
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ScrollableTable>
         )}</div>
       </main>
     );
@@ -1147,7 +1232,39 @@ function App() {
         {userOrders.length === 0 ? (
           <div className="no-orders"><span className="no-orders-icon">📦</span><h3>No orders yet</h3>{!isCompany && <button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Browse Products</button>}</div>
         ) : (
-          <ScrollableTable minWidth="800px"><table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</table></thead><tbody>{userOrders.map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>}</tr>); })}</tbody></table></ScrollableTable>
+          <ScrollableTable minWidth="800px">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th className="sticky-col">Order ID</th>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  {isCompany && <th>Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {userOrders.map(order => { 
+                  const material = getMaterialById(order.materialId); 
+                  return (
+                    <tr key={order.id}>
+                      <td className="sticky-col">{order.id}</td>
+                      <td>{material?.name}</td>
+                      <td>{order.quantity}</td>
+                      <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
+                      <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
+                      <td>{formatDate(order.orderDate)}</td>
+                      {isCompany && order.status === 'pending' && (
+                        <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>
+                      )}
+                    </tr>
+                  ); 
+                })}
+              </tbody>
+            </table>
+          </ScrollableTable>
         )}
       </main>
     );
@@ -1158,7 +1275,35 @@ function App() {
       <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🗺️</span><h1>Supplier Map</h1></div><p>Find suppliers across all Ethiopian cities</p></div>
       <div className="map-container"><div className="map-placeholder"><span className="map-icon">🗺️</span><h3>GIS Supplier Location Map</h3><p>Interactive map showing supplier locations across Ethiopia</p><div className="city-list">{ETHIOPIAN_CITIES.slice(0,8).map(city => <span key={city} className="city-tag">📍 {city}</span>)}<span className="city-tag">➕ More cities available</span></div></div></div>
       <div className="card"><div className="card-header"><h3>🏢 Suppliers Directory</h3><span className="badge">{companies.length} Verified Suppliers</span></div>
-      <ScrollableTable minWidth="700px"><table className="data-table"><thead><tr><th className="sticky-col">Company</th><th>City</th><th>Products</th><th>Rating</th><th>Contact</th></tr></thead><tbody>{companies.map(company => { const compMaterials = materials.filter(m => m.companyId === company.id); const supplier = getUserById(company.userId); return (<tr key={company.id}><td className="sticky-col"><strong>{company.name}</strong><small>{company.complianceStatus === 'compliant' ? '✅ Verified' : '⏳ Pending'}</small></td><td>📍 {company.city}</td><td>{compMaterials.length} items</td><td>⭐ {company.rating || '4.5'}</td><td>{supplier && <button className="btn-icon contact" onClick={() => showAlert(`📞 ${supplier.phone} | ✉️ ${supplier.email}`, 'info', 5000)}>📞</button>}</td></tr>); })}</tbody></table></ScrollableTable></div>
+      <ScrollableTable minWidth="700px">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className="sticky-col">Company</th>
+              <th>City</th>
+              <th>Products</th>
+              <th>Rating</th>
+              <th>Contact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {companies.map(company => { 
+              const compMaterials = materials.filter(m => m.companyId === company.id); 
+              const supplier = getUserById(company.userId); 
+              return (
+                <tr key={company.id}>
+                  <td className="sticky-col"><strong>{company.name}</strong><small>{company.complianceStatus === 'compliant' ? '✅ Verified' : '⏳ Pending'}</small></td>
+                  <td>📍 {company.city}</td>
+                  <td>{compMaterials.length} items</td>
+                  <td>⭐ {company.rating || '4.5'}</td>
+                  <td>{supplier && <button className="btn-icon contact" onClick={() => showAlert(`📞 ${supplier.phone} | ✉️ ${supplier.email}`, 'info', 5000)}>📞</button>}</td>
+                </tr>
+              ); 
+            })}
+          </tbody>
+        </table>
+      </ScrollableTable>
+      </div>
     </main>
   );
 
