@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
@@ -48,6 +48,9 @@ function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [showCartSummary, setShowCartSummary] = useState(false);
+  const [cartDetails, setCartDetails] = useState<any>(null);
   
   const [formData, setFormData] = useState<FormData>({
     loginEmail: '',
@@ -115,6 +118,23 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load cart from localStorage
+  useEffect(() => {
+    if (currentUser) {
+      const savedCart = safeLocalStorage.getItem(`cart_${currentUser.id}`);
+      if (savedCart) {
+        setCart(JSON.parse(savedCart));
+      }
+    }
+  }, [currentUser]);
+
+  // Save cart to localStorage
+  useEffect(() => {
+    if (currentUser) {
+      safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
+    }
+  }, [cart, currentUser]);
+
   // Persistence effects
   useEffect(() => {
     safeLocalStorage.setItem('materials', JSON.stringify(materials));
@@ -146,6 +166,191 @@ function App() {
       }
       return user;
     }));
+  };
+
+  // Cart Functions
+  const addToCart = (material: Material, quantity: number) => {
+    if (!currentUser) {
+      showAlert('Please login to add items to cart', 'danger');
+      setCurrentPage('login');
+      return;
+    }
+    if (currentUser.userType !== 'customer') {
+      showAlert('Only customers can add items to cart', 'danger');
+      return;
+    }
+
+    if (quantity < material.minOrder) {
+      showAlert(`Minimum order quantity is ${material.minOrder} ${material.unit}`, 'danger');
+      return;
+    }
+
+    const materialCompany = getCompanyById(material.companyId);
+    if (!materialCompany) return;
+
+    // Check if cart has items from a different supplier
+    if (cart.length > 0) {
+      const currentSupplierId = cart[0].supplierId;
+      if (currentSupplierId !== material.companyId) {
+        showAlert(`You can only add items from the same supplier. Your cart contains items from ${cart[0].supplierName}. Would you like to clear your cart and add items from ${materialCompany.name}?`, 'warning', 8000);
+        if (window.confirm(`Your cart currently has items from ${cart[0].supplierName}. Do you want to clear your cart and add items from ${materialCompany.name}?`)) {
+          clearCart();
+          addToCartLogic(material, quantity, materialCompany);
+        }
+        return;
+      }
+    }
+
+    addToCartLogic(material, quantity, materialCompany);
+  };
+
+  const addToCartLogic = (material: Material, quantity: number, company: Company) => {
+    const existingItem = cart.find(item => item.materialId === material.id);
+    
+    if (existingItem) {
+      setCart(cart.map(item =>
+        item.materialId === material.id
+          ? { ...item, quantity: item.quantity + quantity }
+          : item
+      ));
+      showAlert(`Updated ${material.name} quantity in cart`, 'success');
+    } else {
+      const newCartItem: CartItem = {
+        id: Date.now().toString(),
+        materialId: material.id,
+        materialName: material.name,
+        supplierId: material.companyId,
+        supplierName: company.name,
+        quantity: quantity,
+        price: material.price,
+        unit: material.unit,
+        minOrder: material.minOrder,
+        vatPercentage: material.vatPercentage,
+        specifications: material.specifications
+      };
+      setCart([...cart, newCartItem]);
+      showAlert(`Added ${material.name} to cart`, 'success');
+    }
+  };
+
+  const removeFromCart = (itemId: string) => {
+    setCart(cart.filter(item => item.id !== itemId));
+    showAlert('Item removed from cart', 'info');
+  };
+
+  const updateCartQuantity = (itemId: string, newQuantity: number) => {
+    const item = cart.find(i => i.id === itemId);
+    if (item && newQuantity >= item.minOrder) {
+      setCart(cart.map(i =>
+        i.id === itemId ? { ...i, quantity: newQuantity } : i
+      ));
+    } else if (item && newQuantity < item.minOrder) {
+      showAlert(`Minimum quantity is ${item.minOrder} ${item.unit}`, 'warning');
+    }
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    setShowCartSummary(false);
+    showAlert('Cart cleared', 'info');
+  };
+
+  const calculateCartTotals = () => {
+    if (cart.length === 0) return null;
+    
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const totalVAT = cart.reduce((sum, item) => sum + ((item.price * item.quantity) * (item.vatPercentage / 100)), 0);
+    
+    // Calculate transport cost for the supplier
+    const supplierCompany = getCompanyById(cart[0].supplierId);
+    let transportCost = 0;
+    let distance = 0;
+    
+    if (supplierCompany && currentUser) {
+      distance = calculateDistance(
+        supplierCompany.lat, supplierCompany.lng,
+        currentUser.lat || 9.0320, currentUser.lng || 38.7469
+      );
+      const totalWeight = cart.reduce((sum, item) => {
+        const weight = item.specifications?.weight ? parseFloat(item.specifications.weight) : 1;
+        return sum + (weight * item.quantity);
+      }, 0);
+      transportCost = calculateTransportCost(
+        supplierCompany.lat, supplierCompany.lng,
+        currentUser.lat || 9.0320, currentUser.lng || 38.7469,
+        totalWeight
+      );
+    }
+    
+    const total = subtotal + totalVAT + transportCost;
+    
+    return {
+      subtotal,
+      totalVAT,
+      transportCost,
+      total,
+      distance,
+      supplierName: supplierCompany?.name || 'Unknown Supplier',
+      supplierCity: supplierCompany?.city || 'Unknown City',
+      itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
+      uniqueItems: cart.length
+    };
+  };
+
+  const handleCheckout = () => {
+    if (cart.length === 0) {
+      showAlert('Your cart is empty', 'warning');
+      return;
+    }
+    
+    const totals = calculateCartTotals();
+    if (!totals) return;
+    
+    setCartDetails(totals);
+    setShowCartSummary(true);
+  };
+
+  const confirmOrder = () => {
+    if (cart.length === 0) return;
+    
+    const totals = calculateCartTotals();
+    if (!totals) return;
+    
+    const supplierCompany = getCompanyById(cart[0].supplierId);
+    if (!supplierCompany) return;
+    
+    // Create orders for each item in cart
+    cart.forEach(item => {
+      const material = getMaterialById(item.materialId);
+      if (!material) return;
+      
+      const newOrder: Order = {
+        id: 'order' + (orders.length + 1) + '_' + Date.now() + '_' + item.materialId,
+        customerId: currentUser!.id,
+        companyId: supplierCompany.id,
+        materialId: item.materialId,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        transportCost: totals.transportCost / cart.length, // Distribute transport cost
+        totalAmount: (item.price * item.quantity) + ((item.price * item.quantity) * (item.vatPercentage / 100)) + (totals.transportCost / cart.length),
+        status: 'pending',
+        orderDate: new Date().toISOString().split('T')[0],
+        address: currentUser?.address || '',
+        notes: `Order from cart - ${cart.length} items total`,
+        invoiceNumber: `INV-${new Date().getFullYear()}-${orders.length + 1000}`,
+        taxAmount: 0,
+        vatAmount: (item.price * item.quantity) * (item.vatPercentage / 100),
+        paymentMethod: 'Bank Transfer',
+        paymentStatus: 'pending'
+      };
+      
+      setOrders(prev => [...prev, newOrder]);
+    });
+    
+    showAlert(`Order placed successfully! 📦 Total: ${formatCurrency(totals.total)}`, 'success');
+    clearCart();
+    setShowCartSummary(false);
+    setCurrentPage('orders');
   };
 
   const handleLogin = (e: React.FormEvent): void => {
@@ -255,6 +460,8 @@ function App() {
 
   const handleLogout = (): void => {
     setCurrentUser(null);
+    setCart([]);
+    setShowCartSummary(false);
     safeLocalStorage.removeItem('currentUser');
     showAlert('Logged out successfully 👋', 'info');
     setCurrentPage('home');
@@ -328,80 +535,6 @@ function App() {
   const handleDeleteMaterial = (id: string): void => {
     setMaterials(prev => prev.filter(m => m.id !== id));
     showAlert('Product deleted successfully 🗑️', 'success');
-  };
-
-  const handlePlaceOrder = (materialId: string): void => {
-    if (!currentUser) {
-      showAlert('Please login to place an order', 'danger');
-      setCurrentPage('login');
-      return;
-    }
-    if (currentUser.userType !== 'customer') {
-      showAlert('Only customers can place orders', 'danger');
-      return;
-    }
-    const { orderQuantity, orderAddress } = formData;
-    const quantity = parseInt(orderQuantity);
-    const material = getMaterialById(materialId);
-    if (!material) {
-      showAlert('Material not found', 'danger');
-      return;
-    }
-    if (quantity < material.minOrder) {
-      showAlert(`Minimum order quantity is ${material.minOrder}`, 'danger');
-      return;
-    }
-    const company = getCompanyById(material.companyId);
-    if (!company) {
-      showAlert('Supplier not found', 'danger');
-      return;
-    }
-    const transportCost = calculateTransportCost(
-      company.lat, company.lng,
-      currentUser.lat || 9.0320, currentUser.lng || 38.7469,
-      quantity
-    );
-    const subtotal = material.price * quantity;
-    const vatAmount = subtotal * (material.vatPercentage / 100);
-    const totalAmount = subtotal + transportCost + vatAmount;
-    const newOrder: Order = {
-      id: 'order' + (orders.length + 1),
-      customerId: currentUser.id,
-      companyId: company.id,
-      materialId: materialId,
-      quantity,
-      unitPrice: material.price,
-      transportCost,
-      totalAmount,
-      status: 'pending',
-      orderDate: new Date().toISOString().split('T')[0],
-      address: orderAddress || currentUser.address,
-      notes: '',
-      invoiceNumber: `INV-${new Date().getFullYear()}-${orders.length + 1000}`,
-      taxAmount: 0,
-      vatAmount,
-      paymentMethod: 'Bank Transfer',
-      paymentStatus: 'pending'
-    };
-    setOrders(prev => [...prev, newOrder]);
-    showAlert('Order placed successfully! 📦', 'success');
-    setCurrentPage('orders');
-    setFormData(prev => ({ ...prev, orderQuantity: '', orderAddress: '' }));
-  };
-
-  const handleUpdateOrderStatus = (orderId: string, status: string): void => {
-    setOrders(prev => prev.map(order => {
-      if (order.id === orderId) {
-        const updatedOrder = { ...order, status };
-        if (status === 'delivered') {
-          updatedOrder.deliveryDate = new Date().toISOString().split('T')[0];
-          updatedOrder.paymentStatus = 'paid';
-        }
-        return updatedOrder;
-      }
-      return order;
-    }));
-    showAlert(`Order status updated to ${status} 🚀`, 'success');
   };
 
   const handleContactSupplier = (materialId: string): void => {
@@ -539,6 +672,11 @@ function App() {
         </div>
         <div className="nav-links">
           {currentUser ? renderUserNav() : renderGuestNav()}
+          {currentUser && currentUser.userType === 'customer' && (
+            <button className="cart-icon-btn" onClick={() => setShowCartSummary(true)}>
+              🛒 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
+            </button>
+          )}
         </div>
       </div>
     </header>
@@ -586,6 +724,97 @@ function App() {
     if (!alert) return null;
     const icons: Record<string, string> = { success: '✅', danger: '⚠️', warning: '⚠️', info: 'ℹ️' };
     return <div className={`alert alert-${alert.type}`}><span className="alert-icon">{icons[alert.type] || 'ℹ️'}</span>{alert.message}</div>;
+  };
+
+  const renderCartSummary = () => {
+    if (!showCartSummary) return null;
+    const totals = calculateCartTotals();
+    if (!totals) return null;
+
+    return (
+      <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
+        <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>🛒 Shopping Cart</h2>
+            <button className="modal-close" onClick={() => setShowCartSummary(false)}>✕</button>
+          </div>
+          <div className="modal-body">
+            {cart.length === 0 ? (
+              <div className="empty-cart">
+                <span className="empty-cart-icon">🛒</span>
+                <h3>Your cart is empty</h3>
+                <button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>
+                  Start Shopping
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="cart-supplier-info">
+                  <h3>🏢 Supplier: {totals.supplierName}</h3>
+                  <p>📍 Location: {totals.supplierCity}</p>
+                  <p>📦 Items from this supplier only (same supplier policy)</p>
+                </div>
+                
+                <div className="cart-items">
+                  {cart.map(item => (
+                    <div key={item.id} className="cart-item">
+                      <div className="cart-item-info">
+                        <h4>{item.materialName}</h4>
+                        <p>Price: {formatCurrency(item.price)} / {item.unit}</p>
+                        <p>Min Order: {item.minOrder} {item.unit}</p>
+                      </div>
+                      <div className="cart-item-quantity">
+                        <label>Quantity:</label>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))}
+                          min={item.minOrder}
+                          step={item.minOrder}
+                        />
+                        <span>{item.unit}</span>
+                      </div>
+                      <div className="cart-item-total">
+                        <strong>{formatCurrency(item.price * item.quantity)}</strong>
+                      </div>
+                      <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="cart-summary">
+                  <h3>Order Summary</h3>
+                  <div className="summary-row">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(totals.subtotal)}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span>VAT (15%):</span>
+                    <span>{formatCurrency(totals.totalVAT)}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span>Transport Cost:</span>
+                    <span>{formatCurrency(totals.transportCost)}</span>
+                  </div>
+                  <div className="summary-row distance-info">
+                    <span>Distance: {totals.distance.toFixed(1)} km</span>
+                  </div>
+                  <div className="summary-row total">
+                    <span>Total:</span>
+                    <span>{formatCurrency(totals.total)}</span>
+                  </div>
+                </div>
+                
+                <div className="cart-actions">
+                  <button className="btn-secondary" onClick={clearCart}>Clear Cart</button>
+                  <button className="btn-primary" onClick={confirmOrder}>Confirm Order ✅</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderHome = () => {
@@ -799,9 +1028,35 @@ function App() {
         {displayMaterials.length === 0 ? (
           <div className="no-results"><span className="no-results-icon">🔍</span><h3>No products found</h3><button className="btn btn-primary" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Show All Products</button></div>
         ) : (
-          <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => {
+          <ScrollableTable minWidth="1100px"><table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => {
             const company = getCompanyById(item.companyId);
-            return (<tr key={item.id} onClick={() => setSelectedMaterial(item)} style={{ cursor: 'pointer' }}><td className="sticky-col"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `${item.quantity}` : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>👁️</button><button className="btn-icon contact" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button></td></tr>);
+            const isInCart = cart.some(cartItem => cartItem.materialId === item.id);
+            const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
+            const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
+            
+            return (<tr key={item.id}><td className="sticky-col"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `${item.quantity}` : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td>
+              <button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button>
+              <button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>
+              {currentUser && currentUser.userType === 'customer' && (
+                isInCart ? (
+                  <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
+                ) : (
+                  <button className="btn-icon" onClick={() => {
+                    const quantity = prompt(`Enter quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
+                    if (quantity && !isNaN(parseInt(quantity))) {
+                      if (!canAddToCart && currentSupplierInCart) {
+                        if (window.confirm(`Your cart has items from another supplier. Clear cart and add this item?`)) {
+                          clearCart();
+                          addToCart(item, parseInt(quantity));
+                        }
+                      } else {
+                        addToCart(item, parseInt(quantity));
+                      }
+                    }
+                  }}>➕</button>
+                )
+              )}
+            </td></tr>);
           })}</tbody></table></ScrollableTable>
         )}</div>
       </main>
@@ -836,6 +1091,10 @@ function App() {
   const renderMaterialDetails = () => {
     if (!selectedMaterial) return null;
     const company = getCompanyById(selectedMaterial.companyId);
+    const isInCart = cart.some(item => item.materialId === selectedMaterial.id);
+    const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
+    const canAddToCart = !currentSupplierInCart || currentSupplierInCart === selectedMaterial.companyId;
+    
     return (
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -845,7 +1104,31 @@ function App() {
             <div className="detail-section"><h3>💰 Pricing</h3><div className="price-detail"><span>Unit Price:</span><strong>{formatCurrency(selectedMaterial.price)}</strong><span>per {selectedMaterial.unit}</span></div><div className="price-detail"><span>Min Order:</span><span>{selectedMaterial.minOrder} {selectedMaterial.unit}</span></div><div className="price-detail"><span>In Stock:</span><span className={selectedMaterial.quantity > 0 ? 'in-stock' : 'out-stock'}>{selectedMaterial.quantity} {selectedMaterial.unit}</span></div></div>
             <div className="detail-section"><h3>🏢 Supplier</h3><p><strong>{company?.name}</strong></p><p>📍 {company?.city}</p><p>⭐ Rating: {company?.rating || '4.5'}/5</p></div>
             {currentUser?.userType === 'customer' && (
-              <div className="order-section"><h3>📦 Place Order</h3><input type="number" className="form-input" placeholder={`Quantity (Min: ${selectedMaterial.minOrder})`} value={formData.orderQuantity} onChange={(e) => setFormData(prev => ({ ...prev, orderQuantity: e.target.value }))} /><input type="text" className="form-input" placeholder="Delivery Address" value={formData.orderAddress} onChange={(e) => setFormData(prev => ({ ...prev, orderAddress: e.target.value }))} /><button className="btn btn-primary" onClick={() => { handlePlaceOrder(selectedMaterial.id); setSelectedMaterial(null); }}>🛒 Place Order</button></div>
+              <div className="order-section">
+                <h3>📦 Add to Cart</h3>
+                {!canAddToCart && cart.length > 0 && (
+                  <div className="alert alert-warning">
+                    ⚠️ Your cart already has items from another supplier. Adding this will clear your cart.
+                  </div>
+                )}
+                <input type="number" className="form-input" placeholder={`Quantity (Min: ${selectedMaterial.minOrder})`} id="cartQuantity" defaultValue={selectedMaterial.minOrder} />
+                <button className="btn btn-primary" onClick={() => {
+                  const quantityInput = document.getElementById('cartQuantity') as HTMLInputElement;
+                  const quantity = parseInt(quantityInput.value);
+                  if (!canAddToCart && currentSupplierInCart) {
+                    if (window.confirm(`Your cart has items from another supplier. Clear cart and add ${selectedMaterial.name}?`)) {
+                      clearCart();
+                      addToCart(selectedMaterial, quantity);
+                      setSelectedMaterial(null);
+                    }
+                  } else {
+                    addToCart(selectedMaterial, quantity);
+                    setSelectedMaterial(null);
+                  }
+                }}>
+                  {isInCart ? '🔄 Update Cart' : '➕ Add to Cart'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -886,6 +1169,7 @@ function App() {
       {renderAlert()}
       {renderCurrentPage()}
       {renderMaterialDetails()}
+      {renderCartSummary()}
       {renderFooter()}
     </div>
   );
