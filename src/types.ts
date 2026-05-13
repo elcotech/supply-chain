@@ -143,3 +143,29 @@ export interface SearchResult extends Material {
   estimatedTransport?: number;
   distance?: number;
 }
+
+// Add CartItem interface for the shopping cart system
+export interface CartItem {
+  id: string;
+  materialId: string;
+  materialName: string;
+  supplierId: string;
+  supplierName: string;
+  quantity: number;
+  price: number;
+  unit: string;
+  minOrder: number;
+  vatPercentage: number;
+  specifications?: {
+    weight?: string;
+    dimensions?: string;
+    grade?: string;
+    origin?: string;
+    certification?: string[];
+    materialType?: string;
+    color?: string;
+    shelfLife?: string;
+    packaging?: string;
+    safetyStandards?: string[];
+  };
+}
