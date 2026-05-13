@@ -331,7 +331,7 @@ function App() {
         materialId: item.materialId,
         quantity: item.quantity,
         unitPrice: item.price,
-        transportCost: totals.transportCost / cart.length, // Distribute transport cost
+        transportCost: totals.transportCost / cart.length,
         totalAmount: (item.price * item.quantity) + ((item.price * item.quantity) * (item.vatPercentage / 100)) + (totals.transportCost / cart.length),
         status: 'pending',
         orderDate: new Date().toISOString().split('T')[0],
@@ -535,6 +535,80 @@ function App() {
   const handleDeleteMaterial = (id: string): void => {
     setMaterials(prev => prev.filter(m => m.id !== id));
     showAlert('Product deleted successfully 🗑️', 'success');
+  };
+
+  const handlePlaceOrder = (materialId: string): void => {
+    if (!currentUser) {
+      showAlert('Please login to place an order', 'danger');
+      setCurrentPage('login');
+      return;
+    }
+    if (currentUser.userType !== 'customer') {
+      showAlert('Only customers can place orders', 'danger');
+      return;
+    }
+    const { orderQuantity, orderAddress } = formData;
+    const quantity = parseInt(orderQuantity);
+    const material = getMaterialById(materialId);
+    if (!material) {
+      showAlert('Material not found', 'danger');
+      return;
+    }
+    if (quantity < material.minOrder) {
+      showAlert(`Minimum order quantity is ${material.minOrder}`, 'danger');
+      return;
+    }
+    const company = getCompanyById(material.companyId);
+    if (!company) {
+      showAlert('Supplier not found', 'danger');
+      return;
+    }
+    const transportCost = calculateTransportCost(
+      company.lat, company.lng,
+      currentUser.lat || 9.0320, currentUser.lng || 38.7469,
+      quantity
+    );
+    const subtotal = material.price * quantity;
+    const vatAmount = subtotal * (material.vatPercentage / 100);
+    const totalAmount = subtotal + transportCost + vatAmount;
+    const newOrder: Order = {
+      id: 'order' + (orders.length + 1),
+      customerId: currentUser.id,
+      companyId: company.id,
+      materialId: materialId,
+      quantity,
+      unitPrice: material.price,
+      transportCost,
+      totalAmount,
+      status: 'pending',
+      orderDate: new Date().toISOString().split('T')[0],
+      address: orderAddress || currentUser.address,
+      notes: '',
+      invoiceNumber: `INV-${new Date().getFullYear()}-${orders.length + 1000}`,
+      taxAmount: 0,
+      vatAmount,
+      paymentMethod: 'Bank Transfer',
+      paymentStatus: 'pending'
+    };
+    setOrders(prev => [...prev, newOrder]);
+    showAlert('Order placed successfully! 📦', 'success');
+    setCurrentPage('orders');
+    setFormData(prev => ({ ...prev, orderQuantity: '', orderAddress: '' }));
+  };
+
+  const handleUpdateOrderStatus = (orderId: string, status: string): void => {
+    setOrders(prev => prev.map(order => {
+      if (order.id === orderId) {
+        const updatedOrder = { ...order, status };
+        if (status === 'delivered') {
+          updatedOrder.deliveryDate = new Date().toISOString().split('T')[0];
+          updatedOrder.paymentStatus = 'paid';
+        }
+        return updatedOrder;
+      }
+      return order;
+    }));
+    showAlert(`Order status updated to ${status} 🚀`, 'success');
   };
 
   const handleContactSupplier = (materialId: string): void => {
@@ -1057,7 +1131,7 @@ function App() {
                 )
               )}
             </td></tr>);
-          })}</tbody></table></ScrollableTable>
+          })}</tbody></td></ScrollableTable>
         )}</div>
       </main>
     );
@@ -1073,7 +1147,7 @@ function App() {
         {userOrders.length === 0 ? (
           <div className="no-orders"><span className="no-orders-icon">📦</span><h3>No orders yet</h3>{!isCompany && <button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Browse Products</button>}</div>
         ) : (
-          <ScrollableTable minWidth="800px"><table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>}</tr>); })}</tbody></table></ScrollableTable>
+          <ScrollableTable minWidth="800px"><table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</table></thead><tbody>{userOrders.map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>}</tr>); })}</tbody></table></ScrollableTable>
         )}
       </main>
     );
