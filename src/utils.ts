@@ -1,3 +1,5 @@
+import { CartItem, CartSummary } from './types';
+
 export const safeLocalStorage = {
   getItem: (key: string): string | null => {
     try {
@@ -62,4 +64,28 @@ export const calculateTransportCost = (fromLat: number, fromLng: number, toLat: 
 export const isUserLocked = (user: { lockUntil?: number }): boolean => {
   if (user.lockUntil && user.lockUntil > Date.now()) return true;
   return false;
+};
+
+// NEW: Cart Calculation Utilities
+export const calculateCartSummary = (items: CartItem[]): CartSummary => {
+  const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+  const vatTotal = items.reduce((sum, item) => sum + item.vatAmount, 0);
+  const transportTotal = 0; // Will be calculated per supplier at checkout
+  const grandTotal = subtotal + vatTotal + transportTotal;
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const uniqueSuppliers = new Set(items.map(item => item.companyId)).size;
+  
+  return { subtotal, vatTotal, transportTotal, grandTotal, itemCount, uniqueSuppliers };
+};
+
+export const calculateItemTotals = (price: number, quantity: number, vatPercentage: number) => {
+  const subtotal = price * quantity;
+  const vatAmount = subtotal * (vatPercentage / 100);
+  const total = subtotal + vatAmount;
+  return { subtotal, vatAmount, total };
+};
+
+// Generate unique ID
+export const generateId = (prefix: string): string => {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
