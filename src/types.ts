@@ -91,6 +91,34 @@ export interface Order {
   paymentStatus: string;
 }
 
+// NEW: Cart Item Interface
+export interface CartItem {
+  id: string;
+  materialId: string;
+  companyId: string;
+  name: string;
+  brand?: string;
+  unit: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+  image?: string;
+  minOrder: number;
+  maxStock: number;
+}
+
+// NEW: Cart Summary Interface
+export interface CartSummary {
+  subtotal: number;
+  vatTotal: number;
+  transportTotal: number;
+  grandTotal: number;
+  itemCount: number;
+  uniqueSuppliers: number;
+}
+
 export interface Alert {
   message: string;
   type: string;
@@ -136,61 +164,9 @@ export interface FormData {
   materialCertifications: string;
 }
 
-// Extended type for search results (includes computed fields)
 export interface SearchResult extends Material {
   company?: Company;
   totalCost?: number;
   estimatedTransport?: number;
   distance?: number;
-}
-
-// Add CartItem interface for the shopping cart system
-export interface CartItem {
-  id: string;
-  materialId: string;
-  materialName: string;
-  supplierId: string;
-  supplierName: string;
-  quantity: number;
-  price: number;
-  unit: string;
-  minOrder: number;
-  vatPercentage: number;
-  specifications?: {
-    weight?: string;
-    dimensions?: string;
-    grade?: string;
-    origin?: string;
-    certification?: string[];
-    materialType?: string;
-    color?: string;
-    shelfLife?: string;
-    packaging?: string;
-    safetyStandards?: string[];
-  };
-}
-
-export interface CartItem {
-  id: string;
-  materialId: string;
-  materialName: string;
-  supplierId: string;
-  supplierName: string;
-  quantity: number;
-  price: number;
-  unit: string;
-  minOrder: number;
-  vatPercentage: number;
-  specifications?: {
-    weight?: string;
-    dimensions?: string;
-    grade?: string;
-    origin?: string;
-    certification?: string[];
-    materialType?: string;
-    color?: string;
-    shelfLife?: string;
-    packaging?: string;
-    safetyStandards?: string[];
-  };
 }
