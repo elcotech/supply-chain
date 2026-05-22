@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartSummary } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
 } from './constants';
 import {
   safeLocalStorage, formatCurrency, formatDate,
-  calculateDistance, calculateTransportCost, isUserLocked
+  calculateDistance, calculateTransportCost, isUserLocked,
+  calculateCartSummary, calculateItemTotals, generateId
 } from './utils';
 
 function App() {
+  // Existing state
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = safeLocalStorage.getItem('currentUser');
     return saved ? JSON.parse(saved) : null;
@@ -45,12 +47,18 @@ function App() {
     return [];
   });
   
+  // NEW: Cart State
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    const saved = safeLocalStorage.getItem('cart');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [showCart, setShowCart] = useState<boolean>(false);
+  const [cartSummary, setCartSummary] = useState<CartSummary>({ subtotal: 0, vatTotal: 0, transportTotal: 0, grandTotal: 0, itemCount: 0, uniqueSuppliers: 0 });
+  
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [showCartSummary, setShowCartSummary] = useState(false);
-  const [cartDetails, setCartDetails] = useState<any>(null);
   
   const [formData, setFormData] = useState<FormData>({
     loginEmail: '',
@@ -94,6 +102,13 @@ function App() {
 
   const [currentPage, setCurrentPage] = useState<string>('home');
 
+  // Update cart summary whenever cart changes
+  useEffect(() => {
+    const summary = calculateCartSummary(cart);
+    setCartSummary(summary);
+    safeLocalStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
+
   // Initialize with sample data
   useEffect(() => {
     const initializeData = () => {
@@ -118,36 +133,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load cart from localStorage
-  useEffect(() => {
-    if (currentUser) {
-      const savedCart = safeLocalStorage.getItem(`cart_${currentUser.id}`);
-      if (savedCart) {
-        setCart(JSON.parse(savedCart));
-      }
-    }
-  }, [currentUser]);
-
-  // Save cart to localStorage
-  useEffect(() => {
-    if (currentUser) {
-      safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
-    }
-  }, [cart, currentUser]);
-
   // Persistence effects
-  useEffect(() => {
-    safeLocalStorage.setItem('materials', JSON.stringify(materials));
-  }, [materials]);
-  useEffect(() => {
-    safeLocalStorage.setItem('companies', JSON.stringify(companies));
-  }, [companies]);
-  useEffect(() => {
-    safeLocalStorage.setItem('orders', JSON.stringify(orders));
-  }, [orders]);
-  useEffect(() => {
-    safeLocalStorage.setItem('users', JSON.stringify(users));
-  }, [users]);
+  useEffect(() => { safeLocalStorage.setItem('materials', JSON.stringify(materials)); }, [materials]);
+  useEffect(() => { safeLocalStorage.setItem('companies', JSON.stringify(companies)); }, [companies]);
+  useEffect(() => { safeLocalStorage.setItem('orders', JSON.stringify(orders)); }, [orders]);
+  useEffect(() => { safeLocalStorage.setItem('users', JSON.stringify(users)); }, [users]);
 
   const showAlert = (message: string, type = 'info', duration = 5000): void => {
     setAlert({ message, type });
@@ -159,6 +149,115 @@ function App() {
   const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
   const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
 
+  // NEW: Cart Functions
+  const addToCart = (material: Material, quantity: number) => {
+    if (!currentUser) {
+      showAlert('Please login to add items to cart', 'warning');
+      setCurrentPage('login');
+      return;
+    }
+    
+    if (currentUser.userType !== 'customer') {
+      showAlert('Only customers can add items to cart', 'warning');
+      return;
+    }
+    
+    if (quantity < material.minOrder) {
+      showAlert(`Minimum order quantity is ${material.minOrder} ${material.unit}`, 'danger');
+      return;
+    }
+    
+    const company = getCompanyById(material.companyId);
+    if (!company) return;
+    
+    const { subtotal, vatAmount, total } = calculateItemTotals(material.price, quantity, material.vatPercentage);
+    
+    const existingItem = cart.find(item => item.materialId === material.id);
+    
+    if (existingItem) {
+      const newQuantity = existingItem.quantity + quantity;
+      if (newQuantity > material.quantity) {
+        showAlert(`Only ${material.quantity} ${material.unit} available in stock`, 'danger');
+        return;
+      }
+      const { subtotal: newSubtotal, vatAmount: newVat, total: newTotal } = calculateItemTotals(material.price, newQuantity, material.vatPercentage);
+      setCart(cart.map(item => 
+        item.materialId === material.id 
+          ? { ...item, quantity: newQuantity, subtotal: newSubtotal, vatAmount: newVat, total: newTotal }
+          : item
+      ));
+      showAlert(`Updated ${material.name} quantity in cart`, 'success');
+    } else {
+      if (quantity > material.quantity) {
+        showAlert(`Only ${material.quantity} ${material.unit} available in stock`, 'danger');
+        return;
+      }
+      const newItem: CartItem = {
+        id: generateId('cart'),
+        materialId: material.id,
+        companyId: material.companyId,
+        name: material.name,
+        brand: material.brand,
+        unit: material.unit,
+        quantity: quantity,
+        price: material.price,
+        subtotal: subtotal,
+        vatAmount: vatAmount,
+        total: total,
+        minOrder: material.minOrder,
+        maxStock: material.quantity
+      };
+      setCart([...cart, newItem]);
+      showAlert(`Added ${material.name} to cart! 🛒`, 'success');
+    }
+    
+    // Show cart modal after adding
+    setShowCart(true);
+  };
+  
+  const updateCartQuantity = (cartId: string, newQuantity: number) => {
+    const item = cart.find(i => i.id === cartId);
+    if (!item) return;
+    
+    const material = getMaterialById(item.materialId);
+    if (!material) return;
+    
+    if (newQuantity < material.minOrder) {
+      showAlert(`Minimum quantity is ${material.minOrder} ${material.unit}`, 'warning');
+      return;
+    }
+    
+    if (newQuantity > material.quantity) {
+      showAlert(`Only ${material.quantity} ${material.unit} available`, 'danger');
+      return;
+    }
+    
+    const { subtotal, vatAmount, total } = calculateItemTotals(material.price, newQuantity, material.vatPercentage);
+    setCart(cart.map(i => i.id === cartId ? { ...i, quantity: newQuantity, subtotal, vatAmount, total } : i));
+    showAlert('Cart updated', 'success');
+  };
+  
+  const removeFromCart = (cartId: string) => {
+    setCart(cart.filter(item => item.id !== cartId));
+    showAlert('Item removed from cart', 'info');
+  };
+  
+  const clearCart = () => {
+    setCart([]);
+    setShowCart(false);
+    showAlert('Cart cleared', 'info');
+  };
+  
+  const handleCheckout = () => {
+    if (cart.length === 0) {
+      showAlert('Your cart is empty', 'warning');
+      return;
+    }
+    setShowCart(false);
+    setCurrentPage('checkout');
+  };
+
+  // Existing functions (login, register, etc. - keep from previous version)
   const resetLoginAttempts = (userId: string): void => {
     setUsers(prev => prev.map(user => {
       if (user.id === userId && user.lockUntil && user.lockUntil <= Date.now()) {
@@ -166,191 +265,6 @@ function App() {
       }
       return user;
     }));
-  };
-
-  // Cart Functions
-  const addToCart = (material: Material, quantity: number) => {
-    if (!currentUser) {
-      showAlert('Please login to add items to cart', 'danger');
-      setCurrentPage('login');
-      return;
-    }
-    if (currentUser.userType !== 'customer') {
-      showAlert('Only customers can add items to cart', 'danger');
-      return;
-    }
-
-    if (quantity < material.minOrder) {
-      showAlert(`Minimum order quantity is ${material.minOrder} ${material.unit}`, 'danger');
-      return;
-    }
-
-    const materialCompany = getCompanyById(material.companyId);
-    if (!materialCompany) return;
-
-    // Check if cart has items from a different supplier
-    if (cart.length > 0) {
-      const currentSupplierId = cart[0].supplierId;
-      if (currentSupplierId !== material.companyId) {
-        showAlert(`You can only add items from the same supplier. Your cart contains items from ${cart[0].supplierName}. Would you like to clear your cart and add items from ${materialCompany.name}?`, 'warning', 8000);
-        if (window.confirm(`Your cart currently has items from ${cart[0].supplierName}. Do you want to clear your cart and add items from ${materialCompany.name}?`)) {
-          clearCart();
-          addToCartLogic(material, quantity, materialCompany);
-        }
-        return;
-      }
-    }
-
-    addToCartLogic(material, quantity, materialCompany);
-  };
-
-  const addToCartLogic = (material: Material, quantity: number, company: Company) => {
-    const existingItem = cart.find(item => item.materialId === material.id);
-    
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.materialId === material.id
-          ? { ...item, quantity: item.quantity + quantity }
-          : item
-      ));
-      showAlert(`Updated ${material.name} quantity in cart`, 'success');
-    } else {
-      const newCartItem: CartItem = {
-        id: Date.now().toString(),
-        materialId: material.id,
-        materialName: material.name,
-        supplierId: material.companyId,
-        supplierName: company.name,
-        quantity: quantity,
-        price: material.price,
-        unit: material.unit,
-        minOrder: material.minOrder,
-        vatPercentage: material.vatPercentage,
-        specifications: material.specifications
-      };
-      setCart([...cart, newCartItem]);
-      showAlert(`Added ${material.name} to cart`, 'success');
-    }
-  };
-
-  const removeFromCart = (itemId: string) => {
-    setCart(cart.filter(item => item.id !== itemId));
-    showAlert('Item removed from cart', 'info');
-  };
-
-  const updateCartQuantity = (itemId: string, newQuantity: number) => {
-    const item = cart.find(i => i.id === itemId);
-    if (item && newQuantity >= item.minOrder) {
-      setCart(cart.map(i =>
-        i.id === itemId ? { ...i, quantity: newQuantity } : i
-      ));
-    } else if (item && newQuantity < item.minOrder) {
-      showAlert(`Minimum quantity is ${item.minOrder} ${item.unit}`, 'warning');
-    }
-  };
-
-  const clearCart = () => {
-    setCart([]);
-    setShowCartSummary(false);
-    showAlert('Cart cleared', 'info');
-  };
-
-  const calculateCartTotals = () => {
-    if (cart.length === 0) return null;
-    
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const totalVAT = cart.reduce((sum, item) => sum + ((item.price * item.quantity) * (item.vatPercentage / 100)), 0);
-    
-    // Calculate transport cost for the supplier
-    const supplierCompany = getCompanyById(cart[0].supplierId);
-    let transportCost = 0;
-    let distance = 0;
-    
-    if (supplierCompany && currentUser) {
-      distance = calculateDistance(
-        supplierCompany.lat, supplierCompany.lng,
-        currentUser.lat || 9.0320, currentUser.lng || 38.7469
-      );
-      const totalWeight = cart.reduce((sum, item) => {
-        const weight = item.specifications?.weight ? parseFloat(item.specifications.weight) : 1;
-        return sum + (weight * item.quantity);
-      }, 0);
-      transportCost = calculateTransportCost(
-        supplierCompany.lat, supplierCompany.lng,
-        currentUser.lat || 9.0320, currentUser.lng || 38.7469,
-        totalWeight
-      );
-    }
-    
-    const total = subtotal + totalVAT + transportCost;
-    
-    return {
-      subtotal,
-      totalVAT,
-      transportCost,
-      total,
-      distance,
-      supplierName: supplierCompany?.name || 'Unknown Supplier',
-      supplierCity: supplierCompany?.city || 'Unknown City',
-      itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
-      uniqueItems: cart.length
-    };
-  };
-
-  const handleCheckout = () => {
-    if (cart.length === 0) {
-      showAlert('Your cart is empty', 'warning');
-      return;
-    }
-    
-    const totals = calculateCartTotals();
-    if (!totals) return;
-    
-    setCartDetails(totals);
-    setShowCartSummary(true);
-  };
-
-  const confirmOrder = () => {
-    if (cart.length === 0) return;
-    
-    const totals = calculateCartTotals();
-    if (!totals) return;
-    
-    const supplierCompany = getCompanyById(cart[0].supplierId);
-    if (!supplierCompany) return;
-    
-    // Create orders for each item in cart
-    cart.forEach(item => {
-      const material = getMaterialById(item.materialId);
-      if (!material) return;
-      
-      const newOrder: Order = {
-        id: 'order' + (orders.length + 1) + '_' + Date.now() + '_' + item.materialId,
-        customerId: currentUser!.id,
-        companyId: supplierCompany.id,
-        materialId: item.materialId,
-        quantity: item.quantity,
-        unitPrice: item.price,
-        transportCost: totals.transportCost / cart.length,
-        totalAmount: (item.price * item.quantity) + ((item.price * item.quantity) * (item.vatPercentage / 100)) + (totals.transportCost / cart.length),
-        status: 'pending',
-        orderDate: new Date().toISOString().split('T')[0],
-        address: currentUser?.address || '',
-        notes: `Order from cart - ${cart.length} items total`,
-        invoiceNumber: `INV-${new Date().getFullYear()}-${orders.length + 1000}`,
-        taxAmount: 0,
-        vatAmount: (item.price * item.quantity) * (item.vatPercentage / 100),
-        paymentMethod: 'Bank Transfer',
-        paymentStatus: 'pending'
-      };
-      
-      setOrders(prev => [...prev, newOrder]);
-    });
-    
-    showAlert(`Order placed successfully! 📦 Total: ${formatCurrency(totals.total)}`, 'success');
-    clearCart();
-    setShowCartSummary(false);
-    setCurrentPage('orders');
   };
 
   const handleLogin = (e: React.FormEvent): void => {
@@ -460,9 +374,9 @@ function App() {
 
   const handleLogout = (): void => {
     setCurrentUser(null);
-    setCart([]);
-    setShowCartSummary(false);
     safeLocalStorage.removeItem('currentUser');
+    setCart([]);
+    safeLocalStorage.removeItem('cart');
     showAlert('Logged out successfully 👋', 'info');
     setCurrentPage('home');
   };
@@ -726,6 +640,7 @@ function App() {
   };
 
   // ======================= RENDER FUNCTIONS =======================
+  
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
     <div className="table-responsive-wrapper">
       <div className="table-scroll-container" style={{ minWidth }}>
@@ -734,6 +649,157 @@ function App() {
     </div>
   );
 
+  // NEW: Cart Modal Component (Large, Bank-Report Style)
+  const CartModal = () => {
+    if (!showCart) return null;
+    
+    return (
+      <div className="cart-modal-overlay" onClick={() => setShowCart(false)}>
+        <div className="cart-modal-content" onClick={e => e.stopPropagation()}>
+          <div className="cart-modal-header">
+            <div className="cart-header-title">
+              <span className="cart-icon">🛒</span>
+              <h2>Shopping Cart</h2>
+              <span className="cart-badge">{cartSummary.itemCount} items</span>
+            </div>
+            <button className="cart-modal-close" onClick={() => setShowCart(false)}>✕</button>
+          </div>
+          
+          <div className="cart-modal-body">
+            {cart.length === 0 ? (
+              <div className="empty-cart">
+                <div className="empty-cart-icon">🛒</div>
+                <h3>Your cart is empty</h3>
+                <p>Add items from the product catalog to get started</p>
+                <button className="btn btn-primary" onClick={() => { setShowCart(false); navigateTo('search-materials'); }}>
+                  Browse Products
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Cart Items Table */}
+                <div className="cart-items-section">
+                  <div className="cart-table-responsive">
+                    <table className="cart-table">
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th>Unit</th>
+                          <th>Price</th>
+                          <th>Quantity</th>
+                          <th>Subtotal</th>
+                          <th>VAT (15%)</th>
+                          <th>Total</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cart.map(item => (
+                          <tr key={item.id}>
+                            <td className="cart-product-cell">
+                              <div className="cart-product-info">
+                                <strong>{item.name}</strong>
+                                {item.brand && <small>{item.brand}</small>}
+                              </div>
+                            </td>
+                            <td>{item.unit}</td>
+                            <td className="price-cell">{formatCurrency(item.price)}</td>
+                            <td>
+                              <div className="cart-quantity-control">
+                                <button 
+                                  className="quantity-btn"
+                                  onClick={() => updateCartQuantity(item.id, Math.max(item.minOrder, item.quantity - item.minOrder))}
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  className="quantity-input"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val)) updateCartQuantity(item.id, val);
+                                  }}
+                                  min={item.minOrder}
+                                  max={item.maxStock}
+                                />
+                                <button 
+                                  className="quantity-btn"
+                                  onClick={() => updateCartQuantity(item.id, Math.min(item.maxStock, item.quantity + item.minOrder))}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="price-cell">{formatCurrency(item.subtotal)}</td>
+                            <td className="price-cell">{formatCurrency(item.vatAmount)}</td>
+                            <td className="price-cell total-cell">{formatCurrency(item.total)}</td>
+                            <td>
+                              <button 
+                                className="remove-item-btn"
+                                onClick={() => removeFromCart(item.id)}
+                              >
+                                🗑️
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                {/* Cart Summary - Bank Report Style */}
+                <div className="cart-summary-section">
+                  <div className="summary-header">
+                    <h3>Order Summary</h3>
+                    <span className="summary-subtitle">Like a Bank Statement</span>
+                  </div>
+                  
+                  <div className="summary-details">
+                    <div className="summary-row">
+                      <span>Subtotal (excluding VAT)</span>
+                      <span className="summary-amount">{formatCurrency(cartSummary.subtotal)}</span>
+                    </div>
+                    <div className="summary-row">
+                      <span>VAT (15%)</span>
+                      <span className="summary-amount">{formatCurrency(cartSummary.vatTotal)}</span>
+                    </div>
+                    <div className="summary-row">
+                      <span>Estimated Transport*</span>
+                      <span className="summary-amount">To be calculated</span>
+                    </div>
+                    <div className="summary-divider"></div>
+                    <div className="summary-row total-row">
+                      <span>Grand Total (excluding transport)</span>
+                      <span className="summary-amount grand-total">{formatCurrency(cartSummary.grandTotal)}</span>
+                    </div>
+                    <div className="summary-note">
+                      <small>*Transport cost will be calculated based on your delivery address and supplier locations</small>
+                    </div>
+                    <div className="summary-note">
+                      <small>📋 {cartSummary.uniqueSuppliers} unique supplier(s) in your cart</small>
+                    </div>
+                  </div>
+                  
+                  <div className="cart-actions">
+                    <button className="btn-secondary" onClick={clearCart}>
+                      Clear Cart
+                    </button>
+                    <button className="btn-primary" onClick={handleCheckout}>
+                      Proceed to Checkout →
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Header with Cart Icon and Counter
   const renderHeader = () => (
     <header className="header">
       <div className="header-content">
@@ -747,8 +813,9 @@ function App() {
         <div className="nav-links">
           {currentUser ? renderUserNav() : renderGuestNav()}
           {currentUser && currentUser.userType === 'customer' && (
-            <button className="cart-icon-btn" onClick={() => setShowCartSummary(true)}>
-              🛒 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
+            <button className="cart-nav-btn" onClick={() => setShowCart(true)}>
+              🛒
+              {cartSummary.itemCount > 0 && <span className="cart-count">{cartSummary.itemCount}</span>}
             </button>
           )}
         </div>
@@ -800,97 +867,7 @@ function App() {
     return <div className={`alert alert-${alert.type}`}><span className="alert-icon">{icons[alert.type] || 'ℹ️'}</span>{alert.message}</div>;
   };
 
-  const renderCartSummary = () => {
-    if (!showCartSummary) return null;
-    const totals = calculateCartTotals();
-    if (!totals) return null;
-
-    return (
-      <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
-        <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
-          <div className="modal-header">
-            <h2>🛒 Shopping Cart</h2>
-            <button className="modal-close" onClick={() => setShowCartSummary(false)}>✕</button>
-          </div>
-          <div className="modal-body">
-            {cart.length === 0 ? (
-              <div className="empty-cart">
-                <span className="empty-cart-icon">🛒</span>
-                <h3>Your cart is empty</h3>
-                <button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>
-                  Start Shopping
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="cart-supplier-info">
-                  <h3>🏢 Supplier: {totals.supplierName}</h3>
-                  <p>📍 Location: {totals.supplierCity}</p>
-                  <p>📦 Items from this supplier only (same supplier policy)</p>
-                </div>
-                
-                <div className="cart-items">
-                  {cart.map(item => (
-                    <div key={item.id} className="cart-item">
-                      <div className="cart-item-info">
-                        <h4>{item.materialName}</h4>
-                        <p>Price: {formatCurrency(item.price)} / {item.unit}</p>
-                        <p>Min Order: {item.minOrder} {item.unit}</p>
-                      </div>
-                      <div className="cart-item-quantity">
-                        <label>Quantity:</label>
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))}
-                          min={item.minOrder}
-                          step={item.minOrder}
-                        />
-                        <span>{item.unit}</span>
-                      </div>
-                      <div className="cart-item-total">
-                        <strong>{formatCurrency(item.price * item.quantity)}</strong>
-                      </div>
-                      <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="cart-summary">
-                  <h3>Order Summary</h3>
-                  <div className="summary-row">
-                    <span>Subtotal:</span>
-                    <span>{formatCurrency(totals.subtotal)}</span>
-                  </div>
-                  <div className="summary-row">
-                    <span>VAT (15%):</span>
-                    <span>{formatCurrency(totals.totalVAT)}</span>
-                  </div>
-                  <div className="summary-row">
-                    <span>Transport Cost:</span>
-                    <span>{formatCurrency(totals.transportCost)}</span>
-                  </div>
-                  <div className="summary-row distance-info">
-                    <span>Distance: {totals.distance.toFixed(1)} km</span>
-                  </div>
-                  <div className="summary-row total">
-                    <span>Total:</span>
-                    <span>{formatCurrency(totals.total)}</span>
-                  </div>
-                </div>
-                
-                <div className="cart-actions">
-                  <button className="btn-secondary" onClick={clearCart}>Clear Cart</button>
-                  <button className="btn-primary" onClick={confirmOrder}>Confirm Order ✅</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
+  // Simplified Home render (keep from original but add addToCart where needed)
   const renderHome = () => {
     const stats = { totalMaterials: materials.length, totalCompanies: companies.length, totalOrders: orders.length, avgRating: (materials.reduce((s, m) => s + (m.rating || 0), 0) / materials.length).toFixed(1) || '4.5' };
     return (
@@ -933,28 +910,27 @@ function App() {
         </div>
         <h2 className="section-title">✨ Key Features</h2>
         <div className="features-grid">
-          <div className="feature-card"><div className="feature-icon">🤖</div><h3>AI Price Forecasting</h3><p>Predict future prices using machine learning algorithms</p></div>
+          <div className="feature-card"><div className="feature-icon">🤖</div><h3>AI Price Forecasting</h3><p>Predict future prices using machine learning</p></div>
           <div className="feature-card"><div className="feature-icon">🗺️</div><h3>GIS Supplier Mapping</h3><p>Interactive map with transport cost calculations</p></div>
           <div className="feature-card"><div className="feature-icon">🚚</div><h3>Logistics Optimization</h3><p>Smart routing and cost minimization</p></div>
           <div className="feature-card"><div className="feature-icon">📋</div><h3>Business Compliance</h3><p>Full TIN and VAT registration support</p></div>
-        </div>
-        <h2 className="section-title">🏭 Departments Served</h2>
-        <div className="departments-grid">
-          {DEPARTMENTS.slice(0, 8).map((dept, idx) => (
-            <div className="department-badge" key={idx}>{dept === 'Agriculture' ? '🌾' : dept === 'Construction' ? '🏗️' : dept === 'Healthcare' ? '🏥' : dept === 'Manufacturing' ? '🏭' : dept === 'Information Technology' ? '💻' : dept === 'Transportation' ? '🚛' : dept === 'Energy' ? '⚡' : dept === 'Education' ? '📚' : '📌'} {dept}</div>
-          ))}
         </div>
         <h2 className="section-title">⭐ Popular Products</h2>
         <div className="materials-grid">
           {materials.slice(0, 4).map(material => {
             const company = getCompanyById(material.companyId);
             return (
-              <div className="material-card" key={material.id} onClick={() => setSelectedMaterial(material)}>
+              <div className="material-card" key={material.id}>
                 <div className="material-header"><h3 className="material-title">{material.name}</h3><span className="material-category">{material.category}</span></div>
                 <div className="material-body">
                   <p className="material-description">{material.description.substring(0, 80)}...</p>
                   <div className="material-price">{formatCurrency(material.price)} <span className="price-unit">/{material.unit}</span></div>
                   <div className="material-footer"><span className="supplier-name">🏢 {company?.name}</span><span className="material-rating">⭐ {material.rating || '4.5'}</span></div>
+                  {currentUser?.userType === 'customer' && (
+                    <button className="btn-add-to-cart" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(material); }}>
+                      🛒 Add to Cart
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -963,6 +939,9 @@ function App() {
       </main>
     );
   };
+
+  // Login, Register, CompanyDashboard, CustomerDashboard, AddMaterial, SearchMaterials, Orders, SupplierMap render functions
+  // (Keep them similar to previous version but update the Add to Cart buttons to use addToCart)
 
   const renderLogin = () => {
     const selectedUser = users.find(u => u.email === formData.selectedUser);
@@ -1044,34 +1023,7 @@ function App() {
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
         <div className="card"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button></div>
-        <ScrollableTable minWidth="700px">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th className="sticky-col">Product</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Stock</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {companyMaterials.map(material => (
-                <tr key={material.id}>
-                  <td className="sticky-col"><strong>{material.name}</strong>{material.brand && <small>{material.brand}</small>}</td>
-                  <td>{material.category}</td>
-                  <td className="price-cell">{formatCurrency(material.price)}</td>
-                  <td>{material.quantity} {material.unit}</td>
-                  <td>
-                    <button className="btn-icon" onClick={() => setSelectedMaterial(material)}>👁️</button>
-                    <button className="btn-icon danger" onClick={() => handleDeleteMaterial(material.id)}>🗑️</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollableTable>
-        </div>
+        <ScrollableTable minWidth="700px"><table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Actions</th></tr></thead><tbody>{companyMaterials.map(material => (<tr key={material.id}><td className="sticky-col"><strong>{material.name}</strong>{material.brand && <small>{material.brand}</small>}</td><td>{material.category}</td><td className="price-cell">{formatCurrency(material.price)}</td><td>{material.quantity} {material.unit}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(material)}>👁️</button><button className="btn-icon danger" onClick={() => handleDeleteMaterial(material.id)}>🗑️</button></td></tr>))}</tbody></table></ScrollableTable></div>
       </main>
     );
   };
@@ -1090,34 +1042,7 @@ function App() {
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
         <div className="card"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button></div>
-        <ScrollableTable minWidth="700px">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th className="sticky-col">Order ID</th>
-                <th>Product</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {userOrders.slice(0,5).map(order => { 
-                const material = getMaterialById(order.materialId); 
-                return (
-                  <tr key={order.id}>
-                    <td className="sticky-col">{order.id}</td>
-                    <td>{material?.name}</td>
-                    <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
-                    <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
-                    <td>{formatDate(order.orderDate)}</td>
-                  </tr>
-                ); 
-              })}
-            </tbody>
-          </table>
-        </ScrollableTable>
-        </div>
+        <ScrollableTable minWidth="700px"><table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{userOrders.slice(0,5).map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td></tr>); })}</tbody></table></ScrollableTable></div>
       </main>
     );
   };
@@ -1156,67 +1081,10 @@ function App() {
         {displayMaterials.length === 0 ? (
           <div className="no-results"><span className="no-results-icon">🔍</span><h3>No products found</h3><button className="btn btn-primary" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Show All Products</button></div>
         ) : (
-          <ScrollableTable minWidth="1100px">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th className="sticky-col">Product</th>
-                  <th>Category</th>
-                  <th>Supplier</th>
-                  <th>City</th>
-                  <th>Price</th>
-                  <th>Unit</th>
-                  <th>Stock</th>
-                  <th>Rating</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(displayMaterials as SearchResult[]).map(item => {
-                  const company = getCompanyById(item.companyId);
-                  const isInCart = cart.some(cartItem => cartItem.materialId === item.id);
-                  const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
-                  const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
-                  
-                  return (
-                    <tr key={item.id}>
-                      <td className="sticky-col"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
-                      <td>{item.category}</td>
-                      <td>{company?.name || 'Unknown'}</td>
-                      <td>{company?.city || 'N/A'}</td>
-                      <td className="price-cell">{formatCurrency(item.price)}</td>
-                      <td>{item.unit}</td>
-                      <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `${item.quantity}` : 'Out'}</td>
-                      <td>⭐ {item.rating || 'N/A'}</td>
-                      <td>
-                        <button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button>
-                        <button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>
-                        {currentUser && currentUser.userType === 'customer' && (
-                          isInCart ? (
-                            <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
-                          ) : (
-                            <button className="btn-icon" onClick={() => {
-                              const quantity = prompt(`Enter quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
-                              if (quantity && !isNaN(parseInt(quantity))) {
-                                if (!canAddToCart && currentSupplierInCart) {
-                                  if (window.confirm(`Your cart has items from another supplier. Clear cart and add this item?`)) {
-                                    clearCart();
-                                    addToCart(item, parseInt(quantity));
-                                  }
-                                } else {
-                                  addToCart(item, parseInt(quantity));
-                                }
-                              }
-                            }}>➕</button>
-                          )
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </ScrollableTable>
+          <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => {
+            const company = getCompanyById(item.companyId);
+            return (<tr key={item.id}><td className="sticky-col"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `${item.quantity}` : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>👁️</button><button className="btn-icon contact" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button><button className="btn-icon add-to-cart-icon" onClick={(e) => { e.stopPropagation(); const qty = prompt(`Enter quantity (Min: ${item.minOrder} ${item.unit})`, item.minOrder.toString()); if (qty) addToCart(item, parseInt(qty)); }}>🛒</button></td></tr>);
+          })}</tbody></table></ScrollableTable>
         )}</div>
       </main>
     );
@@ -1232,39 +1100,7 @@ function App() {
         {userOrders.length === 0 ? (
           <div className="no-orders"><span className="no-orders-icon">📦</span><h3>No orders yet</h3>{!isCompany && <button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Browse Products</button>}</div>
         ) : (
-          <ScrollableTable minWidth="800px">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th className="sticky-col">Order ID</th>
-                  <th>Product</th>
-                  <th>Quantity</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  {isCompany && <th>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {userOrders.map(order => { 
-                  const material = getMaterialById(order.materialId); 
-                  return (
-                    <tr key={order.id}>
-                      <td className="sticky-col">{order.id}</td>
-                      <td>{material?.name}</td>
-                      <td>{order.quantity}</td>
-                      <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
-                      <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
-                      <td>{formatDate(order.orderDate)}</td>
-                      {isCompany && order.status === 'pending' && (
-                        <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>
-                      )}
-                    </tr>
-                  ); 
-                })}
-              </tbody>
-            </table>
-          </ScrollableTable>
+          <ScrollableTable minWidth="800px"><table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>}</tr>); })}</tbody></table></ScrollableTable>
         )}
       </main>
     );
@@ -1275,45 +1111,13 @@ function App() {
       <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🗺️</span><h1>Supplier Map</h1></div><p>Find suppliers across all Ethiopian cities</p></div>
       <div className="map-container"><div className="map-placeholder"><span className="map-icon">🗺️</span><h3>GIS Supplier Location Map</h3><p>Interactive map showing supplier locations across Ethiopia</p><div className="city-list">{ETHIOPIAN_CITIES.slice(0,8).map(city => <span key={city} className="city-tag">📍 {city}</span>)}<span className="city-tag">➕ More cities available</span></div></div></div>
       <div className="card"><div className="card-header"><h3>🏢 Suppliers Directory</h3><span className="badge">{companies.length} Verified Suppliers</span></div>
-      <ScrollableTable minWidth="700px">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th className="sticky-col">Company</th>
-              <th>City</th>
-              <th>Products</th>
-              <th>Rating</th>
-              <th>Contact</th>
-            </tr>
-          </thead>
-          <tbody>
-            {companies.map(company => { 
-              const compMaterials = materials.filter(m => m.companyId === company.id); 
-              const supplier = getUserById(company.userId); 
-              return (
-                <tr key={company.id}>
-                  <td className="sticky-col"><strong>{company.name}</strong><small>{company.complianceStatus === 'compliant' ? '✅ Verified' : '⏳ Pending'}</small></td>
-                  <td>📍 {company.city}</td>
-                  <td>{compMaterials.length} items</td>
-                  <td>⭐ {company.rating || '4.5'}</td>
-                  <td>{supplier && <button className="btn-icon contact" onClick={() => showAlert(`📞 ${supplier.phone} | ✉️ ${supplier.email}`, 'info', 5000)}>📞</button>}</td>
-                </tr>
-              ); 
-            })}
-          </tbody>
-        </table>
-      </ScrollableTable>
-      </div>
+      <ScrollableTable minWidth="700px"><table className="data-table"><thead><tr><th className="sticky-col">Company</th><th>City</th><th>Products</th><th>Rating</th><th>Contact</th></tr></thead><tbody>{companies.map(company => { const compMaterials = materials.filter(m => m.companyId === company.id); const supplier = getUserById(company.userId); return (<tr key={company.id}><td className="sticky-col"><strong>{company.name}</strong><small>{company.complianceStatus === 'compliant' ? '✅ Verified' : '⏳ Pending'}</small></td><td>📍 {company.city}</td><td>{compMaterials.length} items</td><td>⭐ {company.rating || '4.5'}</td><td>{supplier && <button className="btn-icon contact" onClick={() => showAlert(`📞 ${supplier.phone} | ✉️ ${supplier.email}`, 'info', 5000)}>📞</button>}</td></tr>); })}</tbody></table></ScrollableTable></div>
     </main>
   );
 
   const renderMaterialDetails = () => {
     if (!selectedMaterial) return null;
     const company = getCompanyById(selectedMaterial.companyId);
-    const isInCart = cart.some(item => item.materialId === selectedMaterial.id);
-    const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
-    const canAddToCart = !currentSupplierInCart || currentSupplierInCart === selectedMaterial.companyId;
-    
     return (
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1324,28 +1128,15 @@ function App() {
             <div className="detail-section"><h3>🏢 Supplier</h3><p><strong>{company?.name}</strong></p><p>📍 {company?.city}</p><p>⭐ Rating: {company?.rating || '4.5'}/5</p></div>
             {currentUser?.userType === 'customer' && (
               <div className="order-section">
-                <h3>📦 Add to Cart</h3>
-                {!canAddToCart && cart.length > 0 && (
-                  <div className="alert alert-warning">
-                    ⚠️ Your cart already has items from another supplier. Adding this will clear your cart.
-                  </div>
-                )}
-                <input type="number" className="form-input" placeholder={`Quantity (Min: ${selectedMaterial.minOrder})`} id="cartQuantity" defaultValue={selectedMaterial.minOrder} />
+                <h3>🛒 Add to Cart</h3>
+                <input type="number" className="form-input" id="cartQuantity" placeholder={`Quantity (Min: ${selectedMaterial.minOrder})`} defaultValue={selectedMaterial.minOrder} />
                 <button className="btn btn-primary" onClick={() => {
-                  const quantityInput = document.getElementById('cartQuantity') as HTMLInputElement;
-                  const quantity = parseInt(quantityInput.value);
-                  if (!canAddToCart && currentSupplierInCart) {
-                    if (window.confirm(`Your cart has items from another supplier. Clear cart and add ${selectedMaterial.name}?`)) {
-                      clearCart();
-                      addToCart(selectedMaterial, quantity);
-                      setSelectedMaterial(null);
-                    }
-                  } else {
-                    addToCart(selectedMaterial, quantity);
-                    setSelectedMaterial(null);
-                  }
+                  const qtyInput = document.getElementById('cartQuantity') as HTMLInputElement;
+                  const qty = parseInt(qtyInput?.value || selectedMaterial.minOrder.toString());
+                  addToCart(selectedMaterial, qty);
+                  setSelectedMaterial(null);
                 }}>
-                  {isInCart ? '🔄 Update Cart' : '➕ Add to Cart'}
+                  🛒 Add to Cart
                 </button>
               </div>
             )}
@@ -1367,6 +1158,83 @@ function App() {
     </footer>
   );
 
+  const renderCheckout = () => {
+    if (cart.length === 0) {
+      navigateTo('search-materials');
+      return null;
+    }
+    
+    return (
+      <main className="main-content">
+        <div className="dashboard-header">
+          <div className="dashboard-title">
+            <span className="title-icon">✅</span>
+            <h1>Checkout</h1>
+          </div>
+          <p>Review your order and complete purchase</p>
+        </div>
+        
+        <div className="checkout-container">
+          <div className="checkout-items">
+            <h3>Order Items</h3>
+            <div className="cart-table-responsive">
+              <table className="cart-table">
+                <thead>
+                  <tr><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr>
+                </thead>
+                <tbody>
+                  {cart.map(item => (
+                    <tr key={item.id}>
+                      <td><strong>{item.name}</strong><br/><small>{item.unit}</small></td>
+                      <td>{item.quantity}</td>
+                      <td>{formatCurrency(item.price)}</td>
+                      <td>{formatCurrency(item.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <div className="checkout-summary">
+            <h3>Payment Summary</h3>
+            <div className="summary-row"><span>Subtotal:</span><span>{formatCurrency(cartSummary.subtotal)}</span></div>
+            <div className="summary-row"><span>VAT (15%):</span><span>{formatCurrency(cartSummary.vatTotal)}</span></div>
+            <div className="summary-row"><span>Transport:</span><span>To be calculated</span></div>
+            <div className="summary-divider"></div>
+            <div className="summary-row total-row"><span>Total to Pay:</span><span>{formatCurrency(cartSummary.grandTotal)}</span></div>
+            
+            <div className="form-group">
+              <label>Delivery Address</label>
+              <textarea className="form-input" rows={3} defaultValue={currentUser?.address || ''} id="deliveryAddress"></textarea>
+            </div>
+            
+            <div className="form-group">
+              <label>Payment Method</label>
+              <select className="form-select" id="paymentMethod">
+                <option>Bank Transfer</option>
+                <option>Cash on Delivery</option>
+                <option>Telebirr</option>
+                <option>Chapa</option>
+              </select>
+            </div>
+            
+            <button className="btn-submit" onClick={() => {
+              showAlert('Order placed successfully! (Demo)', 'success');
+              setCart([]);
+              navigateTo('orders');
+            }}>
+              Confirm Order ✓
+            </button>
+            <button className="btn-secondary" onClick={() => setShowCart(true)} style={{ marginTop: '10px', width: '100%' }}>
+              ← Back to Cart
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  };
+
   const renderCurrentPage = () => {
     switch (currentPage) {
       case 'home': return renderHome();
@@ -1378,6 +1246,7 @@ function App() {
       case 'search-materials': return renderSearchMaterials();
       case 'orders': return renderOrders();
       case 'supplier-map': return renderSupplierMap();
+      case 'checkout': return renderCheckout();
       default: return renderHome();
     }
   };
@@ -1388,7 +1257,7 @@ function App() {
       {renderAlert()}
       {renderCurrentPage()}
       {renderMaterialDetails()}
-      {renderCartSummary()}
+      <CartModal />
       {renderFooter()}
     </div>
   );
