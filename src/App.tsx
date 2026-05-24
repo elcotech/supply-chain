@@ -10,7 +10,28 @@ import {
   calculateDistance, calculateTransportCost, isUserLocked,
   calculateCartSummary, calculateItemTotals, generateId
 } from './utils';
+function App() {
+  // Reset all data on first load to clear old data
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  useEffect(() => {
+    // Clear all existing data on first load
+    if (!isInitialized) {
+      // Clear all localStorage
+      localStorage.clear();
+      sessionStorage.clear();
+      setIsInitialized(true);
+    }
+  }, [isInitialized]);
 
+  // Then continue with your existing state initializations
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = safeLocalStorage.getItem('currentUser');
+    return saved ? JSON.parse(saved) : null;
+  });
+  
+  // ... rest of your code
+}
 function App() {
   // Existing state
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
