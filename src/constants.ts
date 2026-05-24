@@ -1,4 +1,6 @@
-// constants.ts - Corrected version with proper typing
+// constants.ts - Complete file with proper imports
+
+import { User, Company, Material, Order } from './types';
 
 export const ETHIOPIAN_CITIES = [
   'Addis Ababa', 'Adama', 'Bahir Dar', 'Gondar', 'Hawassa', 
@@ -16,7 +18,7 @@ export const DEPARTMENTS = [
 ];
 
 // Hardcoded Users from your Excel data
-export const sampleUsers = [
+export const sampleUsers: User[] = [
   {
     id: 'user1',
     name: 'Zhiruy Anduamlak',
@@ -340,7 +342,7 @@ export const sampleUsers = [
 ];
 
 // Hardcoded Companies from your Excel data with proper typing
-export const sampleCompanies = [
+export const sampleCompanies: Company[] = [
   {
     id: 'comp1',
     userId: 'user1',
@@ -357,7 +359,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001234',
     vatNumber: 'VAT001234',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp2',
@@ -375,7 +377,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001235',
     vatNumber: 'VAT001235',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp3',
@@ -393,7 +395,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001236',
     vatNumber: 'VAT001236',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp4',
@@ -411,7 +413,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001237',
     vatNumber: 'VAT001237',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp5',
@@ -429,7 +431,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001238',
     vatNumber: 'VAT001238',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp6',
@@ -447,7 +449,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001239',
     vatNumber: 'VAT001239',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp7',
@@ -465,7 +467,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001240',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp8',
@@ -483,7 +485,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001241',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp9',
@@ -501,7 +503,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001242',
     vatNumber: 'VAT001242',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp10',
@@ -519,7 +521,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001243',
     vatNumber: 'VAT001243',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp11',
@@ -537,7 +539,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001244',
     vatNumber: 'VAT001244',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp12',
@@ -555,7 +557,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001245',
     vatNumber: 'VAT001245',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp13',
@@ -573,7 +575,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001246',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp14',
@@ -591,7 +593,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001247',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   },
   {
     id: 'comp15',
@@ -609,7 +611,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001248',
     vatNumber: 'VAT001248',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant' as const
+    complianceStatus: 'compliant'
   }
 ];
 
