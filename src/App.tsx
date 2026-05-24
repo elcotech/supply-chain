@@ -23,6 +23,7 @@ function App() {
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartSummary, setShowCartSummary] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [cartDetails, setCartDetails] = useState<any>(null);
   
   const [formData, setFormData] = useState<FormData>({
@@ -498,6 +499,7 @@ function App() {
       brand: materialBrand || undefined,
       model: materialModel || undefined,
       specifications,
+      images: [],
       taxIncluded: true,
       vatPercentage: 15,
       lastUpdated: new Date().toISOString().split('T')[0]
@@ -527,65 +529,6 @@ function App() {
   const handleDeleteMaterial = (id: string): void => {
     setMaterials(prev => prev.filter(m => m.id !== id));
     showAlert('Product deleted successfully 🗑️', 'success');
-  };
-
-  const handlePlaceOrder = (materialId: string): void => {
-    if (!currentUser) {
-      showAlert('Please login to place an order', 'danger');
-      setCurrentPage('login');
-      return;
-    }
-    if (currentUser.userType !== 'customer') {
-      showAlert('Only customers can place orders', 'danger');
-      return;
-    }
-    const { orderQuantity, orderAddress } = formData;
-    const quantity = parseInt(orderQuantity);
-    const material = getMaterialById(materialId);
-    if (!material) {
-      showAlert('Material not found', 'danger');
-      return;
-    }
-    if (quantity < material.minOrder) {
-      showAlert(`Minimum order quantity is ${material.minOrder}`, 'danger');
-      return;
-    }
-    const company = getCompanyById(material.companyId);
-    if (!company) {
-      showAlert('Supplier not found', 'danger');
-      return;
-    }
-    const transportCost = calculateTransportCost(
-      company.lat, company.lng,
-      currentUser.lat || 9.0320, currentUser.lng || 38.7469,
-      quantity
-    );
-    const subtotal = material.price * quantity;
-    const vatAmount = subtotal * (material.vatPercentage / 100);
-    const totalAmount = subtotal + transportCost + vatAmount;
-    const newOrder: Order = {
-      id: 'order' + (orders.length + 1),
-      customerId: currentUser.id,
-      companyId: company.id,
-      materialId: materialId,
-      quantity,
-      unitPrice: material.price,
-      transportCost,
-      totalAmount,
-      status: 'pending',
-      orderDate: new Date().toISOString().split('T')[0],
-      address: orderAddress || currentUser.address,
-      notes: '',
-      invoiceNumber: `INV-${new Date().getFullYear()}-${orders.length + 1000}`,
-      taxAmount: 0,
-      vatAmount,
-      paymentMethod: 'Bank Transfer',
-      paymentStatus: 'pending'
-    };
-    setOrders(prev => [...prev, newOrder]);
-    showAlert('Order placed successfully! 📦', 'success');
-    setCurrentPage('orders');
-    setFormData(prev => ({ ...prev, orderQuantity: '', orderAddress: '' }));
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: string): void => {
