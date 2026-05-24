@@ -1,4 +1,4 @@
-// constants.ts - Updated with your Excel data
+// constants.ts - Corrected version with proper typing
 
 export const ETHIOPIAN_CITIES = [
   'Addis Ababa', 'Adama', 'Bahir Dar', 'Gondar', 'Hawassa', 
@@ -317,7 +317,6 @@ export const sampleUsers = [
     vatRegistered: true,
     vatNumber: 'VAT001248'
   },
-  // Sample customer users for testing
   {
     id: 'customer1',
     name: 'Test Customer',
@@ -340,7 +339,7 @@ export const sampleUsers = [
   }
 ];
 
-// Hardcoded Companies from your Excel data
+// Hardcoded Companies from your Excel data with proper typing
 export const sampleCompanies = [
   {
     id: 'comp1',
@@ -358,7 +357,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001234',
     vatNumber: 'VAT001234',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp2',
@@ -376,7 +375,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001235',
     vatNumber: 'VAT001235',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp3',
@@ -394,7 +393,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001236',
     vatNumber: 'VAT001236',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp4',
@@ -412,7 +411,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001237',
     vatNumber: 'VAT001237',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp5',
@@ -430,7 +429,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001238',
     vatNumber: 'VAT001238',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp6',
@@ -448,7 +447,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001239',
     vatNumber: 'VAT001239',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp7',
@@ -466,7 +465,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001240',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp8',
@@ -484,7 +483,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001241',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp9',
@@ -502,7 +501,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001242',
     vatNumber: 'VAT001242',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp10',
@@ -520,7 +519,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001243',
     vatNumber: 'VAT001243',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp11',
@@ -538,7 +537,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001244',
     vatNumber: 'VAT001244',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp12',
@@ -556,7 +555,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001245',
     vatNumber: 'VAT001245',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp13',
@@ -574,7 +573,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001246',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp14',
@@ -592,7 +591,7 @@ export const sampleCompanies = [
     businessLicense: 'BL001247',
     vatNumber: '',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   },
   {
     id: 'comp15',
@@ -610,12 +609,12 @@ export const sampleCompanies = [
     businessLicense: 'BL001248',
     vatNumber: 'VAT001248',
     tradeLicenseExpiry: '2025-12-31',
-    complianceStatus: 'compliant'
+    complianceStatus: 'compliant' as const
   }
 ];
 
 // Sample Materials with construction-related products
-export const sampleMaterials = [
+export const sampleMaterials: Material[] = [
   {
     id: 'mat1',
     companyId: 'comp1',
@@ -637,6 +636,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ISO 9001', 'ES 4991:2013']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-01'
@@ -662,6 +662,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ISO 9001']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-05'
@@ -687,6 +688,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ISO 9001']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-03'
@@ -712,6 +714,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ISO 9001', 'ASTM']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-07'
@@ -737,6 +740,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ASTM C33']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-09'
@@ -762,6 +766,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ISO 13006']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-08'
@@ -787,6 +792,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ISO 1452', 'ASTM D1785']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-10'
@@ -812,6 +818,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['Transport License']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-06'
@@ -837,6 +844,7 @@ export const sampleMaterials = [
       origin: 'Ethiopia',
       certification: ['ISO 9001', 'ES 2320:2011']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-04'
@@ -856,12 +864,13 @@ export const sampleMaterials = [
     brand: 'Aser',
     model: 'Excavator-20T',
     specifications: {
-      weight: '20,000kg',
+      weight: '20000kg',
       dimensions: 'Standard',
       grade: 'Premium',
       origin: 'Ethiopia',
       certification: ['ISO 9001', 'CE Certified']
     },
+    images: [],
     taxIncluded: true,
     vatPercentage: 15,
     lastUpdated: '2024-05-02'
