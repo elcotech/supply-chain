@@ -1,4 +1,4 @@
-// utils.ts - Complete file with all required functions
+// utils.ts - Complete file with all required functions including exports
 
 export const safeLocalStorage = {
   getItem: (key: string): string | null => {
@@ -131,4 +131,100 @@ export const debounce = <T extends (...args: any[]) => any>(
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func(...args), delay);
   };
+};
+
+// Export Functions for CSV
+export const exportToCSV = (data: any[], filename: string): void => {
+  if (!data || data.length === 0) {
+    console.warn('No data to export');
+    return;
+  }
+
+  // Get headers from first object
+  const headers = Object.keys(data[0]);
+  
+  // Convert data to CSV format
+  const csvRows = [];
+  
+  // Add headers
+  csvRows.push(headers.join(','));
+  
+  // Add data rows
+  for (const row of data) {
+    const values = headers.map(header => {
+      let value = row[header];
+      // Handle undefined or null values
+      if (value === undefined || value === null) {
+        value = '';
+      }
+      // Handle strings with commas or quotes
+      if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      // Handle objects or arrays
+      if (typeof value === 'object') {
+        value = JSON.stringify(value);
+      }
+      return value;
+    });
+    csvRows.push(values.join(','));
+  }
+  
+  // Create blob and download
+  const csvString = csvRows.join('\n');
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+export const exportCartToCSV = (cart: any[]): void => {
+  if (!cart || cart.length === 0) {
+    console.warn('Cart is empty');
+    return;
+  }
+  
+  const cartData = cart.map(item => ({
+    'Product Name': item.materialName || '',
+    'Supplier': item.supplierName || '',
+    'Quantity': item.quantity || 0,
+    'Unit': item.unit || '',
+    'Unit Price (ETB)': item.price || 0,
+    'Subtotal (ETB)': (item.price || 0) * (item.quantity || 0),
+    'Min Order': item.minOrder || 0,
+    'VAT %': item.vatPercentage || 15
+  }));
+  exportToCSV(cartData, 'cart_export');
+};
+
+export const exportOrdersToCSV = (orders: any[], materials: any[], companies: any[]): void => {
+  if (!orders || orders.length === 0) {
+    console.warn('No orders to export');
+    return;
+  }
+  
+  const ordersData = orders.map(order => {
+    const material = materials.find(m => m.id === order.materialId);
+    const company = companies.find(c => c.id === order.companyId);
+    return {
+      'Order ID': order.id || '',
+      'Product': material?.name || 'Unknown',
+      'Supplier': company?.name || 'Unknown',
+      'Quantity': order.quantity || 0,
+      'Unit Price (ETB)': order.unitPrice || 0,
+      'Transport Cost (ETB)': order.transportCost || 0,
+      'Total Amount (ETB)': order.totalAmount || 0,
+      'Status': order.status || 'pending',
+      'Order Date': order.orderDate || '',
+      'Delivery Date': order.deliveryDate || 'Not delivered',
+      'Payment Status': order.paymentStatus || 'pending'
+    };
+  });
+  exportToCSV(ordersData, 'orders_export');
 };
