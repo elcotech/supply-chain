@@ -1,4 +1,4 @@
-// constants.ts - Corrected with valid specification properties
+// constants.ts - Corrected with no duplicate properties
 
 import { User, Company, Material, Order } from './types';
 
@@ -319,7 +319,7 @@ export const sampleCompanies: Company[] = [
   }
 ];
 
-// Sample Materials from the Excel data - Corrected with valid specification properties
+// Sample Materials from the Excel data - Corrected with no duplicate properties
 export const sampleMaterials: Material[] = [
   // 3MG Trading PLC (comp9) - Row 9
   {
@@ -487,7 +487,7 @@ export const sampleMaterials: Material[] = [
     transportCost: 2,
     rating: 4.2,
     brand: '3MG',
-    specifications: { dimensions: '3/4 inch', materialType: 'Elbow', materialType: 'PPR' },
+    specifications: { dimensions: '3/4 inch', materialType: 'PPR Elbow' },
     images: [],
     taxIncluded: true,
     vatPercentage: 15,
