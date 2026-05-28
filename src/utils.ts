@@ -1,4 +1,4 @@
-// utils.ts - Complete file with all required functions including exports
+// utils.ts - Updated with proper transport cost formula
 
 export const safeLocalStorage = {
   getItem: (key: string): string | null => {
@@ -58,6 +58,62 @@ export const calculateDistance = (
   return R * c;
 };
 
+// New Transport Cost Formula based on GIS Logistics module
+// Ct = Fc + (d * Vc * w)
+// Where:
+// Ct = total transport Cost
+// d = real-world network distance
+// Fc = Fixed loading fees
+// w = material weight/volume factor
+export const calculateTransportCostGIS = (
+  distance: number,
+  weight: number,
+  fixedCost: number = 500 // Default loading/unloading fee in ETB
+): number => {
+  const variableCostPerKm = 35; // Vc = 35 ETB per km per ton
+  const weightInTons = weight / 1000; // Convert kg to tons
+  const transportCost = fixedCost + (distance * variableCostPerKm * weightInTons);
+  return Math.round(transportCost);
+};
+
+// Total Landed Cost Formula
+// TC = [(MP * (1 + PM)) * Q] + [Fc + (d * Vc * w)]
+// Where:
+// TC: Total Landed Cost (The final price paid by the contractor)
+// MP: Base Material Price (Market rate from bulletins/ECWRA)
+// PM: Profit Margin percentage (e.g., 0.15 for 15%)
+// Q: Quantity of material
+// Fc: Fixed Transport Costs (Loading/Unloading)
+// d: Network Distance (from GIS/Google Maps API)
+// Vc: Variable Cost per kilometer
+// w: Material Weight/Volume factor
+export const calculateTotalLandedCost = (
+  basePrice: number,
+  quantity: number,
+  distance: number,
+  weight: number,
+  profitMargin: number = 0.15
+): { materialCost: number; transportCost: number; totalCost: number } => {
+  // Material Cost with profit margin: MP * (1 + PM) * Q
+  const materialCost = basePrice * (1 + profitMargin) * quantity;
+  
+  // Transport Cost: Fc + (d * Vc * w)
+  const fixedCost = 500; // Fc = 500 ETB loading/unloading fee
+  const variableCostPerKm = 35; // Vc = 35 ETB per km per ton
+  const weightInTons = weight / 1000;
+  const transportCost = fixedCost + (distance * variableCostPerKm * weightInTons);
+  
+  // Total Landed Cost
+  const totalCost = materialCost + transportCost;
+  
+  return {
+    materialCost: Math.round(materialCost),
+    transportCost: Math.round(transportCost),
+    totalCost: Math.round(totalCost)
+  };
+};
+
+// Legacy function for backward compatibility
 export const calculateTransportCost = (
   lat1: number,
   lng1: number,
@@ -66,10 +122,7 @@ export const calculateTransportCost = (
   weight: number
 ): number => {
   const distance = calculateDistance(lat1, lng1, lat2, lng2);
-  const baseRate = 15; // ETB per km
-  const weightRate = 2; // ETB per kg per km
-  const cost = (baseRate * distance) + (weightRate * weight * distance);
-  return Math.round(cost);
+  return calculateTransportCostGIS(distance, weight);
 };
 
 export const isUserLocked = (user: any): boolean => {
@@ -133,35 +186,26 @@ export const debounce = <T extends (...args: any[]) => any>(
   };
 };
 
-// Export Functions for CSV
+// Export Functions for CSV and Receipt
 export const exportToCSV = (data: any[], filename: string): void => {
   if (!data || data.length === 0) {
     console.warn('No data to export');
     return;
   }
 
-  // Get headers from first object
   const headers = Object.keys(data[0]);
-  
-  // Convert data to CSV format
   const csvRows = [];
-  
-  // Add headers
   csvRows.push(headers.join(','));
   
-  // Add data rows
   for (const row of data) {
     const values = headers.map(header => {
       let value = row[header];
-      // Handle undefined or null values
       if (value === undefined || value === null) {
         value = '';
       }
-      // Handle strings with commas or quotes
       if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
         return `"${value.replace(/"/g, '""')}"`;
       }
-      // Handle objects or arrays
       if (typeof value === 'object') {
         value = JSON.stringify(value);
       }
@@ -170,7 +214,6 @@ export const exportToCSV = (data: any[], filename: string): void => {
     csvRows.push(values.join(','));
   }
   
-  // Create blob and download
   const csvString = csvRows.join('\n');
   const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -227,4 +270,45 @@ export const exportOrdersToCSV = (orders: any[], materials: any[], companies: an
     };
   });
   exportToCSV(ordersData, 'orders_export');
+};
+
+// New Receipt Export Function
+export const exportReceipt = (orderData: any): void => {
+  const receiptData = [
+    { 'Field': 'E-SCON Receipt', 'Value': '' },
+    { 'Field': 'Ethio-Supply Chain Optimization Network', 'Value': '' },
+    { 'Field': '----------------------------------------', 'Value': '' },
+    { 'Field': 'Invoice Number', 'Value': orderData.invoiceNumber || 'N/A' },
+    { 'Field': 'Date', 'Value': orderData.date || new Date().toLocaleString() },
+    { 'Field': '----------------------------------------', 'Value': '' },
+    { 'Field': 'Supplier', 'Value': orderData.supplierName || 'N/A' },
+    { 'Field': 'Supplier Location', 'Value': orderData.supplierCity || 'N/A' },
+    { 'Field': 'Customer', 'Value': orderData.customerName || 'N/A' },
+    { 'Field': 'Delivery Address', 'Value': orderData.deliveryAddress || 'N/A' },
+    { 'Field': '----------------------------------------', 'Value': '' },
+    { 'Field': 'Distance (km)', 'Value': orderData.distance?.toFixed(2) || '0' },
+    { 'Field': 'Material Weight (kg)', 'Value': orderData.totalWeight?.toFixed(2) || '0' },
+    { 'Field': '----------------------------------------', 'Value': '' },
+    { 'Field': 'Items', 'Value': '' }
+  ];
+  
+  // Add items
+  if (orderData.items && orderData.items.length > 0) {
+    orderData.items.forEach((item: any, index: number) => {
+      receiptData.push({ 'Field': `  ${index + 1}. ${item.name}`, 'Value': `${item.quantity} x ${formatCurrency(item.price)}` });
+      receiptData.push({ 'Field': `     Subtotal`, 'Value': formatCurrency(item.subtotal) });
+    });
+  }
+  
+  receiptData.push({ 'Field': '----------------------------------------', 'Value': '' });
+  receiptData.push({ 'Field': 'Material Cost', 'Value': formatCurrency(orderData.materialCost || 0) });
+  receiptData.push({ 'Field': 'Transport Cost', 'Value': formatCurrency(orderData.transportCost || 0) });
+  receiptData.push({ 'Field': 'VAT (15%)', 'Value': formatCurrency(orderData.vatAmount || 0) });
+  receiptData.push({ 'Field': '----------------------------------------', 'Value': '' });
+  receiptData.push({ 'Field': 'TOTAL LANDED COST', 'Value': formatCurrency(orderData.totalCost || 0) });
+  receiptData.push({ 'Field': '========================================', 'Value': '' });
+  receiptData.push({ 'Field': 'Thank you for choosing E-SCON!', 'Value': '' });
+  receiptData.push({ 'Field': 'Ethio-Supply Chain Optimization Network', 'Value': '' });
+  
+  exportToCSV(receiptData, `receipt_${orderData.invoiceNumber || 'order'}`);
 };
