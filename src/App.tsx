@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem } from './types';
 import {
-  ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
+  ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS, PRODUCT_CATEGORIES,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
 } from './constants';
 import {
   safeLocalStorage, formatCurrency, formatDate,
-  calculateDistance, calculateTransportCost, isUserLocked
+  calculateDistance, calculateTransportCost, isUserLocked,
+  exportToCSV, exportCartToCSV, exportOrdersToCSV
 } from './utils';
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -21,6 +23,7 @@ function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartSummary, setShowCartSummary] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -66,7 +69,18 @@ function App() {
     materialCertifications: '',
   });
 
-  const [currentPage, setCurrentPage] = useState<string>('home');
+  const [currentPage, setCurrentPage] = useState<string>('splash');
+
+  // Splash screen timeout
+  useEffect(() => {
+    if (showSplash) {
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        setCurrentPage('home');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSplash]);
 
   // Reset and initialize data on first load
   useEffect(() => {
@@ -163,6 +177,103 @@ function App() {
       }
       return user;
     }));
+  };
+
+  // Edit Material Functions
+  const handleEditMaterial = (material: Material) => {
+    setEditingMaterial(material);
+    setFormData(prev => ({
+      ...prev,
+      materialName: material.name,
+      materialCategory: material.category,
+      materialPrice: material.price.toString(),
+      materialQuantity: material.quantity.toString(),
+      materialUnit: material.unit,
+      materialMinOrder: material.minOrder.toString(),
+      materialDescription: material.description,
+      materialBrand: material.brand || '',
+      materialModel: material.model || '',
+      materialWeight: material.specifications?.weight || '',
+      materialDimensions: material.specifications?.dimensions || '',
+      materialGrade: material.specifications?.grade || '',
+      materialOrigin: material.specifications?.origin || 'Ethiopia',
+      materialCertifications: material.specifications?.certification?.join(', ') || ''
+    }));
+    setCurrentPage('edit-material');
+  };
+
+  const handleUpdateMaterial = (e: React.FormEvent): void => {
+    e.preventDefault();
+    if (!editingMaterial) return;
+    
+    const updatedMaterial: Material = {
+      ...editingMaterial,
+      name: formData.materialName,
+      category: formData.materialCategory,
+      price: parseFloat(formData.materialPrice),
+      quantity: parseInt(formData.materialQuantity),
+      unit: formData.materialUnit,
+      minOrder: parseInt(formData.materialMinOrder),
+      description: formData.materialDescription,
+      brand: formData.materialBrand || undefined,
+      model: formData.materialModel || undefined,
+      specifications: {
+        ...editingMaterial.specifications,
+        weight: formData.materialWeight || undefined,
+        dimensions: formData.materialDimensions || undefined,
+        grade: formData.materialGrade || undefined,
+        origin: formData.materialOrigin || undefined,
+        certification: formData.materialCertifications.split(',').map(c => c.trim()).filter(c => c)
+      },
+      lastUpdated: new Date().toISOString().split('T')[0]
+    };
+    
+    setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? updatedMaterial : m));
+    showAlert('Product updated successfully! ✏️', 'success');
+    setEditingMaterial(null);
+    setCurrentPage(currentUser?.userType === 'company' ? 'company-dashboard' : 'search-materials');
+    setFormData(prev => ({
+      ...prev,
+      materialName: '',
+      materialCategory: '',
+      materialPrice: '',
+      materialQuantity: '',
+      materialUnit: '',
+      materialMinOrder: '',
+      materialDescription: '',
+      materialBrand: '',
+      materialModel: '',
+      materialWeight: '',
+      materialDimensions: '',
+      materialGrade: '',
+      materialOrigin: 'Ethiopia',
+      materialCertifications: ''
+    }));
+  };
+
+  // Export Functions
+  const handleExportMaterials = () => {
+    exportToCSV(materials, 'materials_export');
+    showAlert('Materials exported successfully! 📊', 'success');
+  };
+
+  const handleExportCart = () => {
+    if (cart.length === 0) {
+      showAlert('Cart is empty. Nothing to export.', 'warning');
+      return;
+    }
+    exportCartToCSV(cart);
+    showAlert('Cart exported successfully! 🛒', 'success');
+  };
+
+  const handleExportOrders = () => {
+    const userOrders = currentUser ? orders.filter(o => o.customerId === currentUser.id) : orders;
+    if (userOrders.length === 0) {
+      showAlert('No orders to export.', 'warning');
+      return;
+    }
+    exportOrdersToCSV(userOrders, materials, companies);
+    showAlert('Orders exported successfully! 📦', 'success');
   };
 
   // Cart Functions
@@ -527,8 +638,10 @@ function App() {
   };
 
   const handleDeleteMaterial = (id: string): void => {
-    setMaterials(prev => prev.filter(m => m.id !== id));
-    showAlert('Product deleted successfully 🗑️', 'success');
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      setMaterials(prev => prev.filter(m => m.id !== id));
+      showAlert('Product deleted successfully 🗑️', 'success');
+    }
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: string): void => {
@@ -661,6 +774,22 @@ function App() {
   };
 
   // ======================= RENDER FUNCTIONS =======================
+  
+  // Splash Screen
+  const renderSplash = () => (
+    <div className="splash-screen">
+      <div className="splash-content">
+        <div className="splash-logo">🏗️</div>
+        <h1 className="splash-title">E-SCON</h1>
+        <p className="splash-subtitle">Ethio-Supply Chain Optimization Network</p>
+        <div className="splash-loader">
+          <div className="loader-bar"></div>
+        </div>
+        <p className="splash-loading">Loading platform...</p>
+      </div>
+    </div>
+  );
+
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
     <div className="table-responsive-wrapper">
       <div className="table-scroll-container" style={{ minWidth }}>
@@ -669,27 +798,39 @@ function App() {
     </div>
   );
 
-  const renderHeader = () => (
-    <header className="header">
-      <div className="header-content">
-        <div className="logo" onClick={() => navigateTo('home')}>
-          <div className="logo-icon">🚚</div>
-          <div className="logo-text">
-            <h1>EthioSupply AI</h1>
-            <p>Smart Logistics • Ethiopian Market</p>
+  const renderHeader = () => {
+    if (currentPage === 'splash') return null;
+    return (
+      <header className="header">
+        <div className="header-content">
+          <div className="logo" onClick={() => navigateTo('home')}>
+            <div className="logo-icon">🏗️</div>
+            <div className="logo-text">
+              <h1>E-SCON</h1>
+              <p>Ethio-Supply Chain Optimization Network</p>
+            </div>
+          </div>
+          <div className="nav-links">
+            {currentUser ? renderUserNav() : renderGuestNav()}
+            {currentUser && currentUser.userType === 'customer' && (
+              <button className="cart-icon-btn" onClick={() => setShowCartSummary(true)}>
+                🛒 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
+              </button>
+            )}
+            {currentUser && (
+              <button className="export-btn" onClick={() => {
+                if (currentPage === 'search-materials') handleExportMaterials();
+                else if (currentPage === 'orders') handleExportOrders();
+                else if (showCartSummary) handleExportCart();
+              }}>
+                📥 Export
+              </button>
+            )}
           </div>
         </div>
-        <div className="nav-links">
-          {currentUser ? renderUserNav() : renderGuestNav()}
-          {currentUser && currentUser.userType === 'customer' && (
-            <button className="cart-icon-btn" onClick={() => setShowCartSummary(true)}>
-              🛒 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
-            </button>
-          )}
-        </div>
-      </div>
-    </header>
-  );
+      </header>
+    );
+  };
 
   const renderGuestNav = () => (
     <>
@@ -758,6 +899,7 @@ function App() {
               </div>
             ) : (
               <>
+                <button className="btn-export-cart" onClick={handleExportCart}>📥 Export Cart to CSV</button>
                 <div className="cart-supplier-info">
                   <h3>🏢 Supplier: {totals.supplierName}</h3>
                   <p>📍 Location: {totals.supplierCity}</p>
@@ -832,8 +974,8 @@ function App() {
       <main className="main-content">
         <section className="home-hero">
           <div className="hero-badge">🇪🇹 Ethiopian Supply Chain Platform</div>
-          <h1>AI-Driven Supply Chain for Ethiopia</h1>
-          <p>Connecting businesses across all departments and cities</p>
+          <h1>E-SCON</h1>
+          <p>Ethio-Supply Chain Optimization Network</p>
           <div className="search-center">
             <form onSubmit={(e) => { e.preventDefault(); navigateTo('search-materials'); }}>
               <div className="search-center-input">
@@ -872,28 +1014,6 @@ function App() {
           <div className="feature-card"><div className="feature-icon">🗺️</div><h3>GIS Supplier Mapping</h3><p>Interactive map with transport cost calculations</p></div>
           <div className="feature-card"><div className="feature-icon">🚚</div><h3>Logistics Optimization</h3><p>Smart routing and cost minimization</p></div>
           <div className="feature-card"><div className="feature-icon">📋</div><h3>Business Compliance</h3><p>Full TIN and VAT registration support</p></div>
-        </div>
-        <h2 className="section-title">🏭 Departments Served</h2>
-        <div className="departments-grid">
-          {DEPARTMENTS.slice(0, 8).map((dept, idx) => (
-            <div className="department-badge" key={idx}>{dept === 'Agriculture' ? '🌾' : dept === 'Construction' ? '🏗️' : dept === 'Healthcare' ? '🏥' : dept === 'Manufacturing' ? '🏭' : dept === 'Information Technology' ? '💻' : dept === 'Transportation' ? '🚛' : dept === 'Energy' ? '⚡' : dept === 'Education' ? '📚' : '📌'} {dept}</div>
-          ))}
-        </div>
-        <h2 className="section-title">⭐ Popular Products</h2>
-        <div className="materials-grid">
-          {materials.slice(0, 4).map(material => {
-            const company = getCompanyById(material.companyId);
-            return (
-              <div className="material-card" key={material.id} onClick={() => setSelectedMaterial(material)}>
-                <div className="material-header"><h3 className="material-title">{material.name}</h3><span className="material-category">{material.category}</span></div>
-                <div className="material-body">
-                  <p className="material-description">{material.description.substring(0, 80)}...</p>
-                  <div className="material-price">{formatCurrency(material.price)} <span className="price-unit">/{material.unit}</span></div>
-                  <div className="material-footer"><span className="supplier-name">🏢 {company?.name}</span><span className="material-rating">⭐ {material.rating || '4.5'}</span></div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </main>
     );
@@ -980,15 +1100,17 @@ function App() {
           <div className="dashboard-card"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
-        <div className="card"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button></div>
-        <ScrollableTable minWidth="700px">
+        <div className="card"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export Products</button></div>
+        <ScrollableTable minWidth="900px">
           <table className="data-table">
             <thead>
               <tr>
                 <th className="sticky-col">Product</th>
                 <th>Category</th>
                 <th>Price</th>
+                <th>Unit</th>
                 <th>Stock</th>
+                <th>Rating</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -998,9 +1120,12 @@ function App() {
                   <td className="sticky-col"><strong>{material.name}</strong>{material.brand && <small>{material.brand}</small>}</td>
                   <td>{material.category}</td>
                   <td className="price-cell">{formatCurrency(material.price)}</td>
+                  <td>{material.unit}</td>
                   <td>{material.quantity} {material.unit}</td>
+                  <td>⭐ {material.rating || 'N/A'}</td>
                   <td>
                     <button className="btn-icon" onClick={() => setSelectedMaterial(material)}>👁️</button>
+                    <button className="btn-icon edit" onClick={() => handleEditMaterial(material)}>✏️</button>
                     <button className="btn-icon danger" onClick={() => handleDeleteMaterial(material.id)}>🗑️</button>
                   </td>
                 </tr>
@@ -1026,13 +1151,14 @@ function App() {
           <div className="dashboard-card"><div className="card-icon">✅</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
-        <div className="card"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button></div>
-        <ScrollableTable minWidth="700px">
+        <div className="card"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export Orders</button></div>
+        <ScrollableTable minWidth="800px">
           <table className="data-table">
             <thead>
               <tr>
                 <th className="sticky-col">Order ID</th>
                 <th>Product</th>
+                <th>Quantity</th>
                 <th>Amount</th>
                 <th>Status</th>
                 <th>Date</th>
@@ -1045,6 +1171,7 @@ function App() {
                   <tr key={order.id}>
                     <td className="sticky-col">{order.id}</td>
                     <td>{material?.name}</td>
+                    <td>{order.quantity}</td>
                     <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
                     <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
                     <td>{formatDate(order.orderDate)}</td>
@@ -1076,6 +1203,23 @@ function App() {
     </main>
   );
 
+  const renderEditMaterial = () => (
+    <main className="main-content">
+      <div className="form-container"><h2 className="form-title">✏️ Edit Product</h2>
+      <form onSubmit={handleUpdateMaterial}>
+        <div className="form-group"><label className="form-label">📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
+        <div className="form-group"><label className="form-label">📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">💰 Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div>
+        <div className="form-group"><label className="form-label">📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
+        <div className="form-row"><div className="form-group"><label className="form-label">📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div>
+        <div className="form-group"><label className="form-label">🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
+        <div className="form-group"><label className="form-label">📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        <div className="form-actions"><button type="submit" className="btn-submit">✅ Update Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
+      </form></div>
+    </main>
+  );
+
   const renderSearchMaterials = () => {
     const displayMaterials = searchResults.length > 0 ? searchResults : materials;
     return (
@@ -1089,11 +1233,11 @@ function App() {
           <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}><option value="price_asc">Price: Low to High</option><option value="price_desc">Price: High to Low</option><option value="rating_desc">Highest Rated</option></select>
           <button type="button" className="filter-clear" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Clear</button></div>
         </form></div>
-        <div className="search-results"><div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 Available Products'}</h2></div>
+        <div className="search-results"><div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 Available Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export Products</button></div>
         {displayMaterials.length === 0 ? (
           <div className="no-results"><span className="no-results-icon">🔍</span><h3>No products found</h3><button className="btn btn-primary" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Show All Products</button></div>
         ) : (
-          <ScrollableTable minWidth="1100px">
+          <ScrollableTable minWidth="1200px">
             <table className="data-table">
               <thead>
                 <tr>
@@ -1132,7 +1276,7 @@ function App() {
                           isInCart ? (
                             <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
                           ) : (
-                            <button className="btn-icon" onClick={() => {
+                            <button className="btn-icon add-to-cart" onClick={() => {
                               const quantity = prompt(`Enter quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
                               if (quantity && !isNaN(parseInt(quantity))) {
                                 if (!canAddToCart && currentSupplierInCart) {
@@ -1165,18 +1309,20 @@ function App() {
     const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span></div></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export Orders</button></div></div>
         {userOrders.length === 0 ? (
           <div className="no-orders"><span className="no-orders-icon">📦</span><h3>No orders yet</h3>{!isCompany && <button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Browse Products</button>}</div>
         ) : (
-          <ScrollableTable minWidth="800px">
+          <ScrollableTable minWidth="900px">
             <table className="data-table">
               <thead>
                 <tr>
                   <th className="sticky-col">Order ID</th>
                   <th>Product</th>
                   <th>Quantity</th>
-                  <th>Amount</th>
+                  <th>Unit Price</th>
+                  <th>Transport</th>
+                  <th>Total Amount</th>
                   <th>Status</th>
                   <th>Date</th>
                   {isCompany && <th>Actions</th>}
@@ -1190,6 +1336,8 @@ function App() {
                       <td className="sticky-col">{order.id}</td>
                       <td>{material?.name}</td>
                       <td>{order.quantity}</td>
+                      <td className="price-cell">{formatCurrency(order.unitPrice)}</td>
+                      <td className="price-cell">{formatCurrency(order.transportCost)}</td>
                       <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
                       <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
                       <td>{formatDate(order.orderDate)}</td>
@@ -1212,7 +1360,7 @@ function App() {
       <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🗺️</span><h1>Supplier Map</h1></div><p>Find suppliers across all Ethiopian cities</p></div>
       <div className="map-container"><div className="map-placeholder"><span className="map-icon">🗺️</span><h3>GIS Supplier Location Map</h3><p>Interactive map showing supplier locations across Ethiopia</p><div className="city-list">{ETHIOPIAN_CITIES.slice(0,8).map(city => <span key={city} className="city-tag">📍 {city}</span>)}<span className="city-tag">➕ More cities available</span></div></div></div>
       <div className="card"><div className="card-header"><h3>🏢 Suppliers Directory</h3><span className="badge">{companies.length} Verified Suppliers</span></div>
-      <ScrollableTable minWidth="700px">
+      <ScrollableTable minWidth="800px">
         <table className="data-table">
           <thead>
             <tr>
@@ -1292,19 +1440,23 @@ function App() {
     );
   };
 
-  const renderFooter = () => (
-    <footer className="footer">
-      <div className="footer-content">
-        <div className="footer-section"><h3>🚚 EthioSupply AI</h3><p>AI-driven supply chain platform optimizing logistics across Ethiopia</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
-        <div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>🏠 Home</button><button onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button onClick={() => navigateTo('supplier-map')}>🗺️ Supplier Map</button>{!currentUser && <button onClick={() => navigateTo('register')}>📝 Register</button>}</div>
-        <div className="footer-section"><h3>🏙️ Major Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(city => <span key={city}>📍 {city}</span>)}</div></div>
-        <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p><p>🏛️ Ethiopian Revenue & Customs</p></div>
-      </div>
-      <div className="copyright"><p>© 2024 EthioSupply AI | Master's Program Project | Compliant with Ethiopian Commercial Code</p></div>
-    </footer>
-  );
+  const renderFooter = () => {
+    if (currentPage === 'splash') return null;
+    return (
+      <footer className="footer">
+        <div className="footer-content">
+          <div className="footer-section"><h3>🏗️ E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>AI-driven supply chain platform optimizing logistics across Ethiopia</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
+          <div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>🏠 Home</button><button onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button onClick={() => navigateTo('supplier-map')}>🗺️ Supplier Map</button>{!currentUser && <button onClick={() => navigateTo('register')}>📝 Register</button>}</div>
+          <div className="footer-section"><h3>🏙️ Major Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(city => <span key={city}>📍 {city}</span>)}</div></div>
+          <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p><p>🏛️ Ethiopian Revenue & Customs</p></div>
+        </div>
+        <div className="copyright"><p>© 2024 E-SCON | Ethio-Supply Chain Optimization Network | Master's Program Project</p></div>
+      </footer>
+    );
+  };
 
   const renderCurrentPage = () => {
+    if (showSplash) return renderSplash();
     switch (currentPage) {
       case 'home': return renderHome();
       case 'login': return renderLogin();
@@ -1312,6 +1464,7 @@ function App() {
       case 'company-dashboard': return renderCompanyDashboard();
       case 'customer-dashboard': return renderCustomerDashboard();
       case 'add-material': return renderAddMaterial();
+      case 'edit-material': return renderEditMaterial();
       case 'search-materials': return renderSearchMaterials();
       case 'orders': return renderOrders();
       case 'supplier-map': return renderSupplierMap();
