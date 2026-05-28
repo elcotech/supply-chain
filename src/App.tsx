@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem } from './types';
 import {
-  ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS, PRODUCT_CATEGORIES,
+  ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
 } from './constants';
 import {
