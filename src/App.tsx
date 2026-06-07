@@ -1,5 +1,4 @@
-// src/App.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
 import {
