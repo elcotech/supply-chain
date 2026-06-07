@@ -12,7 +12,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Custom supplier icon
 const supplierIcon = L.divIcon({
   className: 'supplier-marker',
   html: '🏗️',
@@ -20,7 +19,6 @@ const supplierIcon = L.divIcon({
   popupAnchor: [0, -15]
 });
 
-// Custom user icon
 const userIcon = L.divIcon({
   className: 'user-marker',
   html: '📍',
@@ -61,7 +59,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       maxZoom: 19
     }).addTo(leafletMap.current);
 
-    const bounds: L.LatLngExpression[] = [];
+    const latLngs: L.LatLngExpression[] = [];
 
     // Add markers for each company
     companies.forEach(company => {
@@ -89,7 +87,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
           setCompanyMaterials(mats);
           
           if (currentUser && currentUser.lat && currentUser.lng) {
-            // Calculate distance
             const R = 6371;
             const dLat = (company.lat - currentUser.lat) * Math.PI / 180;
             const dLon = (company.lng - currentUser.lng) * Math.PI / 180;
@@ -102,7 +99,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           }
         });
         
-        bounds.push([company.lat, company.lng]);
+        latLngs.push([company.lat, company.lng]);
       }
     });
 
@@ -114,11 +111,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         ${currentUser.address}<br/>
         ${currentUser.city}
       `);
-      bounds.push([currentUser.lat, currentUser.lng]);
+      latLngs.push([currentUser.lat, currentUser.lng]);
     }
 
-    // Fit bounds to show all markers
-    if (bounds.length > 0) {
+    // Fit bounds to show all markers (fix: use L.latLngBounds)
+    if (latLngs.length > 0) {
+      const bounds = L.latLngBounds(latLngs);
       leafletMap.current.fitBounds(bounds);
     }
     
