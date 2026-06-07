@@ -44,9 +44,9 @@ export interface Material {
   companyId: string;
   name: string;
   category: string;
-  basePrice: number;       // MP
-  profitMargin: number;    // PM (e.g., 0.15)
-  price: number;           // selling price = MP*(1+PM)
+  basePrice: number;
+  profitMargin: number;
+  price: number;
   quantity: number;
   unit: string;
   minOrder: number;
@@ -61,7 +61,7 @@ export interface Material {
     grade?: string;
     origin?: string;
     certification?: string[];
-    weightPerUnit?: number; // tons per unit
+    weightPerUnit?: number;
   };
   images: string[];
   taxIncluded: boolean;
@@ -157,4 +157,19 @@ export interface CartItem {
   basePrice: number;
   profitMargin: number;
   weightPerUnit: number;
+}
+
+export interface CartReport {
+  items: CartItem[];
+  subtotal: number;
+  vatAmount: number;
+  transportCost: number;
+  total: number;
+  distanceKm: number;
+  supplierName: string;
+  supplierCity: string;
+  itemCount: number;
+  uniqueItems: number;
+  currency: string;
+  reportDate: string;
 }
