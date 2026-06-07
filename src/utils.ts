@@ -176,6 +176,7 @@ export const printCartReport = (reportData: any) => {
   printWindow.document.close();
 };
 
+// Fixed: exportCartToCSV now accepts two arguments (cart and totals)
 export const exportCartToCSV = (cart: any[], totals: any) => {
   const exportData = cart.map(item => ({
     'Material': item.materialName,
