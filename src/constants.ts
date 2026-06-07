@@ -49,21 +49,7 @@ export const sampleCompanies: Company[] = [
 ];
 
 // ---------- MATERIALS (from Excel price data) ----------
-// Helper to assign weight per unit (tons)
-const getWeightPerUnit = (category: string, unit: string): number => {
-  if (unit === 'ton') return 1;
-  if (unit === 'quintal') return 0.1;
-  if (category === 'Cement') return 0.05;
-  if (category === 'Reinforcement Bar') return 0.001;
-  if (unit === 'kg') return 0.001;
-  if (unit === 'm3') return 1.5;
-  if (unit === 'gallon') return 0.004;
-  if (unit === 'piece' || unit === 'pc') return 0.001;
-  return 0.001;
-};
-
-// We create materials based on the Excel rows. For brevity, we include a representative sample.
-// Full data can be added following the same pattern.
+// Each material includes a weightPerUnit (tons per unit) for accurate transport cost calculation.
 export const sampleMaterials: Material[] = [
   // Zarecom (comp1)
   { id: "mat1", companyId: "comp1", name: "OPC Dangote Cement", category: "Cement", basePrice: 1500, profitMargin: 0.15, price: 1725, quantity: 1000, unit: "quintal", minOrder: 10, description: "Dangote cement", transportCost: 15, rating: 4.5, brand: "Dangote", specifications: { weight: "50kg/bag", origin: "Ethiopia", weightPerUnit: 0.05 }, images: [], taxIncluded: true, vatPercentage: 15, lastUpdated: "2026-05-09" },
@@ -81,7 +67,7 @@ export const sampleMaterials: Material[] = [
   // Additional materials from other companies (comp6 - 3MG Trading)
   { id: "mat13", companyId: "comp6", name: "GS Pipe 3/4", category: "GS Pipe", basePrice: 5200, profitMargin: 0.15, price: 5980, quantity: 500, unit: "piece", minOrder: 10, description: "Galvanized steel pipe", transportCost: 15, rating: 4.2, specifications: { weightPerUnit: 0.002 }, images: [], taxIncluded: true, vatPercentage: 15, lastUpdated: "2026-05-09" },
   { id: "mat14", companyId: "comp6", name: "GS Get Valve 1\"", category: "Valves", basePrice: 2800, profitMargin: 0.15, price: 3220, quantity: 300, unit: "piece", minOrder: 5, description: "Gate valve", transportCost: 15, rating: 4.1, specifications: { weightPerUnit: 0.001 }, images: [], taxIncluded: true, vatPercentage: 15, lastUpdated: "2026-05-09" },
-  // Add more as needed – full data can be extended.
+  // You can add more materials from the Excel file following the same pattern.
 ];
 
 export const sampleOrders: Order[] = [];
