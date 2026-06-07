@@ -1,24 +1,23 @@
-// types.ts - Complete file with proper CartItem interface
-
+// src/types.ts
 export interface User {
   id: string;
   name: string;
   email: string;
   password: string;
-  userType: string;
-  companyName?: string;
   phone: string;
   address: string;
   city: string;
-  lat?: number;
-  lng?: number;
+  userType: 'customer' | 'company';
+  companyName?: string;
+  lat: number;
+  lng: number;
   registered: string;
   loginAttempts: number;
-  lockUntil?: number;
-  tinNumber?: string;
-  businessLicense?: string;
+  lockUntil: number;
+  tinNumber: string;
+  businessLicense: string;
   vatRegistered: boolean;
-  vatNumber?: string;
+  vatNumber: string;
 }
 
 export interface Company {
@@ -35,9 +34,9 @@ export interface Company {
   established: string;
   tinNumber: string;
   businessLicense: string;
-  vatNumber?: string;
+  vatNumber: string;
   tradeLicenseExpiry: string;
-  complianceStatus: 'compliant' | 'pending' | 'suspended';
+  complianceStatus: 'compliant' | 'pending' | 'non-compliant';
 }
 
 export interface Material {
@@ -45,28 +44,26 @@ export interface Material {
   companyId: string;
   name: string;
   category: string;
-  description: string;
-  price: number;
-  unit: string;
+  basePrice: number;       // MP
+  profitMargin: number;    // PM (e.g., 0.15)
+  price: number;           // selling price = MP*(1+PM)
   quantity: number;
+  unit: string;
   minOrder: number;
-  transportCost?: number;
-  rating?: number;
+  description: string;
+  transportCost: number;
+  rating: number;
   brand?: string;
   model?: string;
-  specifications: {
+  specifications?: {
     weight?: string;
     dimensions?: string;
-    materialType?: string;
-    color?: string;
     grade?: string;
-    certification?: string[];
     origin?: string;
-    shelfLife?: string;
-    packaging?: string;
-    safetyStandards?: string[];
+    certification?: string[];
+    weightPerUnit?: number; // tons per unit
   };
-  images?: string[];
+  images: string[];
   taxIncluded: boolean;
   vatPercentage: number;
   lastUpdated: string;
@@ -81,21 +78,21 @@ export interface Order {
   unitPrice: number;
   transportCost: number;
   totalAmount: number;
-  status: string;
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
   orderDate: string;
   deliveryDate?: string;
   address: string;
   notes?: string;
-  invoiceNumber?: string;
+  invoiceNumber: string;
   taxAmount: number;
   vatAmount: number;
   paymentMethod: string;
-  paymentStatus: string;
+  paymentStatus: 'pending' | 'paid' | 'failed';
 }
 
 export interface Alert {
   message: string;
-  type: string;
+  type: 'success' | 'danger' | 'warning' | 'info';
 }
 
 export interface FormData {
@@ -126,7 +123,7 @@ export interface FormData {
   searchMaxPrice: string;
   searchSupplier: string;
   searchCity: string;
-  searchSortBy: 'price_asc' | 'price_desc' | 'distance_asc' | 'distance_desc' | 'rating_desc' | 'newest';
+  searchSortBy: string;
   orderQuantity: string;
   orderAddress: string;
   materialBrand: string;
@@ -138,7 +135,6 @@ export interface FormData {
   materialCertifications: string;
 }
 
-// Extended type for search results (includes computed fields)
 export interface SearchResult extends Material {
   company?: Company;
   totalCost?: number;
@@ -146,7 +142,6 @@ export interface SearchResult extends Material {
   distance?: number;
 }
 
-// CartItem interface for the shopping cart system
 export interface CartItem {
   id: string;
   materialId: string;
@@ -158,16 +153,8 @@ export interface CartItem {
   unit: string;
   minOrder: number;
   vatPercentage: number;
-  specifications?: {
-    weight?: string;
-    dimensions?: string;
-    grade?: string;
-    origin?: string;
-    certification?: string[];
-    materialType?: string;
-    color?: string;
-    shelfLife?: string;
-    packaging?: string;
-    safetyStandards?: string[];
-  };
+  specifications?: Material['specifications'];
+  basePrice: number;
+  profitMargin: number;
+  weightPerUnit: number;
 }
