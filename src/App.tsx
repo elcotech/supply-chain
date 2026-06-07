@@ -96,14 +96,12 @@ function App() {
     const savedCurrentUser = safeLocalStorage.getItem('currentUser');
     
     if (savedUsers && savedCompanies && savedMaterials && savedOrders) {
-      // Use saved data
       setUsers(JSON.parse(savedUsers));
       setCompanies(JSON.parse(savedCompanies));
       setMaterials(JSON.parse(savedMaterials));
       setOrders(JSON.parse(savedOrders));
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
     } else {
-      // Use sample data
       setUsers(sampleUsers);
       setCompanies(sampleCompanies);
       setMaterials(sampleMaterials);
@@ -118,44 +116,27 @@ function App() {
 
   // Save data whenever it changes
   useEffect(() => {
-    if (isInitialized && users.length > 0) {
-      safeLocalStorage.setItem('users', JSON.stringify(users));
-    }
+    if (isInitialized && users.length > 0) safeLocalStorage.setItem('users', JSON.stringify(users));
   }, [users, isInitialized]);
-  
   useEffect(() => {
-    if (isInitialized && companies.length > 0) {
-      safeLocalStorage.setItem('companies', JSON.stringify(companies));
-    }
+    if (isInitialized && companies.length > 0) safeLocalStorage.setItem('companies', JSON.stringify(companies));
   }, [companies, isInitialized]);
-  
   useEffect(() => {
-    if (isInitialized && materials.length > 0) {
-      safeLocalStorage.setItem('materials', JSON.stringify(materials));
-    }
+    if (isInitialized && materials.length > 0) safeLocalStorage.setItem('materials', JSON.stringify(materials));
   }, [materials, isInitialized]);
-  
   useEffect(() => {
-    if (isInitialized) {
-      safeLocalStorage.setItem('orders', JSON.stringify(orders));
-    }
+    if (isInitialized) safeLocalStorage.setItem('orders', JSON.stringify(orders));
   }, [orders, isInitialized]);
-
   useEffect(() => {
-    if (currentUser && isInitialized) {
-      safeLocalStorage.setItem('currentUser', JSON.stringify(currentUser));
-    } else if (!currentUser) {
-      safeLocalStorage.removeItem('currentUser');
-    }
+    if (currentUser && isInitialized) safeLocalStorage.setItem('currentUser', JSON.stringify(currentUser));
+    else if (!currentUser) safeLocalStorage.removeItem('currentUser');
   }, [currentUser, isInitialized]);
 
   // Load cart from localStorage
   useEffect(() => {
     if (currentUser && isInitialized) {
       const savedCart = safeLocalStorage.getItem(`cart_${currentUser.id}`);
-      if (savedCart) {
-        setCart(JSON.parse(savedCart));
-      }
+      if (savedCart) setCart(JSON.parse(savedCart));
     }
   }, [currentUser, isInitialized]);
 
@@ -642,8 +623,21 @@ function App() {
                   <button className="btn-secondary" onClick={handlePrintCart}>🖨️ Print Report</button>
                 </div>
                 <div className="cart-supplier-info"><h3>🏢 Supplier: {cartDetails.supplierName}</h3><p>📍 {cartDetails.supplierCity} • 📦 Distance: {cartDetails.distanceKm.toFixed(1)} km</p></div>
-                <div className="cart-items">{cart.map(item => (<div key={item.id} className="cart-item"><div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div><div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={item.minOrder} step={item.minOrder} /><span>{item.unit}</span></div><div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div><button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button></div>))}</div>
-                <div className="cart-summary"><h3>Financial Summary</h3><div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div><div className="summary-row"><span>VAT (15%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div><div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div><div className="summary-row total"><span>Total Amount:</span><span>{formatCurrency(cartDetails.total)}</span></div></div>
+                <div className="cart-items">{cart.map(item => (
+                  <div key={item.id} className="cart-item">
+                    <div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div>
+                    <div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={item.minOrder} step={item.minOrder} /><span>{item.unit}</span></div>
+                    <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
+                    <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
+                  </div>
+                ))}</div>
+                <div className="cart-summary">
+                  <h3>Financial Summary</h3>
+                  <div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
+                  <div className="summary-row"><span>VAT (15%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
+                  <div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
+                  <div className="summary-row total"><span>Total Amount:</span><span>{formatCurrency(cartDetails.total)}</span></div>
+                </div>
                 <div className="cart-actions"><button className="btn-secondary" onClick={clearCart}>Clear Cart</button><button className="btn-primary" onClick={confirmOrder} disabled={isCalculating}>{isCalculating ? 'Calculating...' : 'Confirm Order ✅'}</button></div>
               </>
             )}
@@ -818,7 +812,7 @@ function App() {
         <button type="button" className="filter-clear" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Clear</button></div></form></div>
         <div className="search-results"><div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
         {displayMaterials.length === 0 ? <div className="no-results">No products found</div> : (
-          <ScrollableTable minWidth="1200px"><table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => { const company = getCompanyById(item.companyId); const isInCart = cart.some(c => c.materialId === item.id); const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null; const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId; return (<tr key={item.id}><td><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button><button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>{currentUser?.userType === 'customer' && (isInCart ? <button className="btn-icon success" onClick={handleCheckout}>🛒</button> : <button className="btn-icon add-to-cart" onClick={() => { const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString()); if (qty && !isNaN(parseInt(qty))) { if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); } } else { addToCart(item, parseInt(qty)); } } }}>➕</button>)}</button>)}</td></tr>); })}</tbody></table></ScrollableTable>
+          <ScrollableTable minWidth="1200px"><table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => { const company = getCompanyById(item.companyId); const isInCart = cart.some(c => c.materialId === item.id); const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null; const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId; return (<tr key={item.id}><td><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button><button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>{currentUser?.userType === 'customer' && (isInCart ? <button className="btn-icon success" onClick={handleCheckout}>🛒</button> : <button className="btn-icon add-to-cart" onClick={() => { const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString()); if (qty && !isNaN(parseInt(qty))) { if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); } } else { addToCart(item, parseInt(qty)); } } }}>➕</button>)}</button></td></tr>); })}</tbody></table></ScrollableTable>
         )}</div>
       </main>
     );
@@ -832,7 +826,7 @@ function App() {
       <main className="main-content">
         <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div></div>
         {userOrders.length === 0 ? <div className="no-orders">No orders yet</div> : (
-          <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const m = getMaterialById(order.materialId); return (<tr key={order.id}><td>{order.id}</td><td>{m?.name}</td><td>{order.quantity}<td><td className="price-cell">{formatCurrency(order.unitPrice)}</td><td className="price-cell">{formatCurrency(order.transportCost)}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && (<td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button>)}</td></tr>); })}</tbody></table></ScrollableTable>
+          <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const m = getMaterialById(order.materialId); return (<tr key={order.id}><td>{order.id}</td><td>{m?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.unitPrice)}</td><td className="price-cell">{formatCurrency(order.transportCost)}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && (<td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>)}</tr>); })}</tbody></table></ScrollableTable>
         )}
       </main>
     );
@@ -846,7 +840,6 @@ function App() {
         currentUser={currentUser} 
         onClose={() => setShowSupplierMap(false)}
         onSelectSupplier={(company) => {
-          // Optional: navigate to supplier products
           console.log('Selected supplier:', company);
         }}
       />
@@ -863,8 +856,16 @@ function App() {
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
           <div className="modal-header"><h2>{selectedMaterial.name}</h2><button className="modal-close" onClick={() => setSelectedMaterial(null)}>✕</button></div>
-          <div className="modal-body"><div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div><div><h3>💰 Pricing</h3><p>Unit: {formatCurrency(selectedMaterial.price)} / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity}</p></div><div><h3>🏢 Supplier</h3><p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p></div>
-          {currentUser?.userType === 'customer' && (<div><h3>Add to Cart</h3>{!canAddToCart && <div className="alert alert-warning">⚠️ Cart has items from another supplier.</div>}<input type="number" className="form-input" id="cartQuantity" defaultValue={selectedMaterial.minOrder} /><button className="btn btn-primary" onClick={() => { const qty = parseInt((document.getElementById('cartQuantity') as HTMLInputElement).value); if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add ${selectedMaterial.name}?`)) { clearCart(); addToCart(selectedMaterial, qty); setSelectedMaterial(null); } } else { addToCart(selectedMaterial, qty); setSelectedMaterial(null); } }}>{isInCart ? '🔄 Update' : '➕ Add'}</button></div>)}</div>
+          <div className="modal-body">
+            <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
+            <div><h3>💰 Pricing</h3><p>Unit: {formatCurrency(selectedMaterial.price)} / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity}</p></div>
+            <div><h3>🏢 Supplier</h3><p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p></div>
+            {currentUser?.userType === 'customer' && (
+              <div><h3>Add to Cart</h3>{!canAddToCart && <div className="alert alert-warning">⚠️ Cart has items from another supplier.</div>}
+              <input type="number" className="form-input" id="cartQuantity" defaultValue={selectedMaterial.minOrder} />
+              <button className="btn btn-primary" onClick={() => { const qty = parseInt((document.getElementById('cartQuantity') as HTMLInputElement).value); if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add ${selectedMaterial.name}?`)) { clearCart(); addToCart(selectedMaterial, qty); setSelectedMaterial(null); } } else { addToCart(selectedMaterial, qty); setSelectedMaterial(null); } }}>{isInCart ? '🔄 Update' : '➕ Add'}</button></div>
+            )}
+          </div>
         </div>
       </div>
     );
