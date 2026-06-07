@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
@@ -11,7 +12,7 @@ import {
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV
 } from './utils';
 
-// Leaflet imports (will be loaded dynamically to avoid SSR issues)
+// Lazy load map component
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
 function App() {
@@ -86,37 +87,67 @@ function App() {
     }
   }, [showSplash]);
 
-  // Reset and initialize data on first load
+  // Load data from localStorage on mount
   useEffect(() => {
-    if (!isInitialized) {
-      localStorage.clear();
-      sessionStorage.clear();
-      
+    const savedUsers = safeLocalStorage.getItem('users');
+    const savedCompanies = safeLocalStorage.getItem('companies');
+    const savedMaterials = safeLocalStorage.getItem('materials');
+    const savedOrders = safeLocalStorage.getItem('orders');
+    const savedCurrentUser = safeLocalStorage.getItem('currentUser');
+    
+    if (savedUsers && savedCompanies && savedMaterials && savedOrders) {
+      // Use saved data
+      setUsers(JSON.parse(savedUsers));
+      setCompanies(JSON.parse(savedCompanies));
+      setMaterials(JSON.parse(savedMaterials));
+      setOrders(JSON.parse(savedOrders));
+      if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
+    } else {
+      // Use sample data
       setUsers(sampleUsers);
       setCompanies(sampleCompanies);
       setMaterials(sampleMaterials);
       setOrders(sampleOrders);
-      
       safeLocalStorage.setItem('users', JSON.stringify(sampleUsers));
       safeLocalStorage.setItem('companies', JSON.stringify(sampleCompanies));
       safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
       safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders));
-      
-      setIsInitialized(true);
-    } else {
-      const savedUsers = safeLocalStorage.getItem('users');
-      const savedCompanies = safeLocalStorage.getItem('companies');
-      const savedMaterials = safeLocalStorage.getItem('materials');
-      const savedOrders = safeLocalStorage.getItem('orders');
-      const savedCurrentUser = safeLocalStorage.getItem('currentUser');
-      
-      if (savedUsers) setUsers(JSON.parse(savedUsers));
-      if (savedCompanies) setCompanies(JSON.parse(savedCompanies));
-      if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
-      if (savedOrders) setOrders(JSON.parse(savedOrders));
-      if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
     }
-  }, [isInitialized]);
+    setIsInitialized(true);
+  }, []);
+
+  // Save data whenever it changes
+  useEffect(() => {
+    if (isInitialized && users.length > 0) {
+      safeLocalStorage.setItem('users', JSON.stringify(users));
+    }
+  }, [users, isInitialized]);
+  
+  useEffect(() => {
+    if (isInitialized && companies.length > 0) {
+      safeLocalStorage.setItem('companies', JSON.stringify(companies));
+    }
+  }, [companies, isInitialized]);
+  
+  useEffect(() => {
+    if (isInitialized && materials.length > 0) {
+      safeLocalStorage.setItem('materials', JSON.stringify(materials));
+    }
+  }, [materials, isInitialized]);
+  
+  useEffect(() => {
+    if (isInitialized) {
+      safeLocalStorage.setItem('orders', JSON.stringify(orders));
+    }
+  }, [orders, isInitialized]);
+
+  useEffect(() => {
+    if (currentUser && isInitialized) {
+      safeLocalStorage.setItem('currentUser', JSON.stringify(currentUser));
+    } else if (!currentUser) {
+      safeLocalStorage.removeItem('currentUser');
+    }
+  }, [currentUser, isInitialized]);
 
   // Load cart from localStorage
   useEffect(() => {
@@ -134,20 +165,6 @@ function App() {
       safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
     }
   }, [cart, currentUser, isInitialized]);
-
-  // Persistence effects
-  useEffect(() => {
-    if (isInitialized && users.length > 0) safeLocalStorage.setItem('users', JSON.stringify(users));
-  }, [users, isInitialized]);
-  useEffect(() => {
-    if (isInitialized && companies.length > 0) safeLocalStorage.setItem('companies', JSON.stringify(companies));
-  }, [companies, isInitialized]);
-  useEffect(() => {
-    if (isInitialized && materials.length > 0) safeLocalStorage.setItem('materials', JSON.stringify(materials));
-  }, [materials, isInitialized]);
-  useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('orders', JSON.stringify(orders));
-  }, [orders, isInitialized]);
 
   const showAlert = (message: string, type: Alert['type'] = 'info', duration = 5000): void => {
     setAlert({ message, type });
@@ -331,7 +348,9 @@ function App() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
+    setIsCalculating(true);
     const totals = await calculateCartTotals();
+    setIsCalculating(false);
     if (!totals) return;
     setCartDetails(totals);
     setShowCartSummary(true);
@@ -397,7 +416,6 @@ function App() {
     if (user.password === loginPassword) {
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, loginAttempts: 0, lockUntil: 0 } : u));
       setCurrentUser(user);
-      safeLocalStorage.setItem('currentUser', JSON.stringify(user));
       showAlert('Login successful! 🎉', 'success');
       setCurrentPage('home');
       setFormData(prev => ({ ...prev, loginPassword: '', selectedUser: '' }));
@@ -439,7 +457,15 @@ function App() {
     setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false }));
   };
 
-  const handleLogout = (): void => { setCurrentUser(null); setCart([]); setShowCartSummary(false); setCartDetails(null); safeLocalStorage.removeItem('currentUser'); showAlert('Logged out successfully 👋', 'info'); setCurrentPage('home'); };
+  const handleLogout = (): void => { 
+    setCurrentUser(null); 
+    setCart([]); 
+    setShowCartSummary(false); 
+    setCartDetails(null); 
+    safeLocalStorage.removeItem('currentUser');
+    showAlert('Logged out successfully 👋', 'info'); 
+    setCurrentPage('home'); 
+  };
 
   const handleAddMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
@@ -558,7 +584,7 @@ function App() {
     <>
       <button className={`nav-link ${currentPage === 'home' ? 'active' : ''}`} onClick={() => navigateTo('home')}>🏠 Home</button>
       <button className={`nav-link ${currentPage === 'search-materials' ? 'active' : ''}`} onClick={() => navigateTo('search-materials')}>🔍 Search</button>
-      <button className={`nav-link ${currentPage === 'supplier-map' ? 'active' : ''}`} onClick={() => navigateTo('supplier-map')}>🗺️ Map</button>
+      <button className={`nav-link ${currentPage === 'supplier-map' ? 'active' : ''}`} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
       <button className={`nav-link ${currentPage === 'login' ? 'active' : ''}`} onClick={() => navigateTo('login')}>🔑 Login</button>
       <button className={`nav-link ${currentPage === 'register' ? 'active' : ''}`} onClick={() => navigateTo('register')}>📝 Register</button>
     </>
@@ -596,7 +622,12 @@ function App() {
   };
 
   const renderCartSummary = () => {
-    if (!showCartSummary || !cartDetails) return null;
+    if (!showCartSummary) return null;
+    if (!cartDetails && cart.length > 0) {
+      return <div className="modal-overlay"><div className="modal-content">Calculating...</div></div>;
+    }
+    if (!cartDetails) return null;
+    
     return (
       <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
@@ -787,7 +818,7 @@ function App() {
         <button type="button" className="filter-clear" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Clear</button></div></form></div>
         <div className="search-results"><div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
         {displayMaterials.length === 0 ? <div className="no-results">No products found</div> : (
-          <ScrollableTable minWidth="1200px"><table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => { const company = getCompanyById(item.companyId); const isInCart = cart.some(c => c.materialId === item.id); const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null; const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId; return (<tr key={item.id}><td><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button><button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>{currentUser?.userType === 'customer' && (isInCart ? <button className="btn-icon success" onClick={handleCheckout}>🛒</button> : <button className="btn-icon add-to-cart" onClick={() => { const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString()); if (qty && !isNaN(parseInt(qty))) { if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); } } else { addToCart(item, parseInt(qty)); } } }}>➕</button>)}</td></tr>); })}</tbody></table></ScrollableTable>
+          <ScrollableTable minWidth="1200px"><table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => { const company = getCompanyById(item.companyId); const isInCart = cart.some(c => c.materialId === item.id); const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null; const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId; return (<tr key={item.id}><td><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button><button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>{currentUser?.userType === 'customer' && (isInCart ? <button className="btn-icon success" onClick={handleCheckout}>🛒</button> : <button className="btn-icon add-to-cart" onClick={() => { const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString()); if (qty && !isNaN(parseInt(qty))) { if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); } } else { addToCart(item, parseInt(qty)); } } }}>➕</button>)}</button>)}</td></tr>); })}</tbody></table></ScrollableTable>
         )}</div>
       </main>
     );
@@ -801,7 +832,7 @@ function App() {
       <main className="main-content">
         <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div></div>
         {userOrders.length === 0 ? <div className="no-orders">No orders yet</div> : (
-          <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const m = getMaterialById(order.materialId); return (<tr key={order.id}><td>{order.id}</td><td>{m?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.unitPrice)}</td><td className="price-cell">{formatCurrency(order.transportCost)}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && (<td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>)}</tr>); })}</tbody></table></ScrollableTable>
+          <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const m = getMaterialById(order.materialId); return (<tr key={order.id}><td>{order.id}</td><td>{m?.name}</td><td>{order.quantity}<td><td className="price-cell">{formatCurrency(order.unitPrice)}</td><td className="price-cell">{formatCurrency(order.transportCost)}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && (<td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button>)}</td></tr>); })}</tbody></table></ScrollableTable>
         )}
       </main>
     );
@@ -809,7 +840,16 @@ function App() {
 
   const renderSupplierMap = () => (
     <React.Suspense fallback={<div className="map-placeholder">Loading map...</div>}>
-      <MapComponent companies={companies} currentUser={currentUser} onClose={() => setShowSupplierMap(false)} />
+      <MapComponent 
+        companies={companies} 
+        materials={materials}
+        currentUser={currentUser} 
+        onClose={() => setShowSupplierMap(false)}
+        onSelectSupplier={(company) => {
+          // Optional: navigate to supplier products
+          console.log('Selected supplier:', company);
+        }}
+      />
     </React.Suspense>
   );
 
