@@ -1,7 +1,7 @@
 // src/App.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
@@ -9,8 +9,11 @@ import {
 import {
   safeLocalStorage, formatCurrency, formatDate,
   calculateDistance, calculateTransportCost, isUserLocked,
-  exportToCSV, exportCartToCSV, exportOrdersToCSV
+  exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV
 } from './utils';
+
+// Leaflet imports (will be loaded dynamically to avoid SSR issues)
+const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -27,8 +30,9 @@ function App() {
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartSummary, setShowCartSummary] = useState(false);
-  const [cartDetails, setCartDetails] = useState<any>(null);
+  const [cartDetails, setCartDetails] = useState<CartReport | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [showSupplierMap, setShowSupplierMap] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
     loginEmail: '',
@@ -146,7 +150,6 @@ function App() {
     if (isInitialized) safeLocalStorage.setItem('orders', JSON.stringify(orders));
   }, [orders, isInitialized]);
 
-  // Fixed showAlert with proper type
   const showAlert = (message: string, type: Alert['type'] = 'info', duration = 5000): void => {
     setAlert({ message, type });
     if (duration > 0) setTimeout(() => setAlert(null), duration);
@@ -227,7 +230,8 @@ function App() {
 
   // Export Functions
   const handleExportMaterials = () => { exportToCSV(materials, 'materials_export'); showAlert('Materials exported! 📊', 'success'); };
-  const handleExportCart = () => { if (cart.length === 0) { showAlert('Cart is empty.', 'warning'); return; } exportCartToCSV(cart); showAlert('Cart exported! 🛒', 'success'); };
+  const handleExportCart = () => { if (cart.length === 0) { showAlert('Cart is empty.', 'warning'); return; } if (cartDetails) { exportCartToCSV(cart, cartDetails); showAlert('Cart exported! 🛒', 'success'); } };
+  const handlePrintCart = () => { if (cartDetails) { printCartReport(cartDetails); showAlert('Cart report sent to printer! 🖨️', 'success'); } };
   const handleExportOrders = () => { const userOrders = currentUser ? orders.filter(o => o.customerId === currentUser.id) : orders; if (userOrders.length === 0) { showAlert('No orders to export.', 'warning'); return; } exportOrdersToCSV(userOrders, materials, companies); showAlert('Orders exported! 📦', 'success'); };
 
   // Cart Functions
@@ -281,38 +285,48 @@ function App() {
 
   const removeFromCart = (itemId: string) => { setCart(cart.filter(item => item.id !== itemId)); showAlert('Item removed from cart', 'info'); };
   const updateCartQuantity = (itemId: string, newQuantity: number) => { const item = cart.find(i => i.id === itemId); if (item && newQuantity >= item.minOrder) { setCart(cart.map(i => i.id === itemId ? { ...i, quantity: newQuantity } : i)); } else if (item && newQuantity < item.minOrder) { showAlert(`Minimum quantity is ${item.minOrder} ${item.unit}`, 'warning'); } };
-  const clearCart = () => { setCart([]); setShowCartSummary(false); showAlert('Cart cleared', 'info'); };
+  const clearCart = () => { setCart([]); setShowCartSummary(false); setCartDetails(null); showAlert('Cart cleared', 'info'); };
 
-  const calculateCartTotals = async () => {
+  const calculateCartTotals = async (): Promise<CartReport | null> => {
     if (cart.length === 0) return null;
     if (!currentUser) return null;
     setIsCalculating(true);
     let subtotal = 0;
-    let totalVAT = 0;
-    let totalTransport = 0;
+    let vatAmount = 0;
+    let transportCost = 0;
     let distanceKm = 0;
     const supplierCompany = getCompanyById(cart[0].supplierId);
     if (!supplierCompany) return null;
 
     for (const item of cart) {
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
-      subtotal += sellingPrice * item.quantity;
-      totalVAT += (sellingPrice * item.quantity) * (item.vatPercentage / 100);
+      const itemTotal = sellingPrice * item.quantity;
+      subtotal += itemTotal;
+      vatAmount += itemTotal * (item.vatPercentage / 100);
       const weight = (item.weightPerUnit || 0.001) * item.quantity;
       const transCost = await calculateTransportCost(
         supplierCompany.lat, supplierCompany.lng,
         currentUser.lat || 9.0320, currentUser.lng || 38.7469,
         weight
       );
-      totalTransport += transCost;
+      transportCost += transCost;
       if (distanceKm === 0) distanceKm = await calculateDistance(supplierCompany.lat, supplierCompany.lng, currentUser.lat || 9.0320, currentUser.lng || 38.7469);
     }
-    const total = subtotal + totalVAT + totalTransport;
+    const total = subtotal + vatAmount + transportCost;
     setIsCalculating(false);
     return {
-      subtotal, totalVAT, transportCost: totalTransport, total, distanceKm,
-      supplierName: supplierCompany.name, supplierCity: supplierCompany.city,
-      itemCount: cart.reduce((sum, item) => sum + item.quantity, 0), uniqueItems: cart.length
+      items: cart,
+      subtotal,
+      vatAmount,
+      transportCost,
+      total,
+      distanceKm,
+      supplierName: supplierCompany.name,
+      supplierCity: supplierCompany.city,
+      itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
+      uniqueItems: cart.length,
+      currency: 'ETB',
+      reportDate: new Date().toLocaleString()
     };
   };
 
@@ -336,15 +350,15 @@ function App() {
       const material = getMaterialById(item.materialId);
       if (!material) continue;
       const weight = (item.weightPerUnit || 0.001) * item.quantity;
-      const transportCost = await calculateTransportCost(
+      const transportCostItem = await calculateTransportCost(
         supplierCompany.lat, supplierCompany.lng,
         currentUser!.lat || 9.0320, currentUser!.lng || 38.7469,
         weight
       );
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const materialTotal = sellingPrice * item.quantity;
-      const vatAmount = materialTotal * (item.vatPercentage / 100);
-      const totalAmount = materialTotal + vatAmount + transportCost;
+      const vatAmountItem = materialTotal * (item.vatPercentage / 100);
+      const totalAmount = materialTotal + vatAmountItem + transportCostItem;
 
       const newOrder: Order = {
         id: 'order' + (orders.length + 1) + '_' + Date.now() + '_' + item.materialId,
@@ -353,7 +367,7 @@ function App() {
         materialId: item.materialId,
         quantity: item.quantity,
         unitPrice: sellingPrice,
-        transportCost: transportCost,
+        transportCost: transportCostItem,
         totalAmount: totalAmount,
         status: 'pending',
         orderDate: new Date().toISOString().split('T')[0],
@@ -361,7 +375,7 @@ function App() {
         notes: `Order from cart - ${cart.length} items total`,
         invoiceNumber: `INV-${new Date().getFullYear()}-${orders.length + 1000}`,
         taxAmount: 0,
-        vatAmount: vatAmount,
+        vatAmount: vatAmountItem,
         paymentMethod: 'Bank Transfer',
         paymentStatus: 'pending'
       };
@@ -402,7 +416,7 @@ function App() {
     const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered } = formData;
     if (users.find(u => u.email === registerEmail)) { showAlert('User with this email already exists', 'danger'); return; }
     const newUser: User = {
-      id: 'user' + (users.length + 1), name: registerFullName, email: registerEmail, password: registerPassword,
+      id: 'user' + (users.length + 1), name: registerFullName, email: registerEmail, password: registerPassword || '0909',
       phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as 'customer' | 'company',
       companyName: registerUserType === 'company' ? registerCompanyName : '',
       lat: 9.0320 + (Math.random() * 0.05 - 0.025), lng: 38.7469 + (Math.random() * 0.05 - 0.025),
@@ -426,7 +440,7 @@ function App() {
     setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false }));
   };
 
-  const handleLogout = (): void => { setCurrentUser(null); setCart([]); setShowCartSummary(false); safeLocalStorage.removeItem('currentUser'); showAlert('Logged out successfully 👋', 'info'); setCurrentPage('home'); };
+  const handleLogout = (): void => { setCurrentUser(null); setCart([]); setShowCartSummary(false); setCartDetails(null); safeLocalStorage.removeItem('currentUser'); showAlert('Logged out successfully 👋', 'info'); setCurrentPage('home'); };
 
   const handleAddMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
@@ -440,7 +454,7 @@ function App() {
     const specifications = {
       weight: materialWeight || undefined, dimensions: materialDimensions || undefined, grade: materialGrade || undefined,
       origin: materialOrigin || undefined, certification: materialCertifications.split(',').map(c => c.trim()).filter(c => c),
-      weightPerUnit: 0.001 // default
+      weightPerUnit: 0.001
     };
     const newMaterial: Material = {
       id: 'mat' + (materials.length + 1), companyId: company.id, name: materialName, category: materialCategory,
@@ -497,7 +511,6 @@ function App() {
 
   // ======================= RENDER FUNCTIONS =======================
   
-  // Splash Screen
   const renderSplash = () => (
     <div className="splash-screen">
       <div className="splash-content">
@@ -521,15 +534,20 @@ function App() {
         <div className="header-content">
           <div className="logo" onClick={() => navigateTo('home')}>
             <div className="logo-icon">🏗️</div>
-            <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain Optimization Network</p></div>
+            <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain</p></div>
           </div>
           <div className="nav-links">
             {currentUser ? renderUserNav() : renderGuestNav()}
             {currentUser && currentUser.userType === 'customer' && (
-              <button className="cart-icon-btn" onClick={() => setShowCartSummary(true)}>🛒 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}</button>
+              <button className="cart-icon-btn" onClick={handleCheckout}>
+                🛒 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
+              </button>
             )}
             {currentUser && (
-              <button className="export-btn" onClick={() => { if (currentPage === 'search-materials') handleExportMaterials(); else if (currentPage === 'orders') handleExportOrders(); else if (showCartSummary) handleExportCart(); }}>📥 Export</button>
+              <button className="export-btn" onClick={() => {
+                if (currentPage === 'search-materials') handleExportMaterials();
+                else if (currentPage === 'orders') handleExportOrders();
+              }}>📥 Export</button>
             )}
           </div>
         </div>
@@ -562,7 +580,7 @@ function App() {
           <button className={`nav-link ${currentPage === 'customer-dashboard' ? 'active' : ''}`} onClick={() => navigateTo('customer-dashboard')}>📊 Dashboard</button>
         )}
         <button className={`nav-link ${currentPage === 'orders' ? 'active' : ''}`} onClick={() => navigateTo('orders')}>🛒 Orders</button>
-        <button className={`nav-link ${currentPage === 'supplier-map' ? 'active' : ''}`} onClick={() => navigateTo('supplier-map')}>🗺️ Map</button>
+        <button className={`nav-link ${currentPage === 'supplier-map' ? 'active' : ''}`} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
         <div className="user-info">
           <div className="user-avatar">{currentUser?.name?.charAt(0).toUpperCase()}</div>
           <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{currentUser?.userType === 'company' ? '🏢 Supplier' : '👤 Customer'}</div></div>
@@ -579,8 +597,7 @@ function App() {
   };
 
   const renderCartSummary = () => {
-    if (!showCartSummary) return null;
-    if (!cartDetails) return <div className="modal-overlay"><div className="modal-content">Loading...</div></div>;
+    if (!showCartSummary || !cartDetails) return null;
     return (
       <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
@@ -590,10 +607,13 @@ function App() {
               <div className="empty-cart"><span className="empty-cart-icon">🛒</span><h3>Your cart is empty</h3><button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button></div>
             ) : (
               <>
-                <button className="btn-export-cart" onClick={handleExportCart}>📥 Export Cart to CSV</button>
-                <div className="cart-supplier-info"><h3>🏢 Supplier: {cartDetails.supplierName}</h3><p>📍 Location: {cartDetails.supplierCity}</p><p>📦 Distance: {cartDetails.distanceKm.toFixed(1)} km</p></div>
-                <div className="cart-items">{cart.map(item => (<div key={item.id} className="cart-item"><div className="cart-item-info"><h4>{item.materialName}</h4><p>Price: {formatCurrency(item.price)} / {item.unit}</p><p>Min Order: {item.minOrder} {item.unit}</p></div><div className="cart-item-quantity"><label>Quantity:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={item.minOrder} step={item.minOrder} /><span>{item.unit}</span></div><div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div><button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button></div>))}</div>
-                <div className="cart-summary"><h3>Order Summary</h3><div className="summary-row"><span>Subtotal:</span><span>{formatCurrency(cartDetails.subtotal)}</span></div><div className="summary-row"><span>VAT (15%):</span><span>{formatCurrency(cartDetails.totalVAT)}</span></div><div className="summary-row"><span>Transport Cost:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div><div className="summary-row total"><span>Total:</span><span>{formatCurrency(cartDetails.total)}</span></div></div>
+                <div className="cart-actions-buttons">
+                  <button className="btn-secondary" onClick={handleExportCart}>📥 Export CSV</button>
+                  <button className="btn-secondary" onClick={handlePrintCart}>🖨️ Print Report</button>
+                </div>
+                <div className="cart-supplier-info"><h3>🏢 Supplier: {cartDetails.supplierName}</h3><p>📍 {cartDetails.supplierCity} • 📦 Distance: {cartDetails.distanceKm.toFixed(1)} km</p></div>
+                <div className="cart-items">{cart.map(item => (<div key={item.id} className="cart-item"><div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div><div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={item.minOrder} step={item.minOrder} /><span>{item.unit}</span></div><div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div><button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button></div>))}</div>
+                <div className="cart-summary"><h3>Financial Summary</h3><div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div><div className="summary-row"><span>VAT (15%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div><div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div><div className="summary-row total"><span>Total Amount:</span><span>{formatCurrency(cartDetails.total)}</span></div></div>
                 <div className="cart-actions"><button className="btn-secondary" onClick={clearCart}>Clear Cart</button><button className="btn-primary" onClick={confirmOrder} disabled={isCalculating}>{isCalculating ? 'Calculating...' : 'Confirm Order ✅'}</button></div>
               </>
             )}
@@ -613,14 +633,14 @@ function App() {
           <p>Ethio-Supply Chain Optimization Network</p>
           <div className="search-center">
             <form onSubmit={(e) => { e.preventDefault(); navigateTo('search-materials'); }}>
-              <div className="search-center-input"><input type="text" className="search-input" placeholder="Search for products, suppliers..." value={formData.searchQuery} onChange={(e) => setFormData(prev => ({ ...prev, searchQuery: e.target.value }))} /><button type="submit" className="search-center-btn">🔍 Search</button></div>
+              <div className="search-center-input"><input type="text" className="search-input" placeholder="Search products..." value={formData.searchQuery} onChange={(e) => setFormData(prev => ({ ...prev, searchQuery: e.target.value }))} /><button type="submit" className="search-center-btn">🔍 Search</button></div>
             </form>
           </div>
           <div className="cta-buttons">
             {currentUser ? (
               <>
                 {currentUser.userType === 'company' ? <button className="btn btn-primary" onClick={() => navigateTo('company-dashboard')}>📊 Dashboard</button> : <button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button>}
-                <button className="btn btn-secondary" onClick={() => navigateTo('supplier-map')}>🗺️ Supplier Map</button>
+                <button className="btn btn-secondary" onClick={() => setShowSupplierMap(true)}>🗺️ Supplier Map</button>
               </>
             ) : (
               <>
@@ -638,10 +658,10 @@ function App() {
         </div>
         <h2 className="section-title">✨ Key Features</h2>
         <div className="features-grid">
-          <div className="feature-card"><div className="feature-icon">🤖</div><h3>AI Price Forecasting</h3><p>Predict future prices using machine learning algorithms</p></div>
-          <div className="feature-card"><div className="feature-icon">🗺️</div><h3>GIS Supplier Mapping</h3><p>Interactive map with transport cost calculations</p></div>
-          <div className="feature-card"><div className="feature-icon">🚚</div><h3>Logistics Optimization</h3><p>Smart routing and cost minimization</p></div>
-          <div className="feature-card"><div className="feature-icon">📋</div><h3>Business Compliance</h3><p>Full TIN and VAT registration support</p></div>
+          <div className="feature-card"><div className="feature-icon">🤖</div><h3>AI Price Forecasting</h3><p>Predict future prices using ML</p></div>
+          <div className="feature-card"><div className="feature-icon">🗺️</div><h3>GIS Supplier Mapping</h3><p>Interactive map with cost calculation</p></div>
+          <div className="feature-card"><div className="feature-icon">🚚</div><h3>Logistics Optimization</h3><p>Smart routing & cost minimization</p></div>
+          <div className="feature-card"><div className="feature-icon">📋</div><h3>Business Compliance</h3><p>Full TIN & VAT support</p></div>
         </div>
       </main>
     );
@@ -654,10 +674,10 @@ function App() {
       <main className="main-content">
         <div className="auth-container">
           <div className="auth-card">
-            <div className="auth-header"><span className="auth-icon">🔑</span><h2>Welcome Back</h2><p>Login to your account</p></div>
+            <div className="auth-header"><span className="auth-icon">🔑</span><h2>Welcome Back</h2><p>Login with email & password (0909)</p></div>
             <div className="auth-body">
               <form onSubmit={handleLogin}>
-                <div className="form-group"><label className="form-label">📧 Select or Enter Email</label><input list="userList" className="form-input" name="selectedUser" value={formData.selectedUser} onChange={handleDatalistInputChange} required disabled={isLocked} /><datalist id="userList">{users.map(user => <option key={user.id} value={user.email}>{user.name} - {user.email}</option>)}</datalist></div>
+                <div className="form-group"><label className="form-label">📧 Email</label><input list="userList" className="form-input" name="selectedUser" value={formData.selectedUser} onChange={handleDatalistInputChange} required disabled={isLocked} /><datalist id="userList">{users.map(user => <option key={user.id} value={user.email}>{user.name} - {user.email}</option>)}</datalist></div>
                 {formData.selectedUser && !isLocked && (<><div className="form-group"><label className="form-label">🔒 Password</label><input type="password" className="form-input" name="loginPassword" value={formData.loginPassword} onChange={handleInputChange} required /></div><button type="submit" className="btn-submit">🔐 Login</button></>)}
               </form>
               <div className="text-center"><p>Don't have an account? <button className="link-btn" onClick={() => navigateTo('register')}>Register here</button></p></div>
@@ -672,7 +692,7 @@ function App() {
     <main className="main-content">
       <div className="auth-container">
         <div className="auth-card">
-          <div className="auth-header"><span className="auth-icon">📝</span><h2>Create Account</h2><p>Join EthioSupply AI Platform</p></div>
+          <div className="auth-header"><span className="auth-icon">📝</span><h2>Create Account</h2><p>Join E-SCON Platform</p></div>
           <div className="auth-body">
             <div className="auth-tabs"><button className={`auth-tab ${formData.registerUserType === 'customer' ? 'active' : ''}`} onClick={() => switchUserType('customer')}>👤 Customer</button><button className={`auth-tab ${formData.registerUserType === 'company' ? 'active' : ''}`} onClick={() => switchUserType('company')}>🏢 Supplier</button></div>
             <form onSubmit={handleRegister}>
@@ -682,10 +702,10 @@ function App() {
                 <div className="form-group"><label className="checkbox-label"><input type="checkbox" name="vatRegistered" checked={formData.vatRegistered} onChange={handleInputChange} /> ✅ VAT Registered</label></div>
                 {formData.vatRegistered && <div className="form-group"><label className="form-label">💰 VAT Number</label><input type="text" className="form-input" name="vatNumber" value={formData.vatNumber} onChange={handleInputChange} /></div>}
               </>)}
-              <div className="form-row"><div className="form-group"><label className="form-label">👤 Full Name *</label><input type="text" className="form-input" name="registerFullName" value={formData.registerFullName} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">📧 Email Address *</label><input type="email" className="form-input" name="registerEmail" value={formData.registerEmail} onChange={handleInputChange} required /></div></div>
-              <div className="form-row"><div className="form-group"><label className="form-label">🔒 Password *</label><input type="password" className="form-input" name="registerPassword" value={formData.registerPassword} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">📞 Phone Number *</label><input type="tel" className="form-input" name="registerPhone" value={formData.registerPhone} onChange={handleInputChange} required /></div></div>
+              <div className="form-row"><div className="form-group"><label className="form-label">👤 Full Name *</label><input type="text" className="form-input" name="registerFullName" value={formData.registerFullName} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">📧 Email *</label><input type="email" className="form-input" name="registerEmail" value={formData.registerEmail} onChange={handleInputChange} required /></div></div>
+              <div className="form-row"><div className="form-group"><label className="form-label">🔒 Password *</label><input type="password" className="form-input" name="registerPassword" value={formData.registerPassword} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">📞 Phone *</label><input type="tel" className="form-input" name="registerPhone" value={formData.registerPhone} onChange={handleInputChange} required /></div></div>
               <div className="form-group"><label className="form-label">📍 Address *</label><input type="text" className="form-input" name="registerAddress" value={formData.registerAddress} onChange={handleInputChange} required /></div>
-              <div className="form-group"><label className="form-label">🏙️ City *</label><select className="form-select" name="registerCity" value={formData.registerCity} onChange={handleInputChange} required><option value="">Select City</option>{ETHIOPIAN_CITIES.map(city => <option key={city} value={city}>{city}</option>)}</select></div>
+              <div className="form-group"><label className="form-label">🏙️ City *</label><select className="form-select" name="registerCity" value={formData.registerCity} onChange={handleInputChange} required><option value="">Select</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
               <div className="form-group"><label className="checkbox-label"><input type="checkbox" required /> ✅ I agree to Ethiopian Trade Regulations</label></div>
               <button type="submit" className="btn-submit">📝 Create Account</button>
             </form>
@@ -697,104 +717,78 @@ function App() {
   );
 
   const renderCompanyDashboard = () => {
-    if (!currentUser || currentUser.userType !== 'company') return <main className="main-content"><div className="alert alert-danger">⚠️ Access denied. Company users only.</div></main>;
+    if (!currentUser || currentUser.userType !== 'company') return <main className="main-content"><div className="alert alert-danger">⚠️ Access denied.</div></main>;
     const company = getCompanyByUserId(currentUser.id);
     const companyMaterials = materials.filter(m => m.companyId === company?.id);
     const stats = calculateStats();
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🏢</span><h1>Supplier Dashboard</h1></div><p>Welcome back, {company?.name}! 👋</p></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🏢</span><h1>Supplier Dashboard</h1></div><p>Welcome {company?.name}!</p></div>
         <div className="dashboard-grid">
           <div className="dashboard-card"><div className="card-icon">📦</div><div className="stat-value">{companyMaterials.length}</div><div className="stat-label">Products</div></div>
           <div className="dashboard-card"><div className="card-icon">📊</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
           <div className="dashboard-card"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
-        <div className="card"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export Products</button></div>
-        <ScrollableTable minWidth="900px">
-          <table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{companyMaterials.map(material => (<tr key={material.id}><td className="sticky-col"><strong>{material.name}</strong>{material.brand && <small>{material.brand}</small>}</td><td>{material.category}</td><td className="price-cell">{formatCurrency(material.price)}</td><td>{material.unit}</td><td>{material.quantity} {material.unit}</td><td>⭐ {material.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(material)}>👁️</button><button className="btn-icon edit" onClick={() => handleEditMaterial(material)}>✏️</button><button className="btn-icon danger" onClick={() => handleDeleteMaterial(material.id)}>🗑️</button></td></tr>))}</tbody></table>
-        </ScrollableTable>
-        </div>
+        <div className="card"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
+        <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{companyMaterials.map(m => (<tr key={m.id}><td><strong>{m.name}</strong>{m.brand && <small>{m.brand}</small>}</td><td>{m.category}</td><td className="price-cell">{formatCurrency(m.price)}</td><td>{m.unit}</td><td>{m.quantity}</td><td>⭐ {m.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(m)}>👁️</button><button className="btn-icon edit" onClick={() => handleEditMaterial(m)}>✏️</button><button className="btn-icon danger" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button></td></tr>))}</tbody></table></ScrollableTable></div>
       </main>
     );
   };
 
   const renderCustomerDashboard = () => {
-    if (!currentUser || currentUser.userType !== 'customer') return <main className="main-content"><div className="alert alert-danger">⚠️ Access denied. Customer users only.</div></main>;
+    if (!currentUser || currentUser.userType !== 'customer') return <main className="main-content"><div className="alert alert-danger">⚠️ Access denied.</div></main>;
     const userOrders = orders.filter(o => o.customerId === currentUser.id);
     const stats = calculateStats();
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">👤</span><h1>Customer Dashboard</h1></div><p>Welcome back, {currentUser.name}! 👋</p></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">👤</span><h1>Customer Dashboard</h1></div><p>Welcome {currentUser.name}!</p></div>
         <div className="dashboard-grid">
           <div className="dashboard-card"><div className="card-icon">📦</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
           <div className="dashboard-card"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
           <div className="dashboard-card"><div className="card-icon">✅</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
           <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
-        <div className="card"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export Orders</button></div>
-        <ScrollableTable minWidth="800px">
-          <table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{userOrders.slice(0,5).map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td></tr>); })}</tbody></table>
-        </ScrollableTable>
-        </div>
+        <div className="card"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div>
+        <ScrollableTable minWidth="800px"><table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{userOrders.slice(0,5).map(order => { const m = getMaterialById(order.materialId); return (<tr key={order.id}><td>{order.id}</td><td>{m?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td></tr>); })}</tbody></table></ScrollableTable></div>
       </main>
     );
   };
 
   const renderAddMaterial = () => (
-    <main className="main-content">
-      <div className="form-container"><h2 className="form-title">➕ Add New Product</h2>
-      <form onSubmit={handleAddMaterial}>
-        <div className="form-group"><label className="form-label">📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
-        <div className="form-group"><label className="form-label">📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div>
-        <div className="form-group"><label className="form-label">📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div>
-        <div className="form-group"><label className="form-label">🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
-        <div className="form-group"><label className="form-label">📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
-        <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
-      </form></div>
-    </main>
+    <main className="main-content"><div className="form-container"><h2>➕ Add New Product</h2>
+    <form onSubmit={handleAddMaterial}><div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
+    <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
+    <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
+    <div className="form-row"><div className="form-group"><label>📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
+    <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+    <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div></form></div></main>
   );
 
   const renderEditMaterial = () => (
-    <main className="main-content">
-      <div className="form-container"><h2 className="form-title">✏️ Edit Product</h2>
-      <form onSubmit={handleUpdateMaterial}>
-        <div className="form-group"><label className="form-label">📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
-        <div className="form-group"><label className="form-label">📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div>
-        <div className="form-group"><label className="form-label">📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
-        <div className="form-row"><div className="form-group"><label className="form-label">📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div>
-        <div className="form-group"><label className="form-label">🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
-        <div className="form-group"><label className="form-label">📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
-        <div className="form-actions"><button type="submit" className="btn-submit">✅ Update Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
-      </form></div>
-    </main>
+    <main className="main-content"><div className="form-container"><h2>✏️ Edit Product</h2>
+    <form onSubmit={handleUpdateMaterial}><div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
+    <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
+    <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
+    <div className="form-row"><div className="form-group"><label>📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
+    <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+    <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>Cancel</button></div></form></div></main>
   );
 
   const renderSearchMaterials = () => {
     const displayMaterials = searchResults.length > 0 ? searchResults : materials;
     return (
       <main className="main-content">
-        <div className="search-hero"><h1>🔍 Find Products Across Ethiopia</h1><p>Search and compare products from verified suppliers</p>
-        <form onSubmit={handleSearch} className="search-form">
-          <div className="search-input-group"><input type="text" className="search-input-large" placeholder="Search products, brands, or categories..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} /><button type="submit" className="search-btn">🔍 Search</button></div>
-          <div className="search-filters"><select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}><option value="all">All Departments</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select>
-          <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}><option value="all">All Cities</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
-          <input type="number" className="filter-input" placeholder="Max Price" name="searchMaxPrice" value={formData.searchMaxPrice} onChange={handleInputChange} />
-          <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}><option value="price_asc">Price: Low to High</option><option value="price_desc">Price: High to Low</option><option value="rating_desc">Highest Rated</option></select>
-          <button type="button" className="filter-clear" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Clear</button></div>
-        </form></div>
-        <div className="search-results"><div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 Available Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export Products</button></div>
-        {displayMaterials.length === 0 ? (
-          <div className="no-results"><span className="no-results-icon">🔍</span><h3>No products found</h3><button className="btn btn-primary" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Show All Products</button></div>
-        ) : (
-          <ScrollableTable minWidth="1200px">
-            <table className="data-table"><thead><tr><th className="sticky-col">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => { const company = getCompanyById(item.companyId); const isInCart = cart.some(cartItem => cartItem.materialId === item.id); const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null; const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId; return (<tr key={item.id}><td className="sticky-col"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `${item.quantity}` : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button><button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>{currentUser && currentUser.userType === 'customer' && (isInCart ? <button className="btn-icon success" onClick={handleCheckout}>🛒</button> : <button className="btn-icon add-to-cart" onClick={() => { const quantity = prompt(`Enter quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString()); if (quantity && !isNaN(parseInt(quantity))) { if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Your cart has items from another supplier. Clear cart and add this item?`)) { clearCart(); addToCart(item, parseInt(quantity)); } } else { addToCart(item, parseInt(quantity)); } } }}>➕</button>)}</td></tr>); })}</tbody></table>
-          </ScrollableTable>
+        <div className="search-hero"><h1>🔍 Find Products</h1><p>Compare prices from verified suppliers</p>
+        <form onSubmit={handleSearch} className="search-form"><div className="search-input-group"><input type="text" className="search-input-large" placeholder="Search products..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} /><button type="submit" className="search-btn">🔍 Search</button></div>
+        <div className="search-filters"><select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}><option value="all">All Departments</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select>
+        <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}><option value="all">All Cities</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
+        <input type="number" className="filter-input" placeholder="Max Price" name="searchMaxPrice" value={formData.searchMaxPrice} onChange={handleInputChange} />
+        <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}><option value="price_asc">Price: Low to High</option><option value="price_desc">Price: High to Low</option><option value="rating_desc">Highest Rated</option></select>
+        <button type="button" className="filter-clear" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Clear</button></div></form></div>
+        <div className="search-results"><div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
+        {displayMaterials.length === 0 ? <div className="no-results">No products found</div> : (
+          <ScrollableTable minWidth="1200px"><table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>{(displayMaterials as SearchResult[]).map(item => { const company = getCompanyById(item.companyId); const isInCart = cart.some(c => c.materialId === item.id); const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null; const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId; return (<tr key={item.id}><td><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td><td>{item.category}</td><td>{company?.name || 'Unknown'}</td><td>{company?.city || 'N/A'}</td><td className="price-cell">{formatCurrency(item.price)}</td><td>{item.unit}</td><td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td><td>⭐ {item.rating || 'N/A'}</td><td><button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button><button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>{currentUser?.userType === 'customer' && (isInCart ? <button className="btn-icon success" onClick={handleCheckout}>🛒</button> : <button className="btn-icon add-to-cart" onClick={() => { const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString()); if (qty && !isNaN(parseInt(qty))) { if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); } } else { addToCart(item, parseInt(qty)); } } }}>➕</button>)}</td></tr>); })}</tbody></table></ScrollableTable>
         )}</div>
       </main>
     );
@@ -806,28 +800,18 @@ function App() {
     const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export Orders</button></div></div>
-        {userOrders.length === 0 ? (
-          <div className="no-orders"><span className="no-orders-icon">📦</span><h3>No orders yet</h3>{!isCompany && <button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Browse Products</button>}</div>
-        ) : (
-          <ScrollableTable minWidth="900px">
-            <table className="data-table"><thead><tr><th className="sticky-col">Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total Amount</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const material = getMaterialById(order.materialId); return (<tr key={order.id}><td className="sticky-col">{order.id}</td><td>{material?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.unitPrice)}</td><td className="price-cell">{formatCurrency(order.transportCost)}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && (<td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>)}</tr>); })}</tbody></table>
-          </ScrollableTable>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div></div>
+        {userOrders.length === 0 ? <div className="no-orders">No orders yet</div> : (
+          <ScrollableTable minWidth="900px"><table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>{userOrders.map(order => { const m = getMaterialById(order.materialId); return (<tr key={order.id}><td>{order.id}</td><td>{m?.name}</td><td>{order.quantity}</td><td className="price-cell">{formatCurrency(order.unitPrice)}</td><td className="price-cell">{formatCurrency(order.transportCost)}</td><td className="price-cell">{formatCurrency(order.totalAmount)}</td><td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td><td>{formatDate(order.orderDate)}</td>{isCompany && order.status === 'pending' && (<td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>)}</tr>); })}</tbody></table></ScrollableTable>
         )}
       </main>
     );
   };
 
   const renderSupplierMap = () => (
-    <main className="main-content">
-      <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🗺️</span><h1>Supplier Map</h1></div><p>Find suppliers across all Ethiopian cities</p></div>
-      <div className="map-container"><div className="map-placeholder"><span className="map-icon">🗺️</span><h3>GIS Supplier Location Map</h3><p>Interactive map showing supplier locations across Ethiopia</p><div className="city-list">{ETHIOPIAN_CITIES.slice(0,8).map(city => <span key={city} className="city-tag">📍 {city}</span>)}<span className="city-tag">➕ More cities available</span></div></div></div>
-      <div className="card"><div className="card-header"><h3>🏢 Suppliers Directory</h3><span className="badge">{companies.length} Verified Suppliers</span></div>
-      <ScrollableTable minWidth="800px">
-        <table className="data-table"><thead><tr><th className="sticky-col">Company</th><th>City</th><th>Products</th><th>Rating</th><th>Contact</th></tr></thead><tbody>{companies.map(company => { const compMaterials = materials.filter(m => m.companyId === company.id); const supplier = getUserById(company.userId); return (<tr key={company.id}><td className="sticky-col"><strong>{company.name}</strong><small>{company.complianceStatus === 'compliant' ? '✅ Verified' : '⏳ Pending'}</small></td><td>📍 {company.city}</td><td>{compMaterials.length} items</td><td>⭐ {company.rating || '4.5'}</td><td>{supplier && <button className="btn-icon contact" onClick={() => showAlert(`📞 ${supplier.phone} | ✉️ ${supplier.email}`, 'info', 5000)}>📞</button>}</td></tr>); })}</tbody></table>
-      </ScrollableTable>
-      </div>
-    </main>
+    <React.Suspense fallback={<div className="map-placeholder">Loading map...</div>}>
+      <MapComponent companies={companies} currentUser={currentUser} onClose={() => setShowSupplierMap(false)} />
+    </React.Suspense>
   );
 
   const renderMaterialDetails = () => {
@@ -840,14 +824,8 @@ function App() {
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
           <div className="modal-header"><h2>{selectedMaterial.name}</h2><button className="modal-close" onClick={() => setSelectedMaterial(null)}>✕</button></div>
-          <div className="modal-body">
-            <div className="detail-section"><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
-            <div className="detail-section"><h3>💰 Pricing</h3><div className="price-detail"><span>Unit Price:</span><strong>{formatCurrency(selectedMaterial.price)}</strong><span>per {selectedMaterial.unit}</span></div><div className="price-detail"><span>Min Order:</span><span>{selectedMaterial.minOrder} {selectedMaterial.unit}</span></div><div className="price-detail"><span>In Stock:</span><span className={selectedMaterial.quantity > 0 ? 'in-stock' : 'out-stock'}>{selectedMaterial.quantity} {selectedMaterial.unit}</span></div></div>
-            <div className="detail-section"><h3>🏢 Supplier</h3><p><strong>{company?.name}</strong></p><p>📍 {company?.city}</p><p>⭐ Rating: {company?.rating || '4.5'}/5</p></div>
-            {currentUser?.userType === 'customer' && (
-              <div className="order-section"><h3>📦 Add to Cart</h3>{!canAddToCart && cart.length > 0 && (<div className="alert alert-warning">⚠️ Your cart already has items from another supplier. Adding this will clear your cart.</div>)}<input type="number" className="form-input" placeholder={`Quantity (Min: ${selectedMaterial.minOrder})`} id="cartQuantity" defaultValue={selectedMaterial.minOrder} /><button className="btn btn-primary" onClick={() => { const quantityInput = document.getElementById('cartQuantity') as HTMLInputElement; const quantity = parseInt(quantityInput.value); if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Your cart has items from another supplier. Clear cart and add ${selectedMaterial.name}?`)) { clearCart(); addToCart(selectedMaterial, quantity); setSelectedMaterial(null); } } else { addToCart(selectedMaterial, quantity); setSelectedMaterial(null); } }}>{isInCart ? '🔄 Update Cart' : '➕ Add to Cart'}</button></div>
-            )}
-          </div>
+          <div className="modal-body"><div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div><div><h3>💰 Pricing</h3><p>Unit: {formatCurrency(selectedMaterial.price)} / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity}</p></div><div><h3>🏢 Supplier</h3><p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p></div>
+          {currentUser?.userType === 'customer' && (<div><h3>Add to Cart</h3>{!canAddToCart && <div className="alert alert-warning">⚠️ Cart has items from another supplier.</div>}<input type="number" className="form-input" id="cartQuantity" defaultValue={selectedMaterial.minOrder} /><button className="btn btn-primary" onClick={() => { const qty = parseInt((document.getElementById('cartQuantity') as HTMLInputElement).value); if (!canAddToCart && currentSupplierInCart) { if (window.confirm(`Clear cart & add ${selectedMaterial.name}?`)) { clearCart(); addToCart(selectedMaterial, qty); setSelectedMaterial(null); } } else { addToCart(selectedMaterial, qty); setSelectedMaterial(null); } }}>{isInCart ? '🔄 Update' : '➕ Add'}</button></div>)}</div>
         </div>
       </div>
     );
@@ -856,20 +834,13 @@ function App() {
   const renderFooter = () => {
     if (currentPage === 'splash') return null;
     return (
-      <footer className="footer">
-        <div className="footer-content">
-          <div className="footer-section"><h3>🏗️ E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>AI-driven supply chain platform optimizing logistics across Ethiopia</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
-          <div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>🏠 Home</button><button onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button onClick={() => navigateTo('supplier-map')}>🗺️ Supplier Map</button>{!currentUser && <button onClick={() => navigateTo('register')}>📝 Register</button>}</div>
-          <div className="footer-section"><h3>🏙️ Major Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(city => <span key={city}>📍 {city}</span>)}</div></div>
-          <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p><p>🏛️ Ethiopian Revenue & Customs</p></div>
-        </div>
-        <div className="copyright"><p>© 2024 E-SCON | Ethio-Supply Chain Optimization Network | Master's Program Project</p></div>
-      </footer>
+      <footer className="footer"><div className="footer-content"><div className="footer-section"><h3>🏗️ E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div><div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button></div><div className="footer-section"><h3>🏙️ Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>📍 {c}</span>)}</div></div><div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div></div><div className="copyright"><p>© 2024 E-SCON | Master's Program Project</p></div></footer>
     );
   };
 
   const renderCurrentPage = () => {
     if (showSplash) return renderSplash();
+    if (showSupplierMap) return renderSupplierMap();
     switch (currentPage) {
       case 'home': return renderHome();
       case 'login': return renderLogin();
@@ -880,7 +851,6 @@ function App() {
       case 'edit-material': return renderEditMaterial();
       case 'search-materials': return renderSearchMaterials();
       case 'orders': return renderOrders();
-      case 'supplier-map': return renderSupplierMap();
       default: return renderHome();
     }
   };

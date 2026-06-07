@@ -916,3 +916,92 @@ body {
     align-items: flex-start;
   }
 }
+
+/* Map Modal */
+.map-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.8);
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.map-modal-content {
+  background: white;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.map-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.user-marker {
+  background: #e74c3c;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border: 2px solid white;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+
+.cart-actions-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    padding: 0.5rem;
+  }
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cart-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .search-filters {
+    flex-direction: column;
+  }
+  .filter-select, .filter-input {
+    width: 100%;
+  }
+}
