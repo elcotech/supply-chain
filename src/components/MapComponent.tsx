@@ -1,4 +1,3 @@
-// src/components/MapComponent.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { Company, User, Material } from '../types';
 import L from 'leaflet';
@@ -12,6 +11,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
+// Custom icons
 const supplierIcon = L.divIcon({
   className: 'supplier-marker',
   html: '🏗️',
@@ -26,6 +26,30 @@ const userIcon = L.divIcon({
   popupAnchor: [0, -12]
 });
 
+// City → approximate coordinates (used as fallback)
+const cityCoords: Record<string, [number, number]> = {
+  'Addis Ababa': [9.0320, 38.7469],
+  'Adama': [8.5400, 39.2700],
+  'Bahir Dar': [11.6000, 37.3900],
+  'Gondar': [12.6000, 37.4700],
+  'Dessie': [11.1300, 39.6300],
+  'Hawassa': [7.0500, 38.4800],
+  'Jimma': [7.6700, 36.8300],
+  'Jijiga': [9.3500, 42.8000],
+  'Mekelle': [13.4900, 39.4800],
+  'Dire Dawa': [9.5900, 41.8700],
+  'Harar': [9.3100, 42.1200],
+  'Nekemte': [9.0800, 36.5300],
+  'Debre Markos': [10.3300, 37.7300],
+  'Asosa': [10.0600, 34.5300],
+  'Gambela': [8.2500, 34.5900],
+  'Semera': [11.7900, 41.0100],
+  'Debre Berhan': [9.6800, 39.5300],
+  'Wolkite': [8.2800, 37.7900],
+  'Bishoftu': [8.7400, 38.9800],
+  'Shashemene': [7.2000, 38.6000]
+};
+
 interface MapComponentProps {
   companies: Company[];
   materials: Material[];
@@ -34,18 +58,32 @@ interface MapComponentProps {
   onSelectSupplier?: (company: Company) => void;
 }
 
-const MapComponent: React.FC<MapComponentProps> = ({ 
-  companies, 
-  materials, 
-  currentUser, 
+const MapComponent: React.FC<MapComponentProps> = ({
+  companies,
+  materials,
+  currentUser,
   onClose,
-  onSelectSupplier 
+  onSelectSupplier
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [companyMaterials, setCompanyMaterials] = useState<Material[]>([]);
+
+  // Helper to get coordinates for a company (fallback to city)
+  const getCoords = (company: Company): { lat: number; lng: number } => {
+    let lat = company.lat;
+    let lng = company.lng;
+    // If lat/lng are missing or zero, try to use city coords
+    if (!lat || !lng || (lat === 0 && lng === 0)) {
+      const city = company.city || 'Addis Ababa';
+      const coords = cityCoords[city] || cityCoords['Addis Ababa'];
+      lat = coords[0];
+      lng = coords[1];
+    }
+    return { lat, lng };
+  };
 
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
@@ -61,46 +99,46 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     const latLngs: L.LatLngExpression[] = [];
 
-    // Add markers for each company
+    // Add markers for each company (now using getCoords)
     companies.forEach(company => {
-      if (company.lat && company.lng) {
-        const marker = L.marker([company.lat, company.lng], { icon: supplierIcon }).addTo(leafletMap.current!);
+      const { lat, lng } = getCoords(company);
+      const marker = L.marker([lat, lng], { icon: supplierIcon }).addTo(leafletMap.current!);
+      
+      const productCount = materials.filter(m => m.companyId === company.id).length;
+      
+      marker.bindPopup(`
+        <div style="min-width: 220px; font-family: Arial, sans-serif;">
+          <strong style="font-size: 16px; color: #1a4a6f;">${company.name}</strong><br/>
+          📍 ${company.location || company.city}<br/>
+          ⭐ ${company.rating || 'N/A'}/5<br/>
+          📦 ${productCount} products<br/>
+          ${company.tinNumber ? '✅ Verified' : 'Pending'}<br/>
+          <button onclick="window.selectSupplier('${company.id}')" style="margin-top: 8px; padding: 5px 10px; background: #1a4a6f; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            View Details
+          </button>
+        </div>
+      `);
+      
+      marker.on('click', () => {
+        setSelectedCompany(company);
+        const mats = materials.filter(m => m.companyId === company.id);
+        setCompanyMaterials(mats);
         
-        const productCount = materials.filter(m => m.companyId === company.id).length;
-        
-        marker.bindPopup(`
-          <div style="min-width: 200px; font-family: Arial, sans-serif;">
-            <strong style="font-size: 16px; color: #1a4a6f;">${company.name}</strong><br/>
-            📍 ${company.city}<br/>
-            ⭐ ${company.rating || '4.5'}/5<br/>
-            📦 ${productCount} products<br/>
-            📞 ${company.tinNumber ? '✅ Verified' : 'Pending'}<br/>
-            <button onclick="window.selectSupplier('${company.id}')" style="margin-top: 8px; padding: 5px 10px; background: #1a4a6f; color: white; border: none; border-radius: 5px; cursor: pointer;">
-              View Details
-            </button>
-          </div>
-        `);
-        
-        marker.on('click', () => {
-          setSelectedCompany(company);
-          const mats = materials.filter(m => m.companyId === company.id);
-          setCompanyMaterials(mats);
-          
-          if (currentUser && currentUser.lat && currentUser.lng) {
-            const R = 6371;
-            const dLat = (company.lat - currentUser.lat) * Math.PI / 180;
-            const dLon = (company.lng - currentUser.lng) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(currentUser.lat * Math.PI/180) * Math.cos(company.lat * Math.PI/180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const dist = R * c;
-            setDistance(dist);
-          }
-        });
-        
-        latLngs.push([company.lat, company.lng]);
-      }
+        if (currentUser && currentUser.lat && currentUser.lng) {
+          // Calculate distance using Haversine
+          const R = 6371;
+          const dLat = (lat - currentUser.lat) * Math.PI / 180;
+          const dLon = (lng - currentUser.lng) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(currentUser.lat * Math.PI/180) * Math.cos(lat * Math.PI/180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const dist = R * c;
+          setDistance(dist);
+        }
+      });
+      
+      latLngs.push([lat, lng]);
     });
 
     // Add user marker if logged in
@@ -114,10 +152,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
       latLngs.push([currentUser.lat, currentUser.lng]);
     }
 
-    // Fit bounds to show all markers (fix: use L.latLngBounds)
+    // Fit bounds to show all markers
     if (latLngs.length > 0) {
       const bounds = L.latLngBounds(latLngs);
-      leafletMap.current.fitBounds(bounds);
+      leafletMap.current.fitBounds(bounds, { padding: [30, 30] });
     }
     
     // Expose selectSupplier to global for button clicks
@@ -154,8 +192,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         {selectedCompany && (
           <div className="supplier-detail-panel">
             <h3>{selectedCompany.name}</h3>
-            <p><strong>📍 Location:</strong> {selectedCompany.city}</p>
-            <p><strong>⭐ Rating:</strong> {selectedCompany.rating || '4.5'}/5</p>
+            <p><strong>📍 Location:</strong> {selectedCompany.location || selectedCompany.city}</p>
+            <p><strong>⭐ Rating:</strong> {selectedCompany.rating || 'N/A'}/5</p>
             <p><strong>📦 Products:</strong> {companyMaterials.length} items</p>
             {distance && (
               <p><strong>🚗 Distance from you:</strong> {distance.toFixed(1)} km</p>

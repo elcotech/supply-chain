@@ -62,6 +62,7 @@ export interface Material {
     origin?: string;
     certification?: string[];
     weightPerUnit?: number;
+    materialType?: string; // added to allow extra field from Excel
   };
   images: string[];
   taxIncluded: boolean;

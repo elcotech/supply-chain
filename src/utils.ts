@@ -13,7 +13,6 @@ export const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-ET', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
-// Real distance using OSRM (free, no API key)
 export const calculateDistance = async (originLat: number, originLng: number, destLat: number, destLng: number): Promise<number> => {
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
@@ -25,7 +24,7 @@ export const calculateDistance = async (originLat: number, originLng: number, de
   } catch (error) {
     console.warn("OSRM failed, using haversine fallback", error);
   }
-  // Fallback to straight-line distance (Haversine)
+  // Fallback to Haversine
   const R = 6371;
   const dLat = (destLat - originLat) * Math.PI / 180;
   const dLon = (destLng - originLng) * Math.PI / 180;
@@ -36,7 +35,6 @@ export const calculateDistance = async (originLat: number, originLng: number, de
   return R * c;
 };
 
-// Transport cost formula: Tc = [Fc + (d * Vc * w)]
 export const calculateTransportCost = async (
   supplierLat: number, supplierLng: number,
   customerLat: number, customerLng: number,
@@ -52,7 +50,6 @@ export const isUserLocked = (user: any) => {
   return user.lockUntil && user.lockUntil > Date.now();
 };
 
-// CSV export
 export const exportToCSV = (data: any[], filename: string) => {
   if (!data.length) return;
   const headers = Object.keys(data[0]);
@@ -70,11 +67,9 @@ export const exportToCSV = (data: any[], filename: string) => {
   URL.revokeObjectURL(url);
 };
 
-// Print cart report
 export const printCartReport = (reportData: any) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
-  
   const html = `
     <!DOCTYPE html>
     <html>
@@ -96,10 +91,7 @@ export const printCartReport = (reportData: any) => {
         .summary-row { display: flex; justify-content: space-between; padding: 8px 0; }
         .summary-row.total { font-size: 20px; font-weight: bold; border-top: 2px solid #1a4a6f; margin-top: 10px; padding-top: 10px; }
         .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
-        @media print {
-          body { padding: 20px; }
-          .no-print { display: none; }
-        }
+        @media print { body { padding: 20px; } }
       </style>
     </head>
     <body>
@@ -109,14 +101,12 @@ export const printCartReport = (reportData: any) => {
           <p>Ethio-Supply Chain Optimization Network</p>
           <p>Report Date: ${reportData.reportDate}</p>
         </div>
-        
         <div class="supplier-info">
           <h3>🏢 Supplier Information</h3>
           <p><strong>Name:</strong> ${reportData.supplierName}</p>
           <p><strong>Location:</strong> ${reportData.supplierCity}</p>
           <p><strong>Distance:</strong> ${reportData.distanceKm.toFixed(1)} km</p>
         </div>
-        
         <h3>📦 Cart Items</h3>
         <table class="items-table">
           <thead>
@@ -140,26 +130,12 @@ export const printCartReport = (reportData: any) => {
             `).join('')}
           </tbody>
         </table>
-        
         <div class="summary">
-          <div class="summary-row">
-            <span>Subtotal (Before Tax):</span>
-            <strong>${formatCurrency(reportData.subtotal)}</strong>
-          </div>
-          <div class="summary-row">
-            <span>VAT (15%):</span>
-            <strong>${formatCurrency(reportData.vatAmount)}</strong>
-          </div>
-          <div class="summary-row">
-            <span>Delivery Fee:</span>
-            <strong>${formatCurrency(reportData.transportCost)}</strong>
-          </div>
-          <div class="summary-row total">
-            <span>Total Amount:</span>
-            <strong>${formatCurrency(reportData.total)}</strong>
-          </div>
+          <div class="summary-row"><span>Subtotal (Before Tax):</span><strong>${formatCurrency(reportData.subtotal)}</strong></div>
+          <div class="summary-row"><span>VAT (15%):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
+          <div class="summary-row"><span>Delivery Fee:</span><strong>${formatCurrency(reportData.transportCost)}</strong></div>
+          <div class="summary-row total"><span>Total Amount:</span><strong>${formatCurrency(reportData.total)}</strong></div>
         </div>
-        
         <div class="footer">
           <p>© 2024 E-SCON | Ethio-Supply Chain Optimization Network</p>
           <p>This is a system-generated report.</p>
@@ -171,12 +147,10 @@ export const printCartReport = (reportData: any) => {
     </body>
     </html>
   `;
-  
   printWindow.document.write(html);
   printWindow.document.close();
 };
 
-// Fixed: exportCartToCSV now accepts two arguments (cart and totals)
 export const exportCartToCSV = (cart: any[], totals: any) => {
   const exportData = cart.map(item => ({
     'Material': item.materialName,
@@ -188,8 +162,6 @@ export const exportCartToCSV = (cart: any[], totals: any) => {
     'VAT (15%)': (item.price * item.quantity) * 0.15,
     'Total with VAT': (item.price * item.quantity) * 1.15
   }));
-  
-  // Add summary row
   exportData.push({
     'Material': '--- SUMMARY ---',
     'Supplier': '',
@@ -200,7 +172,6 @@ export const exportCartToCSV = (cart: any[], totals: any) => {
     'VAT (15%)': totals.vatAmount,
     'Total with VAT': totals.subtotal + totals.vatAmount
   });
-  
   exportToCSV(exportData, 'cart_detailed_report');
 };
 
