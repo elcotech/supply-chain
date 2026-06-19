@@ -219,5 +219,5 @@ const MapComponent: React.FC<MapComponentProps> = ({
     </div>
   );
 };
-
+ 
 export default MapComponent;
