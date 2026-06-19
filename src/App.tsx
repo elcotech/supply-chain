@@ -129,14 +129,7 @@ function App() {
   const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
   const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
 
-  const resetLoginAttempts = (userId: string): void => {
-    setUsers(prev => prev.map(user => {
-      if (user.id === userId && user.lockUntil && user.lockUntil <= Date.now()) {
-        return { ...user, loginAttempts: 0, lockUntil: 0 };
-      }
-      return user;
-    }));
-  };
+  
 
   const navigateTo = (page: string): void => {
     setCurrentPage(page);
