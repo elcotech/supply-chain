@@ -1,4 +1,3 @@
-// src/App.tsx
 import React, { useState, useEffect, Suspense } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
@@ -87,6 +86,15 @@ function App() {
     }
   }, [isInitialized]);
 
+  // If materials are empty (e.g., corrupted localStorage), reload from sample
+  useEffect(() => {
+    if (isInitialized && materials.length === 0 && sampleMaterials.length > 0) {
+      setMaterials(sampleMaterials);
+      safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
+      showAlert('Product data reloaded successfully', 'success');
+    }
+  }, [isInitialized, materials]);
+
   // Persist data changes
   useEffect(() => {
     if (isInitialized && users.length) safeLocalStorage.setItem('users', JSON.stringify(users));
@@ -129,7 +137,8 @@ function App() {
   const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
   const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
 
-  
+  // (Unused function removed to fix build)
+  // const resetLoginAttempts = ... (deleted)
 
   const navigateTo = (page: string): void => {
     setCurrentPage(page);
@@ -921,10 +930,21 @@ function App() {
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-input-group"><input type="text" className="search-input-large" placeholder="Search products..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} /><button type="submit" className="search-btn">🔍 Search</button></div>
             <div className="search-filters">
-              <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}><option value="all">All Departments</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select>
-              <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}><option value="all">All Cities</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
+              <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}>
+                <option value="all">All Departments</option>
+                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}>
+                <option value="all">All Cities</option>
+                {ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
               <input type="number" className="filter-input" placeholder="Max Price" name="searchMaxPrice" value={formData.searchMaxPrice} onChange={handleInputChange} />
-              <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}><option value="price_asc">Price: Low to High</option><option value="price_desc">Price: High to Low</option><option value="rating_desc">Highest Rated</option></select>
+              <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="rating_desc">Highest Rated</option>
+                <option value="newest">Newest</option>
+              </select>
               <button type="button" className="filter-clear" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Clear</button>
             </div>
           </form>
@@ -940,7 +960,7 @@ function App() {
                   const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
                   return (
                     <tr key={item.id}>
-                      <td><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
+                      <td className="product-name"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
                       <td>{item.category}</td>
                       <td>{company?.name || 'Unknown'}</td>
                       <td>{company?.city || 'N/A'}</td>

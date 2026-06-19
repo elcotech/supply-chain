@@ -1035,3 +1035,21 @@ body {
   from { transform: scale(0.95); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+/* Wrap product names in tables for mobile */
+.data-table td.product-name {
+  word-wrap: break-word;
+  white-space: normal;
+  max-width: 150px;
+}
+.data-table td {
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* Ensure table cells don't overflow on small screens */
+@media (max-width: 768px) {
+  .data-table td.product-name {
+    max-width: 100px;
+  }
+}
