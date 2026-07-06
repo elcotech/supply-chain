@@ -74,39 +74,22 @@ function App() {
     return Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01;
   }, []);
 
-  // Geocode all companies (replace generic coords)
-  const geocodeAllCompanies = useCallback(async (companiesToGeocode: Company[]): Promise<Company[]> => {
-    const updated = await Promise.all(companiesToGeocode.map(async (comp) => {
-      if (isGenericCoord(comp.lat, comp.lng, comp.city)) {
-        const result = await geocodeAddress(comp.location, comp.city);
-        if (result) {
-          return { ...comp, lat: result.lat, lng: result.lng };
-        }
+  // Geocode a single company (replace generic coords)
+  const geocodeCompany = useCallback(async (company: Company): Promise<Company> => {
+    if (isGenericCoord(company.lat, company.lng, company.city)) {
+      const result = await geocodeAddress(company.location, company.city);
+      if (result) {
+        return { ...company, lat: result.lat, lng: result.lng };
       }
-      return comp;
-    }));
-    return updated;
+    }
+    return company;
   }, [isGenericCoord]);
 
-  // Upgrade existing companies (after loading from localStorage)
-  const upgradeCompanyCoordinates = useCallback(async (currentCompanies: Company[]) => {
-    let changed = false;
-    const updated = await Promise.all(currentCompanies.map(async (comp) => {
-      if (isGenericCoord(comp.lat, comp.lng, comp.city)) {
-        const result = await geocodeAddress(comp.location, comp.city);
-        if (result) {
-          changed = true;
-          return { ...comp, lat: result.lat, lng: result.lng };
-        }
-      }
-      return comp;
-    }));
-    if (changed) {
-      setCompanies(updated);
-      safeLocalStorage.setItem('companies', JSON.stringify(updated));
-      showAlert('Supplier locations refined! 🗺️', 'success');
-    }
-  }, [isGenericCoord, showAlert]);
+  // Geocode all companies in an array
+  const geocodeAllCompanies = useCallback(async (companiesToGeocode: Company[]): Promise<Company[]> => {
+    const updated = await Promise.all(companiesToGeocode.map(geocodeCompany));
+    return updated;
+  }, [geocodeCompany]);
 
   // -------- INITIALIZATION ----------
   useEffect(() => {
@@ -127,36 +110,60 @@ function App() {
       const savedOrders = safeLocalStorage.getItem('orders');
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
-      if (savedUsers && savedCompanies && savedMaterials && savedOrders) {
-        const parsedCompanies = JSON.parse(savedCompanies);
-        setUsers(JSON.parse(savedUsers));
-        setCompanies(parsedCompanies);
-        setMaterials(JSON.parse(savedMaterials));
-        setOrders(JSON.parse(savedOrders));
-        if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
-        setIsInitialized(true);
-        // Upgrade any still-generic coords
-        upgradeCompanyCoordinates(parsedCompanies);
-      } else {
-        // First run – geocode and save
-        const init = async () => {
-          const enriched = await geocodeAllCompanies(sampleCompanies);
-          setUsers(sampleUsers);
-          setCompanies(enriched);
-          setMaterials(sampleMaterials);
-          setOrders(sampleOrders);
-          safeLocalStorage.setItem('users', JSON.stringify(sampleUsers));
-          safeLocalStorage.setItem('companies', JSON.stringify(enriched));
-          safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
-          safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders));
-          if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
-          setIsInitialized(true);
-          showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
-        };
-        init();
+      // Ensure we always have all sampleCompanies as a base
+      let baseCompanies: Company[] = sampleCompanies;
+
+      if (savedCompanies) {
+        const parsed = JSON.parse(savedCompanies);
+        // Merge: for each sample company, if it exists in saved, keep saved (might have updated coords), otherwise use sample.
+        const merged = sampleCompanies.map(sampleComp => {
+          const existing = parsed.find((c: Company) => c.id === sampleComp.id);
+          return existing || sampleComp;
+        });
+        baseCompanies = merged;
       }
+
+      // Now geocode any that still need it
+      const init = async () => {
+        const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
+        setCompanies(enrichedCompanies);
+
+        // Load or seed users
+        if (savedUsers) {
+          setUsers(JSON.parse(savedUsers));
+        } else {
+          setUsers(sampleUsers);
+          safeLocalStorage.setItem('users', JSON.stringify(sampleUsers));
+        }
+
+        // Load or seed materials
+        if (savedMaterials) {
+          setMaterials(JSON.parse(savedMaterials));
+        } else {
+          setMaterials(sampleMaterials);
+          safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
+        }
+
+        // Load or seed orders
+        if (savedOrders) {
+          setOrders(JSON.parse(savedOrders));
+        } else {
+          setOrders(sampleOrders);
+          safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders));
+        }
+
+        if (savedCurrentUser) {
+          setCurrentUser(JSON.parse(savedCurrentUser));
+        }
+
+        // Save enriched companies back
+        safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
+        setIsInitialized(true);
+        showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
+      };
+      init();
     }
-  }, [isInitialized, geocodeAllCompanies, upgradeCompanyCoordinates, showAlert]);
+  }, [isInitialized, geocodeAllCompanies, showAlert]);
 
   // Reload materials if empty (corrupted storage)
   useEffect(() => {
