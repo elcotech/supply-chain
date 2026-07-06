@@ -1,4 +1,5 @@
-import React, { useState, useEffect, Suspense } from 'react';
+// ===== src/App.tsx =====
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
 import {
@@ -46,19 +47,24 @@ function App() {
     materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '',
   });
 
-  // -------- INITIALIZATION ----------
-  useEffect(() => {
-    if (showSplash) {
-      const timer = setTimeout(() => {
-        setShowSplash(false);
-        setCurrentPage('home');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSplash]);
+  // -------- HELPERS ----------
+  const showAlert = useCallback((message: string, type: Alert['type'] = 'info', duration = 5000): void => {
+    setAlert({ message, type });
+    if (duration > 0) setTimeout(() => setAlert(null), duration);
+  }, []);
+
+  const getMaterialById = (id: string): Material | undefined => materials.find(m => m.id === id);
+  const getCompanyById = (id: string): Company | undefined => companies.find(c => c.id === id);
+  const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
+  const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
+
+  const navigateTo = (page: string): void => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Helper: check if coords are generic city center
-  const isGenericCoord = (lat: number, lng: number, city: string): boolean => {
+  const isGenericCoord = useCallback((lat: number, lng: number, city: string): boolean => {
     const cityCenters: Record<string, [number, number]> = {
       'Addis Ababa': [9.0320, 38.7469],
       'Adama': [8.5400, 39.2700],
@@ -66,9 +72,10 @@ function App() {
     const center = cityCenters[city];
     if (!center) return false;
     return Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01;
-  };
+  }, []);
 
-  const geocodeAllCompanies = async (companiesToGeocode: Company[]): Promise<Company[]> => {
+  // Geocode all companies (replace generic coords)
+  const geocodeAllCompanies = useCallback(async (companiesToGeocode: Company[]): Promise<Company[]> => {
     const updated = await Promise.all(companiesToGeocode.map(async (comp) => {
       if (isGenericCoord(comp.lat, comp.lng, comp.city)) {
         const result = await geocodeAddress(comp.location, comp.city);
@@ -79,7 +86,38 @@ function App() {
       return comp;
     }));
     return updated;
-  };
+  }, [isGenericCoord]);
+
+  // Upgrade existing companies (after loading from localStorage)
+  const upgradeCompanyCoordinates = useCallback(async (currentCompanies: Company[]) => {
+    let changed = false;
+    const updated = await Promise.all(currentCompanies.map(async (comp) => {
+      if (isGenericCoord(comp.lat, comp.lng, comp.city)) {
+        const result = await geocodeAddress(comp.location, comp.city);
+        if (result) {
+          changed = true;
+          return { ...comp, lat: result.lat, lng: result.lng };
+        }
+      }
+      return comp;
+    }));
+    if (changed) {
+      setCompanies(updated);
+      safeLocalStorage.setItem('companies', JSON.stringify(updated));
+      showAlert('Supplier locations refined! 🗺️', 'success');
+    }
+  }, [isGenericCoord, showAlert]);
+
+  // -------- INITIALIZATION ----------
+  useEffect(() => {
+    if (showSplash) {
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        setCurrentPage('home');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSplash]);
 
   useEffect(() => {
     if (!isInitialized) {
@@ -118,26 +156,7 @@ function App() {
         init();
       }
     }
-  }, [isInitialized]);
-
-  const upgradeCompanyCoordinates = async (currentCompanies: Company[]) => {
-    let changed = false;
-    const updated = await Promise.all(currentCompanies.map(async (comp) => {
-      if (isGenericCoord(comp.lat, comp.lng, comp.city)) {
-        const result = await geocodeAddress(comp.location, comp.city);
-        if (result) {
-          changed = true;
-          return { ...comp, lat: result.lat, lng: result.lng };
-        }
-      }
-      return comp;
-    }));
-    if (changed) {
-      setCompanies(updated);
-      safeLocalStorage.setItem('companies', JSON.stringify(updated));
-      showAlert('Supplier locations refined! 🗺️', 'success');
-    }
-  };
+  }, [isInitialized, geocodeAllCompanies, upgradeCompanyCoordinates, showAlert]);
 
   // Reload materials if empty (corrupted storage)
   useEffect(() => {
@@ -146,7 +165,7 @@ function App() {
       safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
       showAlert('Product data reloaded', 'success');
     }
-  }, [isInitialized, materials]);
+  }, [isInitialized, materials, showAlert]);
 
   // Persist data
   useEffect(() => {
@@ -178,22 +197,6 @@ function App() {
       safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
     }
   }, [cart, currentUser, isInitialized]);
-
-  // -------- HELPERS ----------
-  const showAlert = (message: string, type: Alert['type'] = 'info', duration = 5000): void => {
-    setAlert({ message, type });
-    if (duration > 0) setTimeout(() => setAlert(null), duration);
-  };
-
-  const getMaterialById = (id: string): Material | undefined => materials.find(m => m.id === id);
-  const getCompanyById = (id: string): Company | undefined => companies.find(c => c.id === id);
-  const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
-  const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
-
-  const navigateTo = (page: string): void => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   // -------- AUTH ----------
   const handleLogin = (e: React.FormEvent): void => {
