@@ -3,7 +3,6 @@ import { Company, User, Material } from '../types';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix Leaflet icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -11,7 +10,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Custom icons
 const supplierIcon = L.divIcon({
   className: 'supplier-marker',
   html: '🏗️',
@@ -26,7 +24,7 @@ const userIcon = L.divIcon({
   popupAnchor: [0, -12]
 });
 
-// City → approximate coordinates (used as fallback)
+// Fallback city coordinates
 const cityCoords: Record<string, [number, number]> = {
   'Addis Ababa': [9.0320, 38.7469],
   'Adama': [8.5400, 39.2700],
@@ -71,16 +69,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [distance, setDistance] = useState<number | null>(null);
   const [companyMaterials, setCompanyMaterials] = useState<Material[]>([]);
 
-  // Helper to get coordinates for a company (fallback to city)
   const getCoords = (company: Company): { lat: number; lng: number } => {
     let lat = company.lat;
     let lng = company.lng;
-    // If lat/lng are missing or zero, try to use city coords
-    if (!lat || !lng || (lat === 0 && lng === 0)) {
-      const city = company.city || 'Addis Ababa';
-      const coords = cityCoords[city] || cityCoords['Addis Ababa'];
-      lat = coords[0];
-      lng = coords[1];
+    const city = company.city || 'Addis Ababa';
+    const center = cityCoords[city] || cityCoords['Addis Ababa'];
+    // If coords are missing or too close to city center, use fallback
+    if (!lat || !lng || (Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01)) {
+      return { lat: center[0], lng: center[1] };
     }
     return { lat, lng };
   };
@@ -88,7 +84,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
 
-    // Center on Addis Ababa
     leafletMap.current = L.map(mapRef.current).setView([9.0320, 38.7469], 12);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -99,11 +94,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     const latLngs: L.LatLngExpression[] = [];
 
-    // Add markers for each company (now using getCoords)
     companies.forEach(company => {
       const { lat, lng } = getCoords(company);
       const marker = L.marker([lat, lng], { icon: supplierIcon }).addTo(leafletMap.current!);
-      
       const productCount = materials.filter(m => m.companyId === company.id).length;
       
       marker.bindPopup(`
@@ -121,11 +114,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
       
       marker.on('click', () => {
         setSelectedCompany(company);
-        const mats = materials.filter(m => m.companyId === company.id);
-        setCompanyMaterials(mats);
-        
+        setCompanyMaterials(materials.filter(m => m.companyId === company.id));
         if (currentUser && currentUser.lat && currentUser.lng) {
-          // Calculate distance using Haversine
           const R = 6371;
           const dLat = (lat - currentUser.lat) * Math.PI / 180;
           const dLon = (lng - currentUser.lng) * Math.PI / 180;
@@ -133,15 +123,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
                     Math.cos(currentUser.lat * Math.PI/180) * Math.cos(lat * Math.PI/180) *
                     Math.sin(dLon/2) * Math.sin(dLon/2);
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          const dist = R * c;
-          setDistance(dist);
+          setDistance(R * c);
         }
       });
       
       latLngs.push([lat, lng]);
     });
 
-    // Add user marker if logged in
     if (currentUser && currentUser.lat && currentUser.lng) {
       const userMarker = L.marker([currentUser.lat, currentUser.lng], { icon: userIcon }).addTo(leafletMap.current);
       userMarker.bindPopup(`
@@ -152,19 +140,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
       latLngs.push([currentUser.lat, currentUser.lng]);
     }
 
-    // Fit bounds to show all markers
     if (latLngs.length > 0) {
       const bounds = L.latLngBounds(latLngs);
       leafletMap.current.fitBounds(bounds, { padding: [30, 30] });
     }
     
-    // Expose selectSupplier to global for button clicks
     (window as any).selectSupplier = (companyId: string) => {
       const company = companies.find(c => c.id === companyId);
       if (company) {
         setSelectedCompany(company);
-        const mats = materials.filter(m => m.companyId === companyId);
-        setCompanyMaterials(mats);
+        setCompanyMaterials(materials.filter(m => m.companyId === companyId));
         if (onSelectSupplier) onSelectSupplier(company);
       }
     };
@@ -188,16 +173,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
         <div className="map-container-inner">
           <div ref={mapRef} style={{ height: '500px', width: '100%' }}></div>
         </div>
-        
         {selectedCompany && (
           <div className="supplier-detail-panel">
             <h3>{selectedCompany.name}</h3>
             <p><strong>📍 Location:</strong> {selectedCompany.location || selectedCompany.city}</p>
             <p><strong>⭐ Rating:</strong> {selectedCompany.rating || 'N/A'}/5</p>
             <p><strong>📦 Products:</strong> {companyMaterials.length} items</p>
-            {distance && (
-              <p><strong>🚗 Distance from you:</strong> {distance.toFixed(1)} km</p>
-            )}
+            {distance && <p><strong>🚗 Distance from you:</strong> {distance.toFixed(1)} km</p>}
             <div className="supplier-products">
               <strong>Available Products:</strong>
               <ul>
@@ -207,17 +189,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 {companyMaterials.length > 5 && <li>+{companyMaterials.length - 5} more</li>}
               </ul>
             </div>
-            <button className="btn-primary" onClick={handleViewProducts}>
-              View All Products
-            </button>
-            <button className="btn-secondary" onClick={() => setSelectedCompany(null)}>
-              Close
-            </button>
+            <button className="btn-primary" onClick={handleViewProducts}>View All Products</button>
+            <button className="btn-secondary" onClick={() => setSelectedCompany(null)}>Close</button>
           </div>
         )}
       </div>
     </div>
   );
 };
- 
+
 export default MapComponent;

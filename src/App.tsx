@@ -8,10 +8,10 @@ import {
 import {
   safeLocalStorage, formatCurrency, formatDate,
   calculateDistance, calculateTransportCost, isUserLocked,
-  exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV
+  exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
+  geocodeAddress
 } from './utils';
 
-// Lazy load MapComponent (it uses Leaflet which is large)
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
 function App() {
@@ -57,9 +57,32 @@ function App() {
     }
   }, [showSplash]);
 
+  // Helper: check if coords are generic city center
+  const isGenericCoord = (lat: number, lng: number, city: string): boolean => {
+    const cityCenters: Record<string, [number, number]> = {
+      'Addis Ababa': [9.0320, 38.7469],
+      'Adama': [8.5400, 39.2700],
+    };
+    const center = cityCenters[city];
+    if (!center) return false;
+    return Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01;
+  };
+
+  const geocodeAllCompanies = async (companiesToGeocode: Company[]): Promise<Company[]> => {
+    const updated = await Promise.all(companiesToGeocode.map(async (comp) => {
+      if (isGenericCoord(comp.lat, comp.lng, comp.city)) {
+        const result = await geocodeAddress(comp.location, comp.city);
+        if (result) {
+          return { ...comp, lat: result.lat, lng: result.lng };
+        }
+      }
+      return comp;
+    }));
+    return updated;
+  };
+
   useEffect(() => {
     if (!isInitialized) {
-      // First load – set sample data and save to localStorage
       const savedUsers = safeLocalStorage.getItem('users');
       const savedCompanies = safeLocalStorage.getItem('companies');
       const savedMaterials = safeLocalStorage.getItem('materials');
@@ -67,35 +90,65 @@ function App() {
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
       if (savedUsers && savedCompanies && savedMaterials && savedOrders) {
+        const parsedCompanies = JSON.parse(savedCompanies);
         setUsers(JSON.parse(savedUsers));
-        setCompanies(JSON.parse(savedCompanies));
+        setCompanies(parsedCompanies);
         setMaterials(JSON.parse(savedMaterials));
         setOrders(JSON.parse(savedOrders));
         if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
+        setIsInitialized(true);
+        // Upgrade any still-generic coords
+        upgradeCompanyCoordinates(parsedCompanies);
       } else {
-        setUsers(sampleUsers);
-        setCompanies(sampleCompanies);
-        setMaterials(sampleMaterials);
-        setOrders(sampleOrders);
-        safeLocalStorage.setItem('users', JSON.stringify(sampleUsers));
-        safeLocalStorage.setItem('companies', JSON.stringify(sampleCompanies));
-        safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
-        safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders));
+        // First run – geocode and save
+        const init = async () => {
+          const enriched = await geocodeAllCompanies(sampleCompanies);
+          setUsers(sampleUsers);
+          setCompanies(enriched);
+          setMaterials(sampleMaterials);
+          setOrders(sampleOrders);
+          safeLocalStorage.setItem('users', JSON.stringify(sampleUsers));
+          safeLocalStorage.setItem('companies', JSON.stringify(enriched));
+          safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
+          safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders));
+          if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
+          setIsInitialized(true);
+          showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
+        };
+        init();
       }
-      setIsInitialized(true);
     }
   }, [isInitialized]);
 
-  // If materials are empty (e.g., corrupted localStorage), reload from sample
+  const upgradeCompanyCoordinates = async (currentCompanies: Company[]) => {
+    let changed = false;
+    const updated = await Promise.all(currentCompanies.map(async (comp) => {
+      if (isGenericCoord(comp.lat, comp.lng, comp.city)) {
+        const result = await geocodeAddress(comp.location, comp.city);
+        if (result) {
+          changed = true;
+          return { ...comp, lat: result.lat, lng: result.lng };
+        }
+      }
+      return comp;
+    }));
+    if (changed) {
+      setCompanies(updated);
+      safeLocalStorage.setItem('companies', JSON.stringify(updated));
+      showAlert('Supplier locations refined! 🗺️', 'success');
+    }
+  };
+
+  // Reload materials if empty (corrupted storage)
   useEffect(() => {
     if (isInitialized && materials.length === 0 && sampleMaterials.length > 0) {
       setMaterials(sampleMaterials);
       safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
-      showAlert('Product data reloaded successfully', 'success');
+      showAlert('Product data reloaded', 'success');
     }
   }, [isInitialized, materials]);
 
-  // Persist data changes
+  // Persist data
   useEffect(() => {
     if (isInitialized && users.length) safeLocalStorage.setItem('users', JSON.stringify(users));
   }, [users, isInitialized]);
@@ -136,9 +189,6 @@ function App() {
   const getCompanyById = (id: string): Company | undefined => companies.find(c => c.id === id);
   const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
   const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
-
-  // (Unused function removed to fix build)
-  // const resetLoginAttempts = ... (deleted)
 
   const navigateTo = (page: string): void => {
     setCurrentPage(page);

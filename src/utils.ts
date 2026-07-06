@@ -1,4 +1,3 @@
-// src/utils.ts
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
   setItem: (key: string, value: string) => localStorage.setItem(key, value),
@@ -24,7 +23,6 @@ export const calculateDistance = async (originLat: number, originLng: number, de
   } catch (error) {
     console.warn("OSRM failed, using haversine fallback", error);
   }
-  // Fallback to Haversine
   const R = 6371;
   const dLat = (destLat - originLat) * Math.PI / 180;
   const dLon = (destLng - originLng) * Math.PI / 180;
@@ -193,4 +191,23 @@ export const exportOrdersToCSV = (orders: any[], materials: any[], companies: an
     };
   });
   exportToCSV(exportData, 'orders_export');
+};
+
+// ---------- NEW: Geocoding helper ----------
+export const geocodeAddress = async (address: string, city: string): Promise<{ lat: number; lng: number } | null> => {
+  try {
+    const query = encodeURIComponent(`${address}, ${city}, Ethiopia`);
+    const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'E-SCON-App' }
+    });
+    const data = await response.json();
+    if (data && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+    return null;
+  } catch (error) {
+    console.warn('Geocoding failed for', address, city, error);
+    return null;
+  }
 };

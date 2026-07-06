@@ -1053,3 +1053,20 @@ body {
     max-width: 100px;
   }
 }
+
+
+/* Wrap product names in tables for mobile */
+.data-table td.product-name {
+  word-wrap: break-word;
+  white-space: normal;
+  max-width: 150px;
+}
+.data-table td {
+  word-wrap: break-word;
+  white-space: normal;
+}
+@media (max-width: 768px) {
+  .data-table td.product-name {
+    max-width: 100px;
+  }
+}
