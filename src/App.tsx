@@ -728,10 +728,7 @@ function App() {
     return (
       <header className="header">
         <div className="header-content">
-          <div className="logo" onClick={() => navigateTo('home')}>
-            <div className="logo-icon">🏗️</div>
-            <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain</p></div>
-          </div>
+         
           <div className="nav-links">
             {currentUser ? renderUserNav() : renderGuestNav()}
             {currentUser && currentUser.userType === 'customer' && (
