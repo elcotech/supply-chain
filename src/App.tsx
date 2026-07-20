@@ -733,8 +733,7 @@ function App() {
       <header className="header">
         <div className="header-content">
           <div className="logo" onClick={() => navigateTo('home')}>
-            <div className="logo-icon">🏗️</div>
-            <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain</p></div>
+            
           </div>
           <div className="header-actions">
             <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle Theme">
@@ -855,9 +854,7 @@ function App() {
     return (
       <main className="main-content">
         <section className="home-hero glass">
-          <div className="hero-badge">🇪🇹 Ethiopian Supply Chain Platform</div>
-          <h1>E-SCON</h1>
-          <p>Ethio-Supply Chain Optimization Network</p>
+
           <div className="search-center">
             <form onSubmit={(e) => { e.preventDefault(); navigateTo('search-materials'); }}>
               <div className="search-center-input"><input type="text" className="search-input" placeholder="Search products..." value={formData.searchQuery} onChange={(e) => setFormData(prev => ({ ...prev, searchQuery: e.target.value }))} /><button type="submit" className="search-center-btn">🔍 Search</button></div>
@@ -1234,7 +1231,7 @@ function App() {
           <div className="footer-section"><h3>🏙️ Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>📍 {c}</span>)}</div></div>
           <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
         </div>
-        <div className="copyright"><p>© 2024 E-SCON | Master's Program Project</p></div>
+        <div className="copyright"><p>© 2026 E-SCON | Master's Program Project</p></div>
       </footer>
     );
   };
