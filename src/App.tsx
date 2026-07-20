@@ -1,4 +1,4 @@
-// ===== src/App.tsx – FULL VERSION =====
+// ===== src/App.tsx – FULL VERSION (fixed ESLint dependency) =====
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
@@ -75,17 +75,32 @@ function App() {
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
-  // ---------- Helpers ----------
+  // ---------- Helpers (memoized) ----------
   const showAlert = useCallback((message: string, type: Alert['type'] = 'info', duration = 5000): void => {
     setAlert({ message, type });
     if (duration > 0) setTimeout(() => setAlert(null), duration);
   }, []);
 
-  const getMaterialById = (id: string): Material | undefined => materials.find(m => m.id === id);
-  const getCompanyById = (id: string): Company | undefined => companies.find(c => c.id === id);
-  const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
-  const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
-  const navigateTo = (page: string): void => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const getCompanyById = useCallback((id: string): Company | undefined => {
+    return companies.find(c => c.id === id);
+  }, [companies]);
+
+  const getMaterialById = useCallback((id: string): Material | undefined => {
+    return materials.find(m => m.id === id);
+  }, [materials]);
+
+  const getCompanyByUserId = useCallback((userId: string): Company | undefined => {
+    return companies.find(c => c.userId === userId);
+  }, [companies]);
+
+  const getUserById = useCallback((id: string): User | undefined => {
+    return users.find(u => u.id === id);
+  }, [users]);
+
+  const navigateTo = useCallback((page: string): void => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // ---------- Geocoding helpers ----------
   const isGenericCoord = useCallback((lat: number, lng: number, city: string): boolean => {
@@ -116,7 +131,7 @@ function App() {
       const timer = setTimeout(() => { setShowSplash(false); setCurrentPage('home'); }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [showSplash]);
+  }, [showSplash, navigateTo]);
 
   useEffect(() => {
     if (!isInitialized) {
@@ -435,7 +450,7 @@ function App() {
       }
     });
     setSearchResults(resultsWithCost);
-  }, [formData, materials, currentUser]);
+  }, [formData, materials, currentUser, getCompanyById]);
 
   // Debounced search on filter change
   useEffect(() => {
@@ -645,7 +660,7 @@ function App() {
       }
       return order;
     }));
-    showAlert(`Order status updated to ${status} 🚀`, 'success');
+    showAlert(`Order status updated to ${status} 🚀', 'success');
   };
 
   const handleContactSupplier = (materialId: string) => {
