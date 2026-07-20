@@ -1,4 +1,3 @@
-// src/types.ts
 export interface User {
   id: string;
   name: string;
@@ -37,6 +36,11 @@ export interface Company {
   vatNumber: string;
   tradeLicenseExpiry: string;
   complianceStatus: 'compliant' | 'pending' | 'non-compliant';
+  logo?: string;
+  website?: string;
+  workingHours?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface Material {
@@ -62,7 +66,7 @@ export interface Material {
     origin?: string;
     certification?: string[];
     weightPerUnit?: number;
-    materialType?: string; // added to allow extra field from Excel
+    materialType?: string;
   };
   images: string[];
   taxIncluded: boolean;
@@ -134,6 +138,19 @@ export interface FormData {
   materialGrade: string;
   materialOrigin: string;
   materialCertifications: string;
+  // Company edit fields
+  companyName: string;
+  companyDescription: string;
+  companyLocation: string;
+  companyCity: string;
+  companyPhone: string;
+  companyEmail: string;
+  companyWebsite: string;
+  companyWorkingHours: string;
+  companyTinNumber: string;
+  companyBusinessLicense: string;
+  companyVatNumber: string;
+  companyTradeLicenseExpiry: string;
 }
 
 export interface SearchResult extends Material {

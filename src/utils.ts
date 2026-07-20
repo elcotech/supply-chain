@@ -193,7 +193,6 @@ export const exportOrdersToCSV = (orders: any[], materials: any[], companies: an
   exportToCSV(exportData, 'orders_export');
 };
 
-// ---------- NEW: Geocoding helper ----------
 export const geocodeAddress = async (address: string, city: string): Promise<{ lat: number; lng: number } | null> => {
   try {
     const query = encodeURIComponent(`${address}, ${city}, Ethiopia`);
@@ -208,6 +207,24 @@ export const geocodeAddress = async (address: string, city: string): Promise<{ l
     return null;
   } catch (error) {
     console.warn('Geocoding failed for', address, city, error);
+    return null;
+  }
+};
+
+// Reverse geocoding for map clicks
+export const reverseGeocode = async (lat: number, lng: number): Promise<string | null> => {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'E-SCON-App' }
+    });
+    const data = await response.json();
+    if (data && data.display_name) {
+      return data.display_name;
+    }
+    return null;
+  } catch (error) {
+    console.warn('Reverse geocoding failed', error);
     return null;
   }
 };
