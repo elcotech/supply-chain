@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -30,6 +30,32 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
   const markerRef = useRef<L.Marker | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
 
+  const getAddress = useCallback(async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+      const data = await response.json();
+      if (data && data.display_name) {
+        setSelectedAddress(data.display_name);
+      }
+    } catch (error) {
+      console.warn('Reverse geocoding failed', error);
+    }
+  }, []);
+
+  const placeMarker = useCallback((lat: number, lng: number) => {
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+    } else {
+      const marker = L.marker([lat, lng], { icon: pickerIcon, draggable: true }).addTo(leafletMap.current!);
+      markerRef.current = marker;
+      marker.on('dragend', (e: any) => {
+        const pos = e.target.getLatLng();
+        getAddress(pos.lat, pos.lng);
+      });
+    }
+    getAddress(lat, lng);
+  }, [getAddress]);
+
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
 
@@ -42,29 +68,17 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
       maxZoom: 19
     }).addTo(leafletMap.current);
 
-    // Add marker at initial position
     if (initialLat && initialLng) {
       const marker = L.marker([initialLat, initialLng], { icon: pickerIcon, draggable: true }).addTo(leafletMap.current);
       markerRef.current = marker;
-      
-      // Get address for initial position
-      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${initialLat}&lon=${initialLng}&format=json`)
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.display_name) {
-            setSelectedAddress(data.display_name);
-          }
-        })
-        .catch(console.warn);
+      getAddress(initialLat, initialLng);
     }
 
-    // Click handler to place marker
     leafletMap.current.on('click', (e: any) => {
       const { lat, lng } = e.latlng;
       placeMarker(lat, lng);
     });
 
-    // Search function
     (window as any).searchLocation = (query: string) => {
       fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}, Ethiopia&format=json&limit=1`)
         .then(res => res.json())
@@ -85,34 +99,7 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
         leafletMap.current.off('click');
       }
     };
-  }, [initialLat, initialLng]);
-
-  const placeMarker = (lat: number, lng: number) => {
-    if (markerRef.current) {
-      markerRef.current.setLatLng([lat, lng]);
-    } else {
-      const marker = L.marker([lat, lng], { icon: pickerIcon, draggable: true }).addTo(leafletMap.current!);
-      markerRef.current = marker;
-      marker.on('dragend', (e: any) => {
-        const pos = e.target.getLatLng();
-        getAddress(pos.lat, pos.lng);
-      });
-    }
-
-    getAddress(lat, lng);
-  };
-
-  const getAddress = async (lat: number, lng: number) => {
-    try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
-      const data = await response.json();
-      if (data && data.display_name) {
-        setSelectedAddress(data.display_name);
-      }
-    } catch (error) {
-      console.warn('Reverse geocoding failed', error);
-    }
-  };
+  }, [initialLat, initialLng, getAddress, placeMarker]);
 
   const handleConfirm = () => {
     if (markerRef.current) {

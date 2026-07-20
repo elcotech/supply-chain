@@ -11,7 +11,7 @@ import {
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
   geocodeAddress
 } from './utils';
-import MapPicker from './components/MapPicker';
+//import MapPicker from './components/MapPicker';
 import EditCompany from './components/EditCompany';
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
