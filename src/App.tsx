@@ -1205,7 +1205,7 @@ function App() {
         <div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button></div>
         <div className="footer-section"><h3>🏙️ Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>📍 {c}</span>)}</div></div>
         <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
-      </div><div className="copyright"><p>© 2024 E-SCON | Master's Program Project</p></div></footer>
+      </div><div className="copyright"><p>© 2026 E-SCON | Master's Program Project</p></div></footer>
     );
   };
 

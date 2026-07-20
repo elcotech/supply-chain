@@ -135,7 +135,7 @@ export const printCartReport = (reportData: any) => {
           <div class="summary-row total"><span>Total Amount:</span><strong>${formatCurrency(reportData.total)}</strong></div>
         </div>
         <div class="footer">
-          <p>© 2024 E-SCON | Ethio-Supply Chain Optimization Network</p>
+          <p>© 2026 E-SCON | Ethio-Supply Chain Optimization Network</p>
           <p>This is a system-generated report.</p>
         </div>
       </div>
