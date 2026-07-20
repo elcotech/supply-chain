@@ -1,4 +1,5 @@
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+// ===== src/App.tsx – FULL VERSION =====
+import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
 import {
@@ -11,13 +12,12 @@ import {
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
   geocodeAddress
 } from './utils';
-//import MapPicker from './components/MapPicker';
 import EditCompany from './components/EditCompany';
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
 function App() {
-  // State
+  // ---------- State ----------
   const [showSplash, setShowSplash] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -36,6 +36,10 @@ function App() {
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
+  const [darkMode, setDarkMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     loginEmail: '', loginPassword: '', selectedUser: '',
@@ -47,22 +51,31 @@ function App() {
     searchMaxPrice: '', searchSupplier: '', searchCity: 'all', searchSortBy: 'price_asc',
     orderQuantity: '', orderAddress: '', materialBrand: '', materialModel: '', materialWeight: '',
     materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '',
-    // NEW fields for company editing
-    companyName: '',
-    companyDescription: '',
-    companyLocation: '',
-    companyCity: '',
-    companyPhone: '',
-    companyEmail: '',
-    companyWebsite: '',
-    companyWorkingHours: '',
-    companyTinNumber: '',
-    companyBusinessLicense: '',
-    companyVatNumber: '',
-    companyTradeLicenseExpiry: '',
+    companyName: '', companyDescription: '', companyLocation: '', companyCity: '',
+    companyPhone: '', companyEmail: '', companyWebsite: '', companyWorkingHours: '',
+    companyTinNumber: '', companyBusinessLicense: '', companyVatNumber: '', companyTradeLicenseExpiry: '',
   });
 
-  // -------- HELPERS ----------
+  // ---------- Dark mode & Fullscreen ----------
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => console.warn(err));
+    } else {
+      document.exitFullscreen().catch(err => console.warn(err));
+    }
+  };
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  // ---------- Helpers ----------
   const showAlert = useCallback((message: string, type: Alert['type'] = 'info', duration = 5000): void => {
     setAlert({ message, type });
     if (duration > 0) setTimeout(() => setAlert(null), duration);
@@ -72,13 +85,9 @@ function App() {
   const getCompanyById = (id: string): Company | undefined => companies.find(c => c.id === id);
   const getCompanyByUserId = (userId: string): Company | undefined => companies.find(c => c.userId === userId);
   const getUserById = (id: string): User | undefined => users.find(u => u.id === id);
+  const navigateTo = (page: string): void => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
-  const navigateTo = (page: string): void => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Helper: check if coords are generic city center
+  // ---------- Geocoding helpers ----------
   const isGenericCoord = useCallback((lat: number, lng: number, city: string): boolean => {
     const cityCenters: Record<string, [number, number]> = {
       'Addis Ababa': [9.0320, 38.7469],
@@ -89,30 +98,22 @@ function App() {
     return Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01;
   }, []);
 
-  // Geocode a single company (replace generic coords)
   const geocodeCompany = useCallback(async (company: Company): Promise<Company> => {
     if (isGenericCoord(company.lat, company.lng, company.city)) {
       const result = await geocodeAddress(company.location, company.city);
-      if (result) {
-        return { ...company, lat: result.lat, lng: result.lng };
-      }
+      if (result) return { ...company, lat: result.lat, lng: result.lng };
     }
     return company;
   }, [isGenericCoord]);
 
-  // Geocode all companies in an array
   const geocodeAllCompanies = useCallback(async (companiesToGeocode: Company[]): Promise<Company[]> => {
-    const updated = await Promise.all(companiesToGeocode.map(geocodeCompany));
-    return updated;
+    return await Promise.all(companiesToGeocode.map(geocodeCompany));
   }, [geocodeCompany]);
 
-  // -------- INITIALIZATION ----------
+  // ---------- Initialisation ----------
   useEffect(() => {
     if (showSplash) {
-      const timer = setTimeout(() => {
-        setShowSplash(false);
-        setCurrentPage('home');
-      }, 3000);
+      const timer = setTimeout(() => { setShowSplash(false); setCurrentPage('home'); }, 3000);
       return () => clearTimeout(timer);
     }
   }, [showSplash]);
@@ -126,7 +127,6 @@ function App() {
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
       let baseCompanies: Company[] = sampleCompanies;
-
       if (savedCompanies) {
         const parsed = JSON.parse(savedCompanies);
         const merged = sampleCompanies.map(sampleComp => {
@@ -139,32 +139,13 @@ function App() {
       const init = async () => {
         const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
         setCompanies(enrichedCompanies);
-
-        if (savedUsers) {
-          setUsers(JSON.parse(savedUsers));
-        } else {
-          setUsers(sampleUsers);
-          safeLocalStorage.setItem('users', JSON.stringify(sampleUsers));
-        }
-
-        if (savedMaterials) {
-          setMaterials(JSON.parse(savedMaterials));
-        } else {
-          setMaterials(sampleMaterials);
-          safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
-        }
-
-        if (savedOrders) {
-          setOrders(JSON.parse(savedOrders));
-        } else {
-          setOrders(sampleOrders);
-          safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders));
-        }
-
-        if (savedCurrentUser) {
-          setCurrentUser(JSON.parse(savedCurrentUser));
-        }
-
+        if (savedUsers) setUsers(JSON.parse(savedUsers));
+        else { setUsers(sampleUsers); safeLocalStorage.setItem('users', JSON.stringify(sampleUsers)); }
+        if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
+        else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
+        if (savedOrders) setOrders(JSON.parse(savedOrders));
+        else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); }
+        if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
         safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
         setIsInitialized(true);
         showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
@@ -173,7 +154,7 @@ function App() {
     }
   }, [isInitialized, geocodeAllCompanies, showAlert]);
 
-  // Reload materials if empty (corrupted storage)
+  // Reload materials if empty
   useEffect(() => {
     if (isInitialized && materials.length === 0 && sampleMaterials.length > 0) {
       setMaterials(sampleMaterials);
@@ -182,7 +163,7 @@ function App() {
     }
   }, [isInitialized, materials, showAlert]);
 
-  // Persist data
+  // Persistence
   useEffect(() => {
     if (isInitialized && users.length) safeLocalStorage.setItem('users', JSON.stringify(users));
   }, [users, isInitialized]);
@@ -213,7 +194,7 @@ function App() {
     }
   }, [cart, currentUser, isInitialized]);
 
-  // -------- AUTH ----------
+  // ---------- Authentication ----------
   const handleLogin = (e: React.FormEvent): void => {
     e.preventDefault();
     const { loginPassword, selectedUser } = formData;
@@ -281,7 +262,7 @@ function App() {
     setCurrentPage('home');
   };
 
-  // -------- COMPANY EDIT ----------
+  // ---------- Company edit ----------
   const handleEditCompany = () => {
     if (!currentUser || currentUser.userType !== 'company') {
       showAlert('Only company users can edit their profile', 'danger');
@@ -292,7 +273,6 @@ function App() {
       showAlert('Company profile not found', 'danger');
       return;
     }
-    // Populate form data with company info
     setFormData(prev => ({
       ...prev,
       companyName: company.name,
@@ -314,7 +294,6 @@ function App() {
   const handleSaveCompany = (updatedCompany: Company, updatedUser: User) => {
     setCompanies(prev => prev.map(c => c.id === updatedCompany.id ? updatedCompany : c));
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    // Update current user if it's the same
     if (currentUser && currentUser.id === updatedUser.id) {
       setCurrentUser(updatedUser);
     }
@@ -324,7 +303,7 @@ function App() {
     showAlert('Company profile updated successfully! ✅', 'success');
   };
 
-  // -------- MATERIAL CRUD ----------
+  // ---------- Material CRUD ----------
   const handleAddMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!currentUser || currentUser.userType !== 'company') { showAlert('Only company users can add materials', 'danger'); return; }
@@ -415,9 +394,8 @@ function App() {
     }
   };
 
-  // -------- SEARCH ----------
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ---------- Live Search ----------
+  const performSearch = useCallback(async () => {
     const { searchQuery, searchCategory, searchMaxPrice, searchCity, searchSortBy } = formData;
     let filtered = materials.filter(material => {
       let matches = true;
@@ -457,10 +435,23 @@ function App() {
       }
     });
     setSearchResults(resultsWithCost);
-    setCurrentPage('search-materials');
+  }, [formData, materials, currentUser]);
+
+  // Debounced search on filter change
+  useEffect(() => {
+    if (currentPage !== 'search-materials') return;
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => { performSearch(); }, 300);
+    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
+  }, [formData.searchQuery, formData.searchCategory, formData.searchMaxPrice, formData.searchCity, formData.searchSortBy, performSearch, currentPage]);
+
+  // Explicit search on button click
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch();
   };
 
-  // -------- CART ----------
+  // ---------- Cart ----------
   const addToCart = (material: Material, quantity: number) => {
     if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return; }
     if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return; }
@@ -623,7 +614,7 @@ function App() {
     setIsCalculating(false);
   };
 
-  // -------- EXPORT FUNCTIONS ----------
+  // ---------- Export ----------
   const handleExportMaterials = () => {
     exportToCSV(materials, 'materials_export');
     showAlert('Materials exported! 📊', 'success');
@@ -681,6 +672,7 @@ function App() {
     return { totalRevenue, pendingOrders, deliveredOrders, totalOrders: userOrders.length };
   };
 
+  // ---------- Input handlers ----------
   const switchUserType = (type: string) => {
     setFormData(prev => ({ ...prev, registerUserType: type }));
   };
@@ -705,12 +697,12 @@ function App() {
     }
   };
 
-  // -------- RENDER HELPERS ----------
+  // ---------- Render helpers ----------
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
     <div className="table-responsive-wrapper"><div className="table-scroll-container" style={{ minWidth }}>{children}</div></div>
   );
 
-  // -------- PAGE COMPONENTS ----------
+  // ---------- Page render functions ----------
   const renderSplash = () => (
     <div className="splash-screen">
       <div className="splash-content">
@@ -728,8 +720,17 @@ function App() {
     return (
       <header className="header">
         <div className="header-content">
-         
-          <div className="nav-links">
+          <div className="logo" onClick={() => navigateTo('home')}>
+            <div className="logo-icon">🏗️</div>
+            <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain</p></div>
+          </div>
+          <div className="header-actions">
+            <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle Theme">
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+            <button className="icon-btn" onClick={toggleFullscreen} title="Fullscreen">
+              {isFullscreen ? '⛶' : '⛶'}
+            </button>
             {currentUser ? renderUserNav() : renderGuestNav()}
             {currentUser && currentUser.userType === 'customer' && (
               <button className="cart-icon-btn" onClick={handleCheckout}>
@@ -841,7 +842,7 @@ function App() {
     };
     return (
       <main className="main-content">
-        <section className="home-hero">
+        <section className="home-hero glass">
           <div className="hero-badge">🇪🇹 Ethiopian Supply Chain Platform</div>
           <h1>E-SCON</h1>
           <p>Ethio-Supply Chain Optimization Network</p>
@@ -865,17 +866,17 @@ function App() {
           </div>
         </section>
         <div className="stats-grid">
-          <div className="stat-card"><div className="stat-icon">📦</div><div className="stat-value">{stats.totalMaterials}+</div><div className="stat-label">Products</div></div>
-          <div className="stat-card"><div className="stat-icon">🏢</div><div className="stat-value">{stats.totalCompanies}</div><div className="stat-label">Suppliers</div></div>
-          <div className="stat-card"><div className="stat-icon">📊</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
-          <div className="stat-card"><div className="stat-icon">⭐</div><div className="stat-value">{stats.avgRating}/5</div><div className="stat-label">Rating</div></div>
+          <div className="stat-card glass"><div className="stat-icon">📦</div><div className="stat-value">{stats.totalMaterials}+</div><div className="stat-label">Products</div></div>
+          <div className="stat-card glass"><div className="stat-icon">🏢</div><div className="stat-value">{stats.totalCompanies}</div><div className="stat-label">Suppliers</div></div>
+          <div className="stat-card glass"><div className="stat-icon">📊</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
+          <div className="stat-card glass"><div className="stat-icon">⭐</div><div className="stat-value">{stats.avgRating}/5</div><div className="stat-label">Rating</div></div>
         </div>
         <h2 className="section-title">✨ Key Features</h2>
         <div className="features-grid">
-          <div className="feature-card"><div className="feature-icon">🤖</div><h3>AI Price Forecasting</h3><p>Predict future prices using ML</p></div>
-          <div className="feature-card"><div className="feature-icon">🗺️</div><h3>GIS Supplier Mapping</h3><p>Interactive map with cost calculation</p></div>
-          <div className="feature-card"><div className="feature-icon">🚚</div><h3>Logistics Optimization</h3><p>Smart routing & cost minimization</p></div>
-          <div className="feature-card"><div className="feature-icon">📋</div><h3>Business Compliance</h3><p>Full TIN & VAT support</p></div>
+          <div className="feature-card glass"><div className="feature-icon">🤖</div><h3>AI Price Forecasting</h3><p>Predict future prices using ML</p></div>
+          <div className="feature-card glass"><div className="feature-icon">🗺️</div><h3>GIS Supplier Mapping</h3><p>Interactive map with cost calculation</p></div>
+          <div className="feature-card glass"><div className="feature-icon">🚚</div><h3>Logistics Optimization</h3><p>Smart routing & cost minimization</p></div>
+          <div className="feature-card glass"><div className="feature-icon">📋</div><h3>Business Compliance</h3><p>Full TIN & VAT support</p></div>
         </div>
       </main>
     );
@@ -887,7 +888,7 @@ function App() {
     return (
       <main className="main-content">
         <div className="auth-container">
-          <div className="auth-card">
+          <div className="auth-card glass">
             <div className="auth-header"><span className="auth-icon">🔑</span><h2>Welcome Back</h2><p>Login with email & password (0909)</p></div>
             <div className="auth-body">
               <form onSubmit={handleLogin}>
@@ -905,7 +906,7 @@ function App() {
   const renderRegister = () => (
     <main className="main-content">
       <div className="auth-container">
-        <div className="auth-card">
+        <div className="auth-card glass">
           <div className="auth-header"><span className="auth-icon">📝</span><h2>Create Account</h2><p>Join E-SCON Platform</p></div>
           <div className="auth-body">
             <div className="auth-tabs"><button className={`auth-tab ${formData.registerUserType === 'customer' ? 'active' : ''}`} onClick={() => switchUserType('customer')}>👤 Customer</button><button className={`auth-tab ${formData.registerUserType === 'company' ? 'active' : ''}`} onClick={() => switchUserType('company')}>🏢 Supplier</button></div>
@@ -939,12 +940,12 @@ function App() {
       <main className="main-content">
         <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🏢</span><h1>Supplier Dashboard</h1></div><p>Welcome {company?.name}!</p></div>
         <div className="dashboard-grid">
-          <div className="dashboard-card"><div className="card-icon">📦</div><div className="stat-value">{companyMaterials.length}</div><div className="stat-label">Products</div></div>
-          <div className="dashboard-card"><div className="card-icon">📊</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
-          <div className="dashboard-card"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
-          <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">📦</div><div className="stat-value">{companyMaterials.length}</div><div className="stat-label">Products</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">📊</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
-        <div className="card"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
+        <div className="card glass"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
           <ScrollableTable minWidth="900px">
             <table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>
               {companyMaterials.map(m => (
@@ -978,12 +979,12 @@ function App() {
       <main className="main-content">
         <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">👤</span><h1>Customer Dashboard</h1></div><p>Welcome {currentUser.name}!</p></div>
         <div className="dashboard-grid">
-          <div className="dashboard-card"><div className="card-icon">📦</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
-          <div className="dashboard-card"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
-          <div className="dashboard-card"><div className="card-icon">✅</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
-          <div className="dashboard-card"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">📦</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">✅</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
-        <div className="card"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div>
+        <div className="card glass"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div>
           <ScrollableTable minWidth="800px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>
               {userOrders.slice(0,5).map(order => {
@@ -1007,7 +1008,7 @@ function App() {
   };
 
   const renderAddMaterial = () => (
-    <main className="main-content"><div className="form-container"><h2>➕ Add New Product</h2>
+    <main className="main-content"><div className="form-container glass"><h2>➕ Add New Product</h2>
       <form onSubmit={handleAddMaterial}>
         <div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
@@ -1020,7 +1021,7 @@ function App() {
   );
 
   const renderEditMaterial = () => (
-    <main className="main-content"><div className="form-container"><h2>✏️ Edit Product</h2>
+    <main className="main-content"><div className="form-container glass"><h2>✏️ Edit Product</h2>
       <form onSubmit={handleUpdateMaterial}>
         <div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
@@ -1036,9 +1037,14 @@ function App() {
     const displayMaterials = searchResults.length > 0 ? searchResults : materials;
     return (
       <main className="main-content">
-        <div className="search-hero"><h1>🔍 Find Products</h1><p>Compare prices from verified suppliers</p>
+        <div className="search-hero glass">
+          <h1>🔍 Find Products</h1>
+          <p>Compare prices from verified suppliers</p>
           <form onSubmit={handleSearch} className="search-form">
-            <div className="search-input-group"><input type="text" className="search-input-large" placeholder="Search products..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} /><button type="submit" className="search-btn">🔍 Search</button></div>
+            <div className="search-input-group">
+              <input type="text" className="search-input-large" placeholder="Search products..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} />
+              <button type="submit" className="search-btn">🔍 Search</button>
+            </div>
             <div className="search-filters">
               <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}>
                 <option value="all">All Departments</option>
@@ -1059,47 +1065,56 @@ function App() {
             </div>
           </form>
         </div>
-        <div className="search-results"><div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
-          {displayMaterials.length === 0 ? <div className="no-results">No products found</div> : (
+        <div className="search-results">
+          <div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
+          {displayMaterials.length === 0 ? (
+            <div className="no-results glass">
+              <p>🔍 No products found matching your criteria.</p>
+              <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Try adjusting your filters or search terms.</p>
+            </div>
+          ) : (
             <ScrollableTable minWidth="1200px">
-              <table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>
-                {(displayMaterials as SearchResult[]).map(item => {
-                  const company = getCompanyById(item.companyId);
-                  const isInCart = cart.some(c => c.materialId === item.id);
-                  const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
-                  const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
-                  return (
-                    <tr key={item.id}>
-                      <td className="product-name"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
-                      <td>{item.category}</td>
-                      <td>{company?.name || 'Unknown'}</td>
-                      <td>{company?.city || 'N/A'}</td>
-                      <td className="price-cell">{formatCurrency(item.price)}</td>
-                      <td>{item.unit}</td>
-                      <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td>
-                      <td>⭐ {item.rating || 'N/A'}</td>
-                      <td>
-                        <button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button>
-                        <button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>
-                        {currentUser?.userType === 'customer' && (
-                          isInCart ? (
-                            <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
-                          ) : (
-                            <button className="btn-icon add-to-cart" onClick={() => {
-                              const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
-                              if (qty && !isNaN(parseInt(qty))) {
-                                if (!canAddToCart && currentSupplierInCart) {
-                                  if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); }
-                                } else { addToCart(item, parseInt(qty)); }
-                              }
-                            }}>➕</button>
-                          )
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody></table>
+              <table className="data-table">
+                <thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {(displayMaterials as SearchResult[]).map(item => {
+                    const company = getCompanyById(item.companyId);
+                    const isInCart = cart.some(c => c.materialId === item.id);
+                    const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
+                    const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
+                    return (
+                      <tr key={item.id}>
+                        <td className="product-name"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
+                        <td>{item.category}</td>
+                        <td>{company?.name || 'Unknown'}</td>
+                        <td>{company?.city || 'N/A'}</td>
+                        <td className="price-cell">{formatCurrency(item.price)}</td>
+                        <td>{item.unit}</td>
+                        <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td>
+                        <td>⭐ {item.rating || 'N/A'}</td>
+                        <td>
+                          <button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button>
+                          <button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>
+                          {currentUser?.userType === 'customer' && (
+                            isInCart ? (
+                              <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
+                            ) : (
+                              <button className="btn-icon add-to-cart" onClick={() => {
+                                const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
+                                if (qty && !isNaN(parseInt(qty))) {
+                                  if (!canAddToCart && currentSupplierInCart) {
+                                    if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); }
+                                  } else { addToCart(item, parseInt(qty)); }
+                                }
+                              }}>➕</button>
+                            )
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </ScrollableTable>
           )}
         </div>
@@ -1117,7 +1132,7 @@ function App() {
     return (
       <main className="main-content">
         <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div></div>
-        {userOrders.length === 0 ? <div className="no-orders">No orders yet</div> : (
+        {userOrders.length === 0 ? <div className="no-orders glass">No orders yet</div> : (
           <ScrollableTable minWidth="900px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>
               {userOrders.map(order => {
@@ -1165,7 +1180,7 @@ function App() {
     const canAddToCart = !currentSupplierInCart || currentSupplierInCart === selectedMaterial.companyId;
     return (
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
-        <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-content glass" onClick={e => e.stopPropagation()}>
           <div className="modal-header"><h2>{selectedMaterial.name}</h2><button className="modal-close" onClick={() => setSelectedMaterial(null)}>✕</button></div>
           <div className="modal-body">
             <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
@@ -1200,15 +1215,19 @@ function App() {
   const renderFooter = () => {
     if (currentPage === 'splash') return null;
     return (
-      <footer className="footer"><div className="footer-content">
-        <div className="footer-section"><h3>🏗️ E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
-        <div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button></div>
-        <div className="footer-section"><h3>🏙️ Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>📍 {c}</span>)}</div></div>
-        <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
-      </div><div className="copyright"><p>© 2026 E-SCON | Master's Program Project</p></div></footer>
+      <footer className="footer glass">
+        <div className="footer-content">
+          <div className="footer-section"><h3>🏗️ E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
+          <div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button></div>
+          <div className="footer-section"><h3>🏙️ Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>📍 {c}</span>)}</div></div>
+          <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
+        </div>
+        <div className="copyright"><p>© 2024 E-SCON | Master's Program Project</p></div>
+      </footer>
     );
   };
 
+  // ---------- Current page router ----------
   const renderCurrentPage = () => {
     if (showSplash) return renderSplash();
     if (showSupplierMap) return renderSupplierMap();
@@ -1233,8 +1252,9 @@ function App() {
     }
   };
 
+  // ---------- Main render ----------
   return (
-    <div className="app-container">
+    <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
       {renderHeader()}
       {renderAlert()}
       {renderCurrentPage()}
