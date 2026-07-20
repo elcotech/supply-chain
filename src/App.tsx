@@ -1,4 +1,3 @@
-// ===== src/App.tsx =====
 import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
@@ -12,6 +11,8 @@ import {
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
   geocodeAddress
 } from './utils';
+import MapPicker from './components/MapPicker';
+import EditCompany from './components/EditCompany';
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
@@ -33,6 +34,7 @@ function App() {
   const [cartDetails, setCartDetails] = useState<CartReport | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [showSupplierMap, setShowSupplierMap] = useState(false);
+  const [showEditCompany, setShowEditCompany] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
 
   const [formData, setFormData] = useState<FormData>({
@@ -45,6 +47,19 @@ function App() {
     searchMaxPrice: '', searchSupplier: '', searchCity: 'all', searchSortBy: 'price_asc',
     orderQuantity: '', orderAddress: '', materialBrand: '', materialModel: '', materialWeight: '',
     materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '',
+    // NEW fields for company editing
+    companyName: '',
+    companyDescription: '',
+    companyLocation: '',
+    companyCity: '',
+    companyPhone: '',
+    companyEmail: '',
+    companyWebsite: '',
+    companyWorkingHours: '',
+    companyTinNumber: '',
+    companyBusinessLicense: '',
+    companyVatNumber: '',
+    companyTradeLicenseExpiry: '',
   });
 
   // -------- HELPERS ----------
@@ -110,12 +125,10 @@ function App() {
       const savedOrders = safeLocalStorage.getItem('orders');
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
-      // Ensure we always have all sampleCompanies as a base
       let baseCompanies: Company[] = sampleCompanies;
 
       if (savedCompanies) {
         const parsed = JSON.parse(savedCompanies);
-        // Merge: for each sample company, if it exists in saved, keep saved (might have updated coords), otherwise use sample.
         const merged = sampleCompanies.map(sampleComp => {
           const existing = parsed.find((c: Company) => c.id === sampleComp.id);
           return existing || sampleComp;
@@ -123,12 +136,10 @@ function App() {
         baseCompanies = merged;
       }
 
-      // Now geocode any that still need it
       const init = async () => {
         const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
         setCompanies(enrichedCompanies);
 
-        // Load or seed users
         if (savedUsers) {
           setUsers(JSON.parse(savedUsers));
         } else {
@@ -136,7 +147,6 @@ function App() {
           safeLocalStorage.setItem('users', JSON.stringify(sampleUsers));
         }
 
-        // Load or seed materials
         if (savedMaterials) {
           setMaterials(JSON.parse(savedMaterials));
         } else {
@@ -144,7 +154,6 @@ function App() {
           safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
         }
 
-        // Load or seed orders
         if (savedOrders) {
           setOrders(JSON.parse(savedOrders));
         } else {
@@ -156,7 +165,6 @@ function App() {
           setCurrentUser(JSON.parse(savedCurrentUser));
         }
 
-        // Save enriched companies back
         safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
         setIsInitialized(true);
         showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
@@ -271,6 +279,49 @@ function App() {
     safeLocalStorage.removeItem('currentUser');
     showAlert('Logged out successfully 👋', 'info');
     setCurrentPage('home');
+  };
+
+  // -------- COMPANY EDIT ----------
+  const handleEditCompany = () => {
+    if (!currentUser || currentUser.userType !== 'company') {
+      showAlert('Only company users can edit their profile', 'danger');
+      return;
+    }
+    const company = getCompanyByUserId(currentUser.id);
+    if (!company) {
+      showAlert('Company profile not found', 'danger');
+      return;
+    }
+    // Populate form data with company info
+    setFormData(prev => ({
+      ...prev,
+      companyName: company.name,
+      companyDescription: company.description,
+      companyLocation: company.location,
+      companyCity: company.city,
+      companyPhone: currentUser.phone,
+      companyEmail: currentUser.email,
+      companyWebsite: company.website || '',
+      companyWorkingHours: company.workingHours || '',
+      companyTinNumber: company.tinNumber,
+      companyBusinessLicense: company.businessLicense,
+      companyVatNumber: company.vatNumber,
+      companyTradeLicenseExpiry: company.tradeLicenseExpiry,
+    }));
+    setShowEditCompany(true);
+  };
+
+  const handleSaveCompany = (updatedCompany: Company, updatedUser: User) => {
+    setCompanies(prev => prev.map(c => c.id === updatedCompany.id ? updatedCompany : c));
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    // Update current user if it's the same
+    if (currentUser && currentUser.id === updatedUser.id) {
+      setCurrentUser(updatedUser);
+    }
+    safeLocalStorage.setItem('companies', JSON.stringify(companies.map(c => c.id === updatedCompany.id ? updatedCompany : c)));
+    safeLocalStorage.setItem('users', JSON.stringify(users.map(u => u.id === updatedUser.id ? updatedUser : u)));
+    setShowEditCompany(false);
+    showAlert('Company profile updated successfully! ✅', 'success');
   };
 
   // -------- MATERIAL CRUD ----------
@@ -720,6 +771,7 @@ function App() {
           <>
             <button className={`nav-link ${currentPage === 'company-dashboard' ? 'active' : ''}`} onClick={() => navigateTo('company-dashboard')}>📊 Dashboard</button>
             <button className={`nav-link ${currentPage === 'add-material' ? 'active' : ''}`} onClick={() => navigateTo('add-material')}>➕ Add Product</button>
+            <button className={`nav-link ${currentPage === 'edit-company' ? 'active' : ''}`} onClick={handleEditCompany}>✏️ Edit Profile</button>
           </>
         ) : (
           <button className={`nav-link ${currentPage === 'customer-dashboard' ? 'active' : ''}`} onClick={() => navigateTo('customer-dashboard')}>📊 Dashboard</button>
@@ -916,6 +968,7 @@ function App() {
             </tbody></table>
           </ScrollableTable>
         </div>
+        <button className="btn btn-secondary" onClick={handleEditCompany}>✏️ Edit Company Profile</button>
       </main>
     );
   };
@@ -1162,6 +1215,13 @@ function App() {
   const renderCurrentPage = () => {
     if (showSplash) return renderSplash();
     if (showSupplierMap) return renderSupplierMap();
+    if (showEditCompany) {
+      const company = currentUser ? getCompanyByUserId(currentUser.id) : null;
+      const user = currentUser;
+      if (company && user) {
+        return <EditCompany company={company} user={user} onSave={handleSaveCompany} onClose={() => setShowEditCompany(false)} />;
+      }
+    }
     switch (currentPage) {
       case 'home': return renderHome();
       case 'login': return renderLogin();
