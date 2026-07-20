@@ -1,4 +1,3 @@
-// ===== src/App.tsx – FULL VERSION (fixed ESLint dependency) =====
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
@@ -75,7 +74,7 @@ function App() {
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
-  // ---------- Helpers (memoized) ----------
+  // ---------- Helpers ----------
   const showAlert = useCallback((message: string, type: Alert['type'] = 'info', duration = 5000): void => {
     setAlert({ message, type });
     if (duration > 0) setTimeout(() => setAlert(null), duration);
@@ -452,7 +451,6 @@ function App() {
     setSearchResults(resultsWithCost);
   }, [formData, materials, currentUser, getCompanyById]);
 
-  // Debounced search on filter change
   useEffect(() => {
     if (currentPage !== 'search-materials') return;
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -460,7 +458,6 @@ function App() {
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
   }, [formData.searchQuery, formData.searchCategory, formData.searchMaxPrice, formData.searchCity, formData.searchSortBy, performSearch, currentPage]);
 
-  // Explicit search on button click
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     performSearch();
@@ -660,7 +657,7 @@ function App() {
       }
       return order;
     }));
-    showAlert(`Order status updated to ${status} 🚀', 'success');
+    showAlert(`Order status updated to ${status} 🚀`, 'success');
   };
 
   const handleContactSupplier = (materialId: string) => {
@@ -670,7 +667,7 @@ function App() {
     if (!company) return;
     const user = getUserById(company.userId);
     if (!user) return;
-    showAlert(`📞 Contact ${company.name}: ${user.phone} | ✉️ ${user.email}`, 'info', 8000);
+    showAlert(`Contact ${company.name}: ${user.phone} | ${user.email}`, 'info', 8000);
   };
 
   const calculateStats = () => {
