@@ -37,6 +37,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState<string>('splash');
   const [darkMode, setDarkMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -207,6 +208,32 @@ function App() {
       safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
     }
   }, [cart, currentUser, isInitialized]);
+
+  // ---------- Distance for selected material ----------
+  const [distanceToSelected, setDistanceToSelected] = useState<number | null>(null);
+  const [isDistanceLoading, setIsDistanceLoading] = useState(false);
+
+  useEffect(() => {
+    if (selectedMaterial) {
+      const company = getCompanyById(selectedMaterial.companyId);
+      if (company && currentUser && currentUser.lat && currentUser.lng) {
+        setIsDistanceLoading(true);
+        calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng)
+          .then(dist => setDistanceToSelected(dist))
+          .catch(() => setDistanceToSelected(null))
+          .finally(() => setIsDistanceLoading(false));
+      } else {
+        setDistanceToSelected(null);
+        setIsDistanceLoading(false);
+      }
+    }
+  }, [selectedMaterial, currentUser, getCompanyById]);
+
+  // ---------- Open map with route ----------
+  const handleOpenMapWithRoute = (companyId: string) => {
+    setAutoRouteSupplierId(companyId);
+    setShowSupplierMap(true);
+  };
 
   // ---------- Authentication ----------
   const handleLogin = (e: React.FormEvent): void => {
@@ -733,7 +760,8 @@ function App() {
       <header className="header">
         <div className="header-content">
           <div className="logo" onClick={() => navigateTo('home')}>
-            
+            <div className="logo-icon">🏗️</div>
+            <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain</p></div>
           </div>
           <div className="header-actions">
             <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle Theme">
@@ -854,7 +882,9 @@ function App() {
     return (
       <main className="main-content">
         <section className="home-hero glass">
-
+          <div className="hero-badge">🇪🇹 Ethiopian Supply Chain Platform</div>
+          <h1>E-SCON</h1>
+          <p>Ethio-Supply Chain Optimization Network</p>
           <div className="search-center">
             <form onSubmit={(e) => { e.preventDefault(); navigateTo('search-materials'); }}>
               <div className="search-center-input"><input type="text" className="search-input" placeholder="Search products..." value={formData.searchQuery} onChange={(e) => setFormData(prev => ({ ...prev, searchQuery: e.target.value }))} /><button type="submit" className="search-center-btn">🔍 Search</button></div>
@@ -1091,6 +1121,9 @@ function App() {
                     const isInCart = cart.some(c => c.materialId === item.id);
                     const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
                     const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
+                    // Distance for this item
+                    const itemDistance = item.distance || 0;
+
                     return (
                       <tr key={item.id}>
                         <td className="product-name"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
@@ -1177,6 +1210,8 @@ function App() {
         currentUser={currentUser}
         onClose={() => setShowSupplierMap(false)}
         onSelectSupplier={(company) => console.log('Selected supplier:', company)}
+        autoRouteSupplierId={autoRouteSupplierId}
+        onRouteShown={() => setAutoRouteSupplierId(null)}
       />
     </Suspense>
   );
@@ -1187,6 +1222,7 @@ function App() {
     const isInCart = cart.some(item => item.materialId === selectedMaterial.id);
     const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
     const canAddToCart = !currentSupplierInCart || currentSupplierInCart === selectedMaterial.companyId;
+
     return (
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
         <div className="modal-content glass" onClick={e => e.stopPropagation()}>
@@ -1194,7 +1230,23 @@ function App() {
           <div className="modal-body">
             <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
             <div><h3>💰 Pricing</h3><p>Unit: {formatCurrency(selectedMaterial.price)} / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity}</p></div>
-            <div><h3>🏢 Supplier</h3><p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p></div>
+            <div><h3>🏢 Supplier</h3>
+              <p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p>
+              <p>
+                <strong>🚗 Distance from you:</strong>
+                {isDistanceLoading ? ' Calculating...' :
+                 distanceToSelected !== null ? (
+                   <span 
+                     onClick={() => company && handleOpenMapWithRoute(company.id)}
+                     style={{ cursor: 'pointer', color: '#1a4a6f', textDecoration: 'underline' }}
+                     title="Click to view route on map"
+                   >
+                     {` ${distanceToSelected.toFixed(1)} km`}
+                   </span>
+                 ) :
+                 currentUser && currentUser.lat && currentUser.lng ? ' Unable to calculate' : ' Login to see distance'}
+              </p>
+            </div>
             {currentUser?.userType === 'customer' && (
               <div>
                 <h3>Add to Cart</h3>
@@ -1231,7 +1283,7 @@ function App() {
           <div className="footer-section"><h3>🏙️ Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>📍 {c}</span>)}</div></div>
           <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
         </div>
-        <div className="copyright"><p>© 2026 E-SCON | Master's Program Project</p></div>
+        <div className="copyright"><p>© 2024 E-SCON | Master's Program Project</p></div>
       </footer>
     );
   };

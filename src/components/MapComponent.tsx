@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Company, User, Material } from '../types';
+import { calculateDistance } from '../utils';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+// Fix Leaflet icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -54,6 +56,8 @@ interface MapComponentProps {
   currentUser: User | null;
   onClose: () => void;
   onSelectSupplier?: (company: Company) => void;
+  autoRouteSupplierId?: string | null;
+  onRouteShown?: () => void;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({
@@ -61,25 +65,112 @@ const MapComponent: React.FC<MapComponentProps> = ({
   materials,
   currentUser,
   onClose,
-  onSelectSupplier
+  onSelectSupplier,
+  autoRouteSupplierId,
+  onRouteShown
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
+  const [isDistanceLoading, setIsDistanceLoading] = useState(false);
   const [companyMaterials, setCompanyMaterials] = useState<Material[]>([]);
+  const [routeLine, setRouteLine] = useState<L.Layer | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
+  const [isRouteLoading, setIsRouteLoading] = useState(false);
 
   const getCoords = (company: Company): { lat: number; lng: number } => {
     let lat = company.lat;
     let lng = company.lng;
     const city = company.city || 'Addis Ababa';
     const center = cityCoords[city] || cityCoords['Addis Ababa'];
-    // If coords are missing or too close to city center, use fallback
     if (!lat || !lng || (Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01)) {
       return { lat: center[0], lng: center[1] };
     }
     return { lat, lng };
   };
+
+  // Function to fetch and draw route
+  const fetchRoute = async (originLat: number, originLng: number, destLat: number, destLng: number) => {
+    if (!leafletMap.current) return;
+    setIsRouteLoading(true);
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const geometry = route.geometry;
+        const coordinates = geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
+        const distanceKm = route.distance / 1000;
+        const durationMin = route.duration / 60;
+
+        // Remove previous route
+        if (routeLine) {
+          leafletMap.current.removeLayer(routeLine);
+          setRouteLine(null);
+        }
+
+        // Draw polyline
+        const polyline = L.polyline(coordinates as L.LatLngExpression[], {
+          color: '#1a4a6f',
+          weight: 5,
+          opacity: 0.8,
+          smoothFactor: 1
+        });
+
+        // Add a small marker at destination to show endpoint
+        const destMarker = L.marker([destLat, destLng], {
+          icon: L.divIcon({
+            className: 'route-end-marker',
+            html: '📍',
+            iconSize: [20, 20]
+          })
+        });
+
+        // Group both layers
+        const group = L.layerGroup([polyline, destMarker]).addTo(leafletMap.current);
+        setRouteLine(group);
+        setRouteInfo({ distance: distanceKm, duration: durationMin });
+
+        // Fit bounds to route
+        const bounds = L.latLngBounds(coordinates as L.LatLngExpression[]);
+        leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
+      }
+    } catch (error) {
+      console.error('Route fetch failed', error);
+    } finally {
+      setIsRouteLoading(false);
+    }
+  };
+
+  const clearRoute = () => {
+    if (routeLine && leafletMap.current) {
+      leafletMap.current.removeLayer(routeLine);
+      setRouteLine(null);
+      setRouteInfo(null);
+    }
+  };
+
+  // Auto-show route when autoRouteSupplierId changes
+  useEffect(() => {
+    if (autoRouteSupplierId && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
+      const company = companies.find(c => c.id === autoRouteSupplierId);
+      if (company) {
+        setSelectedCompany(company);
+        setCompanyMaterials(materials.filter(m => m.companyId === company.id));
+        const { lat, lng } = getCoords(company);
+        // Calculate distance
+        calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng)
+          .then(dist => setDistance(dist))
+          .catch(() => setDistance(null));
+        // Draw route
+        fetchRoute(currentUser.lat, currentUser.lng, lat, lng).then(() => {
+          if (onRouteShown) onRouteShown();
+        });
+      }
+    }
+  }, [autoRouteSupplierId, companies, currentUser, materials, onRouteShown]);
 
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
@@ -98,7 +189,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const { lat, lng } = getCoords(company);
       const marker = L.marker([lat, lng], { icon: supplierIcon }).addTo(leafletMap.current!);
       const productCount = materials.filter(m => m.companyId === company.id).length;
-      
+
       marker.bindPopup(`
         <div style="min-width: 220px; font-family: Arial, sans-serif;">
           <strong style="font-size: 16px; color: #1a4a6f;">${company.name}</strong><br/>
@@ -111,22 +202,31 @@ const MapComponent: React.FC<MapComponentProps> = ({
           </button>
         </div>
       `);
-      
-      marker.on('click', () => {
+
+      marker.on('click', async () => {
         setSelectedCompany(company);
         setCompanyMaterials(materials.filter(m => m.companyId === company.id));
+        setIsDistanceLoading(true);
+        setDistance(null);
+        clearRoute();
+
         if (currentUser && currentUser.lat && currentUser.lng) {
-          const R = 6371;
-          const dLat = (lat - currentUser.lat) * Math.PI / 180;
-          const dLon = (lng - currentUser.lng) * Math.PI / 180;
-          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(currentUser.lat * Math.PI/180) * Math.cos(lat * Math.PI/180) *
-                    Math.sin(dLon/2) * Math.sin(dLon/2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          setDistance(R * c);
+          try {
+            const dist = await calculateDistance(
+              company.lat, company.lng,
+              currentUser.lat, currentUser.lng
+            );
+            setDistance(dist);
+          } catch (error) {
+            console.warn('Distance calculation failed', error);
+          } finally {
+            setIsDistanceLoading(false);
+          }
+        } else {
+          setIsDistanceLoading(false);
         }
       });
-      
+
       latLngs.push([lat, lng]);
     });
 
@@ -144,16 +244,23 @@ const MapComponent: React.FC<MapComponentProps> = ({
       const bounds = L.latLngBounds(latLngs);
       leafletMap.current.fitBounds(bounds, { padding: [30, 30] });
     }
-    
+
     (window as any).selectSupplier = (companyId: string) => {
       const company = companies.find(c => c.id === companyId);
       if (company) {
         setSelectedCompany(company);
         setCompanyMaterials(materials.filter(m => m.companyId === companyId));
         if (onSelectSupplier) onSelectSupplier(company);
+        clearRoute();
+        if (currentUser && currentUser.lat && currentUser.lng) {
+          setIsDistanceLoading(true);
+          calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng)
+            .then(dist => setDistance(dist))
+            .catch(() => {})
+            .finally(() => setIsDistanceLoading(false));
+        }
       }
     };
-    
   }, [companies, materials, currentUser, onSelectSupplier]);
 
   const handleViewProducts = () => {
@@ -161,6 +268,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       onSelectSupplier(selectedCompany);
       onClose();
     }
+  };
+
+  const handleShowRoute = async () => {
+    if (!selectedCompany || !currentUser || !currentUser.lat || !currentUser.lng) return;
+    const { lat, lng } = getCoords(selectedCompany);
+    await fetchRoute(currentUser.lat, currentUser.lng, lat, lng);
   };
 
   return (
@@ -179,7 +292,45 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <p><strong>📍 Location:</strong> {selectedCompany.location || selectedCompany.city}</p>
             <p><strong>⭐ Rating:</strong> {selectedCompany.rating || 'N/A'}/5</p>
             <p><strong>📦 Products:</strong> {companyMaterials.length} items</p>
-            {distance && <p><strong>🚗 Distance from you:</strong> {distance.toFixed(1)} km</p>}
+            <p>
+              <strong>🚗 Distance from you:</strong>
+              {isDistanceLoading ? (
+                ' Calculating...'
+              ) : distance !== null ? (
+                <span 
+                  onClick={() => {
+                    if (selectedCompany) handleShowRoute();
+                  }}
+                  style={{ cursor: 'pointer', color: '#1a4a6f', textDecoration: 'underline' }}
+                  title="Click to show route"
+                >
+                  {` ${distance.toFixed(1)} km`}
+                </span>
+              ) : currentUser && currentUser.lat && currentUser.lng ? (
+                ' Unable to calculate'
+              ) : (
+                ' Login to see distance'
+              )}
+            </p>
+            {routeInfo && (
+              <p>
+                <strong>🛣️ Route Distance:</strong> {routeInfo.distance.toFixed(1)} km<br/>
+                <strong>⏱️ Estimated Time:</strong> {Math.round(routeInfo.duration)} min
+              </p>
+            )}
+            <div className="route-actions">
+              {currentUser && currentUser.lat && currentUser.lng && (
+                <>
+                  {routeLine ? (
+                    <button className="btn-secondary" onClick={clearRoute}>Hide Route</button>
+                  ) : (
+                    <button className="btn-primary" onClick={handleShowRoute} disabled={isRouteLoading}>
+                      {isRouteLoading ? 'Loading route...' : '🗺️ Show Route'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
             <div className="supplier-products">
               <strong>Available Products:</strong>
               <ul>
