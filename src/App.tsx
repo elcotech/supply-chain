@@ -77,9 +77,7 @@ function App() {
 
   // ---------- Close map on page change ----------
   useEffect(() => {
-    if (showSupplierMap) {
-      setShowSupplierMap(false);
-    }
+    setShowSupplierMap(false);
   }, [currentPage]);
 
   // ---------- Helpers ----------
@@ -250,7 +248,7 @@ function App() {
     if (!user) { showAlert('Please select a valid user', 'danger'); return; }
     if (isUserLocked(user)) {
       const remainingTime = Math.ceil((user.lockUntil! - Date.now()) / 1000);
-      showAlert(`Account locked. Try again in ${remainingTime} seconds`, 'danger');
+      showAlert('Account locked. Try again in ' + remainingTime + ' seconds', 'danger');
       return;
     }
     if (user.password === loginPassword) {
@@ -263,7 +261,7 @@ function App() {
       const newAttempts = (user.loginAttempts || 0) + 1;
       let lockUntil = 0;
       if (newAttempts >= 3) { lockUntil = Date.now() + 30000; showAlert('Too many failed attempts. Account locked for 30 seconds.', 'danger'); }
-      else { showAlert(`Incorrect password. ${3 - newAttempts} attempts remaining.`, 'danger'); }
+      else { showAlert('Incorrect password. ' + (3 - newAttempts) + ' attempts remaining.', 'danger'); }
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, loginAttempts: newAttempts, lockUntil } : u));
     }
   };
@@ -501,13 +499,13 @@ function App() {
   const addToCart = (material: Material, quantity: number) => {
     if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return; }
     if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return; }
-    if (quantity < material.minOrder) { showAlert(`Minimum order quantity is ${material.minOrder} ${material.unit}`, 'danger'); return; }
+    if (quantity < material.minOrder) { showAlert('Minimum order quantity is ' + material.minOrder + ' ' + material.unit, 'danger'); return; }
     const materialCompany = getCompanyById(material.companyId);
     if (!materialCompany) return;
     if (cart.length > 0) {
       const currentSupplierId = cart[0].supplierId;
       if (currentSupplierId !== material.companyId) {
-        if (window.confirm(`Your cart currently has items from ${cart[0].supplierName}. Do you want to clear your cart and add items from ${materialCompany.name}?`)) {
+        if (window.confirm('Your cart currently has items from ' + cart[0].supplierName + '. Do you want to clear your cart and add items from ' + materialCompany.name + '?')) {
           clearCart();
           addToCartLogic(material, quantity, materialCompany);
         }
@@ -521,7 +519,7 @@ function App() {
     const existingItem = cart.find(item => item.materialId === material.id);
     if (existingItem) {
       setCart(cart.map(item => item.materialId === material.id ? { ...item, quantity: item.quantity + quantity } : item));
-      showAlert(`Updated ${material.name} quantity in cart`, 'success');
+      showAlert('Updated ' + material.name + ' quantity in cart', 'success');
     } else {
       const newCartItem: CartItem = {
         id: Date.now().toString(),
@@ -540,7 +538,7 @@ function App() {
         weightPerUnit: material.specifications?.weightPerUnit || 0.001
       };
       setCart([...cart, newCartItem]);
-      showAlert(`Added ${material.name} to cart`, 'success');
+      showAlert('Added ' + material.name + ' to cart', 'success');
     }
   };
 
@@ -554,7 +552,7 @@ function App() {
     if (item && newQuantity >= item.minOrder) {
       setCart(cart.map(i => i.id === itemId ? { ...i, quantity: newQuantity } : i));
     } else if (item && newQuantity < item.minOrder) {
-      showAlert(`Minimum quantity is ${item.minOrder} ${item.unit}`, 'warning');
+      showAlert('Minimum quantity is ' + item.minOrder + ' ' + item.unit, 'warning');
     }
   };
 
@@ -644,8 +642,8 @@ function App() {
         status: 'pending',
         orderDate: new Date().toISOString().split('T')[0],
         address: currentUser?.address || '',
-        notes: `Order from cart - ${cart.length} items total`,
-        invoiceNumber: `INV-${new Date().getFullYear()}-${orders.length + 1000}`,
+        notes: 'Order from cart - ' + cart.length + ' items total',
+        invoiceNumber: 'INV-' + new Date().getFullYear() + '-' + (orders.length + 1000),
         taxAmount: 0,
         vatAmount: vatAmountItem,
         paymentMethod: 'Bank Transfer',
@@ -653,7 +651,7 @@ function App() {
       };
       setOrders(prev => [...prev, newOrder]);
     }
-    showAlert(`Order placed successfully! 📦 Total: ${formatCurrency(totals.total)}`, 'success');
+    showAlert('Order placed successfully! 📦 Total: ' + formatCurrency(totals.total), 'success');
     clearCart();
     setShowCartSummary(false);
     setCurrentPage('orders');
@@ -691,7 +689,7 @@ function App() {
       }
       return order;
     }));
-    showAlert(`Order status updated to ${status} 🚀`, 'success');
+    showAlert('Order status updated to ' + status + ' 🚀', 'success');
   };
 
   const handleContactSupplier = (materialId: string) => {
@@ -701,7 +699,7 @@ function App() {
     if (!company) return;
     const user = getUserById(company.userId);
     if (!user) return;
-    showAlert(`Contact ${company.name}: ${user.phone} | ${user.email}`, 'info', 8000);
+    showAlert('Contact ' + company.name + ': ' + user.phone + ' | ' + user.email, 'info', 8000);
   };
 
   const calculateStats = () => {
@@ -739,7 +737,7 @@ function App() {
     const user = users.find(u => u.email === value);
     if (user && isUserLocked(user)) {
       const remainingTime = Math.ceil((user.lockUntil! - Date.now()) / 1000);
-      showAlert(`Account locked. Try again in ${remainingTime} seconds.`, 'warning', 3000);
+      showAlert('Account locked. Try again in ' + remainingTime + ' seconds.', 'warning', 3000);
     }
   };
 
@@ -797,11 +795,11 @@ function App() {
 
   const renderGuestNav = () => (
     <>
-      <button className={`nav-link ${currentPage === 'home' ? 'active' : ''}`} onClick={() => navigateTo('home')}>🏠 Home</button>
-      <button className={`nav-link ${currentPage === 'search-materials' ? 'active' : ''}`} onClick={() => navigateTo('search-materials')}>🔍 Search</button>
-      <button className={`nav-link ${currentPage === 'supplier-map' ? 'active' : ''}`} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
-      <button className={`nav-link ${currentPage === 'login' ? 'active' : ''}`} onClick={() => navigateTo('login')}>🔑 Login</button>
-      <button className={`nav-link ${currentPage === 'register' ? 'active' : ''}`} onClick={() => navigateTo('register')}>📝 Register</button>
+      <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>🏠 Home</button>
+      <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>🔍 Search</button>
+      <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
+      <button className={'nav-link ' + (currentPage === 'login' ? 'active' : '')} onClick={() => navigateTo('login')}>🔑 Login</button>
+      <button className={'nav-link ' + (currentPage === 'register' ? 'active' : '')} onClick={() => navigateTo('register')}>📝 Register</button>
     </>
   );
 
@@ -809,19 +807,19 @@ function App() {
     const isCompany = currentUser?.userType === 'company';
     return (
       <>
-        <button className={`nav-link ${currentPage === 'home' ? 'active' : ''}`} onClick={() => navigateTo('home')}>🏠 Home</button>
-        <button className={`nav-link ${currentPage === 'search-materials' ? 'active' : ''}`} onClick={() => navigateTo('search-materials')}>🔍 Search</button>
+        <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>🏠 Home</button>
+        <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>🔍 Search</button>
         {isCompany ? (
           <>
-            <button className={`nav-link ${currentPage === 'company-dashboard' ? 'active' : ''}`} onClick={() => navigateTo('company-dashboard')}>📊 Dashboard</button>
-            <button className={`nav-link ${currentPage === 'add-material' ? 'active' : ''}`} onClick={() => navigateTo('add-material')}>➕ Add Product</button>
-            <button className={`nav-link ${currentPage === 'edit-company' ? 'active' : ''}`} onClick={handleEditCompany}>✏️ Edit Profile</button>
+            <button className={'nav-link ' + (currentPage === 'company-dashboard' ? 'active' : '')} onClick={() => navigateTo('company-dashboard')}>📊 Dashboard</button>
+            <button className={'nav-link ' + (currentPage === 'add-material' ? 'active' : '')} onClick={() => navigateTo('add-material')}>➕ Add Product</button>
+            <button className={'nav-link ' + (currentPage === 'edit-company' ? 'active' : '')} onClick={handleEditCompany}>✏️ Edit Profile</button>
           </>
         ) : (
-          <button className={`nav-link ${currentPage === 'customer-dashboard' ? 'active' : ''}`} onClick={() => navigateTo('customer-dashboard')}>📊 Dashboard</button>
+          <button className={'nav-link ' + (currentPage === 'customer-dashboard' ? 'active' : '')} onClick={() => navigateTo('customer-dashboard')}>📊 Dashboard</button>
         )}
-        <button className={`nav-link ${currentPage === 'orders' ? 'active' : ''}`} onClick={() => navigateTo('orders')}>🛒 Orders</button>
-        <button className={`nav-link ${currentPage === 'supplier-map' ? 'active' : ''}`} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
+        <button className={'nav-link ' + (currentPage === 'orders' ? 'active' : '')} onClick={() => navigateTo('orders')}>🛒 Orders</button>
+        <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
         <div className="user-info">
           <div className="user-avatar">{currentUser?.name?.charAt(0).toUpperCase()}</div>
           <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{currentUser?.userType === 'company' ? '🏢 Supplier' : '👤 Customer'}</div></div>
@@ -834,7 +832,7 @@ function App() {
   const renderAlert = () => {
     if (!alert) return null;
     const icons: Record<string, string> = { success: '✅', danger: '⚠️', warning: '⚠️', info: 'ℹ️' };
-    return <div className={`alert alert-${alert.type}`}><span className="alert-icon">{icons[alert.type] || 'ℹ️'}</span>{alert.message}</div>;
+    return <div className={'alert alert-' + alert.type}><span className="alert-icon">{icons[alert.type] || 'ℹ️'}</span>{alert.message}</div>;
   };
 
   const renderCartSummary = () => {
@@ -955,7 +953,7 @@ function App() {
         <div className="auth-card glass">
           <div className="auth-header"><span className="auth-icon">📝</span><h2>Create Account</h2><p>Join E-SCON Platform</p></div>
           <div className="auth-body">
-            <div className="auth-tabs"><button className={`auth-tab ${formData.registerUserType === 'customer' ? 'active' : ''}`} onClick={() => switchUserType('customer')}>👤 Customer</button><button className={`auth-tab ${formData.registerUserType === 'company' ? 'active' : ''}`} onClick={() => switchUserType('company')}>🏢 Supplier</button></div>
+            <div className="auth-tabs"><button className={'auth-tab ' + (formData.registerUserType === 'customer' ? 'active' : '')} onClick={() => switchUserType('customer')}>👤 Customer</button><button className={'auth-tab ' + (formData.registerUserType === 'company' ? 'active' : '')} onClick={() => switchUserType('company')}>🏢 Supplier</button></div>
             <form onSubmit={handleRegister}>
               {formData.registerUserType === 'company' && (<>
                 <div className="form-group"><label className="form-label">🏢 Company Name *</label><input type="text" className="form-input" name="registerCompanyName" value={formData.registerCompanyName} onChange={handleInputChange} required /></div>
@@ -1112,7 +1110,7 @@ function App() {
           </form>
         </div>
         <div className="search-results">
-          <div className="results-header"><h2>{searchResults.length > 0 ? `📊 Results (${displayMaterials.length})` : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
+          <div className="results-header"><h2>{searchResults.length > 0 ? '📊 Results (' + displayMaterials.length + ')' : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
           {displayMaterials.length === 0 ? (
             <div className="no-results glass">
               <p>🔍 No products found matching your criteria.</p>
@@ -1128,7 +1126,6 @@ function App() {
                     const isInCart = cart.some(c => c.materialId === item.id);
                     const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
                     const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
-
                     return (
                       <tr key={item.id}>
                         <td className="product-name"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
@@ -1147,10 +1144,10 @@ function App() {
                               <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
                             ) : (
                               <button className="btn-icon add-to-cart" onClick={() => {
-                                const qty = prompt(`Quantity (Min: ${item.minOrder} ${item.unit}):`, item.minOrder.toString());
+                                const qty = prompt('Quantity (Min: ' + item.minOrder + ' ' + item.unit + '):', item.minOrder.toString());
                                 if (qty && !isNaN(parseInt(qty))) {
                                   if (!canAddToCart && currentSupplierInCart) {
-                                    if (window.confirm(`Clear cart & add this item?`)) { clearCart(); addToCart(item, parseInt(qty)); }
+                                    if (window.confirm('Clear cart & add this item?')) { clearCart(); addToCart(item, parseInt(qty)); }
                                   } else { addToCart(item, parseInt(qty)); }
                                 }
                               }}>➕</button>
@@ -1240,16 +1237,14 @@ function App() {
               <p>
                 <strong>🚗 Distance from you:</strong>
                 {isDistanceLoading ? (
-                  <span className="distance-loader">
-                    <span className="dot-pulse"></span>
-                  </span>
+                  <span className="distance-loader"><span className="dot-pulse"></span></span>
                 ) : distanceToSelected !== null ? (
                   <span 
                     onClick={() => company && handleOpenMapWithRoute(company.id)}
                     style={{ cursor: 'pointer', color: '#1a4a6f', textDecoration: 'underline' }}
                     title="Click to view route on map"
                   >
-                    {` ${distanceToSelected.toFixed(1)} km`}
+                    {distanceToSelected.toFixed(1)} km
                   </span>
                 ) : currentUser && currentUser.lat && currentUser.lng ? ' Unable to calculate' : ' Login to see distance'}
               </p>
@@ -1262,7 +1257,7 @@ function App() {
                 <button className="btn btn-primary" onClick={() => {
                   const qty = parseInt((document.getElementById('cartQuantity') as HTMLInputElement).value);
                   if (!canAddToCart && currentSupplierInCart) {
-                    if (window.confirm(`Clear cart & add ${selectedMaterial.name}?`)) {
+                    if (window.confirm('Clear cart & add ' + selectedMaterial.name + '?')) {
                       clearCart();
                       addToCart(selectedMaterial, qty);
                       setSelectedMaterial(null);
@@ -1322,7 +1317,7 @@ function App() {
 
   // ---------- Main render ----------
   return (
-    <div className={`app-container ${darkMode ? 'dark-mode' : ''}`}>
+    <div className={'app-container ' + (darkMode ? 'dark-mode' : '')}>
       {renderHeader()}
       {renderAlert()}
       {renderCurrentPage()}
