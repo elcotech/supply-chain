@@ -75,6 +75,13 @@ function App() {
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
+  // ---------- Close map on page change ----------
+  useEffect(() => {
+    if (showSupplierMap) {
+      setShowSupplierMap(false);
+    }
+  }, [currentPage]);
+
   // ---------- Helpers ----------
   const showAlert = useCallback((message: string, type: Alert['type'] = 'info', duration = 5000): void => {
     setAlert({ message, type });
@@ -1232,17 +1239,19 @@ function App() {
               <p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p>
               <p>
                 <strong>🚗 Distance from you:</strong>
-                {isDistanceLoading ? ' Calculating...' :
-                 distanceToSelected !== null ? (
-                   <span 
-                     onClick={() => company && handleOpenMapWithRoute(company.id)}
-                     style={{ cursor: 'pointer', color: '#1a4a6f', textDecoration: 'underline' }}
-                     title="Click to view route on map"
-                   >
-                     {` ${distanceToSelected.toFixed(1)} km`}
-                   </span>
-                 ) :
-                 currentUser && currentUser.lat && currentUser.lng ? ' Unable to calculate' : ' Login to see distance'}
+                {isDistanceLoading ? (
+                  <span className="distance-loader">
+                    <span className="dot-pulse"></span>
+                  </span>
+                ) : distanceToSelected !== null ? (
+                  <span 
+                    onClick={() => company && handleOpenMapWithRoute(company.id)}
+                    style={{ cursor: 'pointer', color: '#1a4a6f', textDecoration: 'underline' }}
+                    title="Click to view route on map"
+                  >
+                    {` ${distanceToSelected.toFixed(1)} km`}
+                  </span>
+                ) : currentUser && currentUser.lat && currentUser.lng ? ' Unable to calculate' : ' Login to see distance'}
               </p>
             </div>
             {currentUser?.userType === 'customer' && (

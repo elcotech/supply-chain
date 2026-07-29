@@ -1709,3 +1709,48 @@ body {
 .dark-mode .search-hero {
   background: linear-gradient(135deg, #1a2a3a, #2a4a6a);
 }
+
+/* ===== Distance Loader Animation ===== */
+.distance-loader {
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.dot-pulse {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--secondary);
+  animation: dotPulse 1.2s ease-in-out infinite;
+  position: relative;
+}
+
+.dot-pulse::before,
+.dot-pulse::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--secondary);
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+
+.dot-pulse::before {
+  left: -24px;
+  animation-delay: -0.4s;
+}
+
+.dot-pulse::after {
+  left: 24px;
+  animation-delay: -0.8s;
+}
+
+@keyframes dotPulse {
+  0%, 100% { transform: scale(0.5); opacity: 0.3; }
+  50% { transform: scale(1); opacity: 1; }
+}
