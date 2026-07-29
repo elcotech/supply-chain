@@ -692,6 +692,7 @@ function App() {
     showAlert('Order status updated to ' + status + ' 🚀', 'success');
   };
 
+  // ---------- Contact supplier (phone call) ----------
   const handleContactSupplier = (materialId: string) => {
     const material = getMaterialById(materialId);
     if (!material) return;
@@ -699,7 +700,9 @@ function App() {
     if (!company) return;
     const user = getUserById(company.userId);
     if (!user) return;
-    showAlert('Contact ' + company.name + ': ' + user.phone + ' | ' + user.email, 'info', 8000);
+    // Initiate phone call
+    const phoneNumber = user.phone.replace(/\s/g, ''); // remove spaces
+    window.location.href = 'tel:' + phoneNumber;
   };
 
   const calculateStats = () => {
