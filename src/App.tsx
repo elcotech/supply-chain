@@ -1121,8 +1121,6 @@ function App() {
                     const isInCart = cart.some(c => c.materialId === item.id);
                     const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
                     const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
-                    // Distance for this item
-                    const itemDistance = item.distance || 0;
 
                     return (
                       <tr key={item.id}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Company, User, Material } from '../types';
 import { calculateDistance } from '../utils';
 import L from 'leaflet';
@@ -91,7 +91,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   // Function to fetch and draw route
-  const fetchRoute = async (originLat: number, originLng: number, destLat: number, destLng: number) => {
+  const fetchRoute = useCallback(async (originLat: number, originLng: number, destLat: number, destLng: number) => {
     if (!leafletMap.current) return;
     setIsRouteLoading(true);
     try {
@@ -142,15 +142,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
     } finally {
       setIsRouteLoading(false);
     }
-  };
+  }, [routeLine]);
 
-  const clearRoute = () => {
+  const clearRoute = useCallback(() => {
     if (routeLine && leafletMap.current) {
       leafletMap.current.removeLayer(routeLine);
       setRouteLine(null);
       setRouteInfo(null);
     }
-  };
+  }, [routeLine]);
 
   // Auto-show route when autoRouteSupplierId changes
   useEffect(() => {
@@ -170,7 +170,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         });
       }
     }
-  }, [autoRouteSupplierId, companies, currentUser, materials, onRouteShown]);
+  }, [autoRouteSupplierId, companies, currentUser, materials, onRouteShown, fetchRoute]);
 
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
@@ -261,7 +261,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       }
     };
-  }, [companies, materials, currentUser, onSelectSupplier]);
+  }, [companies, materials, currentUser, onSelectSupplier, clearRoute]);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
