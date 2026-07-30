@@ -1585,7 +1585,7 @@ body {
   }
 }
 
-/* ===== Map Modal Layout - Fix panel visibility ===== */
+/* ===== Map Container & Panel Layout ===== */
 .map-modal-content {
   display: flex;
   flex-direction: column;
@@ -1594,20 +1594,17 @@ body {
 }
 
 .map-container-inner {
-  flex: 1;
-  min-height: 400px;
-  max-height: 500px;
+  flex: 0 0 450px; /* Fixed height for the map */
+  min-height: 300px;
   position: relative;
   overflow: hidden;
 }
 
-/* Ensure map container doesn't overflow */
 .map-container-inner .leaflet-container {
   height: 100% !important;
   width: 100% !important;
 }
 
-/* Supplier detail panel - visible below map */
 .supplier-detail-panel {
   flex-shrink: 0;
   max-height: 45vh;
@@ -1620,18 +1617,14 @@ body {
   animation: slideInRight 0.3s ease forwards;
 }
 
-/* Make sure panel is visible on small screens */
 @media (max-width: 640px) {
   .map-container-inner {
+    flex: 0 0 300px;
     min-height: 250px;
-    max-height: 350px;
   }
   .supplier-detail-panel {
     max-height: 50vh;
     padding: 12px 16px;
     font-size: 0.85rem;
-  }
-  .supplier-detail-panel h3 {
-    font-size: 1rem;
   }
 }

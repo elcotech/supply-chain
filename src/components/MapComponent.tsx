@@ -106,7 +106,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const fetchRoute = useCallback(async (originLat: number, originLng: number, destLat: number, destLng: number) => {
     if (!leafletMap.current) return;
     
-    // Clear previous route immediately
     clearRoute();
     
     setIsRouteLoading(true);
@@ -178,10 +177,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // Handle supplier selection
   const handleSupplierSelect = useCallback(async (company: Company) => {
-    // Clear previous route immediately
     clearRoute();
     
-    // Update selected company
     setSelectedCompany(company);
     setCompanyMaterials(materials.filter(m => m.companyId === company.id));
     currentCompanyIdRef.current = company.id;
@@ -334,7 +331,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   {routeLine ? (
                     <button className="btn-secondary" onClick={() => {
                       clearRoute();
-                      // Remove route info as well
                       setRouteInfo(null);
                     }}>Hide Route</button>
                   ) : (
