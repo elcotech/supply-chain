@@ -91,61 +91,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     return { lat, lng };
   };
 
-  // Function to fetch and draw route
-  const fetchRoute = useCallback(async (originLat: number, originLng: number, destLat: number, destLng: number) => {
-    if (!leafletMap.current) return;
-    setIsRouteLoading(true);
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
-        const geometry = route.geometry;
-        const coordinates = geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-        const distanceKm = route.distance / 1000;
-        const durationMin = route.duration / 60;
-
-        // Remove previous route
-        if (routeLine) {
-          leafletMap.current.removeLayer(routeLine);
-          setRouteLine(null);
-        }
-
-        // Draw polyline with beautiful styling
-        const polyline = L.polyline(coordinates as L.LatLngExpression[], {
-          color: '#2ecc71',
-          weight: 5,
-          opacity: 0.9,
-          smoothFactor: 1,
-          className: 'route-line'
-        });
-
-        // Add a small marker at destination
-        const destMarker = L.marker([destLat, destLng], {
-          icon: L.divIcon({
-            className: 'route-end-marker',
-            html: '📍',
-            iconSize: [20, 20]
-          })
-        });
-
-        // Group both layers
-        const group = L.layerGroup([polyline, destMarker]).addTo(leafletMap.current);
-        setRouteLine(group);
-        setRouteInfo({ distance: distanceKm, duration: durationMin });
-
-        // Fly to route bounds with smooth animation
-        const bounds = L.latLngBounds(coordinates as L.LatLngExpression[]);
-        leafletMap.current.flyToBounds(bounds, { padding: [50, 50], duration: 0.8 });
-      }
-    } catch (error) {
-      console.error('Route fetch failed', error);
-    } finally {
-      setIsRouteLoading(false);
-    }
-  }, [routeLine]);
-
+  // Clear existing route
   const clearRoute = useCallback(() => {
     if (routeLine && leafletMap.current) {
       leafletMap.current.removeLayer(routeLine);
@@ -154,10 +100,64 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [routeLine]);
 
+  // Fetch and draw route (no animations)
+  const fetchRoute = useCallback(async (originLat: number, originLng: number, destLat: number, destLng: number) => {
+    if (!leafletMap.current) return;
+    
+    // Clear previous route immediately
+    clearRoute();
+    
+    setIsRouteLoading(true);
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const geometry = route.geometry;
+        const coordinates = geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
+        const distanceKm = route.distance / 1000;
+        const durationMin = route.duration / 60;
+
+        // Draw polyline (simple, no animation)
+        const polyline = L.polyline(coordinates as L.LatLngExpression[], {
+          color: '#2ecc71',
+          weight: 5,
+          opacity: 0.9,
+          smoothFactor: 1
+        });
+
+        // Add destination marker
+        const destMarker = L.marker([destLat, destLng], {
+          icon: L.divIcon({
+            className: 'route-end-marker',
+            html: '📍',
+            iconSize: [20, 20]
+          })
+        });
+
+        // Group layers
+        const group = L.layerGroup([polyline, destMarker]).addTo(leafletMap.current);
+        setRouteLine(group);
+        setRouteInfo({ distance: distanceKm, duration: durationMin });
+
+        // Fit bounds to route (no animation)
+        const bounds = L.latLngBounds(coordinates as L.LatLngExpression[]);
+        leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
+      }
+    } catch (error) {
+      console.error('Route fetch failed', error);
+    } finally {
+      setIsRouteLoading(false);
+    }
+  }, [clearRoute]);
+
   // Show route for a supplier
   const showRouteForSupplier = useCallback(async (company: Company) => {
     if (!currentUser || !currentUser.lat || !currentUser.lng) return;
     const { lat, lng } = getCoords(company);
+    
     // Calculate distance
     setIsDistanceLoading(true);
     try {
@@ -168,11 +168,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     } finally {
       setIsDistanceLoading(false);
     }
+    
     // Draw route
     await fetchRoute(currentUser.lat, currentUser.lng, lat, lng);
   }, [currentUser, fetchRoute]);
 
-  // Auto-show route when a supplier is selected or on first load
+  // Auto-show route on first load or when supplier is selected
   useEffect(() => {
     if (autoRouteSupplierId && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
       const company = companies.find(c => c.id === autoRouteSupplierId);
@@ -183,7 +184,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         if (onRouteShown) onRouteShown();
       }
     } else if (isFirstLoad && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
-      // On first load, show route for the first supplier
       const firstCompany = companies[0];
       if (firstCompany) {
         setSelectedCompany(firstCompany);
@@ -197,11 +197,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
 
-    leafletMap.current = L.map(mapRef.current, {
-      fadeAnimation: true,
-      zoomAnimation: true,
-      markerZoomAnimation: true
-    }).setView([9.0320, 38.7469], 12);
+    leafletMap.current = L.map(mapRef.current).setView([9.0320, 38.7469], 12);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSRM</a> & CartoDB',
@@ -230,9 +226,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       `);
 
       marker.on('click', async () => {
+        // Clear previous route immediately
+        clearRoute();
+        
         setSelectedCompany(company);
         setCompanyMaterials(materials.filter(m => m.companyId === company.id));
-        // Auto-show route on marker click
+        
         if (currentUser && currentUser.lat && currentUser.lng) {
           await showRouteForSupplier(company);
         } else {
@@ -263,6 +262,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     (window as any).selectSupplier = (companyId: string) => {
       const company = companies.find(c => c.id === companyId);
       if (company) {
+        // Clear previous route
+        clearRoute();
+        
         setSelectedCompany(company);
         setCompanyMaterials(materials.filter(m => m.companyId === companyId));
         if (onSelectSupplier) onSelectSupplier(company);
@@ -271,7 +273,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       }
     };
-  }, [companies, materials, currentUser, onSelectSupplier, showRouteForSupplier]);
+  }, [companies, materials, currentUser, onSelectSupplier, showRouteForSupplier, clearRoute]);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
