@@ -78,7 +78,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [routeLine, setRouteLine] = useState<L.Layer | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const [cachedDistance, setCachedDistance] = useState<{ [key: string]: number }>({});
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const currentCompanyIdRef = useRef<string | null>(null);
 
   const getCoords = (company: Company): { lat: number; lng: number } => {
     let lat = company.lat;
@@ -120,7 +122,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         const distanceKm = route.distance / 1000;
         const durationMin = route.duration / 60;
 
-        // Draw polyline (simple, no animation)
+        // Draw polyline
         const polyline = L.polyline(coordinates as L.LatLngExpression[], {
           color: '#2ecc71',
           weight: 5,
@@ -142,7 +144,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         setRouteLine(group);
         setRouteInfo({ distance: distanceKm, duration: durationMin });
 
-        // Fit bounds to route (no animation)
+        // Fit bounds to route
         const bounds = L.latLngBounds(coordinates as L.LatLngExpression[]);
         leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
       }
@@ -158,42 +160,64 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (!currentUser || !currentUser.lat || !currentUser.lng) return;
     const { lat, lng } = getCoords(company);
     
-    // Calculate distance
-    setIsDistanceLoading(true);
-    try {
-      const dist = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
-      setDistance(dist);
-    } catch (error) {
-      setDistance(null);
-    } finally {
+    // Check if we already have cached distance for this company
+    const cacheKey = company.id;
+    if (cachedDistance[cacheKey]) {
+      setDistance(cachedDistance[cacheKey]);
       setIsDistanceLoading(false);
+    } else {
+      setIsDistanceLoading(true);
+      try {
+        const dist = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
+        setDistance(dist);
+        setCachedDistance(prev => ({ ...prev, [cacheKey]: dist }));
+      } catch (error) {
+        setDistance(null);
+      } finally {
+        setIsDistanceLoading(false);
+      }
     }
     
     // Draw route
     await fetchRoute(currentUser.lat, currentUser.lng, lat, lng);
-  }, [currentUser, fetchRoute]);
+  }, [currentUser, fetchRoute, cachedDistance]);
+
+  // Handle supplier selection
+  const handleSupplierSelect = useCallback(async (company: Company) => {
+    // Clear previous route
+    clearRoute();
+    
+    // Update selected company
+    setSelectedCompany(company);
+    setCompanyMaterials(materials.filter(m => m.companyId === company.id));
+    currentCompanyIdRef.current = company.id;
+    
+    if (currentUser && currentUser.lat && currentUser.lng) {
+      await showRouteForSupplier(company);
+    } else {
+      setIsDistanceLoading(true);
+      setTimeout(() => setIsDistanceLoading(false), 500);
+    }
+  }, [clearRoute, materials, currentUser, showRouteForSupplier]);
 
   // Auto-show route on first load or when supplier is selected
   useEffect(() => {
     if (autoRouteSupplierId && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
       const company = companies.find(c => c.id === autoRouteSupplierId);
-      if (company) {
-        setSelectedCompany(company);
-        setCompanyMaterials(materials.filter(m => m.companyId === company.id));
-        showRouteForSupplier(company);
+      if (company && company.id !== currentCompanyIdRef.current) {
+        handleSupplierSelect(company);
         if (onRouteShown) onRouteShown();
       }
     } else if (isFirstLoad && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
       const firstCompany = companies[0];
       if (firstCompany) {
-        setSelectedCompany(firstCompany);
-        setCompanyMaterials(materials.filter(m => m.companyId === firstCompany.id));
-        showRouteForSupplier(firstCompany);
+        handleSupplierSelect(firstCompany);
         setIsFirstLoad(false);
       }
     }
-  }, [autoRouteSupplierId, companies, currentUser, materials, onRouteShown, showRouteForSupplier, isFirstLoad]);
+  }, [autoRouteSupplierId, companies, currentUser, onRouteShown, handleSupplierSelect, isFirstLoad]);
 
+  // Initialize map
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
 
@@ -225,20 +249,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         </div>
       `);
 
-      marker.on('click', async () => {
-        // Clear previous route immediately
-        clearRoute();
-        
-        setSelectedCompany(company);
-        setCompanyMaterials(materials.filter(m => m.companyId === company.id));
-        
-        if (currentUser && currentUser.lat && currentUser.lng) {
-          await showRouteForSupplier(company);
-        } else {
-          setIsDistanceLoading(true);
-          setDistance(null);
-          setTimeout(() => setIsDistanceLoading(false), 500);
-        }
+      marker.on('click', () => {
+        handleSupplierSelect(company);
       });
 
       latLngs.push([lat, lng]);
@@ -262,18 +274,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     (window as any).selectSupplier = (companyId: string) => {
       const company = companies.find(c => c.id === companyId);
       if (company) {
-        // Clear previous route
-        clearRoute();
-        
-        setSelectedCompany(company);
-        setCompanyMaterials(materials.filter(m => m.companyId === companyId));
+        handleSupplierSelect(company);
         if (onSelectSupplier) onSelectSupplier(company);
-        if (currentUser && currentUser.lat && currentUser.lng) {
-          showRouteForSupplier(company);
-        }
       }
     };
-  }, [companies, materials, currentUser, onSelectSupplier, showRouteForSupplier, clearRoute]);
+  }, [companies, materials, currentUser, onSelectSupplier, handleSupplierSelect]);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
