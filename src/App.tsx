@@ -25,6 +25,7 @@ function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearchPerformed, setIsSearchPerformed] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -35,7 +36,7 @@ function App() {
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
-  const [darkMode, setDarkMode] = useState(true); // <-- Dark theme by default
+  const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
 
@@ -452,8 +453,12 @@ function App() {
           material.brand?.toLowerCase().includes(lower) ||
           material.category.toLowerCase().includes(lower));
       }
-      if (searchCategory && searchCategory !== 'all') matches = matches && material.category === searchCategory;
-      if (searchMaxPrice) matches = matches && material.price <= parseFloat(searchMaxPrice);
+      if (searchCategory && searchCategory !== 'all') {
+        matches = matches && material.category === searchCategory;
+      }
+      if (searchMaxPrice) {
+        matches = matches && material.price <= parseFloat(searchMaxPrice);
+      }
       if (searchCity && searchCity !== 'all') {
         const company = getCompanyById(material.companyId);
         matches = matches && company?.city === searchCity;
@@ -481,6 +486,7 @@ function App() {
       }
     });
     setSearchResults(resultsWithCost);
+    setIsSearchPerformed(true);
   }, [formData, materials, currentUser, getCompanyById]);
 
   useEffect(() => {
@@ -493,6 +499,13 @@ function App() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     performSearch();
+  };
+
+  // Reset search state when clearing filters
+  const clearFilters = () => {
+    setSearchResults([]);
+    setIsSearchPerformed(false);
+    setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' }));
   };
 
   // ---------- Cart ----------
@@ -692,7 +705,6 @@ function App() {
     showAlert('Order status updated to ' + status + ' 🚀', 'success');
   };
 
-  // ---------- Contact supplier (phone call) ----------
   const handleContactSupplier = (materialId: string) => {
     const material = getMaterialById(materialId);
     if (!material) return;
@@ -731,6 +743,7 @@ function App() {
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
+    // If user modifies search filters, automatically trigger search via useEffect
   };
 
   const handleDatalistInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1080,7 +1093,11 @@ function App() {
   );
 
   const renderSearchMaterials = () => {
-    const displayMaterials = searchResults.length > 0 ? searchResults : materials;
+    // Decide what to display:
+    // If search has been performed (isSearchPerformed true), show searchResults (even if empty)
+    // Else show all materials
+    const displayMaterials = isSearchPerformed ? searchResults : materials;
+
     return (
       <main className="main-content">
         <div className="search-hero glass">
@@ -1107,12 +1124,19 @@ function App() {
                 <option value="rating_desc">Highest Rated</option>
                 <option value="newest">Newest</option>
               </select>
-              <button type="button" className="filter-clear" onClick={() => { setSearchResults([]); setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' })); }}>Clear</button>
+              <button type="button" className="filter-clear" onClick={clearFilters}>Clear</button>
             </div>
           </form>
         </div>
         <div className="search-results">
-          <div className="results-header"><h2>{searchResults.length > 0 ? '📊 Results (' + displayMaterials.length + ')' : '📦 All Products'}</h2><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
+          <div className="results-header">
+            <h2>
+              {isSearchPerformed 
+                ? `📊 Results (${displayMaterials.length})` 
+                : '📦 All Products'}
+            </h2>
+            <button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button>
+          </div>
           {displayMaterials.length === 0 ? (
             <div className="no-results glass">
               <p>🔍 No products found matching your criteria.</p>
@@ -1217,24 +1241,23 @@ function App() {
   };
 
   const renderSupplierMap = () => {
-  // Get the first company ID to auto-route on map open
-  const firstCompanyId = companies.length > 0 ? companies[0].id : null;
-  const routeId = autoRouteSupplierId || firstCompanyId;
-  
-  return (
-    <Suspense fallback={<div className="map-placeholder">Loading map...</div>}>
-      <MapComponent
-        companies={companies}
-        materials={materials}
-        currentUser={currentUser}
-        onClose={() => setShowSupplierMap(false)}
-        onSelectSupplier={(company) => console.log('Selected supplier:', company)}
-        autoRouteSupplierId={routeId}
-        onRouteShown={() => setAutoRouteSupplierId(null)}
-      />
-    </Suspense>
-  );
-};
+    // Ensure we always have a supplier to route to
+    const firstCompanyId = companies.length > 0 ? companies[0].id : null;
+    const routeId = autoRouteSupplierId || firstCompanyId;
+    return (
+      <Suspense fallback={<div className="map-placeholder">Loading map...</div>}>
+        <MapComponent
+          companies={companies}
+          materials={materials}
+          currentUser={currentUser}
+          onClose={() => setShowSupplierMap(false)}
+          onSelectSupplier={(company) => console.log('Selected supplier:', company)}
+          autoRouteSupplierId={routeId}
+          onRouteShown={() => setAutoRouteSupplierId(null)}
+        />
+      </Suspense>
+    );
+  };
 
   const renderMaterialDetails = () => {
     if (!selectedMaterial) return null;
@@ -1259,7 +1282,7 @@ function App() {
                 ) : distanceToSelected !== null ? (
                   <span 
                     onClick={() => company && handleOpenMapWithRoute(company.id)}
-                    style={{ cursor: 'pointer', color: '#1a4a6f', textDecoration: 'underline' }}
+                    style={{ cursor: 'pointer', color: '#2ecc71', textDecoration: 'underline' }}
                     title="Click to view route on map"
                   >
                     {distanceToSelected.toFixed(1)} km
