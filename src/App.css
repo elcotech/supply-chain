@@ -2010,3 +2010,149 @@ body {
   .product-grid { grid-template-columns: 1fr 1fr; }
   .search-filters { flex-direction: column; }
 }
+
+/* ===== Route line animation ===== */
+.route-line {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: drawRoute 1.2s ease forwards;
+}
+
+@keyframes drawRoute {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ===== Map placeholder loading ===== */
+.map-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 500px;
+  background: var(--glass-bg);
+  border-radius: var(--radius);
+  font-size: 1.2rem;
+  color: var(--text-light);
+  backdrop-filter: blur(10px);
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+/* ===== Supplier detail panel slide-in ===== */
+.supplier-detail-panel {
+  animation: slideInRight 0.5s ease forwards;
+  padding: 16px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--glass-border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  transition: all var(--transition);
+}
+
+.supplier-detail-panel h3 {
+  color: var(--secondary);
+  margin-bottom: 8px;
+}
+
+.supplier-detail-panel .route-info {
+  background: rgba(46, 204, 113, 0.1);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+  margin: 8px 0;
+}
+
+/* ===== Route actions ===== */
+.route-actions {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+/* ===== Map modal overlay with fade ===== */
+.map-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.4s ease;
+}
+
+.map-modal-content {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border-radius: var(--radius);
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  animation: scaleIn 0.4s ease;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ===== Map modal header ===== */
+.map-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+}
+
+.map-modal-header h2 {
+  font-size: 1.3rem;
+  color: var(--text);
+}
+
+.map-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-light);
+  padding: 0 6px;
+  transition: all var(--transition);
+}
+
+.map-modal-close:hover {
+  color: var(--danger);
+  transform: rotate(90deg);
+}
+
+/* ===== Map container ===== */
+.map-container-inner {
+  flex: 1;
+  min-height: 400px;
+  position: relative;
+}
+
+/* ===== Route end marker animation ===== */
+.route-end-marker {
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}

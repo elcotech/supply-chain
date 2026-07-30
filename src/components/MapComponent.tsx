@@ -78,6 +78,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [routeLine, setRouteLine] = useState<L.Layer | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   const getCoords = (company: Company): { lat: number; lng: number } => {
     let lat = company.lat;
@@ -111,15 +112,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
           setRouteLine(null);
         }
 
-        // Draw polyline
+        // Draw polyline with beautiful styling
         const polyline = L.polyline(coordinates as L.LatLngExpression[], {
-          color: '#1a4a6f',
+          color: '#2ecc71',
           weight: 5,
-          opacity: 0.8,
-          smoothFactor: 1
+          opacity: 0.9,
+          smoothFactor: 1,
+          className: 'route-line'
         });
 
-        // Add a small marker at destination to show endpoint
+        // Add a small marker at destination
         const destMarker = L.marker([destLat, destLng], {
           icon: L.divIcon({
             className: 'route-end-marker',
@@ -133,9 +135,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
         setRouteLine(group);
         setRouteInfo({ distance: distanceKm, duration: durationMin });
 
-        // Fit bounds to route
+        // Fly to route bounds with smooth animation
         const bounds = L.latLngBounds(coordinates as L.LatLngExpression[]);
-        leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
+        leafletMap.current.flyToBounds(bounds, { padding: [50, 50], duration: 0.8 });
       }
     } catch (error) {
       console.error('Route fetch failed', error);
@@ -152,30 +154,54 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [routeLine]);
 
-  // Auto-show route when autoRouteSupplierId changes
+  // Show route for a supplier
+  const showRouteForSupplier = useCallback(async (company: Company) => {
+    if (!currentUser || !currentUser.lat || !currentUser.lng) return;
+    const { lat, lng } = getCoords(company);
+    // Calculate distance
+    setIsDistanceLoading(true);
+    try {
+      const dist = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
+      setDistance(dist);
+    } catch (error) {
+      setDistance(null);
+    } finally {
+      setIsDistanceLoading(false);
+    }
+    // Draw route
+    await fetchRoute(currentUser.lat, currentUser.lng, lat, lng);
+  }, [currentUser, fetchRoute]);
+
+  // Auto-show route when a supplier is selected or on first load
   useEffect(() => {
     if (autoRouteSupplierId && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
       const company = companies.find(c => c.id === autoRouteSupplierId);
       if (company) {
         setSelectedCompany(company);
         setCompanyMaterials(materials.filter(m => m.companyId === company.id));
-        const { lat, lng } = getCoords(company);
-        // Calculate distance
-        calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng)
-          .then(dist => setDistance(dist))
-          .catch(() => setDistance(null));
-        // Draw route
-        fetchRoute(currentUser.lat, currentUser.lng, lat, lng).then(() => {
-          if (onRouteShown) onRouteShown();
-        });
+        showRouteForSupplier(company);
+        if (onRouteShown) onRouteShown();
+      }
+    } else if (isFirstLoad && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
+      // On first load, show route for the first supplier
+      const firstCompany = companies[0];
+      if (firstCompany) {
+        setSelectedCompany(firstCompany);
+        setCompanyMaterials(materials.filter(m => m.companyId === firstCompany.id));
+        showRouteForSupplier(firstCompany);
+        setIsFirstLoad(false);
       }
     }
-  }, [autoRouteSupplierId, companies, currentUser, materials, onRouteShown, fetchRoute]);
+  }, [autoRouteSupplierId, companies, currentUser, materials, onRouteShown, showRouteForSupplier, isFirstLoad]);
 
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
 
-    leafletMap.current = L.map(mapRef.current).setView([9.0320, 38.7469], 12);
+    leafletMap.current = L.map(mapRef.current, {
+      fadeAnimation: true,
+      zoomAnimation: true,
+      markerZoomAnimation: true
+    }).setView([9.0320, 38.7469], 12);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSRM</a> & CartoDB',
@@ -206,24 +232,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
       marker.on('click', async () => {
         setSelectedCompany(company);
         setCompanyMaterials(materials.filter(m => m.companyId === company.id));
-        setIsDistanceLoading(true);
-        setDistance(null);
-        clearRoute();
-
+        // Auto-show route on marker click
         if (currentUser && currentUser.lat && currentUser.lng) {
-          try {
-            const dist = await calculateDistance(
-              company.lat, company.lng,
-              currentUser.lat, currentUser.lng
-            );
-            setDistance(dist);
-          } catch (error) {
-            console.warn('Distance calculation failed', error);
-          } finally {
-            setIsDistanceLoading(false);
-          }
+          await showRouteForSupplier(company);
         } else {
-          setIsDistanceLoading(false);
+          setIsDistanceLoading(true);
+          setDistance(null);
+          setTimeout(() => setIsDistanceLoading(false), 500);
         }
       });
 
@@ -251,17 +266,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         setSelectedCompany(company);
         setCompanyMaterials(materials.filter(m => m.companyId === companyId));
         if (onSelectSupplier) onSelectSupplier(company);
-        clearRoute();
         if (currentUser && currentUser.lat && currentUser.lng) {
-          setIsDistanceLoading(true);
-          calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng)
-            .then(dist => setDistance(dist))
-            .catch(() => {})
-            .finally(() => setIsDistanceLoading(false));
+          showRouteForSupplier(company);
         }
       }
     };
-  }, [companies, materials, currentUser, onSelectSupplier, clearRoute]);
+  }, [companies, materials, currentUser, onSelectSupplier, showRouteForSupplier]);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
@@ -272,8 +282,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const handleShowRoute = async () => {
     if (!selectedCompany || !currentUser || !currentUser.lat || !currentUser.lng) return;
-    const { lat, lng } = getCoords(selectedCompany);
-    await fetchRoute(currentUser.lat, currentUser.lng, lat, lng);
+    await showRouteForSupplier(selectedCompany);
   };
 
   return (
@@ -295,14 +304,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <p>
               <strong>🚗 Distance from you:</strong>
               {isDistanceLoading ? (
-                ' Calculating...'
+                <span className="distance-loader"><span className="dot-pulse"></span></span>
               ) : distance !== null ? (
                 <span 
                   onClick={() => {
                     if (selectedCompany) handleShowRoute();
                   }}
-                  style={{ cursor: 'pointer', color: '#1a4a6f', textDecoration: 'underline' }}
-                  title="Click to show route"
+                  style={{ cursor: 'pointer', color: '#2ecc71', textDecoration: 'underline' }}
+                  title="Click to refresh route"
                 >
                   {` ${distance.toFixed(1)} km`}
                 </span>
@@ -313,7 +322,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
               )}
             </p>
             {routeInfo && (
-              <p>
+              <p className="route-info">
                 <strong>🛣️ Route Distance:</strong> {routeInfo.distance.toFixed(1)} km<br/>
                 <strong>⏱️ Estimated Time:</strong> {Math.round(routeInfo.duration)} min
               </p>

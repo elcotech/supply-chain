@@ -1216,7 +1216,12 @@ function App() {
     );
   };
 
-  const renderSupplierMap = () => (
+  const renderSupplierMap = () => {
+  // Get the first company ID to auto-route on map open
+  const firstCompanyId = companies.length > 0 ? companies[0].id : null;
+  const routeId = autoRouteSupplierId || firstCompanyId;
+  
+  return (
     <Suspense fallback={<div className="map-placeholder">Loading map...</div>}>
       <MapComponent
         companies={companies}
@@ -1224,11 +1229,12 @@ function App() {
         currentUser={currentUser}
         onClose={() => setShowSupplierMap(false)}
         onSelectSupplier={(company) => console.log('Selected supplier:', company)}
-        autoRouteSupplierId={autoRouteSupplierId}
+        autoRouteSupplierId={routeId}
         onRouteShown={() => setAutoRouteSupplierId(null)}
       />
     </Suspense>
   );
+};
 
   const renderMaterialDetails = () => {
     if (!selectedMaterial) return null;
