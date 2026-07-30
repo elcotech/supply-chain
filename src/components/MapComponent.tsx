@@ -102,7 +102,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [routeLine]);
 
-  // Fetch and draw route (no animations)
+  // Fetch and draw route
   const fetchRoute = useCallback(async (originLat: number, originLng: number, destLat: number, destLng: number) => {
     if (!leafletMap.current) return;
     
@@ -122,7 +122,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
         const distanceKm = route.distance / 1000;
         const durationMin = route.duration / 60;
 
-        // Draw polyline
         const polyline = L.polyline(coordinates as L.LatLngExpression[], {
           color: '#2ecc71',
           weight: 5,
@@ -130,7 +129,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
           smoothFactor: 1
         });
 
-        // Add destination marker
         const destMarker = L.marker([destLat, destLng], {
           icon: L.divIcon({
             className: 'route-end-marker',
@@ -139,12 +137,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
           })
         });
 
-        // Group layers
         const group = L.layerGroup([polyline, destMarker]).addTo(leafletMap.current);
         setRouteLine(group);
         setRouteInfo({ distance: distanceKm, duration: durationMin });
 
-        // Fit bounds to route
         const bounds = L.latLngBounds(coordinates as L.LatLngExpression[]);
         leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
       }
@@ -160,7 +156,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (!currentUser || !currentUser.lat || !currentUser.lng) return;
     const { lat, lng } = getCoords(company);
     
-    // Check if we already have cached distance for this company
     const cacheKey = company.id;
     if (cachedDistance[cacheKey]) {
       setDistance(cachedDistance[cacheKey]);
@@ -178,13 +173,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }
     }
     
-    // Draw route
     await fetchRoute(currentUser.lat, currentUser.lng, lat, lng);
   }, [currentUser, fetchRoute, cachedDistance]);
 
   // Handle supplier selection
   const handleSupplierSelect = useCallback(async (company: Company) => {
-    // Clear previous route
+    // Clear previous route immediately
     clearRoute();
     
     // Update selected company
@@ -300,7 +294,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           <button className="map-modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="map-container-inner">
-          <div ref={mapRef} style={{ height: '500px', width: '100%' }}></div>
+          <div ref={mapRef} style={{ height: '450px', width: '100%' }}></div>
         </div>
         {selectedCompany && (
           <div className="supplier-detail-panel">
@@ -338,7 +332,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
               {currentUser && currentUser.lat && currentUser.lng && (
                 <>
                   {routeLine ? (
-                    <button className="btn-secondary" onClick={clearRoute}>Hide Route</button>
+                    <button className="btn-secondary" onClick={() => {
+                      clearRoute();
+                      // Remove route info as well
+                      setRouteInfo(null);
+                    }}>Hide Route</button>
                   ) : (
                     <button className="btn-primary" onClick={handleShowRoute} disabled={isRouteLoading}>
                       {isRouteLoading ? 'Loading route...' : '🗺️ Show Route'}
