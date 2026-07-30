@@ -26,7 +26,7 @@ const userIcon = L.divIcon({
   popupAnchor: [0, -12]
 });
 
-// Fallback city coordinates
+// City fallback coordinates (only used when company has no valid lat/lng)
 const cityCoords: Record<string, [number, number]> = {
   'Addis Ababa': [9.0320, 38.7469],
   'Adama': [8.5400, 39.2700],
@@ -83,14 +83,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const currentCompanyIdRef = useRef<string | null>(null);
 
   const getCoords = (company: Company): { lat: number; lng: number } => {
-    let lat = company.lat;
-    let lng = company.lng;
+    // If company has valid lat/lng, use it
+    if (company.lat && company.lng && company.lat !== 0 && company.lng !== 0) {
+      // Check if it's a generic city center (too close to known city centers)
+      const city = company.city || 'Addis Ababa';
+      const center = cityCoords[city];
+      if (center && Math.abs(company.lat - center[0]) < 0.01 && Math.abs(company.lng - center[1]) < 0.01) {
+        // It's generic, but we'll still use it if we have no better option
+        return { lat: company.lat, lng: company.lng };
+      }
+      return { lat: company.lat, lng: company.lng };
+    }
+    // Fallback to city center
     const city = company.city || 'Addis Ababa';
     const center = cityCoords[city] || cityCoords['Addis Ababa'];
-    if (!lat || !lng || (Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01)) {
-      return { lat: center[0], lng: center[1] };
-    }
-    return { lat, lng };
+    return { lat: center[0], lng: center[1] };
   };
 
   // Clear existing route
@@ -291,7 +298,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           <button className="map-modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="map-container-inner">
-          <div ref={mapRef} style={{ height: '450px', width: '100%' }}></div>
+          <div ref={mapRef} style={{ height: '100%', width: '100%' }}></div>
         </div>
         {selectedCompany && (
           <div className="supplier-detail-panel">
