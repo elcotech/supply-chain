@@ -1760,3 +1760,253 @@ body {
 
 
 
+
+
+
+
+
+
+
+/* ===== CSS Variables for Light/Dark ===== */
+:root {
+  --bg: #f4f7fb;
+  --card-bg: rgba(255, 255, 255, 0.72);
+  --text: #1e2a3a;
+  --text-light: #5a6e85;
+  --border: rgba(220, 227, 237, 0.5);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  --primary: #0f2b3d;
+  --primary-light: #1a4058;
+  --secondary: #e67e22;
+  --accent: #2ecc71;
+  --danger: #e74c3c;
+  --radius: 16px;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  --bg: #0f1a24;
+  --card-bg: rgba(30, 42, 58, 0.8);
+  --text: #e8edf2;
+  --text-light: #9aaebf;
+  --border: rgba(60, 80, 100, 0.3);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  --glass-bg: rgba(20, 30, 40, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --primary: #2a4a6a;
+  --primary-light: #3a6a8a;
+}
+
+/* ===== Base ===== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  transition: background 0.4s, color 0.4s;
+  overflow-x: hidden;
+}
+
+/* ===== Glassmorphism ===== */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  transition: all var(--transition);
+}
+
+/* ===== Header (Glass) ===== */
+.header {
+  composes: glass;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  position: sticky;
+  top: 8px;
+  z-index: 100;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  transition: background 0.4s, border 0.4s;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeInUp {
+  from { transform: translateY(40px) scale(0.96); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideInRight {
+  from { transform: translateX(40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(230, 126, 34, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(230, 126, 34, 0.6); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes tilt {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(2deg); }
+}
+
+/* Apply animations */
+.fade-in-up {
+  animation: fadeInUp 0.6s ease forwards;
+}
+.slide-in-left {
+  animation: slideInLeft 0.5s ease forwards;
+}
+.slide-in-right {
+  animation: slideInRight 0.5s ease forwards;
+}
+.pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+.float {
+  animation: float 3s ease-in-out infinite;
+}
+.tilt {
+  animation: tilt 2s ease-in-out infinite;
+}
+
+/* ===== Buttons with press effect ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 40px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+.btn:active {
+  transform: scale(0.94);
+}
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(15, 43, 61, 0.2);
+}
+.btn-primary:hover {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 43, 61, 0.3);
+}
+.btn-secondary {
+  background: var(--secondary);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(230, 126, 34, 0.2);
+}
+.btn-secondary:hover {
+  background: var(--secondary-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(230, 126, 34, 0.3);
+}
+
+/* ===== Cards with hover lift and tilt ===== */
+.card, .stat-card, .feature-card, .dashboard-card, .product-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  transition: all var(--transition);
+  padding: 20px;
+}
+.card:hover, .stat-card:hover, .feature-card:hover, .dashboard-card:hover, .product-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+/* ===== Product row clickable with hover effect ===== */
+.product-row {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.product-row:hover {
+  background: rgba(230, 126, 34, 0.08);
+  transform: scale(1.002);
+}
+
+/* ===== Search hero with gradient animation ===== */
+.search-hero {
+  background: linear-gradient(135deg, var(--primary), var(--primary-light), var(--primary)) !important;
+  background-size: 300% 300% !important;
+  animation: gradientShift 6s ease-in-out infinite;
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  margin-bottom: 24px;
+}
+
+/* ===== Distance loader (pulsing dots) ===== */
+.distance-loader {
+  display: inline-block;
+  margin-left: 4px;
+}
+.dot-pulse {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--secondary);
+  animation: dotPulse 1.2s ease-in-out infinite;
+  position: relative;
+}
+.dot-pulse::before,
+.dot-pulse::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--secondary);
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+.dot-pulse::before { left: -24px; animation-delay: -0.4s; }
+.dot-pulse::after { left: 24px; animation-delay: -0.8s; }
+@keyframes dotPulse {
+  0%, 100% { transform: scale(0.5); opacity: 0.3; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 640px) {
+  .header { flex-direction: column; }
+  .product-grid { grid-template-columns: 1fr 1fr; }
+  .search-filters { flex-direction: column; }
+}

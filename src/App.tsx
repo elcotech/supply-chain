@@ -35,7 +35,7 @@ function App() {
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true); // <-- Dark theme by default
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
 
@@ -700,8 +700,7 @@ function App() {
     if (!company) return;
     const user = getUserById(company.userId);
     if (!user) return;
-    // Initiate phone call
-    const phoneNumber = user.phone.replace(/\s/g, ''); // remove spaces
+    const phoneNumber = user.phone.replace(/\s/g, '');
     window.location.href = 'tel:' + phoneNumber;
   };
 
@@ -1130,7 +1129,16 @@ function App() {
                     const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
                     const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
                     return (
-                      <tr key={item.id}>
+                      <tr 
+                        key={item.id}
+                        className="product-row"
+                        onClick={() => {
+                          if (company) {
+                            handleOpenMapWithRoute(company.id);
+                          }
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <td className="product-name"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
                         <td>{item.category}</td>
                         <td>{company?.name || 'Unknown'}</td>
@@ -1140,13 +1148,14 @@ function App() {
                         <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td>
                         <td>⭐ {item.rating || 'N/A'}</td>
                         <td>
-                          <button className="btn-icon" onClick={() => setSelectedMaterial(item)}>👁️</button>
-                          <button className="btn-icon contact" onClick={() => handleContactSupplier(item.id)}>📞</button>
+                          <button className="btn-icon" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>👁️</button>
+                          <button className="btn-icon contact" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button>
                           {currentUser?.userType === 'customer' && (
                             isInCart ? (
-                              <button className="btn-icon success" onClick={handleCheckout}>🛒</button>
+                              <button className="btn-icon success" onClick={(e) => { e.stopPropagation(); handleCheckout(); }}>🛒</button>
                             ) : (
-                              <button className="btn-icon add-to-cart" onClick={() => {
+                              <button className="btn-icon add-to-cart" onClick={(e) => {
+                                e.stopPropagation();
                                 const qty = prompt('Quantity (Min: ' + item.minOrder + ' ' + item.unit + '):', item.minOrder.toString());
                                 if (qty && !isNaN(parseInt(qty))) {
                                   if (!canAddToCart && currentSupplierInCart) {
