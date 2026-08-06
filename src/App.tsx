@@ -12,6 +12,7 @@ import {
   geocodeAddress
 } from './utils';
 import EditCompany from './components/EditCompany';
+import DateTime from './components/DateTime';
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
@@ -51,7 +52,7 @@ function App() {
     materialMinOrder: '', materialDescription: '', searchQuery: '', searchCategory: 'all',
     searchMaxPrice: '', searchSupplier: '', searchCity: 'all', searchSortBy: 'price_asc',
     orderQuantity: '', orderAddress: '', materialBrand: '', materialModel: '', materialWeight: '',
-    materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '',
+    materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [],
     companyName: '', companyDescription: '', companyLocation: '', companyCity: '',
     companyPhone: '', companyEmail: '', companyWebsite: '', companyWorkingHours: '',
     companyTinNumber: '', companyBusinessLicense: '', companyVatNumber: '', companyTradeLicenseExpiry: '',
@@ -222,9 +223,9 @@ function App() {
   useEffect(() => {
     if (selectedMaterial) {
       const company = getCompanyById(selectedMaterial.companyId);
-      if (company && currentUser && currentUser.lat && currentUser.lng) {
+      if (company) {
         setIsDistanceLoading(true);
-        calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng)
+        calculateDistance(company.lat, company.lng, currentUser?.lat || 9.0320, currentUser?.lng || 38.7469)
           .then(dist => setDistanceToSelected(dist))
           .catch(() => setDistanceToSelected(null))
           .finally(() => setIsDistanceLoading(false));
@@ -356,7 +357,7 @@ function App() {
     if (!currentUser || currentUser.userType !== 'company') { showAlert('Only company users can add materials', 'danger'); return; }
     const company = getCompanyByUserId(currentUser.id);
     if (!company) { showAlert('Company profile not found', 'danger'); return; }
-    const { materialName, materialCategory, materialPrice, materialQuantity, materialUnit, materialMinOrder, materialDescription, materialBrand, materialModel, materialWeight, materialDimensions, materialGrade, materialOrigin, materialCertifications } = formData;
+    const { materialName, materialCategory, materialPrice, materialQuantity, materialUnit, materialMinOrder, materialDescription, materialBrand, materialModel, materialWeight, materialDimensions, materialGrade, materialOrigin, materialCertifications, materialImages } = formData;
     const basePrice = parseFloat(materialPrice);
     const profitMargin = 0.15;
     const sellingPrice = basePrice * (1 + profitMargin);
@@ -369,13 +370,13 @@ function App() {
       id: 'mat' + (materials.length + 1), companyId: company.id, name: materialName, category: materialCategory,
       basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,
       minOrder: parseInt(materialMinOrder), description: materialDescription, transportCost: 15, rating: 0,
-      brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: [],
+      brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: materialImages,
       taxIncluded: true, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0]
     };
     setMaterials(prev => [...prev, newMaterial]);
     showAlert('Product added successfully! 🎉', 'success');
     setCurrentPage('company-dashboard');
-    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '', materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '' }));
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '', materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [] }));
   };
 
   const handleEditMaterial = (material: Material) => {
@@ -395,7 +396,8 @@ function App() {
       materialDimensions: material.specifications?.dimensions || '',
       materialGrade: material.specifications?.grade || '',
       materialOrigin: material.specifications?.origin || 'Ethiopia',
-      materialCertifications: material.specifications?.certification?.join(', ') || ''
+      materialCertifications: material.specifications?.certification?.join(', ') || '',
+      materialImages: material.images || []
     }));
     setCurrentPage('edit-material');
   };
@@ -425,13 +427,14 @@ function App() {
         certification: formData.materialCertifications.split(',').map(c => c.trim()).filter(c => c),
         weightPerUnit: editingMaterial.specifications?.weightPerUnit || 0.001
       },
+      images: formData.materialImages,
       lastUpdated: new Date().toISOString().split('T')[0]
     };
     setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? updatedMaterial : m));
     showAlert('Product updated successfully! ✏️', 'success');
     setEditingMaterial(null);
     setCurrentPage(currentUser?.userType === 'company' ? 'company-dashboard' : 'search-materials');
-    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '', materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '' }));
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '', materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [] }));
   };
 
   const handleDeleteMaterial = (id: string): void => {
@@ -467,13 +470,14 @@ function App() {
     });
     const resultsWithCost = await Promise.all(filtered.map(async material => {
       const company = getCompanyById(material.companyId);
-      let estimatedTransport = 0, distance = 0;
-      if (company && currentUser) {
+      let estimatedTransport: number | undefined;
+      let distance: number | undefined;
+      if (company) {
         const weight = (material.specifications?.weightPerUnit || 0.001) * material.minOrder;
-        distance = await calculateDistance(company.lat, company.lng, currentUser.lat || 9.0320, currentUser.lng || 38.7469);
-        estimatedTransport = await calculateTransportCost(company.lat, company.lng, currentUser.lat || 9.0320, currentUser.lng || 38.7469, weight);
+        distance = await calculateDistance(company.lat, company.lng, currentUser?.lat || 9.0320, currentUser?.lng || 38.7469);
+        estimatedTransport = await calculateTransportCost(company.lat, company.lng, currentUser?.lat || 9.0320, currentUser?.lng || 38.7469, weight);
       }
-      const totalCost = material.price + (estimatedTransport / material.minOrder);
+      const totalCost = material.price + ((estimatedTransport || 0) / material.minOrder);
       return { ...material, company, totalCost, estimatedTransport, distance };
     }));
     resultsWithCost.sort((a, b) => {
@@ -756,6 +760,88 @@ function App() {
     }
   };
 
+  // ---------- Product images (base64) ----------
+  const handleMaterialImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024; // 1.5 MB
+    let files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const oversized = files.filter(f => f.size > MAX_IMAGE_SIZE);
+    if (oversized.length > 0) {
+      showAlert('Some photos exceed 1.5 MB and were skipped to protect storage.', 'warning');
+      files = files.filter(f => f.size <= MAX_IMAGE_SIZE);
+    }
+    if (files.length === 0) return;
+    const readers = files.map(file => new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    }));
+    Promise.all(readers).then(results => {
+      const valid = results.filter(r => r);
+      setFormData(prev => ({ ...prev, materialImages: [...prev.materialImages, ...valid].slice(0, 6) }));
+    });
+    e.target.value = '';
+  };
+
+  const removeMaterialImage = (index: number) => {
+    setFormData(prev => ({ ...prev, materialImages: prev.materialImages.filter((_, i) => i !== index) }));
+  };
+
+  // Render product image (or a category-based placeholder when none uploaded)
+  const renderProductImage = (images: string[] | undefined, category: string, size = 'md') => {
+    const src = images && images.length > 0 ? images[0] : null;
+    const emojiMap: Record<string, string> = {
+      'Construction': '🏗️', 'Transport': '🚚', 'Health': '💊', 'Education': '📚',
+      'Agriculture': '🌾', 'Manufacturing': '🏭', 'Energy': '⚡', 'Mining': '⛏️',
+      'Technology': '💻', 'Retail': '🛍️', 'Services': '🛠️', 'Hospitality': '🏨',
+      'Logistics': '📦', 'Pharmaceutical': '🧪', 'Automotive': '🚗', 'Environmental': '🌱',
+      'Water': '💧', 'Telecom': '📡', 'Food & Beverage': '🍞'
+    };
+    const emoji = emojiMap[category] || '📦';
+    if (src) {
+      return <img className={'product-img product-img-' + size} src={src} alt="Product" loading="lazy" />;
+    }
+    return <div className={'product-img product-img-' + size + ' product-img-placeholder'}>{emoji}</div>;
+  };
+
+  // Render product image gallery for the details modal
+  const renderProductGallery = (material: Material) => {
+    if (!material.images || material.images.length === 0) {
+      return <div className="product-gallery product-gallery-empty">{renderProductImage([], material.category, 'lg')}<p>No photo uploaded yet</p></div>;
+    }
+    return (
+      <div className="product-gallery">
+        {material.images.map((img, i) => (
+          <img key={i} src={img} alt={material.name + ' photo ' + (i + 1)} className="product-gallery-img" loading="lazy" />
+        ))}
+      </div>
+    );
+  };
+
+  // Product image upload section used in add/edit material forms
+  const renderMaterialImageUploader = () => (
+    <div className="form-group">
+      <label>📷 Product Photos <small className="form-hint">(up to 6, shown in the catalogue &amp; details)</small></label>
+      <div className="image-uploader">
+        <label className="image-upload-btn">
+          📷 Upload Photos
+          <input type="file" accept="image/*" multiple onChange={handleMaterialImagesChange} />
+        </label>
+        {formData.materialImages.length > 0 && (
+          <div className="image-preview-list">
+            {formData.materialImages.map((img, i) => (
+              <div key={i} className="image-preview-item">
+                <img src={img} alt={'Preview ' + (i + 1)} />
+                <button type="button" className="image-preview-remove" onClick={() => removeMaterialImage(i)} title="Remove photo">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   // ---------- Render helpers ----------
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
     <div className="table-responsive-wrapper"><div className="table-scroll-container" style={{ minWidth }}>{children}</div></div>
@@ -783,6 +869,7 @@ function App() {
             <div className="logo-icon">🏗️</div>
             <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain</p></div>
           </div>
+          <DateTime />
           <div className="header-actions">
             <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle Theme">
               {darkMode ? '☀️' : '🌙'}
@@ -1009,16 +1096,19 @@ function App() {
             <table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>
               {companyMaterials.map(m => (
                 <tr key={m.id}>
-                  <td><strong>{m.name}</strong>{m.brand && <small>{m.brand}</small>}</td>
+                  <td className="product-cell">
+                    {renderProductImage(m.images, m.category, 'sm')}
+                    <div className="product-cell-info"><strong>{m.name}</strong>{m.brand && <small>{m.brand}</small>}</div>
+                  </td>
                   <td>{m.category}</td>
                   <td className="price-cell">{formatCurrency(m.price)}</td>
                   <td>{m.unit}</td>
                   <td>{m.quantity}</td>
                   <td>⭐ {m.rating || 'N/A'}</td>
                   <td>
-                    <button className="btn-icon" onClick={() => setSelectedMaterial(m)}>👁️</button>
-                    <button className="btn-icon edit" onClick={() => handleEditMaterial(m)}>✏️</button>
-                    <button className="btn-icon danger" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button>
+                    <button className="btn-icon" title="View details" onClick={() => setSelectedMaterial(m)}>👁️</button>
+                    <button className="btn-icon edit" title="Edit product" onClick={() => handleEditMaterial(m)}>✏️</button>
+                    <button className="btn-icon danger" title="Delete product" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button>
                   </td>
                 </tr>
               ))}
@@ -1074,6 +1164,7 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
       </form>
     </div></main>
@@ -1087,6 +1178,7 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>Cancel</button></div>
       </form>
     </div></main>
@@ -1145,7 +1237,7 @@ function App() {
           ) : (
             <ScrollableTable minWidth="1200px">
               <table className="data-table">
-                <thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
                 <tbody>
                   {(displayMaterials as SearchResult[]).map(item => {
                     const company = getCompanyById(item.companyId);
@@ -1162,8 +1254,12 @@ function App() {
                           }
                         }}
                         style={{ cursor: 'pointer' }}
+                        title="Click to open the route on the map"
                       >
-                        <td className="product-name"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</td>
+                        <td className="product-cell">
+                          {renderProductImage(item.images, item.category, 'sm')}
+                          <div className="product-cell-info"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</div>
+                        </td>
                         <td>{item.category}</td>
                         <td>{company?.name || 'Unknown'}</td>
                         <td>{company?.city || 'N/A'}</td>
@@ -1171,9 +1267,15 @@ function App() {
                         <td>{item.unit}</td>
                         <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td>
                         <td>⭐ {item.rating || 'N/A'}</td>
+                        <td className="distance-cell">
+                          <span className="distance-badge" title={currentUser ? 'Distance from your location' : 'Distance from default location (Addis Ababa)'}>
+                            🚗 {item.distance != null ? item.distance.toFixed(1) + ' km' : '—'}
+                          </span>
+                        </td>
                         <td>
-                          <button className="btn-icon" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>👁️</button>
-                          <button className="btn-icon contact" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button>
+                          <button className="btn-icon map" title="View route on map" onClick={(e) => { e.stopPropagation(); if (company) handleOpenMapWithRoute(company.id); }}>🗺️</button>
+                          <button className="btn-icon" title="View details" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>👁️</button>
+                          <button className="btn-icon contact" title="Call supplier" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button>
                           {currentUser?.userType === 'customer' && (
                             isInCart ? (
                               <button className="btn-icon success" onClick={(e) => { e.stopPropagation(); handleCheckout(); }}>🛒</button>
@@ -1271,6 +1373,7 @@ function App() {
         <div className="modal-content glass" onClick={e => e.stopPropagation()}>
           <div className="modal-header"><h2>{selectedMaterial.name}</h2><button className="modal-close" onClick={() => setSelectedMaterial(null)}>✕</button></div>
           <div className="modal-body">
+            {renderProductGallery(selectedMaterial)}
             <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
             <div><h3>💰 Pricing</h3><p>Unit: {formatCurrency(selectedMaterial.price)} / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity}</p></div>
             <div><h3>🏢 Supplier</h3>
@@ -1280,15 +1383,14 @@ function App() {
                 {isDistanceLoading ? (
                   <span className="distance-loader"><span className="dot-pulse"></span></span>
                 ) : distanceToSelected !== null ? (
-                  <span 
-                    onClick={() => company && handleOpenMapWithRoute(company.id)}
-                    style={{ cursor: 'pointer', color: '#2ecc71', textDecoration: 'underline' }}
-                    title="Click to view route on map"
-                  >
+                  <span className="distance-link" onClick={() => company && handleOpenMapWithRoute(company.id)} title="Click to view route on map">
                     {distanceToSelected.toFixed(1)} km
                   </span>
-                ) : currentUser && currentUser.lat && currentUser.lng ? ' Unable to calculate' : ' Login to see distance'}
+                ) : ' Unable to calculate'}
               </p>
+              {company && (
+                <button className="btn btn-primary map-route-btn" onClick={() => { handleOpenMapWithRoute(company.id); setSelectedMaterial(null); }}>🗺️ View Route on Map</button>
+              )}
             </div>
             {currentUser?.userType === 'customer' && (
               <div>

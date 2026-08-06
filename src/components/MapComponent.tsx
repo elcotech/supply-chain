@@ -82,6 +82,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const currentCompanyIdRef = useRef<string | null>(null);
 
+  // Current user location (fall back to Addis Ababa default so guests can still see routes)
+  const userLocation = {
+    lat: currentUser?.lat || 9.0320,
+    lng: currentUser?.lng || 38.7469
+  };
+  const hasUserLocation = !!(currentUser && currentUser.lat && currentUser.lng);
+
   const getCoords = (company: Company): { lat: number; lng: number } => {
     // If company has valid lat/lng, use it
     if (company.lat && company.lng && company.lat !== 0 && company.lng !== 0) {
@@ -159,7 +166,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // Show route for a supplier
   const showRouteForSupplier = useCallback(async (company: Company) => {
-    if (!currentUser || !currentUser.lat || !currentUser.lng) return;
     const { lat, lng } = getCoords(company);
     
     const cacheKey = company.id;
@@ -169,7 +175,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     } else {
       setIsDistanceLoading(true);
       try {
-        const dist = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
+        const dist = await calculateDistance(company.lat, company.lng, userLocation.lat, userLocation.lng);
         setDistance(dist);
         setCachedDistance(prev => ({ ...prev, [cacheKey]: dist }));
       } catch (error) {
@@ -179,8 +185,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
       }
     }
     
-    await fetchRoute(currentUser.lat, currentUser.lng, lat, lng);
-  }, [currentUser, fetchRoute, cachedDistance]);
+    await fetchRoute(userLocation.lat, userLocation.lng, lat, lng);
+  }, [userLocation.lat, userLocation.lng, fetchRoute, cachedDistance]);
 
   // Handle supplier selection
   const handleSupplierSelect = useCallback(async (company: Company) => {
@@ -190,30 +196,25 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setCompanyMaterials(materials.filter(m => m.companyId === company.id));
     currentCompanyIdRef.current = company.id;
     
-    if (currentUser && currentUser.lat && currentUser.lng) {
-      await showRouteForSupplier(company);
-    } else {
-      setIsDistanceLoading(true);
-      setTimeout(() => setIsDistanceLoading(false), 500);
-    }
-  }, [clearRoute, materials, currentUser, showRouteForSupplier]);
+    await showRouteForSupplier(company);
+  }, [clearRoute, materials, showRouteForSupplier]);
 
   // Auto-show route on first load or when supplier is selected
   useEffect(() => {
-    if (autoRouteSupplierId && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
+    if (autoRouteSupplierId && companies.length > 0) {
       const company = companies.find(c => c.id === autoRouteSupplierId);
       if (company && company.id !== currentCompanyIdRef.current) {
         handleSupplierSelect(company);
         if (onRouteShown) onRouteShown();
       }
-    } else if (isFirstLoad && companies.length > 0 && currentUser && currentUser.lat && currentUser.lng) {
+    } else if (isFirstLoad && companies.length > 0) {
       const firstCompany = companies[0];
       if (firstCompany) {
         handleSupplierSelect(firstCompany);
         setIsFirstLoad(false);
       }
     }
-  }, [autoRouteSupplierId, companies, currentUser, onRouteShown, handleSupplierSelect, isFirstLoad]);
+  }, [autoRouteSupplierId, companies, onRouteShown, handleSupplierSelect, isFirstLoad]);
 
   // Initialize map
   useEffect(() => {
@@ -254,7 +255,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       latLngs.push([lat, lng]);
     });
 
-    if (currentUser && currentUser.lat && currentUser.lng) {
+    if (hasUserLocation && currentUser) {
       const userMarker = L.marker([currentUser.lat, currentUser.lng], { icon: userIcon }).addTo(leafletMap.current);
       userMarker.bindPopup(`
         <strong>📍 Your Location</strong><br/>
@@ -262,6 +263,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
         ${currentUser.city}
       `);
       latLngs.push([currentUser.lat, currentUser.lng]);
+    } else {
+      const defaultMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon }).addTo(leafletMap.current);
+      defaultMarker.bindPopup(`<strong>📍 Default Location (Addis Ababa)</strong><br/>Login to track your own location.`);
+      latLngs.push([userLocation.lat, userLocation.lng]);
     }
 
     if (latLngs.length > 0) {
@@ -276,7 +281,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         if (onSelectSupplier) onSelectSupplier(company);
       }
     };
-  }, [companies, materials, currentUser, onSelectSupplier, handleSupplierSelect]);
+  }, [companies, materials, currentUser, onSelectSupplier, handleSupplierSelect, userLocation.lat, userLocation.lng, hasUserLocation]);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
@@ -286,7 +291,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   const handleShowRoute = async () => {
-    if (!selectedCompany || !currentUser || !currentUser.lat || !currentUser.lng) return;
+    if (!selectedCompany) return;
     await showRouteForSupplier(selectedCompany);
   };
 
@@ -315,16 +320,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   onClick={() => {
                     if (selectedCompany) handleShowRoute();
                   }}
-                  style={{ cursor: 'pointer', color: '#2ecc71', textDecoration: 'underline' }}
+                  className="distance-link"
                   title="Click to refresh route"
                 >
                   {` ${distance.toFixed(1)} km`}
                 </span>
-              ) : currentUser && currentUser.lat && currentUser.lng ? (
-                ' Unable to calculate'
               ) : (
-                ' Login to see distance'
+                ' Unable to calculate'
               )}
+              {!hasUserLocation && <span className="default-location-note"> (default location – login to use yours)</span>}
             </p>
             {routeInfo && (
               <p className="route-info">
@@ -333,19 +337,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
               </p>
             )}
             <div className="route-actions">
-              {currentUser && currentUser.lat && currentUser.lng && (
-                <>
-                  {routeLine ? (
-                    <button className="btn-secondary" onClick={() => {
-                      clearRoute();
-                      setRouteInfo(null);
-                    }}>Hide Route</button>
-                  ) : (
-                    <button className="btn-primary" onClick={handleShowRoute} disabled={isRouteLoading}>
-                      {isRouteLoading ? 'Loading route...' : '🗺️ Show Route'}
-                    </button>
-                  )}
-                </>
+              {routeLine ? (
+                <button className="btn-secondary" onClick={() => {
+                  clearRoute();
+                  setRouteInfo(null);
+                }}>Hide Route</button>
+              ) : (
+                <button className="btn-primary" onClick={handleShowRoute} disabled={isRouteLoading}>
+                  {isRouteLoading ? 'Loading route...' : '🗺️ Show Route'}
+                </button>
               )}
             </div>
             <div className="supplier-products">

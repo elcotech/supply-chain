@@ -138,6 +138,7 @@ export interface FormData {
   materialGrade: string;
   materialOrigin: string;
   materialCertifications: string;
+  materialImages: string[];
   // Company edit fields
   companyName: string;
   companyDescription: string;

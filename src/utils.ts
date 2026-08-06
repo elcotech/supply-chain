@@ -12,13 +12,21 @@ export const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-ET', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+// In-memory cache so repeated distance lookups (search, cart, map) don't hammer OSRM
+const distanceCache = new Map<string, number>();
+
 export const calculateDistance = async (originLat: number, originLng: number, destLat: number, destLng: number): Promise<number> => {
+  const key = `${originLat.toFixed(4)},${originLng.toFixed(4)},${destLat.toFixed(4)},${destLng.toFixed(4)}`;
+  const cached = distanceCache.get(key);
+  if (cached !== undefined) return cached;
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
     const response = await fetch(url);
     const data = await response.json();
     if (data.routes && data.routes.length > 0) {
-      return data.routes[0].distance / 1000;
+      const dist = data.routes[0].distance / 1000;
+      distanceCache.set(key, dist);
+      return dist;
     }
   } catch (error) {
     console.warn("OSRM failed, using haversine fallback", error);
@@ -30,7 +38,9 @@ export const calculateDistance = async (originLat: number, originLng: number, de
             Math.cos(originLat * Math.PI/180) * Math.cos(destLat * Math.PI/180) *
             Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+  const dist = R * c;
+  distanceCache.set(key, dist);
+  return dist;
 };
 
 export const calculateTransportCost = async (
