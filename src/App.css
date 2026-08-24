@@ -2115,3 +2115,8 @@ econdary);
   .btn-icon { min-width: 34px; height: 34px; }
   .image-upload-btn { width: 100%; justify-content: center; }
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

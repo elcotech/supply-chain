@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Company, User, Material } from '../types';
-import { calculateDistance } from '../utils';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -14,19 +13,37 @@ L.Icon.Default.mergeOptions({
 
 const supplierIcon = L.divIcon({
   className: 'supplier-marker',
-  html: '🏗️',
-  iconSize: [30, 30],
-  popupAnchor: [0, -15]
+  html: '<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));">🏗️</div>',
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -28],
+});
+
+const selectedSupplierIcon = L.divIcon({
+  className: 'supplier-marker-selected',
+  html: '<div style="font-size:34px;filter:drop-shadow(0 2px 6px rgba(46,204,113,.6));">🏗️</div>',
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -34],
 });
 
 const userIcon = L.divIcon({
   className: 'user-marker',
-  html: '📍',
-  iconSize: [25, 25],
-  popupAnchor: [0, -12]
+  html: '<div style="width:16px;height:16px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,.3),0 2px 8px rgba(0,0,0,.3);"></div>',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  popupAnchor: [0, -14],
 });
 
-// City fallback coordinates (only used when company has no valid lat/lng)
+const accuracyCircleOptions: L.CircleOptions = {
+  color: '#3b82f6',
+  fillColor: '#3b82f6',
+  fillOpacity: 0.08,
+  weight: 1,
+  opacity: 0.25,
+  radius: 100,
+};
+
 const cityCoords: Record<string, [number, number]> = {
   'Addis Ababa': [9.0320, 38.7469],
   'Adama': [8.5400, 39.2700],
@@ -47,8 +64,14 @@ const cityCoords: Record<string, [number, number]> = {
   'Debre Berhan': [9.6800, 39.5300],
   'Wolkite': [8.2800, 37.7900],
   'Bishoftu': [8.7400, 38.9800],
-  'Shashemene': [7.2000, 38.6000]
+  'Shashemene': [7.2000, 38.6000],
 };
+
+interface RouteResult {
+  distanceKm: number;
+  durationMin: number;
+  coordinates: [number, number][];
+}
 
 interface MapComponentProps {
   companies: Company[];
@@ -67,142 +90,239 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onClose,
   onSelectSupplier,
   autoRouteSupplierId,
-  onRouteShown
+  onRouteShown,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
+
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [isDistanceLoading, setIsDistanceLoading] = useState(false);
   const [companyMaterials, setCompanyMaterials] = useState<Material[]>([]);
-  const [routeLine, setRouteLine] = useState<L.Layer | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
-  const currentCompanyIdRef = useRef<string | null>(null);
-  const routeLineRef = useRef<L.Layer | null>(null);
+  const [geoLocationStatus, setGeoLocationStatus] = useState<'requesting' | 'granted' | 'denied' | 'error'>('requesting');
 
-  // Current user location (fall back to Addis Ababa default so guests can still see routes)
-  const userLocation = {
+  // Refs for guaranteed cleanup without stale closures
+  const overlayGroupRef = useRef<L.LayerGroup | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const accuracyCircleRef = useRef<L.Circle | null>(null);
+  const supplierMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const userPositionRef = useRef<{ lat: number; lng: number; accuracy: number }>({
     lat: currentUser?.lat || 9.0320,
-    lng: currentUser?.lng || 38.7469
-  };
-  const hasUserLocation = !!(currentUser && currentUser.lat && currentUser.lng);
+    lng: currentUser?.lng || 38.7469,
+    accuracy: 0,
+  });
+  const currentCompanyIdRef = useRef<string | null>(null);
 
-  const getCoords = (company: Company): { lat: number; lng: number } => {
-    // If company has valid lat/lng, use it
+  const getCoords = useCallback((company: Company): { lat: number; lng: number } => {
     if (company.lat && company.lng && company.lat !== 0 && company.lng !== 0) {
-      // Check if it's a generic city center (too close to known city centers)
-      const city = company.city || 'Addis Ababa';
-      const center = cityCoords[city];
-      if (center && Math.abs(company.lat - center[0]) < 0.01 && Math.abs(company.lng - center[1]) < 0.01) {
-        // It's generic, but we'll still use it if we have no better option
-        return { lat: company.lat, lng: company.lng };
-      }
       return { lat: company.lat, lng: company.lng };
     }
-    // Fallback to city center
     const city = company.city || 'Addis Ababa';
     const center = cityCoords[city] || cityCoords['Addis Ababa'];
     return { lat: center[0], lng: center[1] };
-  };
-
-  // Clear existing route (uses ref to avoid stale closure)
-  const clearRoute = useCallback(() => {
-    if (routeLineRef.current && leafletMap.current) {
-      leafletMap.current.removeLayer(routeLineRef.current);
-      routeLineRef.current = null;
-      setRouteLine(null);
-      setRouteInfo(null);
-    }
   }, []);
 
-  // Fetch and draw route
-  const fetchRoute = useCallback(async (originLat: number, originLng: number, destLat: number, destLng: number) => {
-    if (!leafletMap.current) return;
-    
-    clearRoute();
-    
-    setIsRouteLoading(true);
+  const getUserPosition = useCallback(() => ({ ...userPositionRef.current }), []);
+
+  // Remove ALL overlays from map — no stale closure issues
+  const clearAllOverlays = useCallback(() => {
+    if (overlayGroupRef.current && leafletMap.current) {
+      leafletMap.current.removeLayer(overlayGroupRef.current);
+      overlayGroupRef.current = null;
+    }
+    userMarkerRef.current = null;
+    accuracyCircleRef.current = null;
+    setRouteInfo(null);
+    setDistance(null);
+  }, []);
+
+  // Browser Geolocation — watches real-time position
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGeoLocationStatus('error');
+      return;
+    }
+    setGeoLocationStatus('requesting');
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
+        setGeoLocationStatus('granted');
+
+        // Live-update user marker and accuracy circle on the map
+        if (leafletMap.current && userMarkerRef.current) {
+          userMarkerRef.current.setLatLng([latitude, longitude]);
+        }
+        if (leafletMap.current && accuracyCircleRef.current) {
+          accuracyCircleRef.current.setLatLng([latitude, longitude]);
+          accuracyCircleRef.current.setRadius(accuracy);
+        }
+      },
+      (error) => {
+        console.warn('Geolocation error:', error.message);
+        if (error.code === error.PERMISSION_DENIED) setGeoLocationStatus('denied');
+        else setGeoLocationStatus('error');
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  // OSRM routing — returns road-following route with accurate distance
+  const fetchRoute = useCallback(async (
+    originLat: number, originLng: number, destLat: number, destLng: number
+  ): Promise<RouteResult | null> => {
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
-        const geometry = route.geometry;
-        const coordinates = geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-        const distanceKm = route.distance / 1000;
-        const durationMin = route.duration / 60;
-
-        const polyline = L.polyline(coordinates as L.LatLngExpression[], {
-          color: '#2ecc71',
-          weight: 5,
-          opacity: 0.9,
-          smoothFactor: 1
-        });
-
-        const destMarker = L.marker([destLat, destLng], {
-          icon: L.divIcon({
-            className: 'route-end-marker',
-            html: '📍',
-            iconSize: [20, 20]
-          })
-        });
-
-        const group = L.layerGroup([polyline, destMarker]).addTo(leafletMap.current);
-        routeLineRef.current = group;
-        setRouteLine(group);
-        setRouteInfo({ distance: distanceKm, duration: durationMin });
-
-        const bounds = L.latLngBounds(coordinates as L.LatLngExpression[]);
-        leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
+        const coordinates: [number, number][] = route.geometry.coordinates.map(
+          (c: [number, number]) => [c[1], c[0]]
+        );
+        return {
+          distanceKm: route.distance / 1000,
+          durationMin: route.duration / 60,
+          coordinates,
+        };
       }
-    } catch (error) {
-      console.error('Route fetch failed', error);
-    } finally {
-      setIsRouteLoading(false);
+    } catch (err) {
+      console.error('OSRM route fetch failed:', err);
     }
-  }, [clearRoute]);
+    return null;
+  }, []);
 
-  // Show route for a supplier
-  const showRouteForSupplier = useCallback(async (company: Company) => {
-    const { lat, lng } = getCoords(company);
-    
-    // Always recalculate distance for the newly selected supplier
+  // Draw route for a supplier — clears everything first, then draws fresh
+  const drawRouteForSupplier = useCallback(async (company: Company) => {
+    const map = leafletMap.current;
+    if (!map) return;
+
+    setIsRouteLoading(true);
     setIsDistanceLoading(true);
-    try {
-      const dist = await calculateDistance(company.lat, company.lng, userLocation.lat, userLocation.lng);
-      setDistance(dist);
-    } catch (error) {
-      setDistance(null);
-    } finally {
-      setIsDistanceLoading(false);
+
+    // Step 1: CLEAR ALL previous overlays
+    clearAllOverlays();
+    const group = L.layerGroup().addTo(map);
+    overlayGroupRef.current = group;
+
+    const origin = getUserPosition();
+    const dest = getCoords(company);
+
+    // Step 2: Add fresh user location marker
+    const uMarker = L.marker([origin.lat, origin.lng], { icon: userIcon })
+      .bindPopup(`
+        <strong>\ud83d\udccd Your Location</strong><br/>
+        Lat: ${origin.lat.toFixed(6)}<br/>
+        Lng: ${origin.lng.toFixed(6)}<br/>
+        <small>${origin.accuracy > 0 ? `Accuracy: \u00b1${origin.accuracy.toFixed(0)}m` : 'GPS accuracy pending'}</small>
+      `)
+      .addTo(group);
+    userMarkerRef.current = uMarker;
+
+    // Step 3: Add accuracy circle if available
+    if (origin.accuracy > 0) {
+      const circle = L.circle([origin.lat, origin.lng], {
+        ...accuracyCircleOptions,
+        radius: origin.accuracy,
+      }).addTo(group);
+      accuracyCircleRef.current = circle;
     }
-    
-    await fetchRoute(userLocation.lat, userLocation.lng, lat, lng);
-  }, [userLocation.lat, userLocation.lng, fetchRoute]);
 
-  // Handle supplier selection
+    // Step 4: Fetch OSRM route (road-following, NOT straight line)
+    const route = await fetchRoute(origin.lat, origin.lng, dest.lat, dest.lng);
+
+    if (route) {
+      // Draw green route polyline
+      L.polyline(route.coordinates as L.LatLngExpression[], {
+        color: '#22c55e',
+        weight: 5,
+        opacity: 0.85,
+        smoothFactor: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(group);
+
+      // Destination marker
+      const destIcon = L.divIcon({
+        className: 'route-dest-marker',
+        html: '<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));">\ud83d\udccd</div>',
+        iconSize: [24, 24],
+        iconAnchor: [12, 24],
+      });
+      L.marker([dest.lat, dest.lng], { icon: destIcon })
+        .bindPopup(`<strong>${company.name}</strong><br/>Destination`)
+        .addTo(group);
+
+      // Fit map to show both points
+      const bounds = L.latLngBounds([
+        [origin.lat, origin.lng],
+        [dest.lat, dest.lng],
+      ]);
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+
+      setDistance(route.distanceKm);
+      setRouteInfo({ distance: route.distanceKm, duration: route.durationMin });
+    } else {
+      // OSRM failed — draw dashed fallback line with haversine distance
+      L.polyline(
+        [[origin.lat, origin.lng], [dest.lat, dest.lng]] as L.LatLngExpression[],
+        { color: '#ef4444', weight: 3, opacity: 0.7, dashArray: '8, 8' }
+      ).addTo(group);
+
+      const R = 6371;
+      const dLat = ((dest.lat - origin.lat) * Math.PI) / 180;
+      const dLng = ((dest.lng - origin.lng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((origin.lat * Math.PI) / 180) *
+          Math.cos((dest.lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const haversineKm = R * c;
+
+      setDistance(haversineKm);
+      setRouteInfo({ distance: haversineKm, duration: haversineKm * 1.2 });
+
+      const bounds = L.latLngBounds([
+        [origin.lat, origin.lng],
+        [dest.lat, dest.lng],
+      ]);
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+    }
+
+    setIsRouteLoading(false);
+    setIsDistanceLoading(false);
+  }, [clearAllOverlays, fetchRoute, getCoords, getUserPosition]);
+
+  // Handle supplier click — clears previous, draws new
   const handleSupplierSelect = useCallback(async (company: Company) => {
-    // Clear previous route, info, distance and materials
-    clearRoute();
-    setDistance(null);
-    setRouteInfo(null);
-    setCompanyMaterials([]);
-    
-    setSelectedCompany(company);
-    setCompanyMaterials(materials.filter(m => m.companyId === company.id));
-    currentCompanyIdRef.current = company.id;
-    
-    // Recalculate distance and route for the newly selected supplier
-    await showRouteForSupplier(company);
-  }, [clearRoute, materials, showRouteForSupplier]);
+    if (company.id === currentCompanyIdRef.current) return;
 
-  // Auto-show route when a specific supplier is requested (e.g. from product row click)
+    // Highlight the selected supplier marker
+    supplierMarkersRef.current.forEach((marker, id) => {
+      marker.setIcon(id === company.id ? selectedSupplierIcon : supplierIcon);
+    });
+
+    currentCompanyIdRef.current = company.id;
+    setSelectedCompany(company);
+    setCompanyMaterials(materials.filter((m) => m.companyId === company.id));
+
+    // Draw fresh route (clears everything first)
+    await drawRouteForSupplier(company);
+
+    if (onSelectSupplier) onSelectSupplier(company);
+  }, [materials, drawRouteForSupplier, onSelectSupplier]);
+
+  // Auto-route when supplier ID is passed (e.g., from product row click)
   useEffect(() => {
     if (autoRouteSupplierId && companies.length > 0) {
-      const company = companies.find(c => c.id === autoRouteSupplierId);
+      const company = companies.find((c) => c.id === autoRouteSupplierId);
       if (company && company.id !== currentCompanyIdRef.current) {
         handleSupplierSelect(company);
         if (onRouteShown) onRouteShown();
@@ -210,34 +330,44 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [autoRouteSupplierId, companies, onRouteShown, handleSupplierSelect]);
 
-  // Initialize map
+  // Initialize map once on mount
   useEffect(() => {
     if (!mapRef.current || leafletMap.current) return;
 
-    leafletMap.current = L.map(mapRef.current).setView([9.0320, 38.7469], 12);
+    const initPos = getUserPosition();
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSRM</a> & CartoDB',
-      subdomains: 'abcd',
-      maxZoom: 19
-    }).addTo(leafletMap.current);
+    const map = L.map(mapRef.current, {
+      center: [initPos.lat, initPos.lng],
+      zoom: 12,
+      zoomControl: false,
+    });
 
-    const latLngs: L.LatLngExpression[] = [];
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    companies.forEach(company => {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    leafletMap.current = map;
+
+    // Place supplier markers
+    const allLatLngs: L.LatLngExpression[] = [];
+
+    companies.forEach((company) => {
       const { lat, lng } = getCoords(company);
-      const marker = L.marker([lat, lng], { icon: supplierIcon }).addTo(leafletMap.current!);
-      const productCount = materials.filter(m => m.companyId === company.id).length;
+      const marker = L.marker([lat, lng], { icon: supplierIcon }).addTo(map);
+      const productCount = materials.filter((m) => m.companyId === company.id).length;
 
       marker.bindPopup(`
-        <div style="min-width: 220px; font-family: Arial, sans-serif;">
-          <strong style="font-size: 16px; color: #1a4a6f;">${company.name}</strong><br/>
-          📍 ${company.location || company.city}<br/>
-          ⭐ ${company.rating || 'N/A'}/5<br/>
-          📦 ${productCount} products<br/>
-          ${company.tinNumber ? '✅ Verified' : 'Pending'}<br/>
-          <button onclick="window.selectSupplier('${company.id}')" style="margin-top: 8px; padding: 5px 10px; background: #1a4a6f; color: white; border: none; border-radius: 5px; cursor: pointer;">
-            View Details
+        <div style="min-width:200px;font-family:system-ui,sans-serif;line-height:1.5;">
+          <strong style="font-size:15px;color:#1a4a6f;">${company.name}</strong><br/>
+          \ud83d\udccd ${company.location || company.city}<br/>
+          \u2b50 ${company.rating || 'N/A'}/5 &nbsp;|&nbsp; \ud83d\udce6 ${productCount} products<br/>
+          ${company.tinNumber ? '\u2705 Verified' : '\u23f3 Pending'}<br/>
+          <button onclick="window.__selectSupplier('${company.id}')"
+            style="margin-top:8px;padding:6px 14px;background:#1a4a6f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">
+            \ud83d\uddfa\ufe0f Show Route
           </button>
         </div>
       `);
@@ -246,36 +376,39 @@ const MapComponent: React.FC<MapComponentProps> = ({
         handleSupplierSelect(company);
       });
 
-      latLngs.push([lat, lng]);
+      supplierMarkersRef.current.set(company.id, marker);
+      allLatLngs.push([lat, lng]);
     });
 
-    if (hasUserLocation && currentUser) {
-      const userMarker = L.marker([currentUser.lat, currentUser.lng], { icon: userIcon }).addTo(leafletMap.current);
-      userMarker.bindPopup(`
-        <strong>📍 Your Location</strong><br/>
-        ${currentUser.address}<br/>
-        ${currentUser.city}
-      `);
-      latLngs.push([currentUser.lat, currentUser.lng]);
-    } else {
-      const defaultMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon }).addTo(leafletMap.current);
-      defaultMarker.bindPopup(`<strong>📍 Default Location (Addis Ababa)</strong><br/>Login to track your own location.`);
-      latLngs.push([userLocation.lat, userLocation.lng]);
+    // Initial user location marker
+    const userM = L.marker([initPos.lat, initPos.lng], { icon: userIcon }).addTo(map);
+    userM.bindPopup(`
+      <strong>\ud83d\udccd Your Location</strong><br/>
+      ${currentUser?.address || 'Location pending'}<br/>
+      <small>Requesting GPS access\u2026</small>
+    `);
+    userMarkerRef.current = userM;
+    allLatLngs.push([initPos.lat, initPos.lng]);
+
+    if (allLatLngs.length > 0) {
+      map.fitBounds(L.latLngBounds(allLatLngs), { padding: [40, 40] });
     }
 
-    if (latLngs.length > 0) {
-      const bounds = L.latLngBounds(latLngs);
-      leafletMap.current.fitBounds(bounds, { padding: [30, 30] });
-    }
-
-    (window as any).selectSupplier = (companyId: string) => {
-      const company = companies.find(c => c.id === companyId);
-      if (company) {
-        handleSupplierSelect(company);
-        if (onSelectSupplier) onSelectSupplier(company);
-      }
+    (window as any).__selectSupplier = (companyId: string) => {
+      const company = companies.find((c) => c.id === companyId);
+      if (company) handleSupplierSelect(company);
     };
-  }, [companies, materials, currentUser, onSelectSupplier, handleSupplierSelect, userLocation.lat, userLocation.lng, hasUserLocation]);
+
+    return () => {
+      map.remove();
+      leafletMap.current = null;
+      supplierMarkersRef.current.clear();
+      overlayGroupRef.current = null;
+      userMarkerRef.current = null;
+      delete (window as any).__selectSupplier;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
@@ -284,75 +417,165 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
-  const handleShowRoute = async () => {
+  const handleRefreshRoute = async () => {
     if (!selectedCompany) return;
-    await showRouteForSupplier(selectedCompany);
+    await drawRouteForSupplier(selectedCompany);
+  };
+
+  const handleLocateMe = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
+          if (leafletMap.current) {
+            leafletMap.current.setView([latitude, longitude], 14, { animate: true });
+          }
+          if (selectedCompany) drawRouteForSupplier(selectedCompany);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
   };
 
   return (
     <div className="map-modal-overlay" onClick={onClose}>
-      <div className="map-modal-content" onClick={e => e.stopPropagation()}>
+      <div className="map-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="map-modal-header">
-          <h2>🗺️ Supplier Locations in Ethiopia</h2>
-          <button className="map-modal-close" onClick={onClose}>✕</button>
+          <h2>🗺️ Supplier Locations — Ethiopia</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, opacity: 0.6 }}>
+              {geoLocationStatus === 'granted' && '🟢 GPS Active'}
+              {geoLocationStatus === 'requesting' && '🟡 Requesting GPS…'}
+              {geoLocationStatus === 'denied' && '🔴 GPS Denied — using default'}
+              {geoLocationStatus === 'error' && '🔴 GPS Error — using default'}
+            </span>
+            <button
+              className="map-modal-close"
+              onClick={handleLocateMe}
+              title="Center on my location"
+              style={{ fontSize: 16, padding: '4px 8px' }}
+            >
+              📍
+            </button>
+            <button className="map-modal-close" onClick={onClose}>✕</button>
+          </div>
         </div>
+
         <div className="map-container-inner">
           <div ref={mapRef} style={{ height: '100%', width: '100%' }}></div>
+
+          {isRouteLoading && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(15,23,42,0.85)',
+                color: '#fff',
+                padding: '8px 18px',
+                borderRadius: 20,
+                fontSize: 13,
+                zIndex: 1000,
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
+              Calculating route via OSRM…
+            </div>
+          )}
         </div>
+
         {selectedCompany && (
           <div className="supplier-detail-panel">
-            <h3>{selectedCompany.name}</h3>
-            <p><strong>📍 Location:</strong> {selectedCompany.location || selectedCompany.city}</p>
-            <p><strong>⭐ Rating:</strong> {selectedCompany.rating || 'N/A'}/5</p>
-            <p><strong>📦 Products:</strong> {companyMaterials.length} items</p>
-            <p>
-              <strong>🚗 Distance from you:</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{selectedCompany.name}</h3>
+                <p style={{ margin: '2px 0 0', opacity: 0.6, fontSize: 13 }}>
+                  📍 {selectedCompany.location || selectedCompany.city}
+                  {' '}&nbsp;|&nbsp;⭐ {selectedCompany.rating || 'N/A'}/5
+                  {' '}&nbsp;|&nbsp;📦 {companyMaterials.length} items
+                </p>
+              </div>
+              <button
+                onClick={handleRefreshRoute}
+                disabled={isRouteLoading}
+                style={{
+                  background: 'rgba(46,204,113,0.15)',
+                  border: '1px solid rgba(46,204,113,0.3)',
+                  color: '#22c55e',
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  whiteSpace: 'nowrap',
+                }}
+                title="Recalculate route from your current location"
+              >
+                🔄 Refresh Route
+              </button>
+            </div>
+
+            <div style={{ marginTop: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {isDistanceLoading ? (
-                <span className="distance-loader"><span className="dot-pulse"></span></span>
+                <div style={{ background: 'rgba(59,130,246,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #3b82f6', fontSize: 13 }}>
+                  Calculating distance…
+                </div>
               ) : distance !== null ? (
-                <span 
-                  onClick={() => {
-                    if (selectedCompany) handleShowRoute();
-                  }}
-                  className="distance-link"
-                  title="Click to refresh route"
-                >
-                  {` ${distance.toFixed(1)} km`}
-                </span>
-              ) : (
-                ' Unable to calculate'
+                <div style={{ background: 'rgba(59,130,246,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #3b82f6', fontSize: 13 }}>
+                  🚗 <strong>{distance.toFixed(1)} km</strong> road distance
+                </div>
+              ) : null}
+
+              {routeInfo && (
+                <div style={{ background: 'rgba(46,204,113,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #22c55e', fontSize: 13 }}>
+                  ⏱️ <strong>{Math.round(routeInfo.duration)} min</strong> estimated drive
+                </div>
               )}
-              {!hasUserLocation && <span className="default-location-note"> (default location – login to use yours)</span>}
-            </p>
-            {routeInfo && (
-              <p className="route-info">
-                <strong>🛣️ Route Distance:</strong> {routeInfo.distance.toFixed(1)} km<br/>
-                <strong>⏱️ Estimated Time:</strong> {Math.round(routeInfo.duration)} min
-              </p>
+
+              {userPositionRef.current.accuracy > 0 && (
+                <div style={{ background: 'rgba(168,85,247,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #a855f7', fontSize: 13 }}>
+                  📡 GPS accuracy: <strong>±{userPositionRef.current.accuracy.toFixed(0)}m</strong>
+                </div>
+              )}
+            </div>
+
+            {companyMaterials.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <strong style={{ fontSize: 13 }}>Available Products:</strong>
+                <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
+                  {companyMaterials.slice(0, 5).map((m) => (
+                    <li key={m.id}>
+                      {m.name} — {m.price.toLocaleString()} ETB/{m.unit}
+                    </li>
+                  ))}
+                  {companyMaterials.length > 5 && <li>+{companyMaterials.length - 5} more</li>}
+                </ul>
+              </div>
             )}
-            <div className="route-actions">
-              {routeLine ? (
-                <button className="btn-secondary" onClick={() => {
-                  clearRoute();
-                  setRouteInfo(null);
-                }}>Hide Route</button>
-              ) : (
-                <button className="btn-primary" onClick={handleShowRoute} disabled={isRouteLoading}>
-                  {isRouteLoading ? 'Loading route...' : '🗺️ Show Route'}
-                </button>
-              )}
+
+            <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+              <button className="btn-primary" onClick={handleViewProducts} style={{ flex: 1 }}>
+                View All Products
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  clearAllOverlays();
+                  setSelectedCompany(null);
+                  setCompanyMaterials([]);
+                  currentCompanyIdRef.current = null;
+                  supplierMarkersRef.current.forEach((marker) => marker.setIcon(supplierIcon));
+                }}
+              >
+                Close
+              </button>
             </div>
-            <div className="supplier-products">
-              <strong>Available Products:</strong>
-              <ul>
-                {companyMaterials.slice(0, 5).map(m => (
-                  <li key={m.id}>{m.name} - {m.price} ETB/{m.unit}</li>
-                ))}
-                {companyMaterials.length > 5 && <li>+{companyMaterials.length - 5} more</li>}
-              </ul>
-            </div>
-            <button className="btn-primary" onClick={handleViewProducts}>View All Products</button>
-            <button className="btn-secondary" onClick={() => setSelectedCompany(null)}>Close</button>
           </div>
         )}
       </div>
