@@ -399,10 +399,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       if (company) handleSupplierSelect(company);
     };
 
+    const markers = supplierMarkersRef.current;
+
     return () => {
       map.remove();
       leafletMap.current = null;
-      supplierMarkersRef.current.clear();
+      markers.clear();
       overlayGroupRef.current = null;
       userMarkerRef.current = null;
       delete (window as any).__selectSupplier;
