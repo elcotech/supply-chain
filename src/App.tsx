@@ -46,8 +46,36 @@ function App() {
   const [compareItems, setCompareItems] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(true);
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // ---------- PWA Install prompt ----------
+  useEffect(() => {
+    const dismissed = safeLocalStorage.getItem('pwa_install_dismissed');
+    if (dismissed) { setShowInstallBanner(false); return; }
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') { showAlert('App installed! 🎉', 'success'); }
+    setDeferredPrompt(null);
+    setShowInstallBanner(false);
+  };
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    safeLocalStorage.setItem('pwa_install_dismissed', 'true');
+  };
 
   const [formData, setFormData] = useState<FormData>({
     loginEmail: '', loginPassword: '', selectedUser: '',
@@ -63,6 +91,17 @@ function App() {
     companyPhone: '', companyEmail: '', companyWebsite: '', companyWorkingHours: '',
     companyTinNumber: '', companyBusinessLicense: '', companyVatNumber: '', companyTradeLicenseExpiry: '',
   });
+
+  // ---------- Page transition animation ----------
+  const [pageAnimating, setPageAnimating] = useState(false);
+
+  useEffect(() => {
+    if (currentPage !== 'splash') {
+      setPageAnimating(true);
+      const t = setTimeout(() => setPageAnimating(false), 500);
+      return () => clearTimeout(t);
+    }
+  }, [currentPage]);
 
   // ---------- Dark mode & Fullscreen ----------
   useEffect(() => {
@@ -1251,25 +1290,25 @@ function App() {
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-input-group">
               <input type="text" className="search-input-large" placeholder="Search products..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} />
-              <button type="submit" className="search-btn">🔍 Search</button>
+              <button type="submit" className="search-btn">🔍</button>
             </div>
             <div className="search-filters">
               <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}>
-                <option value="all">All Departments</option>
+                <option value="all">Dept</option>
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
               <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}>
-                <option value="all">All Cities</option>
+                <option value="all">City</option>
                 {ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <input type="number" className="filter-input" placeholder="Max Price" name="searchMaxPrice" value={formData.searchMaxPrice} onChange={handleInputChange} />
               <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-                <option value="rating_desc">Highest Rated</option>
+                <option value="price_asc">Price ↑</option>
+                <option value="price_desc">Price ↓</option>
+                <option value="rating_desc">Rating</option>
                 <option value="newest">Newest</option>
               </select>
-              <button type="button" className="filter-clear" onClick={clearFilters}>Clear</button>
+              <button type="button" className="filter-clear" onClick={clearFilters}>✕</button>
             </div>
           </form>
         </div>
@@ -1288,9 +1327,9 @@ function App() {
               <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Try adjusting your filters or search terms.</p>
             </div>
           ) : (
-            <ScrollableTable minWidth="1200px">
+            <ScrollableTable minWidth="1100px">
               <table className="data-table">
-                <thead><tr><th>Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
+                <thead><tr><th className="th-sticky">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
                 <tbody>
                   {(displayMaterials as SearchResult[]).map(item => {
                     const company = getCompanyById(item.companyId);
@@ -1309,7 +1348,7 @@ function App() {
                         style={{ cursor: 'pointer' }}
                         title="Click to open the route on the map"
                       >
-                        <td className="product-cell">
+                        <td className="product-cell td-sticky">
                           {renderProductImage(item.images, item.category, 'sm')}
                           <div className="product-cell-info"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</div>
                         </td>
@@ -1521,6 +1560,25 @@ function App() {
     <div className={'app-container ' + (darkMode ? 'dark-mode' : '')}>
       {renderHeader()}
       {renderAlert()}
+
+      {/* PWA Install Banner */}
+      {showInstallBanner && deferredPrompt && (
+        <div className="pwa-install-banner" role="alert">
+          <div className="pwa-install-text">
+            <span className="pwa-install-icon">📲</span>
+            <div>
+              <strong>Install E-SCON App</strong>
+              <p>Add to your home screen for the best experience — works offline!</p>
+            </div>
+          </div>
+          <div className="pwa-install-actions">
+            <button className="btn btn-primary btn-sm" onClick={handleInstallPWA}>Install</button>
+            <button className="pwa-install-dismiss" onClick={dismissInstallBanner} title="Dismiss">✕</button>
+          </div>
+        </div>
+      )}
+
+      <div className={'page-transition ' + (pageAnimating ? 'page-enter' : '')}>
       {renderCurrentPage()}
       {renderMaterialDetails()}
       {renderCartSummary()}
@@ -1600,6 +1658,7 @@ function App() {
         </div>
       )}
 
+      </div>
       {renderFooter()}
     </div>
   );

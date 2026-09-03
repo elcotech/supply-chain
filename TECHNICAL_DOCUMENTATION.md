@@ -2,7 +2,7 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 2.0 (UI Professional Pass)
+> **Version:** 3.0 (Animation & PWA Pass)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -115,15 +115,16 @@ supply-chain1/
 │   ├── index.tsx           # React root — renders <App/>
 │   ├── index.css           # Minimal global styles
 │   ├── App.tsx             # Main application (state, routing, ALL pages)
-│   ├── App.css             # All styles (theming, layout, components, responsive)
+│   ├── App.css             # All styles (theming, layout, components, responsive, animations)
 │   ├── types.ts            # TypeScript interfaces (User, Company, Material, …)
 │   ├── constants.ts        # Sample data + city/unit/department lists
 │   ├── utils.ts            # Helpers: distance, costs, CSV, geocoding, formatting
 │   └── components/
-│       ├── MapComponent.tsx  # Full-screen Leaflet map with routes
-│       ├── MapPicker.tsx     # Small map to pick a location (company edit)
-│       ├── EditCompany.tsx   # Company profile edit modal
-│       └── DateTime.tsx      # Global live date/time widget (every screen)
+│       ├── MapComponent.tsx      # Full-screen Leaflet map with routes
+│       ├── MapPicker.tsx         # Small map to pick a location (company edit)
+│       ├── EditCompany.tsx       # Company profile edit modal
+│       ├── DateTime.tsx          # Global live date/time widget (every screen)
+│       └── ProformaInvoice.tsx   # Proforma invoice modal with full financial details
 ├── package.json
 ├── tsconfig.json
 ├── README.md
@@ -226,8 +227,13 @@ All state lives in `App.tsx` using React hooks (no Redux/Context — fine for th
 - `selectedMaterial`, `editingMaterial` — details modal & product editing.
 - `darkMode`, `isFullscreen` — UI preferences.
 - `distanceToSelected`, `isDistanceLoading` — distance shown in product details.
+- `showProforma`, `showCompare`, `compareItems` — proforma invoice & product comparison.
+- `favorites` — per-user favorite materials (persisted to localStorage).
+- `mobileMenuOpen` — mobile hamburger menu toggle.
+- `deferredPrompt`, `showInstallBanner` — PWA install prompt state.
+- `pageAnimating` — controls page transition animation.
 
-Key `useCallback` helpers: `showAlert`, `getCompanyById`, `getMaterialById`, `getCompanyByUserId`, `getUserById`, `navigateTo`, `geocodeCompany`, `geocodeAllCompanies`, `performSearch`.
+Key `useCallback` helpers: `showAlert`, `getCompanyById`, `getMaterialById`, `getCompanyByUserId`, `getUserById`, `navigateTo`, `geocodeCompany`, `geocodeAllCompanies`, `performSearch`, `toggleFavorite`, `toggleCompare`.
 
 ---
 
@@ -243,8 +249,10 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 | `orders`                | `Order[]`                                 |
 | `currentUser`           | `User` (removed on logout)                |
 | `cart_<userId>`         | `CartItem[]` per user                     |
+| `favs_<userId>`         | `string[]` (material IDs) per user        |
 | `datetime-inverted`     | `'1'`/`'0'` (clock invert-color toggle)   |
 | `datetime-ghost`        | `'1'`/`'0'` (clock transparency toggle)   |
+| `pwa_install_dismissed` | `'true'` (hides install banner permanently) |
 
 > ⚠️ Because product photos are stored as **base64 data URLs inside `materials`**, the localStorage budget (~5 MB) can fill up quickly. Keep uploads to a few small images (the UI caps at **6 images per product**).
 
@@ -280,10 +288,61 @@ Single-supplier carts enforced (adding a different supplier prompts to clear). C
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
 
-### 10.7 Exports & reports
-`exportToCSV` (materials, orders, cart), plus a printable cart report (`printCartReport` opens a styled print window).
+### 10.7 Proforma Invoice (NEW)
+- **File:** `src/components/ProformaInvoice.tsx`.
+- Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
+- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs), financial summary (subtotal, VAT 15%, delivery, grand total), amount in words, terms & conditions (6 clauses), and signature lines.
+- Accessible from the cart summary modal via "📄 Proforma Invoice" button.
+- **Print-ready**: `@media print` styles hide action buttons and format for A4.
 
-### 10.8 Auth & security simulation
+### 10.8 Product Comparison (NEW)
+- Compare up to **4 products** side-by-side in a modal.
+- Toggle comparison via ⚖️ button on search results; a floating compare bar appears at the bottom.
+- Shows: category, price, unit, min order, stock, rating, brand, weight, origin.
+
+### 10.9 Favorites / Wishlist (NEW)
+- Toggle ❤️/🤍 on search results to save/unsave favorites.
+- Persisted per-user in localStorage under `favs_<userId>`.
+
+### 10.10 Quick Reorder (NEW)
+- 🔄 button on past orders jumps to search with that product pre-filled.
+
+### 10.11 PWA Install Banner (NEW)
+- Captures the browser's `beforeinstallprompt` event and shows a styled banner.
+- **Install** button triggers the native browser install flow.
+- **Dismiss** button hides the banner permanently (stored in `pwa_install_dismissed`).
+- Only shows when the browser supports PWA installation and the app isn't already installed.
+
+### 10.12 Frozen Products Column (NEW)
+- The "Product" column in the search results table is **sticky** (position: sticky; left: 0) so it stays visible while scrolling horizontally.
+- Text wraps naturally with `-webkit-line-clamp: 2` for long product names.
+
+### 10.13 Optimized Filter Frame (NEW)
+- Search filters use compact sizing: shorter labels (`Dept`, `City`, `Price ↑`), reduced padding and font-size.
+- Filter pills use 20px border-radius for a modern look.
+- Search button shows only 🔍 icon on desktop (saves width).
+
+### 10.14 Expert-Level Animations (NEW)
+All animations are **CSS-only** (no JS animation libraries), using CSS custom properties and `@keyframes`:
+
+| Animation | Where | Technique |
+| --- | --- | --- |
+| **Page transition** | Every page switch | `opacity` + `translateY` via `.page-transition` class |
+| **Staggered card reveal** | Stat/feature/dashboard cards | `@keyframes cardReveal` with `animation-delay` per `:nth-child` |
+| **Hero text reveal** | Home hero heading, subtitle, badge | `@keyframes heroTextReveal` with staggered delays |
+| **Search hero shimmer** | Search page gradient background | `::before` pseudo-element with `@keyframes heroShimmer` |
+| **Button ripple** | All primary/secondary buttons | `::after` pseudo-element expanding circle on `:active` |
+| **Gradient text hover** | Feature card headings | `-webkit-background-clip: text` on `:hover` |
+| **Stats scale** | Stat value numbers | `transform: scale()` on card `:hover` |
+| **Logo spin** | Header logo icon | `rotate(360deg)` on hover with spring easing |
+| **Alert bounce** | Toast notifications | `@keyframes alertBounce` (translateY + spring) |
+| **Modal entrance** | All modals | `scale(0.85) + translateY` with spring `cubic-bezier` |
+| **Nav underline** | Navigation links | `::before` width transition from 0 → 70% |
+| **Cart badge pulse** | Cart item count badge | `@keyframes badgePulse` (scale oscillation) |
+| **Glass glow** | All `.glass` elements | Enhanced `box-shadow` with orange glow on hover |
+| **Focus ring** | Form inputs on focus | `@keyframes focusRing` (box-shadow expansion) |
+
+### 10.15 Auth & security simulation
 Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lockUntil`). Passwords are stored in plaintext (demo only — do **not** use in production).
 
 ---
@@ -340,10 +399,15 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
 - **Touch handling**: `touch-action: manipulation` on interactive elements; `-webkit-tap-highlight-color: transparent`; `:focus-visible` rings for keyboard users.
 - **Hover suppression** on touch devices (`@media (hover: none)` disables lift-on-hover).
 - **Header** stacks vertically on ≤ 640 px; nav links scroll horizontally; the DateTime widget centers and shrinks.
+- **Mobile hamburger menu** (`☰`) appears on ≤ 768px, toggles full-width navigation.
 - **Tables** scroll horizontally inside `.table-responsive-wrapper` (min-widths per table); cell padding & font shrink on mobile.
+- **Frozen Product column** stays visible during horizontal scroll via `position: sticky`.
+- **Optimized filters** use compact sizing with short labels on all breakpoints.
 - **Map modal** rebalances: map 40–45% height, details panel scrolls (≤ 768/480 px media queries).
 - **Forms** collapse `.form-row` two-column grids to one column.
-- Touch targets: `.btn-icon` ≥ 34–36 px, buttons ≥ 34 px on mobile.
+- **PWA install banner** stacks vertically on mobile.
+- **Touch targets**: `.btn-icon` ≥ 40px, buttons ≥ 44px on touch devices.
+- **Safe area insets**: respects device notches via `env(safe-area-inset-*)`.
 
 ---
 
@@ -363,7 +427,9 @@ No router library — `currentPage` switch in `App.tsx`:
 | `edit-material`      | `renderEditMaterial`        | Product edit (+ photos)        |
 | `orders`             | `renderOrders`              | Order management               |
 | (map)                | `renderSupplierMap`         | Modal flag `showSupplierMap`   |
-| (modals)             | `renderMaterialDetails`, `renderCartSummary`, EditCompany | Overlays |
+| (modals)             | `renderMaterialDetails`, `renderCartSummary`, EditCompany, `ProformaInvoice`, `compare-modal` | Overlays |
+| (compare bar)        | Floating compare bar at bottom | Shows when `compareItems.length > 0` |
+| (PWA banner)         | `pwa-install-banner` | Shows when browser supports install prompt |
 
 ---
 
@@ -371,11 +437,20 @@ No router library — `currentPage` switch in `App.tsx`:
 
 ```bash
 npm run build          # → ./build (static site)
+npx tsc --noEmit       # Typecheck without building
+CI=true npm run build  # Build with ESLint errors (Vercel CI mode)
 ```
 
 Deploy the `build/` folder to any static host (Vercel, Netlify, GitHub Pages, Nginx, etc.). A `.vercel/project.json` already exists for Vercel.
 
 > Because the app is fully client-side (no server), there is no environment configuration needed at runtime.
+
+### PWA Requirements
+For the install prompt to work:
+- `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
+- `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
+- The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
+- The browser must detect the service worker and manifest — CRA includes a service worker by default if `serviceWorker` is registered.
 
 ---
 
@@ -389,6 +464,10 @@ Deploy the `build/` folder to any static host (Vercel, Netlify, GitHub Pages, Ng
 | localStorage quota exceeded         | Too many base64 product photos → reduce image count/size (cap is 6/product)   |
 | `npm start` fails on Windows         | Ensure Node ≥ 14; delete `node_modules` and re-run `npm install`              |
 | Build fails on TypeScript errors     | Run `npx tsc --noEmit` and fix reported errors                                 |
+| Build fails with `no-unused-vars`    | Remove unused variables; CI treats ESLint warnings as errors                   |
+| PWA install banner doesn't appear    | Must be served over HTTPS; browser must support `beforeinstallprompt` event    |
+| Animations feel choppy               | Check `prefers-reduced-motion: reduce` — animations should be disabled for a11y |
+| Frozen column overlaps other cells   | Ensure `.td-sticky` has proper `z-index` and `background` to cover scrolling content |
 
 ---
 
@@ -405,4 +484,4 @@ Common extension points:
 
 ---
 
-*Generated by the E-SCON development workflow — August 2026.*
+*Generated by the E-SCON development workflow — September 2026.*
