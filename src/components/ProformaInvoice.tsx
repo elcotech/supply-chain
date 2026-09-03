@@ -54,7 +54,6 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     '-' +
     String(now.getTime()).slice(-6);
 
-  const subtotalWords = numberToWords(Math.round(report.subtotal));
   const totalWords = numberToWords(Math.round(report.total));
 
   const handlePrint = () => {

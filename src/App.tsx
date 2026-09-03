@@ -46,7 +46,6 @@ function App() {
   const [compareItems, setCompareItems] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [showFavorites, setShowFavorites] = useState(false);
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
