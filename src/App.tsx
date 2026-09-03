@@ -13,6 +13,7 @@ import {
 } from './utils';
 import EditCompany from './components/EditCompany';
 import DateTime from './components/DateTime';
+import ProformaInvoice from './components/ProformaInvoice';
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
@@ -40,6 +41,12 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
+  const [showProforma, setShowProforma] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [compareItems, setCompareItems] = useState<string[]>([]);
+  const [showCompare, setShowCompare] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -106,6 +113,7 @@ function App() {
 
   const navigateTo = useCallback((page: string): void => {
     setCurrentPage(page);
+    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -215,6 +223,19 @@ function App() {
       safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
     }
   }, [cart, currentUser, isInitialized]);
+
+  // Favorites persistence
+  useEffect(() => {
+    if (currentUser && isInitialized) {
+      const savedFavs = safeLocalStorage.getItem(`favs_${currentUser.id}`);
+      if (savedFavs) setFavorites(JSON.parse(savedFavs));
+    }
+  }, [currentUser, isInitialized]);
+  useEffect(() => {
+    if (currentUser && isInitialized) {
+      safeLocalStorage.setItem(`favs_${currentUser.id}`, JSON.stringify(favorites));
+    }
+  }, [favorites, currentUser, isInitialized]);
 
   // ---------- Distance for selected material ----------
   const [distanceToSelected, setDistanceToSelected] = useState<number | null>(null);
@@ -510,6 +531,36 @@ function App() {
     setSearchResults([]);
     setIsSearchPerformed(false);
     setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' }));
+  };
+
+  // Favorites
+  const toggleFavorite = (materialId: string) => {
+    if (!currentUser) { showAlert('Please login to save favorites', 'info'); return; }
+    setFavorites(prev => prev.includes(materialId) ? prev.filter(id => id !== materialId) : [...prev, materialId]);
+  };
+
+  // Compare
+  const toggleCompare = (materialId: string) => {
+    setCompareItems(prev => {
+      if (prev.includes(materialId)) return prev.filter(id => id !== materialId);
+      if (prev.length >= 4) { showAlert('Maximum 4 items to compare', 'warning'); return prev; }
+      return [...prev, materialId];
+    });
+  };
+
+  const clearCompare = () => {
+    setCompareItems([]);
+    setShowCompare(false);
+  };
+
+  // Quick Reorder from past orders
+  const handleQuickReorder = (materialId: string) => {
+    const material = getMaterialById(materialId);
+    if (!material) return;
+    if (!currentUser) { showAlert('Please login', 'danger'); setCurrentPage('login'); return; }
+    navigateTo('search-materials');
+    setFormData(prev => ({ ...prev, searchQuery: material.name }));
+    showAlert('Showing ' + material.name + ' — add to cart to reorder', 'info');
   };
 
   // ---------- Cart ----------
@@ -867,10 +918,12 @@ function App() {
         <div className="header-content">
           <div className="logo" onClick={() => navigateTo('home')}>
             <div className="logo-icon">🏗️</div>
-            <div className="logo-text"><h1>E-SCON</h1><p>Ethio-Supply Chain</p></div>
           </div>
           <DateTime />
-          <div className="header-actions">
+          <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+          <div className={'header-actions' + (mobileMenuOpen ? ' open' : '')}>
             <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle Theme">
               {darkMode ? '☀️' : '🌙'}
             </button>
@@ -897,11 +950,11 @@ function App() {
 
   const renderGuestNav = () => (
     <>
-      <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>🏠 Home</button>
-      <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>🔍 Search</button>
-      <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
-      <button className={'nav-link ' + (currentPage === 'login' ? 'active' : '')} onClick={() => navigateTo('login')}>🔑 Login</button>
-      <button className={'nav-link ' + (currentPage === 'register' ? 'active' : '')} onClick={() => navigateTo('register')}>📝 Register</button>
+      <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
+      <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>Search</button>
+      <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>Map</button>
+      <button className={'nav-link ' + (currentPage === 'login' ? 'active' : '')} onClick={() => navigateTo('login')}>Login</button>
+      <button className={'nav-link ' + (currentPage === 'register' ? 'active' : '')} onClick={() => navigateTo('register')}>Register</button>
     </>
   );
 
@@ -909,23 +962,23 @@ function App() {
     const isCompany = currentUser?.userType === 'company';
     return (
       <>
-        <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>🏠 Home</button>
-        <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>🔍 Search</button>
+        <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
+        <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>Search</button>
         {isCompany ? (
           <>
-            <button className={'nav-link ' + (currentPage === 'company-dashboard' ? 'active' : '')} onClick={() => navigateTo('company-dashboard')}>📊 Dashboard</button>
-            <button className={'nav-link ' + (currentPage === 'add-material' ? 'active' : '')} onClick={() => navigateTo('add-material')}>➕ Add Product</button>
-            <button className={'nav-link ' + (currentPage === 'edit-company' ? 'active' : '')} onClick={handleEditCompany}>✏️ Edit Profile</button>
+            <button className={'nav-link ' + (currentPage === 'company-dashboard' ? 'active' : '')} onClick={() => navigateTo('company-dashboard')}>Dashboard</button>
+            <button className={'nav-link ' + (currentPage === 'add-material' ? 'active' : '')} onClick={() => navigateTo('add-material')}>+ Add</button>
+            <button className={'nav-link ' + (currentPage === 'edit-company' ? 'active' : '')} onClick={handleEditCompany}>Profile</button>
           </>
         ) : (
-          <button className={'nav-link ' + (currentPage === 'customer-dashboard' ? 'active' : '')} onClick={() => navigateTo('customer-dashboard')}>📊 Dashboard</button>
+          <button className={'nav-link ' + (currentPage === 'customer-dashboard' ? 'active' : '')} onClick={() => navigateTo('customer-dashboard')}>Dashboard</button>
         )}
-        <button className={'nav-link ' + (currentPage === 'orders' ? 'active' : '')} onClick={() => navigateTo('orders')}>🛒 Orders</button>
-        <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>🗺️ Map</button>
+        <button className={'nav-link ' + (currentPage === 'orders' ? 'active' : '')} onClick={() => navigateTo('orders')}>Orders</button>
+        <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>Map</button>
         <div className="user-info">
           <div className="user-avatar">{currentUser?.name?.charAt(0).toUpperCase()}</div>
-          <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{currentUser?.userType === 'company' ? '🏢 Supplier' : '👤 Customer'}</div></div>
-          <button className="btn-logout" onClick={handleLogout}>🚪 Logout</button>
+          <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{currentUser?.userType === 'company' ? 'Supplier' : 'Customer'}</div></div>
+          <button className="btn-logout" onClick={handleLogout}>Logout</button>
         </div>
       </>
     );
@@ -949,6 +1002,7 @@ function App() {
             ) : (
               <>
                 <div className="cart-actions-buttons">
+                  <button className="btn-secondary" onClick={() => setShowProforma(true)}>📄 Proforma Invoice</button>
                   <button className="btn-secondary" onClick={handleExportCart}>📥 Export CSV</button>
                   <button className="btn-secondary" onClick={handlePrintCart}>🖨️ Print Report</button>
                 </div>
@@ -990,8 +1044,8 @@ function App() {
       <main className="main-content">
         <section className="home-hero glass">
           <div className="hero-badge">🇪🇹 Ethiopian Supply Chain Platform</div>
-          <h1>E-SCON</h1>
-          <p>Ethio-Supply Chain Optimization Network</p>
+          <h1>Ethio-Supply Chain Optimization Network</h1>
+          <p>Connecting verified suppliers with buyers across Ethiopia</p>
           <div className="search-center">
             <form onSubmit={(e) => { e.preventDefault(); navigateTo('search-materials'); }}>
               <div className="search-center-input"><input type="text" className="search-input" placeholder="Search products..." value={formData.searchQuery} onChange={(e) => setFormData(prev => ({ ...prev, searchQuery: e.target.value }))} /><button type="submit" className="search-center-btn">🔍 Search</button></div>
@@ -1273,6 +1327,8 @@ function App() {
                           </span>
                         </td>
                         <td>
+                          <button className={'btn-icon ' + (favorites.includes(item.id) ? 'fav-active' : '')} title="Toggle favorite" onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}>{favorites.includes(item.id) ? '❤️' : '🤍'}</button>
+                          <button className={'btn-icon ' + (compareItems.includes(item.id) ? 'compare-active' : '')} title="Compare" onClick={(e) => { e.stopPropagation(); toggleCompare(item.id); }}>⚖️</button>
                           <button className="btn-icon map" title="View route on map" onClick={(e) => { e.stopPropagation(); if (company) handleOpenMapWithRoute(company.id); }}>🗺️</button>
                           <button className="btn-icon" title="View details" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>👁️</button>
                           <button className="btn-icon contact" title="Call supplier" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button>
@@ -1329,6 +1385,9 @@ function App() {
                     <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
                     <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
                     <td>{formatDate(order.orderDate)}</td>
+                    {!isCompany && (
+                      <td><button className="btn-icon" title="Quick Reorder" onClick={() => handleQuickReorder(order.materialId)}>🔄</button></td>
+                    )}
                     {isCompany && order.status === 'pending' && (
                       <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>
                     )}
@@ -1423,12 +1482,12 @@ function App() {
     return (
       <footer className="footer glass">
         <div className="footer-content">
-          <div className="footer-section"><h3>🏗️ E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
-          <div className="footer-section"><h3>🔗 Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button></div>
-          <div className="footer-section"><h3>🏙️ Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>📍 {c}</span>)}</div></div>
-          <div className="footer-section"><h3>📞 Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
+          <div className="footer-section"><h3>E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
+          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button></div>
+          <div className="footer-section"><h3>Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>{c}</span>)}</div></div>
+          <div className="footer-section"><h3>Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
         </div>
-        <div className="copyright"><p>© 2024 E-SCON | Master's Program Project</p></div>
+        <div className="copyright"><p>© 2026 E-SCON | Master's Program Project</p></div>
       </footer>
     );
   };
@@ -1466,6 +1525,82 @@ function App() {
       {renderCurrentPage()}
       {renderMaterialDetails()}
       {renderCartSummary()}
+      {showProforma && cartDetails && (
+        <ProformaInvoice
+          cart={cart}
+          report={cartDetails}
+          currentUser={currentUser}
+          supplier={getCompanyById(cart[0]?.supplierId || '') || null}
+          onClose={() => setShowProforma(false)}
+        />
+      )}
+
+      {/* Compare Bar */}
+      {compareItems.length > 0 && (
+        <div className="compare-bar glass">
+          <div className="compare-bar-inner">
+            <span>⚖️ Comparing {compareItems.length} items</span>
+            <div className="compare-bar-items">
+              {compareItems.map(id => {
+                const m = getMaterialById(id);
+                return m ? (
+                  <span key={id} className="compare-chip">
+                    {m.name}
+                    <button onClick={() => toggleCompare(id)}>✕</button>
+                  </span>
+                ) : null;
+              })}
+            </div>
+            <div className="compare-bar-actions">
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCompare(true)} disabled={compareItems.length < 2}>Compare Now</button>
+              <button className="btn btn-secondary btn-sm" onClick={clearCompare}>Clear</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compare Modal */}
+      {showCompare && compareItems.length >= 2 && (
+        <div className="modal-overlay" onClick={() => setShowCompare(false)}>
+          <div className="modal-content compare-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h2>⚖️ Product Comparison</h2><button className="modal-close" onClick={() => setShowCompare(false)}>✕</button></div>
+            <div className="modal-body">
+              <div className="compare-grid">
+                {compareItems.map(id => {
+                  const m = getMaterialById(id);
+                  if (!m) return null;
+                  const company = getCompanyById(m.companyId);
+                  return (
+                    <div key={id} className="compare-col">
+                      <div className="compare-col-header">
+                        {renderProductImage(m.images, m.category, 'md')}
+                        <h4>{m.name}</h4>
+                        <p className="compare-supplier">{company?.name || 'N/A'}</p>
+                      </div>
+                      <div className="compare-row"><span>Category</span><span>{m.category}</span></div>
+                      <div className="compare-row"><span>Price</span><span className="price-cell">{formatCurrency(m.price)}</span></div>
+                      <div className="compare-row"><span>Unit</span><span>{m.unit}</span></div>
+                      <div className="compare-row"><span>Min Order</span><span>{m.minOrder}</span></div>
+                      <div className="compare-row"><span>Stock</span><span className={m.quantity > 0 ? 'in-stock' : 'out-stock'}>{m.quantity}</span></div>
+                      <div className="compare-row"><span>Rating</span><span>⭐ {m.rating || 'N/A'}</span></div>
+                      <div className="compare-row"><span>Brand</span><span>{m.brand || '—'}</span></div>
+                      <div className="compare-row"><span>Weight</span><span>{m.specifications?.weight || '—'}</span></div>
+                      <div className="compare-row"><span>Origin</span><span>{m.specifications?.origin || 'Ethiopia'}</span></div>
+                      {currentUser?.userType === 'customer' && (
+                        <button className="btn btn-primary btn-sm" style={{ marginTop: 8, width: '100%' }} onClick={() => {
+                          setShowCompare(false);
+                          setSelectedMaterial(m);
+                        }}>View & Order</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {renderFooter()}
     </div>
   );
