@@ -3342,10 +3342,15 @@ econdary);
    Previously the base state was opacity:0 and the app only toggled
    the `.page-enter` class for 500ms — so the entire page faded out
    and disappeared right after entering it. The entrance effect is
-   now a self-contained keyframe animation instead. */
+   now a self-contained keyframe animation instead.
+   Note: the base transform must be `none` (not translateY(0)) — any
+   non-none transform makes this div the containing block for
+   `position: fixed` children (the map modal overlay), which would
+   shrink the full-screen overlay and leave the footer floating
+   over the map. */
 .page-transition {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 .page-transition.page-enter {
   animation: pageEnterFade 0.4s ease;
