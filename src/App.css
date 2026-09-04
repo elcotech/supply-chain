@@ -3337,15 +3337,22 @@ econdary);
    Expert-Level Animations
    ===================================================================== */
 
-/* Page transition */
+/* Page transition
+   BUG FIX: the base state must stay VISIBLE (opacity: 1).
+   Previously the base state was opacity:0 and the app only toggled
+   the `.page-enter` class for 500ms — so the entire page faded out
+   and disappeared right after entering it. The entrance effect is
+   now a self-contained keyframe animation instead. */
 .page-transition {
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 0.4s ease, transform 0.4s ease;
-}
-.page-transition.page-enter {
   opacity: 1;
   transform: translateY(0);
+}
+.page-transition.page-enter {
+  animation: pageEnterFade 0.4s ease;
+}
+@keyframes pageEnterFade {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Staggered card animations */
