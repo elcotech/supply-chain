@@ -427,8 +427,7 @@ function App() {
     };
     const newMaterial: Material = {
       id: 'mat' + (materials.length + 1), companyId: company.id, name: materialName, category: materialCategory,
-      basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,
-      minOrder: parseInt(materialMinOrder), description: materialDescription, transportCost: 15, rating: 0,
+      basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,      minOrder: parseInt(materialMinOrder) || 1, description: materialDescription, transportCost: 15, rating: 0,
       brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: materialImages,
       taxIncluded: true, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0]
     };
@@ -472,8 +471,7 @@ function App() {
       profitMargin: editingMaterial.profitMargin,
       price: parseFloat(formData.materialPrice) * (1 + editingMaterial.profitMargin),
       quantity: parseInt(formData.materialQuantity),
-      unit: formData.materialUnit,
-      minOrder: parseInt(formData.materialMinOrder),
+      unit: formData.materialUnit,      minOrder: parseInt(formData.materialMinOrder) || 1,
       description: formData.materialDescription,
       brand: formData.materialBrand || undefined,
       model: formData.materialModel || undefined,
@@ -623,10 +621,10 @@ function App() {
 
   const addToCartLogic = (material: Material, quantity: number, company: Company) => {
     const existingItem = cart.find(item => item.materialId === material.id);
-    if (existingItem) {
-      setCart(cart.map(item => item.materialId === material.id ? { ...item, quantity: item.quantity + quantity } : item));
-      showAlert('Updated ' + material.name + ' quantity in cart', 'success');
-    } else {
+    setCart(prev => {
+      if (prev.some(item => item.materialId === material.id)) {
+        return prev.map(item => item.materialId === material.id ? { ...item, quantity: item.quantity + quantity } : item);
+      }
       const newCartItem: CartItem = {
         id: Date.now().toString(),
         materialId: material.id,
@@ -643,20 +641,20 @@ function App() {
         profitMargin: material.profitMargin,
         weightPerUnit: material.specifications?.weightPerUnit || 0.001
       };
-      setCart([...cart, newCartItem]);
-      showAlert('Added ' + material.name + ' to cart', 'success');
-    }
+      return [...prev, newCartItem];
+    });
+    showAlert(existingItem ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
   };
 
   const removeFromCart = (itemId: string) => {
-    setCart(cart.filter(item => item.id !== itemId));
+    setCart(prev => prev.filter(item => item.id !== itemId));
     showAlert('Item removed from cart', 'info');
   };
 
   const updateCartQuantity = (itemId: string, newQuantity: number) => {
     const item = cart.find(i => i.id === itemId);
     if (item && newQuantity >= item.minOrder) {
-      setCart(cart.map(i => i.id === itemId ? { ...i, quantity: newQuantity } : i));
+      setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: newQuantity } : i));
     } else if (item && newQuantity < item.minOrder) {
       showAlert('Minimum quantity is ' + item.minOrder + ' ' + item.unit, 'warning');
     }
@@ -675,7 +673,7 @@ function App() {
     setIsCalculating(true);
     let subtotal = 0, vatAmount = 0, transportCost = 0, distanceKm = 0;
     const supplierCompany = getCompanyById(cart[0].supplierId);
-    if (!supplierCompany) return null;
+    if (!supplierCompany) { setIsCalculating(false); return null; }
     for (const item of cart) {
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const itemTotal = sellingPrice * item.quantity;
@@ -714,6 +712,15 @@ function App() {
     if (!totals) return;
     setCartDetails(totals);
     setShowCartSummary(true);
+  };
+
+  // Preview the Proforma from the current cart so items & totals always match
+  const handlePreviewProforma = async () => {
+    if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
+    const totals = await calculateCartTotals();
+    if (!totals) return;
+    setCartDetails(totals);
+    setShowProforma(true);
   };
 
   const confirmOrder = async () => {
@@ -1040,7 +1047,7 @@ function App() {
             ) : (
               <>
                 <div className="cart-actions-buttons">
-                  <button className="btn-secondary" onClick={() => setShowProforma(true)}>📄 Proforma Invoice</button>
+                  <button className="btn-secondary" onClick={handlePreviewProforma}>👁️ Preview Proforma</button>
                   <button className="btn-secondary" onClick={handleExportCart}>📥 Export CSV</button>
                   <button className="btn-secondary" onClick={handlePrintCart}>🖨️ Print Report</button>
                 </div>
@@ -1058,7 +1065,7 @@ function App() {
                 <div className="cart-summary">
                   <h3>Financial Summary</h3>
                   <div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
-                  <div className="summary-row"><span>VAT (15%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
+                  <div className="summary-row"><span>VAT ({Math.round(cartDetails.vatAmount / Math.max(cartDetails.subtotal, 0.01) * 100)}%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
                   <div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
                   <div className="summary-row total"><span>Total Amount:</span><span>{formatCurrency(cartDetails.total)}</span></div>
                 </div>
@@ -1254,7 +1261,7 @@ function App() {
         <div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
-        <div className="form-row"><div className="form-group"><label>📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
+        <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
@@ -1268,7 +1275,7 @@ function App() {
         <div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
-        <div className="form-row"><div className="form-group"><label>📋 Min Order *</label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} required /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
+        <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>Cancel</button></div>

@@ -1,7 +1,14 @@
+import QRCode from 'qrcode';
+
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
   setItem: (key: string, value: string) => localStorage.setItem(key, value),
   removeItem: (key: string) => localStorage.removeItem(key),
+};
+
+// Generate a QR code as a base64 data URL (renders reliably in print / PDF)
+export const generateQRDataURL = (text: string, size: number = 120): Promise<string> => {
+  return QRCode.toDataURL(text, { width: size, margin: 1 });
 };
 
 export const formatCurrency = (amount: number) => {
@@ -75,9 +82,17 @@ export const exportToCSV = (data: any[], filename: string) => {
   URL.revokeObjectURL(url);
 };
 
-export const printCartReport = (reportData: any) => {
+export const printCartReport = async (reportData: any) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
+  const qrPayload = [
+    'ESCON-CART-REPORT',
+    'SUPPLIER=' + (reportData.supplierName || ''),
+    'TOTAL=' + (reportData.total ? reportData.total.toFixed(2) : '0.00'),
+    'CURRENCY=ETB',
+    'DATE=' + (reportData.reportDate || new Date().toLocaleString())
+  ].join('|');
+  const qrDataUrl = await generateQRDataURL(qrPayload, 110).catch(() => '');
   const html = `
     <!DOCTYPE html>
     <html>
@@ -99,6 +114,9 @@ export const printCartReport = (reportData: any) => {
         .summary-row { display: flex; justify-content: space-between; padding: 8px 0; }
         .summary-row.total { font-size: 20px; font-weight: bold; border-top: 2px solid #1a4a6f; margin-top: 10px; padding-top: 10px; }
         .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+        .qr-block { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
+        .qr-block img { width: 84px; height: 84px; border: 1px solid #ddd; border-radius: 6px; padding: 3px; background: #fff; }
+        .qr-block p { margin: 0; font-size: 12px; color: #666; }
         @media print { body { padding: 20px; } }
       </style>
     </head>
@@ -114,6 +132,10 @@ export const printCartReport = (reportData: any) => {
           <p><strong>Name:</strong> ${reportData.supplierName}</p>
           <p><strong>Location:</strong> ${reportData.supplierCity}</p>
           <p><strong>Distance:</strong> ${reportData.distanceKm.toFixed(1)} km</p>
+          ${qrDataUrl ? `<div class="qr-block">
+            <img src="${qrDataUrl}" alt="QR code to verify this cart report" />
+            <p>🔍 Scan to verify this cart report</p>
+          </div>` : ''}
         </div>
         <h3>📦 Cart Items</h3>
         <table class="items-table">
@@ -140,7 +162,7 @@ export const printCartReport = (reportData: any) => {
         </table>
         <div class="summary">
           <div class="summary-row"><span>Subtotal (Before Tax):</span><strong>${formatCurrency(reportData.subtotal)}</strong></div>
-          <div class="summary-row"><span>VAT (15%):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
+          <div class="summary-row"><span>VAT (${Math.round(reportData.vatAmount / Math.max(reportData.subtotal, 0.01) * 100)}%):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
           <div class="summary-row"><span>Delivery Fee:</span><strong>${formatCurrency(reportData.transportCost)}</strong></div>
           <div class="summary-row total"><span>Total Amount:</span><strong>${formatCurrency(reportData.total)}</strong></div>
         </div>
@@ -167,8 +189,8 @@ export const exportCartToCSV = (cart: any[], totals: any) => {
     'Unit': item.unit,
     'Unit Price': item.price,
     'Total (Before Tax)': item.price * item.quantity,
-    'VAT (15%)': (item.price * item.quantity) * 0.15,
-    'Total with VAT': (item.price * item.quantity) * 1.15
+    ['VAT (' + (item.vatPercentage || 15) + '%)']: (item.price * item.quantity) * ((item.vatPercentage || 15) / 100),
+    'Total with VAT': (item.price * item.quantity) * (1 + ((item.vatPercentage || 15) / 100))
   }));
   exportData.push({
     'Material': '--- SUMMARY ---',
@@ -177,7 +199,7 @@ export const exportCartToCSV = (cart: any[], totals: any) => {
     'Unit': '',
     'Unit Price': '',
     'Total (Before Tax)': totals.subtotal,
-    'VAT (15%)': totals.vatAmount,
+    ['VAT (' + Math.round(totals.vatAmount / Math.max(totals.subtotal, 0.01) * 100) + '%)']: totals.vatAmount,
     'Total with VAT': totals.subtotal + totals.vatAmount
   });
   exportToCSV(exportData, 'cart_detailed_report');

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { CartItem, CartReport, User, Company } from '../types';
 
 interface ProformaInvoiceProps {
@@ -16,12 +17,16 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   supplier,
   onClose,
 }) => {
-  const [now, setNow] = useState(new Date());
+  // Capture the timestamp once for a stable proforma number / date — not a ticking clock
+  const [now] = useState(() => new Date());
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  // Flexible delivery & remarks (editable per order/proforma)
+  const [deliveryService, setDeliveryService] = useState('Supplier Delivery');
+  const [deliveryEta, setDeliveryEta] = useState('3-5 business days');
+  const [remarks, setRemarks] = useState(
+    'This is a proforma invoice, not a tax invoice.\nPayment terms: 50% advance, 50% on delivery.'
+  );
+  const [qrDataUrl, setQrDataUrl] = useState('');
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-ET', {
@@ -32,7 +37,6 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
   const formatDateTime = (date: Date) => ({
     date: date.toLocaleDateString('en-GB', {
-      weekday: 'long',
       day: '2-digit',
       month: 'long',
       year: 'numeric',
@@ -40,7 +44,6 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     time: date.toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: true,
     }),
   });
@@ -54,7 +57,28 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     '-' +
     String(now.getTime()).slice(-6);
 
+  // Stable QR payload so the printed Proforma can be identified / verified
+  useEffect(() => {
+    const payload = [
+      'ESCON-PROFORMA',
+      'NO=' + proformaNumber,
+      'SUPPLIER=' + (supplier?.id || ''),
+      'BUYER=' + (currentUser?.id || ''),
+      'TOTAL=' + report.total.toFixed(2),
+      'CURRENCY=ETB',
+      'DATE=' + now.toISOString().split('T')[0],
+    ].join('|');
+    QRCode.toDataURL(payload, { width: 120, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const totalWords = numberToWords(Math.round(report.total));
+  const minOrderText = cart
+    .filter((i) => i.minOrder > 1)
+    .map((i) => i.materialName + ': ' + i.minOrder + ' ' + i.unit)
+    .join(' · ');
 
   const handlePrint = () => {
     window.print();
@@ -69,7 +93,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             🖨️ Print Proforma
           </button>
           <button className="btn btn-secondary" onClick={onClose}>
-            ✕ Close
+            ← Back to Cart
           </button>
         </div>
 
@@ -87,23 +111,19 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               </div>
             </div>
             <div className="proforma-title-section">
-              <h2 className="proforma-doc-title">PROFORMA INVOICE</h2>
+              <h2 className="proforma-doc-title">PROFORMA</h2>
               <div className="proforma-meta">
                 <div className="proforma-meta-row">
-                  <span className="meta-label">Invoice No:</span>
+                  <span className="meta-label">Proforma No:</span>
                   <span className="meta-value">{proformaNumber}</span>
                 </div>
                 <div className="proforma-meta-row">
-                  <span className="meta-label">Date:</span>
-                  <span className="meta-value">{dt.date}</span>
-                </div>
-                <div className="proforma-meta-row">
-                  <span className="meta-label">Time:</span>
-                  <span className="meta-value">{dt.time}</span>
+                  <span className="meta-label">Date & Time:</span>
+                  <span className="meta-value">{dt.date} · {dt.time}</span>
                 </div>
                 <div className="proforma-meta-row">
                   <span className="meta-label">Currency:</span>
-                  <span className="meta-value">ETB (Ethiopian Birr)</span>
+                  <span className="meta-value">ETB – Ethiopian Birr</span>
                 </div>
                 <div className="proforma-meta-row">
                   <span className="meta-label">Valid Until:</span>
@@ -123,29 +143,25 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           <div className="proforma-divider" />
 
-          {/* Parties */}
+          {/* Parties — Supplier & Buyer side-by-side */}
           <div className="proforma-parties">
             <div className="proforma-party">
-              <h4 className="party-title">FROM (Supplier)</h4>
+              <h4 className="party-title">Supplier Details</h4>
               <div className="party-details">
-                <p>
-                  <strong>{supplier?.name || 'N/A'}</strong>
-                </p>
-                <p>📍 {supplier?.location || supplier?.city || 'N/A'}</p>
-                <p>🏙️ {supplier?.city || 'N/A'}</p>
+                <p><strong>{supplier?.name || 'N/A'}</strong></p>
+                <p>📍 {supplier?.city || 'N/A'}</p>
+                {supplier?.location && <p>{supplier.location}</p>}
                 {supplier?.tinNumber && <p>📋 TIN: {supplier.tinNumber}</p>}
                 {supplier?.vatNumber && <p>💰 VAT: {supplier.vatNumber}</p>}
-                <p>📞 {supplier?.phone || 'N/A'}</p>
+                {supplier?.phone && <p>📞 {supplier.phone}</p>}
               </div>
             </div>
             <div className="proforma-party">
-              <h4 className="party-title">TO (Buyer)</h4>
+              <h4 className="party-title">Buyer Details</h4>
               <div className="party-details">
-                <p>
-                  <strong>{currentUser?.name || 'N/A'}</strong>
-                </p>
-                <p>📍 {currentUser?.address || 'N/A'}</p>
-                <p>🏙️ {currentUser?.city || 'N/A'}</p>
+                <p><strong>{currentUser?.name || 'N/A'}</strong></p>
+                <p>📍 {currentUser?.city || 'N/A'}</p>
+                {currentUser?.address && <p>{currentUser.address}</p>}
                 <p>📧 {currentUser?.email || 'N/A'}</p>
                 <p>📞 {currentUser?.phone || 'N/A'}</p>
                 {currentUser?.tinNumber && (
@@ -157,93 +173,28 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           <div className="proforma-divider" />
 
-          {/* Items Table */}
-          <div className="proforma-items-section">
-            <h4 className="section-heading">📦 ORDER ITEMS</h4>
-            <div className="proforma-table-wrapper">
-              <table className="proforma-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Item Description</th>
-                    <th>Brand/Model</th>
-                    <th>Origin</th>
-                    <th>Unit</th>
-                    <th>Qty</th>
-                    <th>Unit Price</th>
-                    <th>Subtotal</th>
-                    <th>VAT (15%)</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.map((item, index) => {
-                    const itemSubtotal = item.basePrice * (1 + item.profitMargin) * item.quantity;
-                    const itemVat = itemSubtotal * (item.vatPercentage / 100);
-                    const itemTotal = itemSubtotal + itemVat;
-                    return (
-                      <tr key={item.id}>
-                        <td>{index + 1}</td>
-                        <td>
-                          <strong>{item.materialName}</strong>
-                          {item.specifications?.weight && (
-                            <small> (Wt: {item.specifications.weight})</small>
-                          )}
-                        </td>
-                        <td>
-                          {item.specifications?.materialType || item.specifications?.grade || '—'}
-                        </td>
-                        <td>{item.specifications?.origin || 'Ethiopia'}</td>
-                        <td>{item.unit}</td>
-                        <td>{item.quantity.toLocaleString()}</td>
-                        <td>{formatCurrency(item.basePrice * (1 + item.profitMargin))}</td>
-                        <td>{formatCurrency(itemSubtotal)}</td>
-                        <td>{formatCurrency(itemVat)}</td>
-                        <td className="proforma-price">{formatCurrency(itemTotal)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="proforma-divider" />
-
-          {/* Financial Summary */}
+          {/* Financial Summary — upper part, immediately visible */}
           <div className="proforma-summary-section">
-            <div className="proforma-summary-left">
-              <div className="proforma-amount-words">
-                <h4>Amount in Words</h4>
-                <p className="amount-words-text">{totalWords} Ethiopian Birr Only</p>
-              </div>
-              <div className="proforma-notes">
-                <h4>Notes & Remarks</h4>
-                <ul>
-                  <li>This is a proforma invoice, not a tax invoice.</li>
-                  <li>Payment terms: 50% advance, 50% on delivery.</li>
-                  <li>Delivery estimated within 3-5 business days.</li>
-                  <li>Goods remain property of supplier until full payment.</li>
-                </ul>
-              </div>
+            <div className="proforma-amount-words">
+              <h4>Amount in Words</h4>
+              <p className="amount-words-text">{totalWords} Ethiopian Birr Only</p>
+              <p className="amount-items-line">
+                {report.uniqueItems} line item{report.uniqueItems === 1 ? '' : 's'} · {report.itemCount} unit{report.itemCount === 1 ? '' : 's'} total
+              </p>
             </div>
             <div className="proforma-summary-right">
               <h4>Financial Summary</h4>
               <div className="summary-table">
                 <div className="summary-line">
-                  <span>Total Items:</span>
-                  <span>{report.uniqueItems} unique ({report.itemCount} total)</span>
-                </div>
-                <div className="summary-line">
                   <span>Subtotal (Before Tax):</span>
                   <span>{formatCurrency(report.subtotal)}</span>
                 </div>
                 <div className="summary-line">
-                  <span>VAT (15%):</span>
+                  <span>VAT ({Math.round(report.vatAmount / Math.max(report.subtotal, 0.01) * 100)}%):</span>
                   <span>{formatCurrency(report.vatAmount)}</span>
                 </div>
                 <div className="summary-line">
-                  <span>Delivery/Transport Fee:</span>
+                  <span>Delivery / Transport Fee:</span>
                   <span>{formatCurrency(report.transportCost)}</span>
                 </div>
                 <div className="summary-line">
@@ -260,7 +211,105 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           <div className="proforma-divider" />
 
-          {/* Terms & Conditions */}
+          {/* Items Table — all selected items, no duplicates, no omissions */}
+          <div className="proforma-items-section">
+            <h4 className="section-heading">📦 ORDER ITEMS</h4>
+            <div className="proforma-table-wrapper">
+              <table className="proforma-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Item Description</th>
+                    <th>Unit</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Subtotal</th>
+                    <th>VAT ({Math.round(report.vatAmount / Math.max(report.subtotal, 0.01) * 100)}%)</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cart.map((item, index) => {
+                    const unitPrice = item.basePrice * (1 + item.profitMargin);
+                    const itemSubtotal = unitPrice * item.quantity;
+                    const itemVat = itemSubtotal * (item.vatPercentage / 100);
+                    const itemTotal = itemSubtotal + itemVat;
+                    return (
+                      <tr key={item.id}>
+                        <td>{index + 1}</td>
+                        <td>
+                          <strong>{item.materialName}</strong>
+                          {(item.specifications?.materialType || item.specifications?.grade) && (
+                            <small className="item-spec">
+                              {' '}
+                              {item.specifications?.materialType ||
+                                item.specifications?.grade}
+                            </small>
+                          )}
+                        </td>
+                        <td>{item.unit}</td>
+                        <td>{item.quantity.toLocaleString()}</td>
+                        <td>{formatCurrency(unitPrice)}</td>
+                        <td>{formatCurrency(itemSubtotal)}</td>
+                        <td>{formatCurrency(itemVat)}</td>
+                        <td className="proforma-price">{formatCurrency(itemTotal)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="proforma-divider" />
+
+          {/* Notes, Delivery & Remarks — flexible per order */}
+          <div className="proforma-notes-section no-print-borders">
+            <h4>📝 Notes, Delivery & Remarks</h4>
+            <div className="note-fields-grid">
+              <div className="proforma-field">
+                <label htmlFor="pf-delivery-service">Delivery Service</label>
+                <select
+                  id="pf-delivery-service"
+                  value={deliveryService}
+                  onChange={(e) => setDeliveryService(e.target.value)}
+                >
+                  <option value="Supplier Delivery">Supplier Delivery</option>
+                  <option value="Customer Pickup">Customer Pickup</option>
+                  <option value="Courier Service">Courier Service</option>
+                  <option value="Custom Arrangement">Custom Arrangement</option>
+                </select>
+              </div>
+              <div className="proforma-field">
+                <label htmlFor="pf-delivery-eta">Delivery ETA</label>
+                <input
+                  id="pf-delivery-eta"
+                  type="text"
+                  value={deliveryEta}
+                  onChange={(e) => setDeliveryEta(e.target.value)}
+                  placeholder="e.g. 3-5 business days"
+                />
+              </div>
+            </div>
+            <div className="proforma-field">
+              <label htmlFor="pf-remarks">Notes & Remarks</label>
+              <textarea
+                id="pf-remarks"
+                rows={2}
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+              />
+            </div>
+            {minOrderText && (
+              <p className="min-order-note">
+                🗒️ Minimum order per item: {minOrderText}
+              </p>
+            )}
+          </div>
+
+          <div className="proforma-divider" />
+
+          {/* Terms & Conditions — compact, side-by-side columns */}
           <div className="proforma-terms">
             <h4>📜 Terms & Conditions</h4>
             <div className="terms-grid">
@@ -309,7 +358,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             </div>
           </div>
 
-          {/* Footer */}
+          {/* Footer — single date/time location is in the header; here only QR & contact */}
           <div className="proforma-footer">
             <p>🏗️ E-SCON — Ethio-Supply Chain Optimization Network</p>
             <p>
@@ -319,9 +368,18 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               This document was generated electronically and is valid without
               signature or stamp.
             </p>
-            <p className="proforma-timestamp">
-              Generated: {dt.date} at {dt.time}
-            </p>
+            <div className="proforma-qr-block">
+              {qrDataUrl && (
+                <img
+                  className="proforma-qr-img"
+                  src={qrDataUrl}
+                  alt={'QR code to verify Proforma ' + proformaNumber}
+                />
+              )}
+              <p className="proforma-qr-caption">
+                🔍 Scan to verify Proforma {proformaNumber}
+              </p>
+            </div>
           </div>
         </div>
       </div>
