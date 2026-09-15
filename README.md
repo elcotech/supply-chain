@@ -29,7 +29,7 @@ npm run build    # production build → ./build
 - 🚗 **Click a product → map opens with the route & distance immediately**
 - 📷 **Product photos** (up to 6 per product, base64 stored locally)
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
-- 🛒 Single-supplier cart, VAT 15%, checkout → orders
+- 🛒 Multi-supplier cart with collective proforma (all items, per-supplier delivery fees), VAT, checkout → orders
 - 📊 Supplier & customer dashboards, order management
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports

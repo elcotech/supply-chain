@@ -85,14 +85,88 @@ export const exportToCSV = (data: any[], filename: string) => {
 export const printCartReport = async (reportData: any) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
+  const suppliers = reportData.suppliers || [];
+  const supplierLine = suppliers.length > 0
+    ? suppliers.map((s: any) => s.supplierName).join(', ')
+    : (reportData.supplierName || '');
   const qrPayload = [
     'ESCON-CART-REPORT',
-    'SUPPLIER=' + (reportData.supplierName || ''),
+    'SUPPLIER=' + supplierLine,
     'TOTAL=' + (reportData.total ? reportData.total.toFixed(2) : '0.00'),
     'CURRENCY=ETB',
     'DATE=' + (reportData.reportDate || new Date().toLocaleString())
   ].join('|');
   const qrDataUrl = await generateQRDataURL(qrPayload, 110).catch(() => '');
+  const supplierBlocks = suppliers.length > 0
+    ? suppliers.map((sup: any, idx: number) => `
+        <div class="supplier-info">
+          <h3>🏢 ${idx + 1}. ${sup.supplierName}</h3>
+          <p><strong>Location:</strong> ${sup.supplierCity || 'N/A'}</p>
+          <p><strong>Distance:</strong> ${sup.distanceKm.toFixed(1)} km</p>
+          <p><strong>Delivery Fee:</strong> ${formatCurrency(sup.transportCost)}</p>
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Unit</th>
+                <th>Quantity</th>
+                <th>Unit Price (ETB)</th>
+                <th>Total (ETB)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sup.items.map((item: any) => `
+                <tr>
+                  <td>${item.materialName}</td>
+                  <td>${item.unit}</td>
+                  <td>${item.quantity}</td>
+                  <td>${formatCurrency(item.price)}</td>
+                  <td>${formatCurrency(item.price * item.quantity)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${idx === 0 && qrDataUrl ? `<div class="qr-block">
+            <img src="${qrDataUrl}" alt="QR code to verify this cart report" />
+            <p>🔍 Scan to verify this cart report</p>
+          </div>` : ''}
+        </div>
+      `).join('')
+    : `
+        <div class="supplier-info">
+          <h3>🏢 Supplier Information</h3>
+          <p><strong>Name:</strong> ${reportData.supplierName}</p>
+          <p><strong>Location:</strong> ${reportData.supplierCity}</p>
+          <p><strong>Distance:</strong> ${reportData.distanceKm.toFixed(1)} km</p>
+          ${qrDataUrl ? `<div class="qr-block">
+            <img src="${qrDataUrl}" alt="QR code to verify this cart report" />
+            <p>🔍 Scan to verify this cart report</p>
+          </div>` : ''}
+        </div>
+        <h3>📦 Cart Items</h3>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Unit</th>
+              <th>Quantity</th>
+              <th>Unit Price (ETB)</th>
+              <th>Total (ETB)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${reportData.items.map((item: any) => `
+              <tr>
+                <td>${item.materialName}</td>
+                <td>${item.unit}</td>
+                <td>${item.quantity}</td>
+                <td>${formatCurrency(item.price)}</td>
+                <td>${formatCurrency(item.price * item.quantity)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -127,43 +201,11 @@ export const printCartReport = async (reportData: any) => {
           <p>Ethio-Supply Chain Optimization Network</p>
           <p>Report Date: ${reportData.reportDate}</p>
         </div>
-        <div class="supplier-info">
-          <h3>🏢 Supplier Information</h3>
-          <p><strong>Name:</strong> ${reportData.supplierName}</p>
-          <p><strong>Location:</strong> ${reportData.supplierCity}</p>
-          <p><strong>Distance:</strong> ${reportData.distanceKm.toFixed(1)} km</p>
-          ${qrDataUrl ? `<div class="qr-block">
-            <img src="${qrDataUrl}" alt="QR code to verify this cart report" />
-            <p>🔍 Scan to verify this cart report</p>
-          </div>` : ''}
-        </div>
-        <h3>📦 Cart Items</h3>
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Unit</th>
-              <th>Quantity</th>
-              <th>Unit Price (ETB)</th>
-              <th>Total (ETB)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${reportData.items.map((item: any) => `
-              <tr>
-                <td>${item.materialName}</td>
-                <td>${item.unit}</td>
-                <td>${item.quantity}</td>
-                <td>${formatCurrency(item.price)}</td>
-                <td>${formatCurrency(item.price * item.quantity)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        ${supplierBlocks}
         <div class="summary">
           <div class="summary-row"><span>Subtotal (Before Tax):</span><strong>${formatCurrency(reportData.subtotal)}</strong></div>
           <div class="summary-row"><span>VAT (${Math.round(reportData.vatAmount / Math.max(reportData.subtotal, 0.01) * 100)}%):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
-          <div class="summary-row"><span>Delivery Fee:</span><strong>${formatCurrency(reportData.transportCost)}</strong></div>
+          <div class="summary-row"><span>Delivery Fee (${suppliers.length} supplier${suppliers.length === 1 ? '' : 's'}):</span><strong>${formatCurrency(reportData.transportCost)}</strong></div>
           <div class="summary-row total"><span>Total Amount:</span><strong>${formatCurrency(reportData.total)}</strong></div>
         </div>
         <div class="footer">

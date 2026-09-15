@@ -178,6 +178,15 @@ export interface CartItem {
   weightPerUnit: number;
 }
 
+export interface CartSupplier {
+  supplierId: string;
+  supplierName: string;
+  supplierCity: string;
+  distanceKm: number;
+  transportCost: number;
+  items: CartItem[];
+}
+
 export interface CartReport {
   items: CartItem[];
   subtotal: number;
@@ -185,6 +194,7 @@ export interface CartReport {
   transportCost: number;
   total: number;
   distanceKm: number;
+  suppliers: CartSupplier[];
   supplierName: string;
   supplierCity: string;
   itemCount: number;

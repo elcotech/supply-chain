@@ -2,11 +2,17 @@ import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { CartItem, CartReport, User, Company } from '../types';
 
+export interface ProformaSupplier extends Company {
+  transportCost: number;
+  distanceKm: number;
+}
+
 interface ProformaInvoiceProps {
   cart: CartItem[];
   report: CartReport;
   currentUser: User | null;
   supplier: Company | null;
+  suppliers: ProformaSupplier[];
   onClose: () => void;
 }
 
@@ -15,6 +21,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   report,
   currentUser,
   supplier,
+  suppliers,
   onClose,
 }) => {
   // Capture the timestamp once for a stable proforma number / date — not a ticking clock
@@ -59,10 +66,13 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
   // Stable QR payload so the printed Proforma can be identified / verified
   useEffect(() => {
+    const supplierIds = suppliers.length > 0
+      ? suppliers.map((s) => s.id).join(',')
+      : (supplier?.id || '');
     const payload = [
       'ESCON-PROFORMA',
       'NO=' + proformaNumber,
-      'SUPPLIER=' + (supplier?.id || ''),
+      'SUPPLIER=' + supplierIds,
       'BUYER=' + (currentUser?.id || ''),
       'TOTAL=' + report.total.toFixed(2),
       'CURRENCY=ETB',
@@ -143,17 +153,32 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           <div className="proforma-divider" />
 
-          {/* Parties — Supplier & Buyer side-by-side */}
+          {/* Parties — Supplier(s) & Buyer side-by-side */}
           <div className="proforma-parties">
             <div className="proforma-party">
-              <h4 className="party-title">Supplier Details</h4>
+              <h4 className="party-title">
+                Supplier Details
+                {suppliers.length > 1 && (
+                  <span className="party-count"> ({suppliers.length} suppliers)</span>
+                )}
+              </h4>
               <div className="party-details">
-                <p><strong>{supplier?.name || 'N/A'}</strong></p>
-                <p>📍 {supplier?.city || 'N/A'}</p>
-                {supplier?.location && <p>{supplier.location}</p>}
-                {supplier?.tinNumber && <p>📋 TIN: {supplier.tinNumber}</p>}
-                {supplier?.vatNumber && <p>💰 VAT: {supplier.vatNumber}</p>}
-                {supplier?.phone && <p>📞 {supplier.phone}</p>}
+                {suppliers.length > 0 ? (
+                  suppliers.map((s, idx) => (
+                    <div key={s.id} className={'party-supplier' + (idx > 0 ? ' party-supplier-alt' : '')}>
+                      {suppliers.length > 1 && (
+                        <p className="party-supplier-index">Supplier {idx + 1}</p>
+                      )}
+                      <p><strong>{s.name}</strong></p>
+                      <p>📍 {s.city}{s.location ? ' - ' + s.location : ''}</p>
+                      {s.tinNumber && <p>📋 TIN: {s.tinNumber}</p>}
+                      {s.vatNumber && <p>💰 VAT: {s.vatNumber}</p>}
+                      {s.phone && <p>📞 {s.phone}</p>}
+                    </div>
+                  ))
+                ) : (
+                  <p><strong>{supplier?.name || 'N/A'}</strong></p>
+                )}
               </div>
             </div>
             <div className="proforma-party">
@@ -193,14 +218,31 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                   <span>VAT ({Math.round(report.vatAmount / Math.max(report.subtotal, 0.01) * 100)}%):</span>
                   <span>{formatCurrency(report.vatAmount)}</span>
                 </div>
-                <div className="summary-line">
-                  <span>Delivery / Transport Fee:</span>
-                  <span>{formatCurrency(report.transportCost)}</span>
-                </div>
-                <div className="summary-line">
-                  <span>Distance:</span>
-                  <span>{report.distanceKm.toFixed(1)} km</span>
-                </div>
+                {suppliers.length > 1 ? (
+                  <>
+                    <div className="summary-line">
+                      <span>Delivery / Transport Fee ({suppliers.length} suppliers):</span>
+                      <span>{formatCurrency(report.transportCost)}</span>
+                    </div>
+                    {suppliers.map((s, idx) => (
+                      <div key={s.id} className="summary-line summary-line-sub">
+                        <span>↳ {idx + 1}. {s.name} ({s.distanceKm.toFixed(1)} km)</span>
+                        <span>{formatCurrency(s.transportCost)}</span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <div className="summary-line">
+                      <span>Delivery / Transport Fee:</span>
+                      <span>{formatCurrency(report.transportCost)}</span>
+                    </div>
+                    <div className="summary-line">
+                      <span>Distance:</span>
+                      <span>{report.distanceKm.toFixed(1)} km</span>
+                    </div>
+                  </>
+                )}
                 <div className="summary-line grand-total">
                   <span>GRAND TOTAL:</span>
                   <span>{formatCurrency(report.total)}</span>
@@ -220,6 +262,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                   <tr>
                     <th>#</th>
                     <th>Item Description</th>
+                    <th>Supplier</th>
                     <th>Unit</th>
                     <th>Qty</th>
                     <th>Unit Price</th>
@@ -247,6 +290,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                             </small>
                           )}
                         </td>
+                        <td className="proforma-supplier">{item.supplierName}</td>
                         <td>{item.unit}</td>
                         <td>{item.quantity.toLocaleString()}</td>
                         <td>{formatCurrency(unitPrice)}</td>
@@ -347,7 +391,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             <div className="signature-block">
               <div className="signature-line" />
               <p className="signature-label">Authorized Supplier Signature</p>
-              <p className="signature-name">{supplier?.name || ''}</p>
+              <p className="signature-name">{suppliers.length > 1 ? 'All Listed Suppliers' : (suppliers[0]?.name || supplier?.name || '')}</p>
               <p className="signature-date">Date: _______________</p>
             </div>
             <div className="signature-block">

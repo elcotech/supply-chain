@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
@@ -606,16 +606,6 @@ function App() {
     if (quantity < material.minOrder) { showAlert('Minimum order quantity is ' + material.minOrder + ' ' + material.unit, 'danger'); return; }
     const materialCompany = getCompanyById(material.companyId);
     if (!materialCompany) return;
-    if (cart.length > 0) {
-      const currentSupplierId = cart[0].supplierId;
-      if (currentSupplierId !== material.companyId) {
-        if (window.confirm('Your cart currently has items from ' + cart[0].supplierName + '. Do you want to clear your cart and add items from ' + materialCompany.name + '?')) {
-          clearCart();
-          addToCartLogic(material, quantity, materialCompany);
-        }
-        return;
-      }
-    }
     addToCartLogic(material, quantity, materialCompany);
   };
 
@@ -671,10 +661,11 @@ function App() {
     if (cart.length === 0) return null;
     if (!currentUser) return null;
     setIsCalculating(true);
-    let subtotal = 0, vatAmount = 0, transportCost = 0, distanceKm = 0;
-    const supplierCompany = getCompanyById(cart[0].supplierId);
-    if (!supplierCompany) { setIsCalculating(false); return null; }
+    let subtotal = 0, vatAmount = 0, transportCost = 0;
+    const supplierMap = new Map<string, CartSupplier>();
     for (const item of cart) {
+      const supplierCompany = getCompanyById(item.supplierId);
+      if (!supplierCompany) continue;
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const itemTotal = sellingPrice * item.quantity;
       subtotal += itemTotal;
@@ -686,9 +677,29 @@ function App() {
         weight
       );
       transportCost += transCost;
-      if (distanceKm === 0) distanceKm = await calculateDistance(supplierCompany.lat, supplierCompany.lng, currentUser.lat || 9.0320, currentUser.lng || 38.7469);
+      const dist = await calculateDistance(
+        supplierCompany.lat, supplierCompany.lng,
+        currentUser.lat || 9.0320, currentUser.lng || 38.7469
+      );
+      const existing = supplierMap.get(item.supplierId);
+      if (existing) {
+        existing.items.push(item);
+        existing.transportCost += transCost;
+      } else {
+        supplierMap.set(item.supplierId, {
+          supplierId: supplierCompany.id,
+          supplierName: supplierCompany.name,
+          supplierCity: supplierCompany.city,
+          distanceKm: dist,
+          transportCost: transCost,
+          items: [item]
+        });
+      }
     }
+    const suppliers = Array.from(supplierMap.values());
     const total = subtotal + vatAmount + transportCost;
+    const multiple = suppliers.length > 1;
+    const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
     setIsCalculating(false);
     return {
       items: cart,
@@ -696,9 +707,10 @@ function App() {
       vatAmount,
       transportCost,
       total,
-      distanceKm,
-      supplierName: supplierCompany.name,
-      supplierCity: supplierCompany.city,
+      distanceKm: totalDistance,
+      suppliers,
+      supplierName: multiple ? 'Multiple Suppliers (' + suppliers.length + ')' : (suppliers[0]?.supplierName || ''),
+      supplierCity: multiple ? '' : (suppliers[0]?.supplierCity || ''),
       itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
       uniqueItems: cart.length,
       currency: 'ETB',
@@ -727,12 +739,12 @@ function App() {
     if (cart.length === 0) return;
     const totals = await calculateCartTotals();
     if (!totals) return;
-    const supplierCompany = getCompanyById(cart[0].supplierId);
-    if (!supplierCompany) return;
     setIsCalculating(true);
     for (const item of cart) {
       const material = getMaterialById(item.materialId);
       if (!material) continue;
+      const supplierCompany = getCompanyById(item.supplierId);
+      if (!supplierCompany) continue;
       const weight = (item.weightPerUnit || 0.001) * item.quantity;
       const transportCostItem = await calculateTransportCost(
         supplierCompany.lat, supplierCompany.lng,
@@ -1037,6 +1049,8 @@ function App() {
 
   const renderCartSummary = () => {
     if (!showCartSummary || !cartDetails) return null;
+    const supplierGroups = cartDetails.suppliers || [];
+    const multipleSuppliers = supplierGroups.length > 1;
     return (
       <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
@@ -1051,22 +1065,38 @@ function App() {
                   <button className="btn-secondary" onClick={handleExportCart}>📥 Export CSV</button>
                   <button className="btn-secondary" onClick={handlePrintCart}>🖨️ Print Report</button>
                 </div>
-                <div className="cart-supplier-info"><h3>🏢 Supplier: {cartDetails.supplierName}</h3><p>📍 {cartDetails.supplierCity} • 📦 Distance: {cartDetails.distanceKm.toFixed(1)} km</p></div>
-                <div className="cart-items">
-                  {cart.map(item => (
-                    <div key={item.id} className="cart-item">
-                      <div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div>
-                      <div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={item.minOrder} step={item.minOrder} /><span>{item.unit}</span></div>
-                      <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
-                      <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
+                {multipleSuppliers ? (
+                  <div className="cart-supplier-info"><h3>🏢 {cartDetails.supplierName}</h3><p>📦 {cartDetails.itemCount} units from {supplierGroups.length} suppliers</p></div>
+                ) : (
+                  <div className="cart-supplier-info"><h3>🏢 Supplier: {cartDetails.supplierName}</h3><p>📍 {cartDetails.supplierCity} • 📦 Distance: {cartDetails.distanceKm.toFixed(1)} km</p></div>
+                )}
+                {supplierGroups.map(sup => (
+                  <div key={sup.supplierId} className="cart-supplier-group">
+                    <div className="cart-supplier-group-header">
+                      <span className="cart-supplier-group-name">🏢 {sup.supplierName}</span>
+                      <span className="cart-supplier-group-meta">📍 {sup.supplierCity} • 🚗 {sup.distanceKm.toFixed(1)} km • 🚚 {formatCurrency(sup.transportCost)}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="cart-items">
+                      {sup.items.map(item => (
+                        <div key={item.id} className="cart-item">
+                          <div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div>
+                          <div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={item.minOrder} step={item.minOrder} /><span>{item.unit}</span></div>
+                          <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
+                          <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
                 <div className="cart-summary">
                   <h3>Financial Summary</h3>
                   <div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
                   <div className="summary-row"><span>VAT ({Math.round(cartDetails.vatAmount / Math.max(cartDetails.subtotal, 0.01) * 100)}%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
-                  <div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
+                  {multipleSuppliers ? (
+                    <div className="summary-row"><span>Delivery Fee ({supplierGroups.length} suppliers):</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
+                  ) : (
+                    <div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
+                  )}
                   <div className="summary-row total"><span>Total Amount:</span><span>{formatCurrency(cartDetails.total)}</span></div>
                 </div>
                 <div className="cart-actions"><button className="btn-secondary" onClick={clearCart}>Clear Cart</button><button className="btn-primary" onClick={confirmOrder} disabled={isCalculating}>{isCalculating ? 'Calculating...' : 'Confirm Order ✅'}</button></div>
@@ -1341,8 +1371,6 @@ function App() {
                   {(displayMaterials as SearchResult[]).map(item => {
                     const company = getCompanyById(item.companyId);
                     const isInCart = cart.some(c => c.materialId === item.id);
-                    const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
-                    const canAddToCart = !currentSupplierInCart || currentSupplierInCart === item.companyId;
                     return (
                       <tr 
                         key={item.id}
@@ -1385,9 +1413,7 @@ function App() {
                                 e.stopPropagation();
                                 const qty = prompt('Quantity (Min: ' + item.minOrder + ' ' + item.unit + '):', item.minOrder.toString());
                                 if (qty && !isNaN(parseInt(qty))) {
-                                  if (!canAddToCart && currentSupplierInCart) {
-                                    if (window.confirm('Clear cart & add this item?')) { clearCart(); addToCart(item, parseInt(qty)); }
-                                  } else { addToCart(item, parseInt(qty)); }
+                                  addToCart(item, parseInt(qty));
                                 }
                               }}>➕</button>
                             )
@@ -1469,8 +1495,6 @@ function App() {
     if (!selectedMaterial) return null;
     const company = getCompanyById(selectedMaterial.companyId);
     const isInCart = cart.some(item => item.materialId === selectedMaterial.id);
-    const currentSupplierInCart = cart.length > 0 ? cart[0].supplierId : null;
-    const canAddToCart = !currentSupplierInCart || currentSupplierInCart === selectedMaterial.companyId;
 
     return (
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
@@ -1499,20 +1523,11 @@ function App() {
             {currentUser?.userType === 'customer' && (
               <div>
                 <h3>Add to Cart</h3>
-                {!canAddToCart && <div className="alert alert-warning">⚠️ Cart has items from another supplier.</div>}
                 <input type="number" className="form-input" id="cartQuantity" defaultValue={selectedMaterial.minOrder} />
                 <button className="btn btn-primary" onClick={() => {
                   const qty = parseInt((document.getElementById('cartQuantity') as HTMLInputElement).value);
-                  if (!canAddToCart && currentSupplierInCart) {
-                    if (window.confirm('Clear cart & add ' + selectedMaterial.name + '?')) {
-                      clearCart();
-                      addToCart(selectedMaterial, qty);
-                      setSelectedMaterial(null);
-                    }
-                  } else {
-                    addToCart(selectedMaterial, qty);
-                    setSelectedMaterial(null);
-                  }
+                  addToCart(selectedMaterial, qty);
+                  setSelectedMaterial(null);
                 }}>{isInCart ? '🔄 Update' : '➕ Add'}</button>
               </div>
             )}
@@ -1595,6 +1610,12 @@ function App() {
           report={cartDetails}
           currentUser={currentUser}
           supplier={getCompanyById(cart[0]?.supplierId || '') || null}
+          suppliers={cartDetails.suppliers
+            .map(sup => {
+              const comp = getCompanyById(sup.supplierId);
+              return comp ? { ...comp, transportCost: sup.transportCost, distanceKm: sup.distanceKm } : null;
+            })
+            .filter((s): s is (Company & { transportCost: number; distanceKm: number }) => s !== null)}
           onClose={() => setShowProforma(false)}
         />
       )}

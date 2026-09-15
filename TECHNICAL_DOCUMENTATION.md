@@ -283,7 +283,7 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filters for department, city, max price, and sort (price ↑↓, rating, newest). Each result computes OSRM distance and transport cost in parallel.
 
 ### 10.5 Cart & checkout
-Single-supplier carts enforced (adding a different supplier prompts to clear). Checkout computes subtotal + VAT 15% + delivery fee (OSRM-based) and produces a `CartReport`; confirming creates one `Order` per item, resets the cart, and shows the Orders page.
+Multi-supplier cart: customers can add products from any number of suppliers into one cart. Checkout computes subtotal + VAT (per-item %) + delivery fee per supplier (OSRM-based) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs; a single **collective proforma** covers all items. Confirming creates one `Order` per item, resets the cart, and shows the Orders page.
 
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
