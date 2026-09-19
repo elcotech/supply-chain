@@ -38,6 +38,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - ⚙️ **Admin platform settings** — delivery pricing, zones, free delivery & minimum order, no code changes needed
 - 📲 **Installable PWA** with offline support and a device-specific install guide
 - 📊 Supplier & customer dashboards, order management
+- 📱 **Mobile banking-style app** — a dedicated mobile shell (bottom tab bar, centre cart button, "More" sheet, greeting home, trending-products carousel, card-based search, order cards with a shipment progress stepper) automatically appears on phones; the desktop layout stays untouched
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports
 - ✅ Unit tests for fees, formatting, settings and QR payloads

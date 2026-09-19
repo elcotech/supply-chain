@@ -2,7 +2,7 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 4.0 (Professional Business Pass)
+> **Version:** 5.0 (Mobile Banking UX)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -128,6 +128,8 @@ supply-chain1/
 │   ├── constants.ts        # Sample data + city/unit/department lists
 │   ├── settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
 │   ├── utils.ts            # Helpers: distance, fees, min-order, QR payloads, CSV, formatting
+│   ├── hooks/
+│   │   └── useIsMobile.ts  # matchMedia("(max-width: 768px)") — drives the mobile shell
 │   ├── settings.test.ts    # Unit tests for SystemSettings persistence
 │   ├── utils.test.ts       # Unit tests for formatting, fees, min-order, QR payloads
 │   └── components/
@@ -138,7 +140,8 @@ supply-chain1/
 │       ├── ProformaInvoice.tsx   # Professional proforma invoice modal with FX QR
 │       ├── PublicProforma.tsx    # Mobile-friendly proforma shown when a QR is scanned
 │       ├── AdminSettings.tsx     # Admin-only configuration page (business rules)
-│       └── InstallGuide.tsx      # "Install E-SCON" device-specific instructions modal
+│       ├── InstallGuide.tsx      # "Install E-SCON" device-specific instructions modal
+│       └── OrderTimeline.tsx     # Shipment progress stepper (Ordered→Confirmed→In Transit→Delivered)
 ├── package.json
 ├── tsconfig.json
 ├── README.md
@@ -158,11 +161,11 @@ supply-chain1/
 │     ├─ state (useState)     │
 │     ├─ localStorage sync    │
 │     ├─ page router (switch) │
-│     ├─ Header + DateTime    │
-│     ├─ Active page render   │
+│     ├─ Header + DateTime    │  ← desktop; mobile uses TopBar + TabBar (isMobile)
+│     ├─ Active page render   │  ← mobile variants branch on isMobile
 │     ├─ Modals (product,     │
 │     │  cart, edit company)  │
-│     └─ Footer               │
+│     └─ Footer               │  ← desktop only; mobile uses TabBar + More sheet
 └─────────────────────────────┘
 ```
 
@@ -481,6 +484,16 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
 - **PWA install banner** stacks vertically on mobile.
 - **Touch targets**: `.btn-icon` ≥ 40px, buttons ≥ 44px on touch devices.
 - **Safe area insets**: respects device notches via `env(safe-area-inset-*)`.
+- **Mobile banking-style shell (v5)**: under `768px` the app swaps its desktop chrome for a dedicated mobile shell — this is a *dual layout*, both are fully supported and the desktop layout is **unchanged** (all mobile markup/CSS is opt-in and gated):
+  - `src/hooks/useIsMobile.ts` returns a reactive `isMobile` boolean from `matchMedia("(max-width: 768px)")`; `App.tsx` uses it to render `renderMobileTopBar()`, `renderMobileBottomNav()` and the profile "More" bottom sheet instead of the desktop header/footer. The same `768px` breakpoint is the CSS boundary, so JS and CSS always agree.
+  - **Top bar**: brand, page title, theme toggle, cart button (customers, with badge), avatar.
+  - **Bottom tab bar** (`mobile-tabbar`, fixed, safe-area aware): Home / Search (customers) or Board (companies & admin) / center **FAB** (Cart for customers with badge, Add Product for companies, Login for guests) / Orders (with active-order badge) / More (profile sheet). Guests get Home / Search / FAB-Login / Map / Install.
+  - **More sheet** (`m-sheet-overlay` + `m-sheet`): slide-up bottom sheet with profile header + Logout, dashboard, supplier map, compare, install app, theme toggle, CSV export and admin settings shortcuts, plus a horizontally scrollable "Saved products" strip.
+  - **Mobile home** (`renderHomeMobile`): gradient greeting hero card with live stat tiles (active orders, delivered, revenue/spent), 2×2 quick-action grid, "Saved for later" strip, horizontally scroll-snapping **Trending products carousel** (star-rating sorted) using the reusable `MobileProductCard`, and recent-order rows with status pills.
+  - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with qty stepper + Add / In-Cart buttons) instead of the wide table; distance, supplier, stock and price chips are shown per card.
+  - **Orders** on mobile render stacked order cards with the `OrderTimeline` shipment stepper, customer/supplier line, itemised totals and Confirm/Reorder/Export actions.
+  - **Dashboards** on mobile render 2×2 stat tiles plus compact product/order lists (`renderMobileDashboard(true|false)`).
+  - **Modals become bottom sheets** on mobile (`.modal-overlay` aligns to bottom, `.modal-content` gets top-rounded corners) and forms use 16px inputs to prevent iOS auto-zoom. The floating compare bar and PWA banner are lifted above the tab bar.
 
 ---
 
@@ -500,6 +513,10 @@ No router library — `currentPage` switch in `App.tsx`:
 | `edit-material`      | `renderEditMaterial`        | Product edit (+ photos)        |
 | `orders`             | `renderOrders`              | Order management               |
 | `settings`           | `AdminSettings` (admin only) | Delivery fee, zones, min order |
+| (mobile shell)       | `renderMobileTopBar`, `renderMobileBottomNav`, `renderMobileMoreSheet` | Rendered only when `isMobile`; desktop header/footer replaced |
+| (mobile home)        | `renderHomeMobile`      | Welcome hero, quick actions, trending carousel, saved strip, recent orders |
+| (mobile orders)      | `renderOrdersMobile`    | Order cards + `OrderTimeline` stepper when `isMobile` |
+| (mobile dashboards)  | `renderMobileDashboard` | Stat tiles + compact lists for company/customer when `isMobile` |
 | (map)                | `renderSupplierMap`         | Modal flag `showSupplierMap`   |
 | (modals)             | `renderMaterialDetails`, `renderCartSummary`, EditCompany, `ProformaInvoice`, `compare-modal` | Overlays |
 | (compare bar)        | Floating compare bar at bottom | Shows when `compareItems.length > 0` |
@@ -592,7 +609,9 @@ Read this before touching any code. It prevents the most common mistakes.
 3. **Money always goes through `formatCurrency`** (in `utils.ts`). Do not hand-roll `Intl.NumberFormat` or template strings with different separators.
 4. **Never delete the admin seeder.** In `App.tsx` initialization, `ADMIN_USER` is re-appended if missing. Removing it logs out platform management silently.
 5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place.
-6. **Tests are pure-logic only.** Do not write tests that import `App.tsx`, `MapComponent.tsx` or Leaflet — they need DOM APIs jsdom can't provide. Run `CI=true npm test -- --watchAll=false`.
+6. **Desktop layout is frozen.** The mobile shell must be added *next to* it, never instead of it: JSX branches on `isMobile` (`useIsMobile`), and every mobile rule lives inside `@media (max-width: 768px)` at the end of `App.css`. Keep the JS breakpoint and the CSS breakpoint identical (`768px`).
+7. **Tests are pure-logic only.** Do not write tests that import `App.tsx`, `MapComponent.tsx` or Leaflet — they need DOM APIs jsdom can't provide. Run `CI=true npm test -- --watchAll=false`.
+8. **Mobile reuse** — build mobile UI from existing helpers (`renderProductImage`, `formatCurrency`, `handleCheckout`, `handleQuickReorder`, …); `MobileProductCard` is the single reusable product card for the carousel and search grid. New mobile-only files go under `src/hooks/` / `src/components/` and use CSS variables so dark mode keeps working.
 
 ### 19.2 Where things live
 - **Business rules** (delivery fee, zones, min order) → `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates, cart totals and order creation all use `computeDeliveryFee` now.

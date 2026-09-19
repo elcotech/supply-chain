@@ -19,6 +19,8 @@ import ProformaInvoice from './components/ProformaInvoice';
 import PublicProforma from './components/PublicProforma';
 import InstallGuide from './components/InstallGuide';
 import AdminSettings from './components/AdminSettings';
+import OrderTimeline from './components/OrderTimeline';
+import useIsMobile from './hooks/useIsMobile';
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
@@ -58,6 +60,12 @@ function App() {
   const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => loadSettings());
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // ---------- Mobile / desktop shell ----------
+  const isMobile = useIsMobile();
+  useEffect(() => {
+    if (!isMobile) setMobileMenuOpen(false);
+  }, [isMobile]);
 
   // ---------- Proforma QR deep-link (#escon=payload) ----------
   // Decode the compact payload embedded in a QR code and open the
@@ -1203,6 +1211,7 @@ function App() {
   };
 
   const renderHome = () => {
+    if (isMobile) return renderHomeMobile();
     const stats = {
       totalMaterials: materials.length,
       totalCompanies: companies.length,
@@ -1301,6 +1310,7 @@ function App() {
   );
 
   const renderCompanyDashboard = () => {
+    if (isMobile) return renderMobileDashboard(true);
     if (!currentUser || currentUser.userType !== 'company') return <main className="main-content"><div className="alert alert-danger">⚠️ Access denied.</div></main>;
     const company = getCompanyByUserId(currentUser.id);
     const companyMaterials = materials.filter(m => m.companyId === company?.id);
@@ -1344,6 +1354,7 @@ function App() {
   };
 
   const renderCustomerDashboard = () => {
+    if (isMobile) return renderMobileDashboard(false);
     if (!currentUser || currentUser.userType !== 'customer') return <main className="main-content"><div className="alert alert-danger">⚠️ Access denied.</div></main>;
     const userOrders = orders.filter(o => o.customerId === currentUser.id);
     const stats = calculateStats();
@@ -1457,6 +1468,28 @@ function App() {
               <p>🔍 No products found matching your criteria.</p>
               <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Try adjusting your filters or search terms.</p>
             </div>
+          ) : isMobile ? (
+            <div className="m-search-grid">
+              {(displayMaterials as SearchResult[]).map(item => {
+                const company = getCompanyById(item.companyId);
+                return (
+                  <div key={item.id} className="m-search-item">
+                    <MobileProductCard
+                      material={item}
+                      company={company}
+                      isInCart={cart.some(c => c.materialId === item.id)}
+                      isFav={favorites.includes(item.id)}
+                      distanceKm={item.distance}
+                      onOpen={() => setSelectedMaterial(item)}
+                      onAdd={(m, q) => addToCart(m, q)}
+                      onToggleFav={() => toggleFavorite(item.id)}
+                      onGoToCart={handleCheckout}
+                      variant="list"
+                    />
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <ScrollableTable minWidth="1100px">
               <table className="data-table">
@@ -1526,6 +1559,7 @@ function App() {
   };
 
   const renderOrders = () => {
+    if (isMobile) return renderOrdersMobile();
     const isCompany = currentUser?.userType === 'company';
     const userOrders = isCompany ? orders.filter(o => {
       const comp = getCompanyByUserId(currentUser!.id);
@@ -1646,6 +1680,614 @@ function App() {
     );
   };
 
+  // ---------- MOBILE UX (banking-app style; desktop untouched) ----------
+  const mobilePageTitle = (): string => {
+    const titles: Record<string, string> = {
+      home: 'E-SCON',
+      'search-materials': 'Find Products',
+      'company-dashboard': 'Supplier Dashboard',
+      'customer-dashboard': 'My Dashboard',
+      orders: 'Orders',
+      'add-material': 'New Product',
+      'edit-material': 'Edit Product',
+      login: 'Login',
+      register: 'Create Account',
+      settings: 'Platform Settings',
+    };
+    return titles[currentPage] || 'E-SCON';
+  };
+
+  const renderMobileTopBar = () => {
+    if (currentPage === 'splash') return null;
+    return (
+      <header className="mobile-topbar">
+        <div className="mobile-topbar-brand" onClick={() => navigateTo('home')}>
+          <span className="mobile-topbar-logo">🏗️</span>
+          <span className="mobile-topbar-title">{mobilePageTitle()}</span>
+        </div>
+        <div className="mobile-topbar-actions">
+          <button className="mobile-icon-btn" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme">
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+          {currentUser && currentUser.userType === 'customer' && (
+            <button className="mobile-icon-btn mobile-cart" onClick={handleCheckout} aria-label="Open cart">
+              🛒
+              {cart.length > 0 && (
+                <span className="mobile-badge">{cart.reduce((s, i) => s + i.quantity, 0)}</span>
+              )}
+            </button>
+          )}
+          {currentUser && (
+            <button className="mobile-avatar" onClick={() => setMobileMenuOpen(true)} aria-label="Account menu">
+              {currentUser.name?.charAt(0).toUpperCase() || '?'}
+            </button>
+          )}
+        </div>
+      </header>
+    );
+  };
+
+  const renderMobileBottomNav = () => {
+    if (currentPage === 'splash') return null;
+    const isCustomer = currentUser?.userType === 'customer';
+    const isCompany = currentUser?.userType === 'company';
+
+    const myOrders = currentUser
+      ? orders.filter(o => {
+          if (currentUser.userType === 'company') {
+            const comp = getCompanyByUserId(currentUser.id);
+            return comp && o.companyId === comp.id;
+          }
+          return o.customerId === currentUser.id;
+        })
+      : [];
+    const activeOrders = myOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length;
+
+    const TabLink = ({ active, onClick, icon, label, badge }: { active: boolean; onClick: () => void; icon: string; label: string; badge?: number }) => (
+      <button className={'m-tab' + (active ? ' active' : '')} onClick={onClick}>
+        <span className="m-tab-icon">{icon}</span>
+        <span className="m-tab-label">{label}</span>
+        {badge ? <span className="m-tab-badge">{badge}</span> : null}
+      </button>
+    );
+
+    return (
+      <nav className="mobile-tabbar">
+        {!currentUser ? (
+          <>
+            <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon="🏠" label="Home" />
+            <TabLink active={currentPage === 'search-materials'} onClick={() => navigateTo('search-materials')} icon="🔍" label="Search" />
+            <button className="m-fab" onClick={() => navigateTo('login')} aria-label="Login">
+              <span className="m-fab-icon">🔑</span>
+              <span className="m-fab-label">Login</span>
+            </button>
+            <TabLink active={false} onClick={() => setShowSupplierMap(true)} icon="🗺️" label="Map" />
+            <TabLink active={false} onClick={() => setShowInstallGuide(true)} icon="📲" label="Install" />
+          </>
+        ) : (
+          <>
+            <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon="🏠" label="Home" />
+            {isCustomer && <TabLink active={currentPage === 'search-materials'} onClick={() => navigateTo('search-materials')} icon="🔍" label="Search" />}
+            {!isCustomer && <TabLink active={currentPage === (isCompany ? 'company-dashboard' : 'customer-dashboard')} onClick={() => navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard')} icon="📊" label="Board" />}
+            {isCustomer ? (
+              <button className="m-fab m-fab-cart" onClick={handleCheckout} aria-label="Open cart">
+                <span className="m-fab-icon">🛒</span>
+                <span className="m-fab-label">Cart</span>
+                {cart.length > 0 && <span className="m-fab-badge">{cart.reduce((s, i) => s + i.quantity, 0)}</span>}
+              </button>
+            ) : (
+              <button className="m-fab" onClick={() => navigateTo('add-material')} aria-label="Add product">
+                <span className="m-fab-icon">➕</span>
+                <span className="m-fab-label">Add</span>
+              </button>
+            )}
+            <TabLink active={currentPage === 'orders'} onClick={() => navigateTo('orders')} icon="📦" label="Orders" badge={activeOrders} />
+            <button className={'m-tab' + (mobileMenuOpen ? ' active' : '')} onClick={() => setMobileMenuOpen(true)}>
+              <span className="m-tab-icon">👤</span>
+              <span className="m-tab-label">More</span>
+            </button>
+          </>
+        )}
+      </nav>
+    );
+  };
+
+  const renderMobileMoreSheet = () => {
+    if (!mobileMenuOpen) return null;
+    const isCompany = currentUser?.userType === 'company';
+    const isAdmin = currentUser?.userType === 'admin';
+    const favouriteMaterials = currentUser
+      ? favorites.map(id => getMaterialById(id)).filter((m): m is Material => Boolean(m)).slice(0, 6)
+      : [];
+
+    const Action = ({ icon, label, sub, onClick }: { icon: string; label: string; sub?: string; onClick: () => void }) => (
+      <button className="m-more-action" onClick={onClick}>
+        <span className="m-more-icon">{icon}</span>
+        <span className="m-more-text">{label}{sub && <small>{sub}</small>}</span>
+        <span className="m-more-chevron">›</span>
+      </button>
+    );
+
+    return (
+      <div className="m-sheet-overlay" onClick={() => setMobileMenuOpen(false)}>
+        <div className="m-sheet" onClick={e => e.stopPropagation()}>
+          <div className="m-sheet-grabber" />
+          {currentUser && (
+            <div className="m-sheet-profile">
+              <div className="m-sheet-avatar">{currentUser.name?.charAt(0).toUpperCase() || '?'}</div>
+              <div className="m-sheet-user">
+                <strong>{currentUser.name}</strong>
+                <small>{currentUser.email}</small>
+              </div>
+              <button className="m-sheet-logout" onClick={() => { setMobileMenuOpen(false); handleLogout(); }}>Logout</button>
+            </div>
+          )}
+          <div className="m-sheet-actions">
+            <Action
+              icon="📊"
+              label="Dashboard"
+              sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : 'Customer'}
+              onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard'); }}
+            />
+            <Action icon="🗺️" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
+            <Action
+              icon="⚖️"
+              label="Compare Products"
+              sub={compareItems.length >= 2 ? compareItems.length + ' selected — tap to compare' : 'Pick 2–4 products to compare'}
+              onClick={() => { setMobileMenuOpen(false); setShowCompare(true); }}
+            />
+            <Action icon="📲" label="Install App" sub="Work offline, home-screen icon" onClick={() => { setMobileMenuOpen(false); setShowInstallGuide(true); }} />
+            <Action icon={darkMode ? '☀️' : '🌙'} label={darkMode ? 'Light Theme' : 'Dark Theme'} onClick={() => setDarkMode(!darkMode)} />
+            {currentUser && (
+              <Action icon="📥" label="Export Orders" sub="Download your orders as CSV" onClick={() => { setMobileMenuOpen(false); handleExportOrders(); }} />
+            )}
+            {isAdmin && <Action icon="⚙️" label="Platform Settings" sub="Delivery fees, zones & minimum order" onClick={() => { setMobileMenuOpen(false); navigateTo('settings'); }} />}
+          </div>
+          {favouriteMaterials.length > 0 && (
+            <div className="m-sheet-favs">
+              <h4>❤️ Saved products</h4>
+              <div className="m-sheet-fav-row">
+                {favouriteMaterials.map(m => (
+                  <button key={m.id} className="m-sheet-fav-chip" onClick={() => { setMobileMenuOpen(false); setSelectedMaterial(m); }}>
+                    <span className="m-sheet-fav-emoji">{renderProductImage(m.images, m.category, 'xs')}</span>
+                    <span className="m-sheet-fav-name">{m.name.split(' ').slice(0, 3).join(' ')}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const MobileProductCard = ({ material, company, isInCart, isFav, distanceKm, onOpen, onAdd, onToggleFav, onGoToCart, variant }: {
+    material: Material;
+    company?: Company;
+    isInCart: boolean;
+    isFav: boolean;
+    distanceKm?: number;
+    onOpen: () => void;
+    onAdd: (m: Material, qty: number) => void;
+    onToggleFav: () => void;
+    onGoToCart: () => void;
+    variant: 'list' | 'carousel';
+  }) => {
+    const [qty, setQty] = useState<number>(material.minOrder || 1);
+    const min = Math.max(1, material.minOrder || 1);
+    const outOfStock = material.quantity <= 0;
+    return (
+      <div className={'m-product-card ' + variant}>
+        <button className="m-pc-img" onClick={onOpen} aria-label="View details">
+          {renderProductImage(material.images, material.category, 'md')}
+        </button>
+        {!isFav && (
+          <button className="m-pc-fav" onClick={onToggleFav} aria-label="Save for later">❤️</button>
+        )}
+        <div className="m-pc-body">
+          <button className="m-pc-name" onClick={onOpen}>{material.name}</button>
+          <div className="m-pc-meta">
+            <span className="m-pc-chip">{material.category}</span>
+            {material.brand && <span className="m-pc-brand">{material.brand}</span>}
+          </div>
+          <div className="m-pc-supplier">{company?.name || 'Unknown'}{company?.city ? ' · ' + company.city : ''}</div>
+          {distanceKm != null && <div className="m-pc-distance">🚗 {distanceKm.toFixed(1)} km</div>}
+          <div className="m-pc-price-row">
+            <div className="m-pc-price">{formatCurrency(material.price)}<span className="m-pc-unit"> / {material.unit}</span></div>
+            <span className={outOfStock ? 'm-pc-stock out' : 'm-pc-stock'}>{outOfStock ? 'Out' : 'In stock'}</span>
+          </div>
+          {currentUser?.userType === 'customer' && (
+            <div className="m-pc-buy">
+              {isInCart ? (
+                <button className="m-pc-cart-btn" onClick={onGoToCart}>🛒 In Cart — Open</button>
+              ) : (
+                <>
+                  <div className="m-stepper">
+                    <button onClick={() => setQty(v => Math.max(min, v - min))} aria-label="Decrease">−</button>
+                    <span>{qty}</span>
+                    <button onClick={() => setQty(v => v + min)} aria-label="Increase">+</button>
+                  </div>
+                  <button className="m-pc-add-btn" disabled={outOfStock} onClick={() => onAdd(material, qty)}>Add</button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderHomeMobile = () => {
+    const isCustomer = currentUser?.userType === 'customer';
+    const isCompany = currentUser?.userType === 'company';
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    const stats = calculateStats();
+    const myOrders = currentUser
+      ? orders.filter(o => {
+          if (currentUser.userType === 'company') {
+            const comp = getCompanyByUserId(currentUser.id);
+            return comp && o.companyId === comp.id;
+          }
+          return o.customerId === currentUser.id;
+        })
+      : [];
+    const activeOrders = myOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
+    const trending = [...materials].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 8);
+    const recentOrders = isCustomer ? myOrders.slice(0, 3) : [];
+    const favouriteMaterials = currentUser ? favorites.map(id => getMaterialById(id)).filter((m): m is Material => Boolean(m)).slice(0, 8) : [];
+
+    const Quick = ({ icon, label, sub, onClick, badge }: { icon: string; label: string; sub: string; onClick: () => void; badge?: number }) => (
+      <button className="m-quick-item" onClick={onClick}>
+        <span className="m-quick-icon">{icon}</span>
+        <span className="m-quick-label">{label}</span>
+        <span className="m-quick-sub">{sub}</span>
+        {badge ? <span className="m-quick-badge">{badge}</span> : null}
+      </button>
+    );
+
+    return (
+      <main className="main-content mobile-home">
+        <section className="m-hero">
+          <div className="m-hero-top">
+            <div>
+              <div className="m-hero-greeting">{greeting}{currentUser ? ', ' + currentUser.name.split(' ')[0] : ' 👋'}</div>
+              <div className="m-hero-role">
+                {currentUser ? (isCompany ? 'Supplier' : isCustomer ? 'Customer' : 'Administrator') : "Explore Ethiopia's materials marketplace"}
+              </div>
+            </div>
+            <span className="m-hero-flag">🇪🇹</span>
+          </div>
+
+          {currentUser ? (
+            <div className="m-hero-stats">
+              <div className="m-hero-stat">
+                <span className="m-hero-stat-val">{activeOrders.length}</span>
+                <span className="m-hero-stat-lbl">Active</span>
+              </div>
+              <div className="m-hero-stat">
+                <span className="m-hero-stat-val">{stats.deliveredOrders}</span>
+                <span className="m-hero-stat-lbl">Delivered</span>
+              </div>
+              <div className="m-hero-stat">
+                <span className="m-hero-stat-val">{formatCurrency(stats.totalRevenue)}</span>
+                <span className="m-hero-stat-lbl">{isCompany ? 'Revenue' : 'Spent'}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="m-hero-cta">
+              <button className="m-hero-btn primary" onClick={() => navigateTo('register')}>Create Account</button>
+              <button className="m-hero-btn ghost" onClick={() => navigateTo('login')}>Login</button>
+            </div>
+          )}
+        </section>
+
+        {!currentUser && (
+          <div className="m-quick-grid">
+            <Quick icon="🔍" label="Browse" sub="Compare prices" onClick={() => navigateTo('search-materials')} />
+            <Quick icon="🗺️" label="Supplier Map" sub="Nearby suppliers" onClick={() => setShowSupplierMap(true)} />
+            <Quick icon="📲" label="Install App" sub="Offline access" onClick={() => setShowInstallGuide(true)} />
+            <Quick icon="👤" label="Sign in" sub="Track orders" onClick={() => navigateTo('login')} />
+          </div>
+        )}
+
+        {currentUser && isCustomer && (
+          <div className="m-quick-grid">
+            <Quick icon="🔍" label="Find" sub="Materials" onClick={() => navigateTo('search-materials')} />
+            <Quick icon="🛒" label="Cart" sub={cart.length + ' items'} badge={cart.reduce((s, i) => s + i.quantity, 0)} onClick={handleCheckout} />
+            <Quick icon="📦" label="Orders" sub={myOrders.length + ' total'} onClick={() => navigateTo('orders')} />
+            <Quick icon="🗺️" label="Map" sub="Suppliers" onClick={() => setShowSupplierMap(true)} />
+          </div>
+        )}
+        {currentUser && isCompany && (
+          <div className="m-quick-grid">
+            <Quick icon="📦" label="Products" sub={materials.filter(m => m.companyId === getCompanyByUserId(currentUser.id)?.id).length + ' listed'} onClick={() => navigateTo('company-dashboard')} />
+            <Quick icon="➕" label="Add Product" sub="List new item" onClick={() => navigateTo('add-material')} />
+            <Quick icon="📦" label="Orders" sub={myOrders.length + ' total'} onClick={() => navigateTo('orders')} />
+            <Quick icon="🗺️" label="Map" sub="Suppliers" onClick={() => setShowSupplierMap(true)} />
+          </div>
+        )}
+
+        {favouriteMaterials.length > 0 && (
+          <section className="m-section">
+            <div className="m-section-head">
+              <h3>❤️ Saved for later</h3>
+              <button className="m-section-more" onClick={() => navigateTo('search-materials')}>See all</button>
+            </div>
+            <div className="m-saved-strip">
+              {favouriteMaterials.map(m => (
+                <button key={m.id} className="m-saved-chip" onClick={() => setSelectedMaterial(m)}>
+                  {renderProductImage(m.images, m.category, 'xs')}
+                  <span>{m.name.split(' ').slice(0, 3).join(' ')}</span>
+                  <strong>{formatCurrency(m.price)}</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="m-section">
+          <div className="m-section-head">
+            <h3 className="m-trending-title">🚀 Trending products</h3>
+            <button className="m-section-more" onClick={() => navigateTo('search-materials')}>Browse all</button>
+          </div>
+          {trending.length === 0 ? (
+            <div className="no-results glass"><p>No products listed yet.</p></div>
+          ) : (
+            <div className="m-carousel">
+              {trending.map(m => {
+                const company = getCompanyById(m.companyId);
+                return (
+                  <div key={m.id} className="m-carousel-item">
+                    <MobileProductCard
+                      material={m}
+                      company={company}
+                      isInCart={cart.some(c => c.materialId === m.id)}
+                      isFav={favorites.includes(m.id)}
+                      onOpen={() => setSelectedMaterial(m)}
+                      onAdd={(mat, q) => { addToCart(mat, q); }}
+                      onToggleFav={() => toggleFavorite(m.id)}
+                      onGoToCart={handleCheckout}
+                      variant="carousel"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {recentOrders.length > 0 && (
+          <section className="m-section">
+            <div className="m-section-head">
+              <h3>📦 Recent orders</h3>
+              <button className="m-section-more" onClick={() => navigateTo('orders')}>All orders</button>
+            </div>
+            <div className="m-recent-orders">
+              {recentOrders.map(order => {
+                const m = getMaterialById(order.materialId);
+                return (
+                  <div key={order.id} className="m-recent-order">
+                    <div className="m-recent-order-icon">{m ? renderProductImage(m.images, m.category, 'xs') : null}</div>
+                    <div className="m-recent-order-info">
+                      <strong>{m?.name || order.materialId}</strong>
+                      <small>{order.quantity} {m?.unit || ''} · {formatCurrency(order.totalAmount)}</small>
+                    </div>
+                    <span className={'m-status-pill ' + order.status}>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {!isCustomer && !isCompany && currentUser && (
+          <section className="m-section">
+            <div className="m-section-head">
+              <h3>⚙️ Administration</h3>
+              <button className="m-section-more" onClick={() => navigateTo('settings')}>Settings</button>
+            </div>
+            <div className="m-quick-grid">
+              <Quick icon="🔍" label="Search" sub="All materials" onClick={() => navigateTo('search-materials')} />
+              <Quick icon="📦" label="Orders" sub="Platform orders" onClick={() => navigateTo('orders')} />
+            </div>
+          </section>
+        )}
+      </main>
+    );
+  };
+
+  const renderOrdersMobile = () => {
+    const isCompany = currentUser?.userType === 'company';
+    const userOrders = isCompany ? orders.filter(o => {
+      const comp = getCompanyByUserId(currentUser!.id);
+      return comp && o.companyId === comp.id;
+    }) : orders.filter(o => o.customerId === currentUser?.id);
+    const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
+
+    return (
+      <main className="main-content mobile-orders">
+        <div className="mobile-page-head">
+          <h2>{isCompany ? 'Order Management' : 'My Orders'}</h2>
+          <p>{userOrders.length} orders · {formatCurrency(totalValue)}</p>
+        </div>
+        {userOrders.length === 0 ? (
+          <div className="no-orders glass">No orders yet</div>
+        ) : (
+          <div className="m-order-list">
+            {userOrders.map(order => {
+              const m = getMaterialById(order.materialId);
+              const customer = getUserById(order.customerId);
+              return (
+                <div key={order.id} className="m-order-card glass">
+                  <div className="m-order-top">
+                    <div className="m-order-prod">
+                      {m ? renderProductImage(m.images, m.category, 'sm') : null}
+                      <div>
+                        <strong>{m?.name || order.materialId}</strong>
+                        <small>Order {order.id}</small>
+                      </div>
+                    </div>
+                    <span className={'m-status-pill ' + order.status}>
+                      {order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}
+                    </span>
+                  </div>
+                  <OrderTimeline status={order.status} size="sm" />
+                  {isCompany && customer && (
+                    <div className="m-order-customer">👤 {customer.name} · 📍 {customer.city}</div>
+                  )}
+                  <div className="m-order-meta">
+                    <span>{order.quantity} {m?.unit || ''} × {formatCurrency(order.unitPrice)}</span>
+                    <span>🚚 {formatCurrency(order.transportCost)}</span>
+                    <strong>Total {formatCurrency(order.totalAmount)}</strong>
+                    <small>{formatDate(order.orderDate)}</small>
+                  </div>
+                  <div className="m-order-actions">
+                    {!isCompany && (
+                      <button className="m-order-btn" onClick={() => handleQuickReorder(order.materialId)}>🔄 Reorder</button>
+                    )}
+                    {isCompany && order.status === 'pending' && (
+                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm Order</button>
+                    )}
+                    <button className="m-order-btn" onClick={handleExportOrders}>📥 Export</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    );
+  };
+
+  const renderMobileDashboard = (isCompanyPage: boolean) => {
+    const stats = calculateStats();
+    if (isCompanyPage) {
+      if (!currentUser || currentUser.userType !== 'company') {
+        return (
+          <main className="main-content">
+            <div className="alert alert-danger">⚠️ Access denied.</div>
+          </main>
+        );
+      }
+      const company = getCompanyByUserId(currentUser.id);
+      const companyMaterials = materials.filter(m => m.companyId === company?.id);
+      const companyOrders = orders.filter(o => company && o.companyId === company.id);
+      return (
+        <main className="main-content mobile-dashboard">
+          <div className="mobile-page-head">
+            <h2>🏢 {company?.name}</h2>
+            <p>Supplier Dashboard</p>
+          </div>
+          <div className="m-stat-grid">
+            <div className="m-stat-tile"><span className="m-stat-icon">📦</span><strong>{companyMaterials.length}</strong><small>Products</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon">📊</span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon">⏳</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon">💰</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Revenue</small></div>
+          </div>
+          <div className="m-section">
+            <div className="m-section-head">
+              <h3>📦 Your products</h3>
+              <button className="m-section-more" onClick={() => navigateTo('add-material')}>+ Add</button>
+            </div>
+            {companyMaterials.length === 0 ? (
+              <div className="no-results glass"><p>No products yet — add your first one.</p></div>
+            ) : (
+              <div className="m-dash-list">
+                {companyMaterials.map(m => (
+                  <div key={m.id} className="m-dash-row">
+                    {renderProductImage(m.images, m.category, 'sm')}
+                    <div className="m-dash-row-info">
+                      <strong>{m.name}</strong>
+                      <small>{m.category} · {m.quantity} in stock</small>
+                    </div>
+                    <strong className="m-dash-row-price">{formatCurrency(m.price)}</strong>
+                    <button className="btn-icon edit" onClick={() => handleEditMaterial(m)}>✏️</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleEditCompany}>✏️ Edit Company Profile</button>
+          <div className="m-section">
+            <div className="m-section-head">
+              <h3>📦 Recent orders</h3>
+              <button className="m-section-more" onClick={() => navigateTo('orders')}>All</button>
+            </div>
+            {companyOrders.length === 0 ? (
+              <div className="no-results glass"><p>No orders yet.</p></div>
+            ) : (
+              <div className="m-recent-orders">
+                {companyOrders.slice(0, 4).map(order => {
+                  const m = getMaterialById(order.materialId);
+                  return (
+                    <div key={order.id} className="m-recent-order">
+                      {m ? renderProductImage(m.images, m.category, 'xs') : null}
+                      <div className="m-recent-order-info">
+                        <strong>{m?.name || order.materialId}</strong>
+                        <small>{order.quantity} {m?.unit || ''} · {formatCurrency(order.totalAmount)}</small>
+                      </div>
+                      <span className={'m-status-pill ' + order.status}>{order.status}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </main>
+      );
+    }
+
+    if (!currentUser || currentUser.userType !== 'customer') {
+      return (
+        <main className="main-content">
+          <div className="alert alert-danger">⚠️ Access denied.</div>
+        </main>
+      );
+    }
+    const userOrders = orders.filter(o => o.customerId === currentUser.id);
+    return (
+      <main className="main-content mobile-dashboard">
+        <div className="mobile-page-head">
+          <h2>👤 Hi, {currentUser.name}</h2>
+          <p>Customer Dashboard</p>
+        </div>
+        <div className="m-stat-grid">
+          <div className="m-stat-tile"><span className="m-stat-icon">📦</span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
+          <div className="m-stat-tile"><span className="m-stat-icon">⏳</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
+          <div className="m-stat-tile"><span className="m-stat-icon">✅</span><strong>{stats.deliveredOrders}</strong><small>Delivered</small></div>
+          <div className="m-stat-tile"><span className="m-stat-icon">💰</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Spent</small></div>
+        </div>
+        <div className="m-quick-grid">
+          <div className="m-section-head" style={{ gridColumn: '1 / -1' }}>
+            <h3>📋 Recent orders</h3>
+            <button className="m-section-more" onClick={() => navigateTo('orders')}>All</button>
+          </div>
+        </div>
+        {userOrders.length === 0 ? (
+          <div className="no-results glass"><p>No orders yet — start shopping!</p></div>
+        ) : (
+          <div className="m-recent-orders">
+            {userOrders.slice(0, 4).map(order => {
+              const m = getMaterialById(order.materialId);
+              return (
+                <div key={order.id} className="m-recent-order">
+                  {m ? renderProductImage(m.images, m.category, 'xs') : null}
+                  <div className="m-recent-order-info">
+                    <strong>{m?.name || order.materialId}</strong>
+                    <small>{order.quantity} {m?.unit || ''} · {formatCurrency(order.totalAmount)}</small>
+                  </div>
+                  <span className={'m-status-pill ' + order.status}>{order.status}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <button className="m-order-btn primary" style={{ width: '100%' }} onClick={() => navigateTo('search-materials')}>🔍 Find Products</button>
+      </main>
+    );
+  };
+
   // ---------- Current page router ----------
   const renderCurrentPage = () => {
     if (showSplash) return renderSplash();
@@ -1680,8 +2322,8 @@ function App() {
 
   // ---------- Main render ----------
   return (
-    <div className={'app-container ' + (darkMode ? 'dark-mode' : '')}>
-      {renderHeader()}
+    <div className={'app-container ' + (darkMode ? 'dark-mode' : '') + (isMobile ? ' mobile-view' : '')}>
+      {isMobile ? renderMobileTopBar() : renderHeader()}
       {renderAlert()}
 
       {/* PWA Install Banner */}
@@ -1806,7 +2448,8 @@ function App() {
       )}
 
       </div>
-      {renderFooter()}
+      {isMobile ? renderMobileBottomNav() : renderFooter()}
+      {isMobile && renderMobileMoreSheet()}
     </div>
   );
 }
