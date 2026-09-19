@@ -29,6 +29,8 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
   const leafletMap = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [locateStatus, setLocateStatus] = useState<'idle' | 'locating' | 'granted' | 'denied' | 'unavailable' | 'timeout' | 'unsupported'>('idle');
+  const locateTimeoutRef = useRef<number | null>(null);
 
   const getAddress = useCallback(async (lat: number, lng: number) => {
     try {
@@ -41,6 +43,47 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
       console.warn('Reverse geocoding failed', error);
     }
   }, []);
+
+  // Locate Me — browser geolocation with graceful handling of every
+  // permission outcome instead of an uncaught rejection.
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      setLocateStatus('unsupported');
+      return;
+    }
+    setLocateStatus('locating');
+    if (locateTimeoutRef.current) window.clearTimeout(locateTimeoutRef.current);
+    const timeoutId = window.setTimeout(() => {
+      setLocateStatus('timeout');
+    }, 10000);
+    locateTimeoutRef.current = timeoutId;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (locateTimeoutRef.current) window.clearTimeout(locateTimeoutRef.current);
+        const { latitude, longitude } = position.coords;
+        leafletMap.current?.setView([latitude, longitude], 16);
+        placeMarker(latitude, longitude);
+        setLocateStatus('granted');
+      },
+      (error) => {
+        if (locateTimeoutRef.current) window.clearTimeout(locateTimeoutRef.current);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocateStatus('denied');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setLocateStatus('unavailable');
+            break;
+          case error.TIMEOUT:
+            setLocateStatus('timeout');
+            break;
+          default:
+            setLocateStatus('unavailable');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+  };
 
   const placeMarker = useCallback((lat: number, lng: number) => {
     if (markerRef.current) {
@@ -128,8 +171,37 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
           <form onSubmit={handleSearch}>
             <input type="text" placeholder="Search for a location..." className="search-input" />
             <button type="submit" className="btn-primary">🔍 Search</button>
+            <button
+              type="button"
+              className="btn-locate-me"
+              onClick={handleLocateMe}
+              disabled={locateStatus === 'locating'}
+            >
+              {locateStatus === 'locating' ? '⏳ Locating…' : '🎯 Locate Me'}
+            </button>
           </form>
         </div>
+
+        {locateStatus === 'denied' && (
+          <div className="locate-me-notice danger">
+            ⛔ Location permission was denied. Allow location in your browser settings, or click the map to pick your location manually.
+          </div>
+        )}
+        {locateStatus === 'unavailable' && (
+          <div className="locate-me-notice warning">
+            ⚠️ Your current position is unavailable. You can still click the map to select a location.
+          </div>
+        )}
+        {locateStatus === 'timeout' && (
+          <div className="locate-me-notice warning">
+            ⏳ Locating timed out. Position may be weak — check GPS/Wi-Fi, or click the map to select a location.
+          </div>
+        )}
+        {locateStatus === 'unsupported' && (
+          <div className="locate-me-notice warning">
+            ℹ️ This browser does not support geolocation. Click the map to select a location instead.
+          </div>
+        )}
 
         <div className="map-picker-container">
           <div ref={mapRef} style={{ height: '400px', width: '100%' }}></div>

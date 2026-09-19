@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
@@ -9,11 +9,16 @@ import {
   safeLocalStorage, formatCurrency, formatDate,
   calculateDistance, calculateTransportCost, isUserLocked,
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
-  geocodeAddress
+  geocodeAddress, computeDeliveryFee, checkMinOrder,
+  decodeProformaPayload
 } from './utils';
+import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import EditCompany from './components/EditCompany';
 import DateTime from './components/DateTime';
 import ProformaInvoice from './components/ProformaInvoice';
+import PublicProforma from './components/PublicProforma';
+import InstallGuide from './components/InstallGuide';
+import AdminSettings from './components/AdminSettings';
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
@@ -48,8 +53,27 @@ function App() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(true);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [publicProformaData, setPublicProformaData] = useState<ProformaShareData | null>(null);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => loadSettings());
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // ---------- Proforma QR deep-link (#escon=payload) ----------
+  // Decode the compact payload embedded in a QR code and open the
+  // mobile-friendly proforma view directly, whatever page the user is on.
+  useEffect(() => {
+    const handleHash = () => {
+      const match = window.location.hash.match(/^#escon=(.+)$/);
+      if (match) {
+        const data = decodeProformaPayload(match[1]);
+        if (data) setPublicProformaData(data);
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   // ---------- PWA Install prompt ----------
   useEffect(() => {
@@ -207,8 +231,19 @@ function App() {
       const init = async () => {
         const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
         setCompanies(enrichedCompanies);
-        if (savedUsers) setUsers(JSON.parse(savedUsers));
-        else { setUsers(sampleUsers); safeLocalStorage.setItem('users', JSON.stringify(sampleUsers)); }
+        if (savedUsers) {
+          const parsedUsers = JSON.parse(savedUsers) as User[];
+          // Guarantee the platform administrator always exists, even for
+          // installations that predate the admin role.
+          if (!parsedUsers.some(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
+            parsedUsers.push(ADMIN_USER);
+          }
+          setUsers(parsedUsers);
+        } else {
+          const seededUsers = [...sampleUsers, ADMIN_USER];
+          setUsers(seededUsers);
+          safeLocalStorage.setItem('users', JSON.stringify(seededUsers));
+        }
         if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
         else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
         if (savedOrders) setOrders(JSON.parse(savedOrders));
@@ -410,6 +445,13 @@ function App() {
     showAlert('Company profile updated successfully! ✅', 'success');
   };
 
+  // ---------- System settings (admin) ----------
+  const handleSaveAdminSettings = (nextSettings: SystemSettings): void => {
+    setSystemSettings(nextSettings);
+    saveSettings(nextSettings);
+    showAlert('Platform settings saved and applied ✅', 'success');
+  };
+
   // ---------- Material CRUD ----------
   const handleAddMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
@@ -532,7 +574,15 @@ function App() {
       if (company) {
         const weight = (material.specifications?.weightPerUnit || 0.001) * material.minOrder;
         distance = await calculateDistance(company.lat, company.lng, currentUser?.lat || 9.0320, currentUser?.lng || 38.7469);
-        estimatedTransport = await calculateTransportCost(company.lat, company.lng, currentUser?.lat || 9.0320, currentUser?.lng || 38.7469, weight);
+        // Delivery estimate is driven by SystemSettings (fixed/distance/zones).
+        estimatedTransport = await computeDeliveryFee({
+          supplierLat: company.lat, supplierLng: company.lng,
+          customerLat: currentUser?.lat || 9.0320, customerLng: currentUser?.lng || 38.7469,
+          customerCity: currentUser?.city || null,
+          weightTons: weight,
+          orderSubtotal: material.price * material.minOrder,
+          settings: systemSettings,
+        });
       }
       const totalCost = material.price + ((estimatedTransport || 0) / material.minOrder);
       return { ...material, company, totalCost, estimatedTransport, distance };
@@ -548,7 +598,7 @@ function App() {
     });
     setSearchResults(resultsWithCost);
     setIsSearchPerformed(true);
-  }, [formData, materials, currentUser, getCompanyById]);
+  }, [formData, materials, currentUser, getCompanyById, systemSettings]);
 
   useEffect(() => {
     if (currentPage !== 'search-materials') return;
@@ -663,6 +713,7 @@ function App() {
     setIsCalculating(true);
     let subtotal = 0, vatAmount = 0, transportCost = 0;
     const supplierMap = new Map<string, CartSupplier>();
+    const settings = systemSettings;
     for (const item of cart) {
       const supplierCompany = getCompanyById(item.supplierId);
       if (!supplierCompany) continue;
@@ -671,11 +722,15 @@ function App() {
       subtotal += itemTotal;
       vatAmount += itemTotal * (item.vatPercentage / 100);
       const weight = (item.weightPerUnit || 0.001) * item.quantity;
-      const transCost = await calculateTransportCost(
-        supplierCompany.lat, supplierCompany.lng,
-        currentUser.lat || 9.0320, currentUser.lng || 38.7469,
-        weight
-      );
+      // Per-supplier delivery fee resolved from SystemSettings.
+      const transCost = await computeDeliveryFee({
+        supplierLat: supplierCompany.lat, supplierLng: supplierCompany.lng,
+        customerLat: currentUser.lat || 9.0320, customerLng: currentUser.lng || 38.7469,
+        customerCity: currentUser.city || null,
+        weightTons: weight,
+        orderSubtotal: subtotal,
+        settings,
+      });
       transportCost += transCost;
       const dist = await calculateDistance(
         supplierCompany.lat, supplierCompany.lng,
@@ -700,6 +755,8 @@ function App() {
     const total = subtotal + vatAmount + transportCost;
     const multiple = suppliers.length > 1;
     const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
+    const minOrderCheck = checkMinOrder(settings, subtotal);
+    const threshold = settings.delivery.freeDeliveryThreshold;
     setIsCalculating(false);
     return {
       items: cart,
@@ -714,7 +771,11 @@ function App() {
       itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
       uniqueItems: cart.length,
       currency: 'ETB',
-      reportDate: new Date().toLocaleString()
+      reportDate: new Date().toLocaleString(),
+      freeDeliveryApplied: transportCost === 0 && threshold > 0 && subtotal >= threshold,
+      minOrderEnabled: minOrderCheck.enabled,
+      minOrderAmount: minOrderCheck.amount,
+      belowMinOrder: minOrderCheck.below,
     };
   };
 
@@ -739,6 +800,13 @@ function App() {
     if (cart.length === 0) return;
     const totals = await calculateCartTotals();
     if (!totals) return;
+    // Block submission when the configured minimum-order rule is not met so
+    // the customer cannot accidentally create an unfulfillable order.
+    if (totals.minOrderEnabled && totals.belowMinOrder) {
+      showAlert('This order is below the minimum of ' + formatCurrency(totals.minOrderAmount || 0) + '. Please add more items.', 'danger');
+      setShowCartSummary(true);
+      return;
+    }
     setIsCalculating(true);
     for (const item of cart) {
       const material = getMaterialById(item.materialId);
@@ -1017,6 +1085,7 @@ function App() {
 
   const renderUserNav = () => {
     const isCompany = currentUser?.userType === 'company';
+    const isAdmin = currentUser?.userType === 'admin';
     return (
       <>
         <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
@@ -1032,9 +1101,12 @@ function App() {
         )}
         <button className={'nav-link ' + (currentPage === 'orders' ? 'active' : '')} onClick={() => navigateTo('orders')}>Orders</button>
         <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>Map</button>
+        {isAdmin && (
+          <button className={'nav-link ' + (currentPage === 'settings' ? 'active' : '')} onClick={() => navigateTo('settings')}>⚙️ Settings</button>
+        )}
         <div className="user-info">
           <div className="user-avatar">{currentUser?.name?.charAt(0).toUpperCase()}</div>
-          <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{currentUser?.userType === 'company' ? 'Supplier' : 'Customer'}</div></div>
+          <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{isAdmin ? 'Admin' : isCompany ? 'Supplier' : 'Customer'}</div></div>
           <button className="btn-logout" onClick={handleLogout}>Logout</button>
         </div>
       </>
@@ -1097,9 +1169,31 @@ function App() {
                   ) : (
                     <div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
                   )}
+                  {cartDetails.freeDeliveryApplied && (
+                    <div className="summary-row free-delivery-row"><span>🎉 Free delivery applied (order above threshold):</span><span>ETB 0.00</span></div>
+                  )}
                   <div className="summary-row total"><span>Total Amount:</span><span>{formatCurrency(cartDetails.total)}</span></div>
+                  {cartDetails.minOrderEnabled && (
+                    cartDetails.belowMinOrder ? (
+                      <div className="min-order-notice error">
+                        ⚠️ This order is below the minimum of {formatCurrency(cartDetails.minOrderAmount || 0)} in goods value. Add {formatCurrency((cartDetails.minOrderAmount || 0) - cartDetails.subtotal)} more to proceed.
+                      </div>
+                    ) : (
+                      <div className="min-order-notice ok">✅ Meets the minimum order requirement of {formatCurrency(cartDetails.minOrderAmount || 0)}.</div>
+                    )
+                  )}
                 </div>
-                <div className="cart-actions"><button className="btn-secondary" onClick={clearCart}>Clear Cart</button><button className="btn-primary" onClick={confirmOrder} disabled={isCalculating}>{isCalculating ? 'Calculating...' : 'Confirm Order ✅'}</button></div>
+                <div className="cart-actions">
+                  <button className="btn-secondary" onClick={clearCart}>Clear Cart</button>
+                  <button
+                    className="btn-primary"
+                    onClick={confirmOrder}
+                    disabled={isCalculating || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
+                    title={cartDetails.minOrderEnabled && cartDetails.belowMinOrder ? 'Minimum order not met' : ''}
+                  >
+                    {isCalculating ? 'Calculating...' : 'Confirm Order ✅'}
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -1543,7 +1637,7 @@ function App() {
       <footer className="footer glass">
         <div className="footer-content">
           <div className="footer-section"><h3>E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
-          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button></div>
+          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button><button onClick={() => setShowInstallGuide(true)}>📲 Install App</button></div>
           <div className="footer-section"><h3>Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>{c}</span>)}</div></div>
           <div className="footer-section"><h3>Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
         </div>
@@ -1573,6 +1667,13 @@ function App() {
       case 'edit-material': return renderEditMaterial();
       case 'search-materials': return renderSearchMaterials();
       case 'orders': return renderOrders();
+      case 'settings': return (
+        currentUser?.userType === 'admin' ? (
+          <AdminSettings settings={systemSettings} onSave={handleSaveAdminSettings} />
+        ) : (
+          <div className="main-content"><div className="admin-settings glass"><h2>⛔ Access restricted</h2><p>Only platform administrators can change system settings.</p></div></div>
+        )
+      );
       default: return renderHome();
     }
   };
@@ -1595,9 +1696,27 @@ function App() {
           </div>
           <div className="pwa-install-actions">
             <button className="btn btn-primary btn-sm" onClick={handleInstallPWA}>Install</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowInstallGuide(true)}>How to install</button>
             <button className="pwa-install-dismiss" onClick={dismissInstallBanner} title="Dismiss">✕</button>
           </div>
         </div>
+      )}
+
+      {/* Install guide modal — always reachable via ?install link behaviour */}
+      {showInstallGuide && <InstallGuide onClose={() => setShowInstallGuide(false)} />}
+
+      {/* Public proforma opened by scanning a QR code (#escon=...) */}
+      {publicProformaData && (
+        <PublicProforma
+          data={publicProformaData}
+          onClose={() => {
+            setPublicProformaData(null);
+            if (window.location.hash) {
+              // Fall back to the app home page without closing the tab
+              window.location.hash = '#home';
+            }
+          }}
+        />
       )}
 
       <div className={'page-transition ' + (pageAnimating ? 'page-enter' : '')}>

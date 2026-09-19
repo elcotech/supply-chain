@@ -19,20 +19,28 @@ npm run build    # production build → ./build
 
 | Role     | Email example                     | Password |
 | -------- | --------------------------------- | -------- |
+| Admin    | `admin@escon.et`                  | `admin123` |
 | Supplier | `zhiruyanduamlak062@gmail.com`    | `0909`   |
 | Customer | pick any user from the login list | `0909`   |
+
+The **Admin** account configures the delivery-fee model, delivery zones, free-delivery threshold and minimum-order rule on the ⚙️ Settings page.
 
 ## Key features
 
 - 🔍 Live search & filtering (department, city, price, sort)
 - 🗺️ Leaflet supplier map with **OSRM driving routes**, distance & delivery cost
 - 🚗 **Click a product → map opens with the route & distance immediately**
+- 🎯 **Locate Me** button on the maps (with friendly handling of denied/unavailable GPS)
 - 📷 **Product photos** (up to 6 per product, base64 stored locally)
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
-- 🛒 Multi-supplier cart with collective proforma (all items, per-supplier delivery fees), VAT, checkout → orders
+- 🛒 Multi-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), VAT, configurable delivery fees & minimum order, checkout → orders
+- 🔍 **Scannable QR proforma** — scanning the invoice QR opens a mobile-friendly view of the order (works from paper)
+- ⚙️ **Admin platform settings** — delivery pricing, zones, free delivery & minimum order, no code changes needed
+- 📲 **Installable PWA** with offline support and a device-specific install guide
 - 📊 Supplier & customer dashboards, order management
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports
+- ✅ Unit tests for fees, formatting, settings and QR payloads
 - 🌙 Dark / light themes, 📱 fully responsive & touch-friendly
 
 ---

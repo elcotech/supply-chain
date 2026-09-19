@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
-import { CartItem, CartReport, User, Company } from '../types';
+import { CartItem, CartReport, User, Company, ProformaShareData } from '../types';
+import { formatCurrency, generateProformaQrDataUrl, checkMinOrder } from '../utils';
+import { loadSettings } from '../settings';
 
 export interface ProformaSupplier extends Company {
   transportCost: number;
@@ -34,13 +35,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     'This is a proforma invoice, not a tax invoice.\nPayment terms: 50% advance, 50% on delivery.'
   );
   const [qrDataUrl, setQrDataUrl] = useState('');
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-      minimumFractionDigits: 2,
-    }).format(amount);
+  const [qrStatus, setQrStatus] = useState<'generating' | 'ready' | 'failed'>('generating');
 
   const formatDateTime = (date: Date) => ({
     date: date.toLocaleDateString('en-GB', {
@@ -64,23 +59,34 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     '-' +
     String(now.getTime()).slice(-6);
 
-  // Stable QR payload so the printed Proforma can be identified / verified
+  // QR encodes a URL + compact, non-sensitive proforma data so it works both on
+  // screen and when paper-printed — scanning opens a mobile-friendly view.
   useEffect(() => {
-    const supplierIds = suppliers.length > 0
-      ? suppliers.map((s) => s.id).join(',')
-      : (supplier?.id || '');
-    const payload = [
-      'ESCON-PROFORMA',
-      'NO=' + proformaNumber,
-      'SUPPLIER=' + supplierIds,
-      'BUYER=' + (currentUser?.id || ''),
-      'TOTAL=' + report.total.toFixed(2),
-      'CURRENCY=ETB',
-      'DATE=' + now.toISOString().split('T')[0],
-    ].join('|');
-    QRCode.toDataURL(payload, { width: 120, margin: 1 })
-      .then(setQrDataUrl)
-      .catch(() => setQrDataUrl(''));
+    let cancelled = false;
+    const items = (report.items || cart).map(i => ({
+      n: i.materialName,
+      u: i.unit,
+      q: i.quantity,
+      p: Math.round((i.basePrice * (1 + i.profitMargin)) * 100) / 100,
+    }));
+    const shareData: ProformaShareData = {
+      v: 1,
+      n: proformaNumber,
+      d: now.toISOString().split('T')[0],
+      b: currentUser?.name || 'Customer',
+      s: (suppliers.length > 0 ? suppliers : []).map(s => ({ n: s.name, c: s.city })),
+      i: items.slice(0, 40),
+      sub: Math.round(report.subtotal * 100) / 100,
+      vat: Math.round(report.vatAmount * 100) / 100,
+      del: Math.round(report.transportCost * 100) / 100,
+      tot: Math.round(report.total * 100) / 100,
+      c: 'ETB',
+    };
+    setQrStatus('generating');
+    generateProformaQrDataUrl(shareData)
+      .then(url => { if (!cancelled) { setQrDataUrl(url); setQrStatus('ready'); } })
+      .catch(() => { if (!cancelled) { setQrDataUrl(''); setQrStatus('failed'); } });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -89,6 +95,11 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     .filter((i) => i.minOrder > 1)
     .map((i) => i.materialName + ': ' + i.minOrder + ' ' + i.unit)
     .join(' · ');
+
+  // Minimum-order visibility — warn inside the document too, so the customer
+  // learns about the rule before committing, not after submission.
+  const settings = loadSettings();
+  const minOrderCheck = checkMinOrder(settings, report.subtotal);
 
   const handlePrint = () => {
     window.print();
@@ -353,6 +364,17 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           <div className="proforma-divider" />
 
+          {/* Minimum-order advisory (only when the rule is enabled) */}
+          {minOrderCheck.enabled && (
+            <div className={(minOrderCheck.below ? 'min-order-warning' : 'min-order-ok')}>
+              {minOrderCheck.below ? (
+                <>⚠️ Order below minimum. Minimum goods value: {formatCurrency(minOrderCheck.amount)} — your subtotal is {formatCurrency(minOrderCheck.subtotal)}.</>
+              ) : (
+                <>✅ Meets minimum order requirement ({formatCurrency(minOrderCheck.amount)}).</>
+              )}
+            </div>
+          )}
+
           {/* Terms & Conditions — compact, side-by-side columns */}
           <div className="proforma-terms">
             <h4>📜 Terms & Conditions</h4>
@@ -402,27 +424,35 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             </div>
           </div>
 
-          {/* Footer — single date/time location is in the header; here only QR & contact */}
+          {/* Footer — only QR & contact (the E-SCON heading appears once, above) */}
           <div className="proforma-footer">
-            <p>🏗️ E-SCON — Ethio-Supply Chain Optimization Network</p>
+            <p>Ethio-Supply Chain Optimization Network</p>
             <p>
-              📧 meharinageb@gmail.com | 📱 +251909919154 | 🌐 www.e-scon.et
+              📧 meharinageb@gmail.com | 📱 +251909919154
             </p>
             <p className="proforma-footer-legal">
               This document was generated electronically and is valid without
               signature or stamp.
             </p>
             <div className="proforma-qr-block">
-              {qrDataUrl && (
-                <img
-                  className="proforma-qr-img"
-                  src={qrDataUrl}
-                  alt={'QR code to verify Proforma ' + proformaNumber}
-                />
+              {qrStatus === 'generating' && (
+                <p className="proforma-qr-caption">Generating QR code…</p>
               )}
-              <p className="proforma-qr-caption">
-                🔍 Scan to verify Proforma {proformaNumber}
-              </p>
+              {qrStatus === 'failed' && (
+                <p className="proforma-qr-caption">QR code unavailable.</p>
+              )}
+              {qrStatus === 'ready' && qrDataUrl && (
+                <>
+                  <img
+                    className="proforma-qr-img"
+                    src={qrDataUrl}
+                    alt={'QR code to view Proforma ' + proformaNumber}
+                  />
+                  <p className="proforma-qr-caption">
+                    🔍 Scan to view Proforma {proformaNumber}
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>

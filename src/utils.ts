@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { SystemSettings, ProformaShareData } from './types';
 
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
@@ -11,8 +12,16 @@ export const generateQRDataURL = (text: string, size: number = 120): Promise<str
   return QRCode.toDataURL(text, { width: size, margin: 1 });
 };
 
-export const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+// Single, consistent currency formatter used across cart, proforma, reports,
+// receipts and product pricing. Always renders "ETB 500.00" (never "ETH").
+// A custom formatter (rather than Intl 'en-ET', which is not a registered
+// locale in every engine) guarantees identical output on all devices.
+export const formatCurrency = (amount: number): string => {
+  const safe = typeof amount === 'number' && isFinite(amount) ? amount : 0;
+  const sign = safe < 0 ? '-' : '';
+  const formatted = Math.abs(safe)
+    .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${sign}ETB ${formatted}`;
 };
 
 export const formatDate = (dateStr: string) => {
@@ -59,6 +68,134 @@ export const calculateTransportCost = async (
 ): Promise<number> => {
   const distance = await calculateDistance(supplierLat, supplierLng, customerLat, customerLng);
   return fixedCost + (distance * variableCostPerKmPerTon * totalWeightTons);
+};
+
+export interface DeliveryFeeInput {
+  supplierLat: number;
+  supplierLng: number;
+  customerLat: number;
+  customerLng: number;
+  customerCity: string | null;
+  /** Combined weight for a single supplier's items (tonnes). */
+  weightTons: number;
+  /** Cart goods subtotal (before VAT & delivery) — used for free-delivery. */
+  orderSubtotal: number;
+  settings: SystemSettings;
+}
+
+/**
+ * Flexible delivery fee resolved from SystemSettings instead of being
+ * hard-coded. Supports:
+ *  - fixed fee (mode: 'fixed')
+ *  - distance-based fee (mode: 'distance-based')
+ *  - per-city delivery zones (flat override fee)
+ *  - free delivery above a configurable order threshold
+ */
+export const computeDeliveryFee = async (input: DeliveryFeeInput): Promise<number> => {
+  const s = input.settings.delivery;
+
+  // Free delivery above a configurable goods-subtotal threshold.
+  const threshold = numberOr(s.freeDeliveryThreshold, 0);
+  if (threshold > 0 && input.orderSubtotal >= threshold) return 0;
+
+  // Zone override: a flat fee for the customer's city wins over other modes.
+  let zoneFee: number | undefined;
+  if (input.customerCity) {
+    const zone = s.zones.find(z => z.cities.some(city => city.toLowerCase() === input.customerCity!.toLowerCase()));
+    if (zone) zoneFee = zone.fee;
+  }
+  if (zoneFee !== undefined) return Math.max(0, zoneFee);
+
+  if (s.mode === 'fixed') {
+    return Math.max(0, numberOr(s.fixedFee, 0));
+  }
+
+  const distance = await calculateDistance(
+    input.supplierLat, input.supplierLng,
+    input.customerLat, input.customerLng
+  );
+  const base = numberOr(s.distanceBaseFee, 0);
+  const perKmPerTon = numberOr(s.distancePerKmPerTon, 0);
+  return Math.max(0, base + distance * perKmPerTon * Math.max(input.weightTons, 0.001));
+};
+
+const numberOr = (value: number | undefined, fallback: number): number =>
+  typeof value === 'number' && isFinite(value) && value >= 0 ? value : fallback;
+
+export interface MinOrderCheck {
+  enabled: boolean;
+  amount: number;
+  subtotal: number;
+  below: boolean;
+  shortfall: number;
+}
+
+/**
+ * Evaluate whether a cart meets the configured minimum-order rule so the
+ * customer is warned BEFORE submitting instead of discovering it later.
+ */
+export const checkMinOrder = (settings: SystemSettings, goodsSubtotal: number): MinOrderCheck => {
+  const enabled = Boolean(settings.minOrder?.enabled);
+  const amount = enabled ? numberOr(settings.minOrder?.amount, 0) : 0;
+  const subtotal = typeof goodsSubtotal === 'number' && isFinite(goodsSubtotal) ? goodsSubtotal : 0;
+  const below = enabled && subtotal < amount;
+  return { enabled, amount, subtotal, below, shortfall: below ? amount - subtotal : 0 };
+};
+
+// ---------- QR / share payload for proformas & orders ----------
+// The QR encodes a URL (so scanning opens the app) AND the compact proforma
+// data (so it works anywhere, including printed copies scanned by any phone).
+
+const PAYLOAD_PREFIX = 'ESCON1';
+
+export const encodeProformaPayload = (data: ProformaShareData): string => {
+  const json = JSON.stringify(data);
+  let b64 = json;
+  if (typeof window !== 'undefined' && window.btoa) {
+    b64 = window.btoa(unescape(encodeURIComponent(json)));
+  } else {
+    b64 = Buffer.from(json, 'utf8').toString('base64'); // SSR/node fallback
+  }
+  return PAYLOAD_PREFIX + b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+export const decodeProformaPayload = (token: string): ProformaShareData | null => {
+  try {
+    let t = token.trim();
+    if (!t.startsWith(PAYLOAD_PREFIX)) return null;
+    t = t.slice(PAYLOAD_PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4 !== 0) t += '=';
+    let json: string;
+    if (typeof window !== 'undefined' && window.atob) {
+      json = decodeURIComponent(escape(window.atob(t)));
+    } else {
+      json = Buffer.from(t, 'base64').toString('utf8');
+    }
+    const data = JSON.parse(json) as ProformaShareData;
+    if (!data || data.n === undefined || !Array.isArray(data.i)) return null;
+    return data;
+  } catch (error) {
+    console.warn('Invalid proforma payload', error);
+    return null;
+  }
+};
+
+/**
+ * Build the full URL stored in the QR code. Scanning it with a phone camera
+ * opens this app (when hosted) and lands directly on the proforma view.
+ */
+export const buildProformaQrUrl = (data: ProformaShareData): string => {
+  const token = encodeProformaPayload(data);
+  const base =
+    typeof window !== 'undefined' && window.location && window.location.origin
+      ? window.location.origin + window.location.pathname
+      : '/';
+  return `${base}#escon=${token}`;
+};
+
+export const generateProformaQrDataUrl = async (data: ProformaShareData): Promise<string> => {
+  const url = buildProformaQrUrl(data);
+  return QRCode.toDataURL(url, { width: 160, margin: 1, errorCorrectionLevel: 'M' });
 };
 
 export const isUserLocked = (user: any) => {

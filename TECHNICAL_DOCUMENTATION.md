@@ -2,7 +2,7 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 3.0 (Animation & PWA Pass)
+> **Version:** 4.0 (Professional Business Pass)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -27,6 +27,8 @@
 15. [Building for Production & Deployment](#15-building-for-production--deployment)
 16. [Troubleshooting](#16-troubleshooting)
 17. [Extending the Project](#17-extending-the-project)
+18. [Testing](#18-testing-new-in-v4)
+19. [Instructions for the Next Programmer](#19-instructions-for-the-next-programmer)
 
 ---
 
@@ -96,10 +98,13 @@ npx tsc --noEmit
 
 | Role     | Email (pick from the login datalist) | Password |
 | -------- | ------------------------------------ | -------- |
+| Admin    | `admin@escon.et`                     | `admin123` |
 | Supplier | `zhiruyanduamlak062@gmail.com`       | `0909`   |
 | Customer | `abisha101999@gmail.com` (any user)  | `0909`   |
 
 New registrations default to password `0909` when left blank.
+
+> The **Admin** account is a seeded platform role. Only admins see the **⚙️ Settings** page where the delivery-fee model, delivery zones, free-delivery threshold and minimum-order rule are configured (see §10.16). It is created automatically on first load if missing.
 
 ---
 
@@ -108,23 +113,32 @@ New registrations default to password `0909` when left blank.
 ```
 supply-chain1/
 ├── public/
-│   ├── index.html          # HTML entry, fonts, Leaflet CDN CSS, viewport meta
-│   ├── manifest.json       # PWA manifest
+│   ├── index.html          # HTML entry, meta tags, fonts, Leaflet CDN CSS, PWA meta
+│   ├── manifest.json       # PWA manifest (standalone app, icons, shortcuts)
+│   ├── sw.js               # Custom service worker (pre-cache + network-first)
+│   ├── favicon.ico
+│   ├── logo192.png / logo512.png
 │   └── robots.txt
 ├── src/
-│   ├── index.tsx           # React root — renders <App/>
+│   ├── index.tsx           # React root — registers the service worker (production only)
 │   ├── index.css           # Minimal global styles
 │   ├── App.tsx             # Main application (state, routing, ALL pages)
 │   ├── App.css             # All styles (theming, layout, components, responsive, animations)
-│   ├── types.ts            # TypeScript interfaces (User, Company, Material, …)
+│   ├── types.ts            # TypeScript interfaces (User, Company, Material, SystemSettings, …)
 │   ├── constants.ts        # Sample data + city/unit/department lists
-│   ├── utils.ts            # Helpers: distance, costs, CSV, geocoding, formatting
+│   ├── settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
+│   ├── utils.ts            # Helpers: distance, fees, min-order, QR payloads, CSV, formatting
+│   ├── settings.test.ts    # Unit tests for SystemSettings persistence
+│   ├── utils.test.ts       # Unit tests for formatting, fees, min-order, QR payloads
 │   └── components/
-│       ├── MapComponent.tsx      # Full-screen Leaflet map with routes
-│       ├── MapPicker.tsx         # Small map to pick a location (company edit)
+│       ├── MapComponent.tsx      # Full-screen Leaflet map with routes + Locate Me
+│       ├── MapPicker.tsx         # Small map to pick a location (company edit) + Locate Me
 │       ├── EditCompany.tsx       # Company profile edit modal
 │       ├── DateTime.tsx          # Global live date/time widget (every screen)
-│       └── ProformaInvoice.tsx   # Proforma invoice modal with full financial details
+│       ├── ProformaInvoice.tsx   # Professional proforma invoice modal with FX QR
+│       ├── PublicProforma.tsx    # Mobile-friendly proforma shown when a QR is scanned
+│       ├── AdminSettings.tsx     # Admin-only configuration page (business rules)
+│       └── InstallGuide.tsx      # "Install E-SCON" device-specific instructions modal
 ├── package.json
 ├── tsconfig.json
 ├── README.md
@@ -176,7 +190,7 @@ All interfaces live in **`src/types.ts`**.
 ### User
 ```ts
 { id, name, email, password, phone, address, city,
-  userType: 'customer' | 'company', companyName?,
+  userType: 'customer' | 'company' | 'admin', companyName?,
   lat, lng, registered, loginAttempts, lockUntil,
   tinNumber, businessLicense, vatRegistered, vatNumber }
 ```
@@ -210,7 +224,26 @@ All interfaces live in **`src/types.ts`**.
 ```
 
 ### Other types
-`Alert`, `FormData` (all form fields, incl. `materialImages: string[]`), `SearchResult` (Material + computed `distance`, `totalCost`, `estimatedTransport`, `company`), `CartItem`, `CartReport`.
+`Alert`, `FormData` (all form fields, incl. `materialImages: string[]`), `SearchResult` (Material + computed `distance`, `totalCost`, `estimatedTransport`, `company`), `CartItem`, `CartReport` (now also carries `freeDeliveryApplied`, `minOrderEnabled`, `minOrderAmount`, `belowMinOrder`).
+
+### Platform & sharing types (NEW in v4)
+
+```ts
+// DeliveryZone           { id, name, cities: string[], fee }
+// DeliverySettings       { mode: 'distance-based'|'fixed', fixedFee,
+//                          distanceBaseFee, distancePerKmPerTon,
+//                          freeDeliveryThreshold, zones: DeliveryZone[] }
+// MinOrderSettings       { enabled, amount }
+// SystemSettings         { version, currency: 'ETB',
+//                          delivery: DeliverySettings, minOrder: MinOrderSettings }
+
+// Compact NON-SENSITIVE proforma summary embedded in the QR code.
+// ProformaShareData      { v, n (proforma no), d (date), b (buyer name),
+//                          s: {n,c}[] (suppliers), i: {n,u,q,p}[] (items),
+//                          sub, vat, del, tot, c: 'ETB' }
+```
+
+> ⚠️ `ProformaShareData` deliberately excludes passwords, addresses, TIN/VAT numbers, phone and email — scanning a QR must never leak private business data.
 
 ---
 
@@ -231,6 +264,10 @@ All state lives in `App.tsx` using React hooks (no Redux/Context — fine for th
 - `favorites` — per-user favorite materials (persisted to localStorage).
 - `mobileMenuOpen` — mobile hamburger menu toggle.
 - `deferredPrompt`, `showInstallBanner` — PWA install prompt state.
+- `showInstallGuide` — "How to install" modal.
+- `systemSettings` — the runtime `SystemSettings` object loaded from localStorage.
+- `showSettings` — admin settings page visibility.
+- `publicProformaData` — decoded `ProformaShareData` rendered when a QR is scanned.
 - `pageAnimating` — controls page transition animation.
 
 Key `useCallback` helpers: `showAlert`, `getCompanyById`, `getMaterialById`, `getCompanyByUserId`, `getUserById`, `navigateTo`, `geocodeCompany`, `geocodeAllCompanies`, `performSearch`, `toggleFavorite`, `toggleCompare`.
@@ -253,6 +290,7 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 | `datetime-inverted`     | `'1'`/`'0'` (clock invert-color toggle)   |
 | `datetime-ghost`        | `'1'`/`'0'` (clock transparency toggle)   |
 | `pwa_install_dismissed` | `'true'` (hides install banner permanently) |
+| `system_settings`       | `SystemSettings` (delivery fee, zones, min order — admin editable) |
 
 > ⚠️ Because product photos are stored as **base64 data URLs inside `materials`**, the localStorage budget (~5 MB) can fill up quickly. Keep uploads to a few small images (the UI caps at **6 images per product**).
 
@@ -345,6 +383,41 @@ All animations are **CSS-only** (no JS animation libraries), using CSS custom pr
 ### 10.15 Auth & security simulation
 Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lockUntil`). Passwords are stored in plaintext (demo only — do **not** use in production).
 
+### 10.16 System Settings (admin) (NEW in v4)
+- **File:** `src/settings.ts` (module) + `src/components/AdminSettings.tsx` (page).
+- A validated `SystemSettings` object is persisted to `localStorage` under `system_settings`; `loadSettings()` repairs corrupted data and clamps invalid numbers to defaults.
+- **Delivery fee** supports three cooperating rules:
+  1. **Fixed mode** — a flat per-order fee.
+  2. **Distance-based** — `base fee + perKmPerTon × distance` (OSRM).
+  3. **Delivery zones** — a flat fee override keyed by the customer's city (e.g. Addis Ababa `400`, Adama `700`).
+  Plus a **free-delivery threshold**: when the goods subtotal reaches it, delivery is `0`.
+- **Minimum order** — a goods-subtotal threshold. When enforced, the cart shows a visible warning and the **Confirm Order** button is disabled until the cart qualifies; `confirmOrder` double-checks the rule as a final guard.
+- **Who can use it:** only `userType === 'admin'` sees the ⚙️ Settings page (seeded account `admin@escon.et`). The seeder runs during initialization and re-creates the admin if removed from localStorage.
+
+### 10.17 Professional Proforma + scannable QR (NEW in v4)
+- **Files:** `src/components/ProformaInvoice.tsx`, `src/components/PublicProforma.tsx`.
+- The proforma now shows the **E-SCON brand exactly once** (header). The footer carries only the contact strip + legal note.
+- **Currency:** all figures render through the shared `formatCurrency` in `utils.ts` → `ETB 1,234.50` — never `ETH`.
+- **QR code:** encodes the full link `…/#escon=<token>` where `<token>` is a **base64url-encoded `ProformaShareData` JSON** (compact, non-sensitive). Scanning it opens a **mobile-first proforma view** (`PublicProforma`) directly — works both on screen and from a paper print.
+- `encodeProformaPayload` / `decodeProformaPayload` / `buildProformaQrUrl` / `generateProformaQrDataUrl` live in `utils.ts` and are unit-tested.
+- The printed document also shows a **minimum-order advisory** banner when the rule is enabled.
+
+### 10.18 "Locate Me" on the maps (NEW in v4)
+- **Files:** `src/components/MapComponent.tsx`, `src/components/MapPicker.tsx`.
+- A prominent **🎯 Locate Me** button centers the map on the user's current location using the browser Geolocation API.
+- Every possible outcome is handled with a readable message instead of a silent failure: **permission granted**, **denied** (with guidance to enable it), **unavailable**, **timed out**, and **unsupported** browser.
+- `MapComponent` also keeps a live `watchPosition` tracker for the route origin with an accuracy circle.
+
+### 10.19 PWA install experience (NEW in v4)
+- **Service worker:** new `public/sw.js` (pre-caches the app shell, network-first for navigations so hash routes like `#escon=…` still work offline, runtime caches same-origin GETs, and streams Leaflet map tiles through a cache with fallback).
+- Registered in `src/index.tsx` **only in production** (avoids stale-cache interference with `npm start` hot reload).
+- `public/manifest.json` gained `id`, `display_override`, `categories`, `shortcuts` (`#search`, `#orders`) and maskable icons.
+- `public/index.html` gained richer SEO/mobile meta tags.
+- **Install Guide** (`src/components/InstallGuide.tsx`): a modal with device-specific steps for Android / iPhone / Windows / other — reachable from the PWA banner and the footer "📲 Install App" link.
+
+### 10.20 Consistent currency (NEW in v4)
+All money values (search results, product cards, cart summary, proforma, order exports, admin settings preview) use the single `formatCurrency` helper. **"ETH" appears only in company/brand names** (e.g. "ETH Steel"), which is correct and must not be changed.
+
 ---
 
 ## 11. Third-Party Integrations
@@ -426,10 +499,12 @@ No router library — `currentPage` switch in `App.tsx`:
 | `add-material`       | `renderAddMaterial`         | Product form (+ photos)        |
 | `edit-material`      | `renderEditMaterial`        | Product edit (+ photos)        |
 | `orders`             | `renderOrders`              | Order management               |
+| `settings`           | `AdminSettings` (admin only) | Delivery fee, zones, min order |
 | (map)                | `renderSupplierMap`         | Modal flag `showSupplierMap`   |
 | (modals)             | `renderMaterialDetails`, `renderCartSummary`, EditCompany, `ProformaInvoice`, `compare-modal` | Overlays |
 | (compare bar)        | Floating compare bar at bottom | Shows when `compareItems.length > 0` |
 | (PWA banner)         | `pwa-install-banner` | Shows when browser supports install prompt |
+| (public proforma)    | `PublicProforma` overlay | Opens automatically when URL hash is `#escon=<token>` |
 
 ---
 
@@ -450,7 +525,9 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- The browser must detect the service worker and manifest — CRA includes a service worker by default if `serviceWorker` is registered.
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh.
+
+> **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
 
 ---
 
@@ -481,6 +558,60 @@ Common extension points:
 - **Real backend:** replace localStorage reads/writes with API calls (the shapes in `types.ts` are already API-ready).
 - **Real auth:** swap the demo login in `App.tsx` for a secure provider; **never** ship plaintext passwords.
 - **New CSS:** append a clearly-commented section at the end of `App.css` (as done for the UI v2 polish) to avoid touching existing rules.
+
+---
+
+## 18. Testing (NEW in v4)
+
+Tests target **pure logic only** — the map components and `App.tsx` rely on Leaflet/DOM APIs that jsdom cannot run reliably.
+
+```bash
+# Run once (non-watch) — recommended for CI
+CI=true npm test -- --watchAll=false
+
+# Interactive watch mode
+npm test
+```
+
+| File                  | What it covers                                                       |
+| --------------------- | -------------------------------------------------------------------- |
+| `src/settings.test.ts` | Defaults, round-trip persistence, corrupted-JSON repair, number sanitising, admin seed |
+| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), QR payload encode→decode round-trip, tampered token rejection, scannable URL format |
+
+20 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
+
+---
+
+## 19. Instructions for the Next Programmer
+
+Read this before touching any code. It prevents the most common mistakes.
+
+### 19.1 Golden rules
+1. **Never change "ETH" strings in `constants.ts`.** `ETH` in names like *ETH Steel*, *ETH Rebar* is a **brand name**, not currency. The currency is **ETB** everywhere. If you do a global find-replace of "ETH", you will corrupt product data.
+2. **Never commit `.env.local`.** It holds a live Vercel OIDC token and is already gitignored. Do not read it into code, logs or console output.
+3. **Money always goes through `formatCurrency`** (in `utils.ts`). Do not hand-roll `Intl.NumberFormat` or template strings with different separators.
+4. **Never delete the admin seeder.** In `App.tsx` initialization, `ADMIN_USER` is re-appended if missing. Removing it logs out platform management silently.
+5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place.
+6. **Tests are pure-logic only.** Do not write tests that import `App.tsx`, `MapComponent.tsx` or Leaflet — they need DOM APIs jsdom can't provide. Run `CI=true npm test -- --watchAll=false`.
+
+### 19.2 Where things live
+- **Business rules** (delivery fee, zones, min order) → `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates, cart totals and order creation all use `computeDeliveryFee` now.
+- **Currency** → `formatCurrency` in `utils.ts` (used by App, ProformaInvoice, AdminSettings, PublicProforma).
+- **QR / sharing** → `encodeProformaPayload`, `decodeProformaPayload`, `buildProformaQrUrl`, `generateProformaQrDataUrl` in `utils.ts`; rendering in `ProformaInvoice.tsx` and `PublicProforma.tsx`. The hash format is `#escon=<base64url(ESCON1+json)>`.
+- **PWA** → `public/sw.js` (custom, version `VERSION` const), `src/index.tsx` registration (production only), `src/components/InstallGuide.tsx`, banner logic in `App.tsx`.
+- **Admin page routing** → a `case 'settings'` in the `renderCurrentPage` switch guards `userType === 'admin'`.
+
+### 19.3 Common change scenarios
+- **"Change the delivery fee":** open the app with `admin@escon.et` → ⚙️ Settings → edit → Save. No code required. To change the default that new installations get, edit `DEFAULT_SETTINGS` in `settings.ts`.
+- **"Add a new Ethiopian city to a zone":** Settings → zone → the "+" button adds a city selector. The city list is `ETHIOPIAN_CITIES` in `constants.ts`.
+- **"Point the map at a different tile server":** edit the tile-layer URLs in `MapComponent.tsx` and `MapPicker.tsx`. If you add a cross-origin tile host, update `sw.js` caching rules too.
+- **"Add a page":** add a `case` in `renderCurrentPage`, a nav button in `renderUserNav`/`renderGuestNav`, and optionally a hash shortcut in `manifest.json` (`shortcuts`).
+- **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
+
+### 19.4 Known limitations (do not "fix" without discussion)
+- Passwords stored in plaintext — demo only.
+- No backend; all data in localStorage (~5 MB limit; base64 product photos are the main consumer).
+- OSRM + Nominatim are free public servers — rate limits and occasional outages are expected; fallbacks already exist.
 
 ---
 

@@ -101,7 +101,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [companyMaterials, setCompanyMaterials] = useState<Material[]>([]);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
-  const [geoLocationStatus, setGeoLocationStatus] = useState<'requesting' | 'granted' | 'denied' | 'error'>('requesting');
+  const [geoLocationStatus, setGeoLocationStatus] = useState<'requesting' | 'granted' | 'denied' | 'error' | 'timeout' | 'unsupported'>('requesting');
+  const [locateMeMsg, setLocateMeMsg] = useState<string | null>(null);
 
   // Refs for guaranteed cleanup without stale closures
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
@@ -141,7 +142,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // Browser Geolocation — watches real-time position
   useEffect(() => {
     if (!navigator.geolocation) {
-      setGeoLocationStatus('error');
+      setGeoLocationStatus('unsupported');
       return;
     }
     setGeoLocationStatus('requesting');
@@ -162,8 +163,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       },
       (error) => {
-        console.warn('Geolocation error:', error.message);
+        console.warn('Geolocation error:', error.code, error.message);
         if (error.code === error.PERMISSION_DENIED) setGeoLocationStatus('denied');
+        else if (error.code === error.TIMEOUT) setGeoLocationStatus('timeout');
         else setGeoLocationStatus('error');
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
@@ -425,20 +427,41 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   const handleLocateMe = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
-          if (leafletMap.current) {
-            leafletMap.current.setView([latitude, longitude], 14, { animate: true });
-          }
-          if (selectedCompany) drawRouteForSupplier(selectedCompany);
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
+    if (!navigator.geolocation) {
+      setGeoLocationStatus('unsupported');
+      setLocateMeMsg('This browser does not support geolocation.');
+      return;
     }
+    setGeoLocationStatus('requesting');
+    setLocateMeMsg(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
+        setGeoLocationStatus('granted');
+        if (leafletMap.current) {
+          leafletMap.current.setView([latitude, longitude], 14, { animate: true });
+        }
+        if (selectedCompany) drawRouteForSupplier(selectedCompany);
+        setLocateMeMsg('📍 Your location is now centered on the map.');
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setGeoLocationStatus('denied');
+          setLocateMeMsg('⛔ Location permission denied. Please enable it in your browser settings, then tap Locate Me again.');
+        } else if (error.code === error.TIMEOUT) {
+          setGeoLocationStatus('timeout');
+          setLocateMeMsg('⏳ Locating timed out. GPS signal may be weak — check location services and retry.');
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setGeoLocationStatus('error');
+          setLocateMeMsg('⚠️ Your position is unavailable right now. Check GPS/Wi-Fi and retry.');
+        } else {
+          setGeoLocationStatus('error');
+          setLocateMeMsg('⚠️ Could not determine your location.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   return (
@@ -450,16 +473,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <span style={{ fontSize: 12, opacity: 0.6 }}>
               {geoLocationStatus === 'granted' && '🟢 GPS Active'}
               {geoLocationStatus === 'requesting' && '🟡 Requesting GPS…'}
-              {geoLocationStatus === 'denied' && '🔴 GPS Denied — using default'}
-              {geoLocationStatus === 'error' && '🔴 GPS Error — using default'}
+              {geoLocationStatus === 'denied' && '🔴 GPS Denied — using default position'}
+              {geoLocationStatus === 'error' && '🔴 GPS Error — using default position'}
+              {geoLocationStatus === 'timeout' && '🟠 GPS Timed Out — using default position'}
+              {geoLocationStatus === 'unsupported' && '⚪ GPS Unsupported'}
             </span>
             <button
-              className="map-modal-close"
+              className="locate-me-btn"
               onClick={handleLocateMe}
-              title="Center on my location"
-              style={{ fontSize: 16, padding: '4px 8px' }}
+              title="Center map on my current location"
             >
-              📍
+              🎯 Locate Me
             </button>
             <button className="map-modal-close" onClick={onClose}>✕</button>
           </div>
@@ -467,6 +491,26 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
         <div className="map-container-inner">
           <div ref={mapRef} style={{ height: '100%', width: '100%' }}></div>
+
+          {locateMeMsg && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 12,
+                left: 12,
+                right: '50%',
+                background: 'rgba(15,23,42,0.9)',
+                color: '#fff',
+                padding: '10px 14px',
+                borderRadius: 10,
+                fontSize: 13,
+                zIndex: 1000,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+              }}
+            >
+              {locateMeMsg}
+            </div>
+          )}
 
           {isRouteLoading && (
             <div

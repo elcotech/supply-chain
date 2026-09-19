@@ -6,7 +6,7 @@ export interface User {
   phone: string;
   address: string;
   city: string;
-  userType: 'customer' | 'company';
+  userType: 'customer' | 'company' | 'admin';
   companyName?: string;
   lat: number;
   lng: number;
@@ -201,4 +201,70 @@ export interface CartReport {
   uniqueItems: number;
   currency: string;
   reportDate: string;
+  /* Delivery & minimum-order metadata resolved against system settings */
+  freeDeliveryApplied?: boolean;
+  minOrderEnabled?: boolean;
+  minOrderAmount?: number;
+  belowMinOrder?: boolean;
+}
+
+/**
+ * Platform configuration that administrators can change at runtime.
+ * Persisted in localStorage under the `system_settings` key.
+ */
+export interface DeliveryZone {
+  id: string;
+  name: string;
+  /** Ethiopian cities covered by this zone (see ETHIOPIAN_CITIES). */
+  cities: string[];
+  /** Flat delivery fee (ETB) applied when the customer's city matches. */
+  fee: number;
+}
+
+export interface DeliverySettings {
+  /** 'distance-based' calculates from OSRM distance; 'fixed' uses a flat fee. */
+  mode: 'distance-based' | 'fixed';
+  /** Flat fee used when mode === 'fixed'. */
+  fixedFee: number;
+  /** Base fee before distance/variable additions (ETB). */
+  distanceBaseFee: number;
+  /** Added cost per km per tonne (ETB). */
+  distancePerKmPerTon: number;
+  /** Orders with a goods subtotal >= this amount ship free (0 disables). */
+  freeDeliveryThreshold: number;
+  /** Per-city/zone overrides. When a customer's city matches, its fee wins. */
+  zones: DeliveryZone[];
+}
+
+export interface MinOrderSettings {
+  /** Whether the minimum-order rule is enforced. */
+  enabled: boolean;
+  /** Minimum cart goods subtotal (ETB) before VAT/delivery. */
+  amount: number;
+}
+
+export interface SystemSettings {
+  version: number;
+  currency: 'ETB';
+  delivery: DeliverySettings;
+  minOrder: MinOrderSettings;
+}
+
+/**
+ * Compact, non-sensitive proforma summary embedded in the printed/spoken QR.
+ * Intentionally excludes passwords, full addresses, TIN / VAT numbers, phone
+ * numbers and email addresses so that scanning never leaks private data.
+ */
+export interface ProformaShareData {
+  v: number;
+  n: string; // proforma number
+  d: string; // ISO date
+  b: string; // buyer name (display only)
+  s: { n: string; c: string }[]; // suppliers: name + city
+  i: { n: string; u: string; q: number; p: number }[]; // items
+  sub: number; // subtotal
+  vat: number; // VAT amount
+  del: number; // delivery fee
+  tot: number; // grand total
+  c: 'ETB';
 }
