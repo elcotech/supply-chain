@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
@@ -10,7 +10,8 @@ import {
   calculateDistance, calculateTransportCost, isUserLocked,
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
   geocodeAddress, computeDeliveryFee, checkMinOrder,
-  decodeProformaPayload
+  decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
+  deliveryEta, timeAgo, validateBackup, downloadJson
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import EditCompany from './components/EditCompany';
@@ -20,7 +21,34 @@ import PublicProforma from './components/PublicProforma';
 import InstallGuide from './components/InstallGuide';
 import AdminSettings from './components/AdminSettings';
 import OrderTimeline from './components/OrderTimeline';
+import { Sparkline, StarRatingDisplay, StarRatingInput } from './components/Charts';
 import useIsMobile from './hooks/useIsMobile';
+
+// Live date & time shown on the shopping cart. The cart is a transient view so
+// a ticking clock here is desirable (unlike the proforma, which freezes a
+// timestamp once for a stable invoice number/date).
+function LiveClock() {
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const date = now.toLocaleDateString('en-GB', {
+    weekday: 'short', day: '2-digit', month: 'long', year: 'numeric',
+  });
+  const time = now.toLocaleTimeString('en-GB', {
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+  return (
+    <span className="cart-live-clock">
+      📅 {date} · 🕒 {time}
+    </span>
+  );
+}
+
+// Demo wallet welcome balance given to every account for the in-app wallet.
+const WELCOME_BONUS = 25000;
+const LOW_STOCK_THRESHOLD = 10;
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
@@ -41,6 +69,9 @@ function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartSummary, setShowCartSummary] = useState(false);
   const [cartDetails, setCartDetails] = useState<CartReport | null>(null);
+  // Optional buyer-set delivery fee. null = use the automatic fee computed from
+  // system settings; a number overrides it everywhere (cart, proforma, orders).
+  const [deliveryFeeOverride, setDeliveryFeeOverride] = useState<number | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
@@ -58,6 +89,32 @@ function App() {
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [publicProformaData, setPublicProformaData] = useState<ProformaShareData | null>(null);
   const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => loadSettings());
+
+  // ---------- v6 state: notifications, wallets, reviews ----------
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const saved = safeLocalStorage.getItem('notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [wallets, setWallets] = useState<Record<string, number>>(() => {
+    const saved = safeLocalStorage.getItem('wallets');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [transactions, setTransactions] = useState<WalletTx[]>(() => {
+    const saved = safeLocalStorage.getItem('wallet_transactions');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [reviews, setReviews] = useState<ProductReview[]>(() => {
+    const saved = safeLocalStorage.getItem('reviews');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
+  const [showDataCenter, setShowDataCenter] = useState(false);
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState(10000);
+  const [topUpMethod, setTopUpMethod] = useState('Telebirr');
+  const [reviewDraft, setReviewDraft] = useState<{ rating: number; comment: string }>({ rating: 5, comment: '' });
+  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'cod' | 'wallet'>('bank');
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -186,6 +243,122 @@ function App() {
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // ---------- v6 core helpers: notifications, wallet, reviews ----------
+  const pushNotification = useCallback((userId: string, type: AppNotification['type'], title: string, message: string): void => {
+    setNotifications(prev => [
+      { id: genId('ntf'), userId, type, title, message, createdAt: Date.now(), read: false },
+      ...prev,
+    ].slice(0, 100));
+  }, []);
+
+  const notifyOrderParties = useCallback((order: Order, title: string, message: string, type: AppNotification['type'] = 'order'): void => {
+    pushNotification(order.customerId, type, title, message);
+    const supplierUser = getUserById(companies.find(c => c.id === order.companyId)?.userId || '');
+    if (supplierUser) pushNotification(supplierUser.id, type, title, message);
+  }, [companies, getUserById, pushNotification]);
+
+  const walletBalance = useCallback((userId: string): number => wallets[userId] || 0, [wallets]);
+
+  const applyWalletChange = useCallback((userId: string, kind: WalletTx['kind'], amount: number, note: string): number | null => {
+    const current = walletBalance(userId);
+    const next = applyWalletOp(current, kind, amount);
+    if (next === null) return null;
+    setWallets(prev => ({ ...prev, [userId]: next }));
+    setTransactions(prev => [
+      { id: genId('tx'), userId, kind, amount, balanceAfter: next, note, date: Date.now() },
+      ...prev,
+    ].slice(0, 300));
+    return next;
+  }, [walletBalance]);
+
+  const topUpWallet = useCallback((amount: number, method: string): void => {
+    if (!currentUser) return;
+    const next = applyWalletChange(currentUser.id, 'topup', amount, `Top-up via ${method}`);
+    if (next === null) return;
+    pushNotification(currentUser.id, 'payment', 'Wallet top-up successful',
+      `ETB ${amount.toLocaleString()} added via ${method}. New balance ${formatCurrency(next)}.`);
+    showAlert(`Wallet topped up! ${formatCurrency(next)}`, 'success');
+    setShowTopUp(false);
+  }, [applyWalletChange, currentUser, showAlert, pushNotification]);
+
+  const reviewForMaterial = useCallback((materialId: string): ProductReview[] =>
+    reviews.filter(r => r.materialId === materialId).sort((a, b) => b.date - a.date),
+    [reviews]);
+
+  const ratingForMaterial = useCallback((m: Material): number =>
+    effectiveRating(m.rating, reviewForMaterial(m.id)),
+    [reviewForMaterial]);
+
+  const submitReview = useCallback((materialId: string): void => {
+    if (!currentUser || currentUser.userType !== 'customer') return;
+    if (reviewDraft.rating < 1 || reviewDraft.rating > 5) { showAlert('Please pick 1–5 stars', 'warning'); return; }
+    const material = getMaterialById(materialId);
+    const company = material ? getCompanyById(material.companyId) : undefined;
+    setReviews(prev => [
+      { id: genId('rv'), materialId, userId: currentUser.id, userName: currentUser.name, rating: reviewDraft.rating, comment: reviewDraft.comment.trim(), date: Date.now() },
+      ...prev,
+    ]);
+    if (company) {
+      const supplierUser = getUserById(company.userId);
+      if (supplierUser) {
+        pushNotification(supplierUser.id, 'rating', 'New customer rating',
+          `${currentUser.name} rated ${material?.name || 'a product'} ${reviewDraft.rating}★.`);
+      }
+    }
+    setReviewDraft({ rating: 5, comment: '' });
+    showAlert('Thanks — your rating was submitted ⭐', 'success');
+  }, [currentUser, getCompanyById, getMaterialById, getUserById, pushNotification, reviewDraft, showAlert]);
+
+  const unreadNotifications = useCallback((): number =>
+    notifications.filter(n => !n.read).length, [notifications]);
+
+  const markAllNotificationsRead = useCallback((): void => {
+    if (currentUser) setNotifications(prev => prev.map(n => n.userId === currentUser.id ? { ...n, read: true } : n));
+  }, [currentUser]);
+
+  const markNotificationRead = useCallback((id: string): void => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }, []);
+
+  // ---------- Data Center ----------
+  const buildBackupPayload = useCallback((): BackupPayload | null => {
+    if (!currentUser) return null;
+    return {
+      app: 'ESCON', version: 6, exportedAt: new Date().toISOString(),
+      users, companies, materials, orders,
+      notifications, wallets, transactions, reviews,
+      settings: systemSettings,
+    };
+  }, [currentUser, users, companies, materials, orders, notifications, wallets, transactions, reviews, systemSettings]);
+
+  const handleBackupExport = useCallback((): void => {
+    const payload = buildBackupPayload();
+    if (!payload) { showAlert('Login to export a backup', 'warning'); return; }
+    downloadJson(payload, `escon-backup-${new Date().toISOString().split('T')[0]}.json`);
+    showAlert('Backup downloaded 📦', 'success');
+    setShowDataCenter(false);
+  }, [buildBackupPayload, showAlert]);
+
+  const handleBackupRestore = useCallback((file: File): void => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = validateBackup(JSON.parse(String(reader.result)));
+        if (!parsed) { showAlert('Invalid backup file', 'danger'); return; }
+        setUsers(parsed.users); setCompanies(parsed.companies); setMaterials(parsed.materials);
+        setOrders(parsed.orders); setNotifications(parsed.notifications);
+        setWallets(parsed.wallets); setTransactions(parsed.transactions); setReviews(parsed.reviews);
+        if (parsed.settings) { setSystemSettings(parsed.settings); saveSettings(parsed.settings); }
+        showAlert('Backup restored successfully ✅', 'success');
+        setShowDataCenter(false);
+        navigateTo('home');
+      } catch (e) {
+        showAlert('Could not read backup file', 'danger');
+      }
+    };
+    reader.readAsText(file);
+  }, [showAlert, navigateTo]);
 
   // ---------- Geocoding helpers ----------
   const isGenericCoord = useCallback((lat: number, lng: number, city: string): boolean => {
@@ -318,6 +491,43 @@ function App() {
     }
   }, [favorites, currentUser, isInitialized]);
 
+  // ---------- Notifications / wallet / reviews persistence ----------
+  useEffect(() => {
+    if (isInitialized) safeLocalStorage.setItem('notifications', JSON.stringify(notifications));
+  }, [notifications, isInitialized]);
+  useEffect(() => {
+    if (isInitialized) safeLocalStorage.setItem('wallets', JSON.stringify(wallets));
+  }, [wallets, isInitialized]);
+  useEffect(() => {
+    if (isInitialized) safeLocalStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+  }, [transactions, isInitialized]);
+  useEffect(() => {
+    if (isInitialized) safeLocalStorage.setItem('reviews', JSON.stringify(reviews));
+  }, [reviews, isInitialized]);
+
+  // Grant every registered account its welcome wallet balance exactly once.
+  useEffect(() => {
+    if (!isInitialized || users.length === 0) return;
+    setWallets(prev => {
+      const missing = users.filter(u => !(u.id in prev));
+      if (missing.length === 0) return prev;
+      const next = { ...prev };
+      missing.forEach(u => { next[u.id] = WELCOME_BONUS; });
+      return next;
+    });
+    setTransactions(prev => {
+      const missing = users.filter(u => !prev.some(t => t.userId === u.id && t.note === 'Welcome bonus'));
+      if (missing.length === 0) return prev;
+      return [
+        ...prev,
+        ...missing.map(u => ({
+          id: genId('tx'), userId: u.id, kind: 'topup' as const, amount: WELCOME_BONUS,
+          balanceAfter: WELCOME_BONUS, note: 'Welcome bonus', date: Date.now(),
+        })),
+      ];
+    });
+  }, [isInitialized, users]);
+
   // ---------- Distance for selected material ----------
   const [distanceToSelected, setDistanceToSelected] = useState<number | null>(null);
   const [isDistanceLoading, setIsDistanceLoading] = useState(false);
@@ -407,6 +617,7 @@ function App() {
     setCart([]);
     setShowCartSummary(false);
     setCartDetails(null);
+    setDeliveryFeeOverride(null);
     safeLocalStorage.removeItem('currentUser');
     showAlert('Logged out successfully 👋', 'info');
     setCurrentPage('home');
@@ -479,9 +690,14 @@ function App() {
       id: 'mat' + (materials.length + 1), companyId: company.id, name: materialName, category: materialCategory,
       basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,      minOrder: parseInt(materialMinOrder) || 1, description: materialDescription, transportCost: 15, rating: 0,
       brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: materialImages,
-      taxIncluded: true, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0]
+      taxIncluded: true, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0],
+      priceHistory: [{ date: Date.now(), price: sellingPrice }]
     };
     setMaterials(prev => [...prev, newMaterial]);
+    if (parseInt(materialQuantity) <= LOW_STOCK_THRESHOLD) {
+      pushNotification(currentUser.id, 'stock', 'Low-stock alert',
+        `${materialName} has only ${materialQuantity} ${materialUnit || 'units'} left — restock soon.`);
+    }
     showAlert('Product added successfully! 🎉', 'success');
     setCurrentPage('company-dashboard');
     setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '', materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [] }));
@@ -513,8 +729,12 @@ function App() {
   const handleUpdateMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!editingMaterial) return;
+    const newPrice = parseFloat(formData.materialPrice) * (1 + editingMaterial.profitMargin);
     const updatedMaterial: Material = {
       ...editingMaterial,
+      priceHistory: newPrice !== editingMaterial.price
+        ? [...(editingMaterial.priceHistory || []), { date: Date.now(), price: newPrice }].slice(-24)
+        : editingMaterial.priceHistory,
       name: formData.materialName,
       category: formData.materialCategory,
       basePrice: parseFloat(formData.materialPrice),
@@ -538,6 +758,10 @@ function App() {
       lastUpdated: new Date().toISOString().split('T')[0]
     };
     setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? updatedMaterial : m));
+    if (updatedMaterial.quantity <= LOW_STOCK_THRESHOLD) {
+      pushNotification(currentUser?.id || '', 'stock', 'Low-stock alert',
+        `${updatedMaterial.name} has only ${updatedMaterial.quantity} ${updatedMaterial.unit || 'units'} left — restock soon.`);
+    }
     showAlert('Product updated successfully! ✏️', 'success');
     setEditingMaterial(null);
     setCurrentPage(currentUser?.userType === 'company' ? 'company-dashboard' : 'search-materials');
@@ -712,6 +936,7 @@ function App() {
     setCart([]);
     setShowCartSummary(false);
     setCartDetails(null);
+    setDeliveryFeeOverride(null);
     showAlert('Cart cleared', 'info');
   };
 
@@ -760,6 +985,17 @@ function App() {
       }
     }
     const suppliers = Array.from(supplierMap.values());
+    // Honour an optional manually-edited delivery fee. When set, the automatic
+    // transport sum is replaced and the per-supplier breakdown is re-scaled so
+    // the proforma sub-lines still add up to the grand total.
+    if (deliveryFeeOverride !== null && deliveryFeeOverride >= 0) {
+      const computed = suppliers.reduce((sum, sup) => sum + sup.transportCost, 0);
+      const scale = computed > 0 ? deliveryFeeOverride / computed : 1;
+      suppliers.forEach(sup => {
+        sup.transportCost = Math.round(sup.transportCost * scale * 100) / 100;
+      });
+      transportCost = deliveryFeeOverride;
+    }
     const total = subtotal + vatAmount + transportCost;
     const multiple = suppliers.length > 1;
     const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
@@ -804,6 +1040,34 @@ function App() {
     setShowProforma(true);
   };
 
+  // Allow the buyer to edit the delivery fee on the cart. Overrides the
+  // automatic fee everywhere (cart summary, proforma, placed orders).
+  const handleDeliveryFeeChange = (value: number) => {
+    const fee = Number.isFinite(value) && value >= 0 ? value : 0;
+    setDeliveryFeeOverride(fee);
+    setCartDetails(prev => {
+      if (!prev) return prev;
+      const scale = prev.transportCost > 0 ? fee / prev.transportCost : 1;
+      const suppliers = (prev.suppliers || []).map(sup => ({
+        ...sup,
+        transportCost: Math.round(sup.transportCost * scale * 100) / 100,
+      }));
+      return {
+        ...prev,
+        transportCost: fee,
+        total: Math.round((prev.subtotal + prev.vatAmount + fee) * 100) / 100,
+        suppliers,
+        freeDeliveryApplied: fee === 0 && prev.minOrderEnabled,
+      };
+    });
+  };
+
+  const handleDeliveryFeeReset = async () => {
+    setDeliveryFeeOverride(null);
+    const totals = await calculateCartTotals();
+    if (totals) setCartDetails(totals);
+  };
+
   const confirmOrder = async () => {
     if (cart.length === 0) return;
     const totals = await calculateCartTotals();
@@ -816,6 +1080,22 @@ function App() {
       return;
     }
     setIsCalculating(true);
+    // When paying from the E-SCON wallet, validate and reserve the full total once.
+    const wholeTotal = totals.total;
+    let walletPaid = 0;
+    if (paymentMethod === 'wallet') {
+      walletPaid = wholeTotal;
+      const ok = applyWalletChange(currentUser!.id, 'payment', wholeTotal, `Payment for cart (${cart.length} item${cart.length > 1 ? 's' : ''})`);
+      if (ok === null) {
+        showAlert('Insufficient wallet balance. Please top up first.', 'danger');
+        setIsCalculating(false);
+        setShowCartSummary(true);
+        return;
+      }
+      pushNotification(currentUser!.id, 'payment', 'Wallet payment successful',
+        `ETB ${wholeTotal.toLocaleString()} paid with your wallet. Balance is now ${formatCurrency(ok)}.`);
+    }
+    const createdOrders: Order[] = [];
     for (const item of cart) {
       const material = getMaterialById(item.materialId);
       if (!material) continue;
@@ -844,19 +1124,50 @@ function App() {
         orderDate: new Date().toISOString().split('T')[0],
         address: currentUser?.address || '',
         notes: 'Order from cart - ' + cart.length + ' items total',
-        invoiceNumber: 'INV-' + new Date().getFullYear() + '-' + (orders.length + 1000),
+        invoiceNumber: 'INV-' + new Date().getFullYear() + '-' + (orders.length + 1000 + createdOrders.length),
         taxAmount: 0,
         vatAmount: vatAmountItem,
-        paymentMethod: 'Bank Transfer',
-        paymentStatus: 'pending'
+        paymentMethod: paymentMethod === 'wallet' ? 'E-SCON Wallet' : paymentMethod === 'cod' ? 'Cash on Delivery' : 'Bank Transfer',
+        paymentStatus: paymentMethod === 'wallet' ? 'paid' : 'pending',
+        walletPayment: paymentMethod === 'wallet',
+        revenueCredited: false
       };
+      createdOrders.push(newOrder);
       setOrders(prev => [...prev, newOrder]);
+      const distanceKm = await calculateDistance(supplierCompany.lat, supplierCompany.lng, currentUser!.lat || 9.0320, currentUser!.lng || 38.7469).catch(() => 0);
+      notifyOrderParties(newOrder, `New order ${newOrder.invoiceNumber}`,
+        `${currentUser!.name} ordered ${item.quantity} ${material.unit} of ${material.name} — ETA ${deliveryEta(distanceKm)}.`);
+      const buyerCompany = material.name;
+      if (paymentMethod === 'wallet') {
+        pushNotification(currentUser!.id, 'order', 'Order confirmed on the platform',
+          `${buyerCompany} purchased and is already marked paid from your wallet.`);
+      }
+    }
+    // If the buyer edited the delivery fee, re-scale each order's transport so
+    // the placed orders match the proforma the buyer approved.
+    if (deliveryFeeOverride !== null && createdOrders.length > 0) {
+      const computedTrans = createdOrders.reduce((s, o) => s + o.transportCost, 0);
+      const scale = computedTrans > 0 ? deliveryFeeOverride / computedTrans : 1;
+      setOrders(prev => {
+        const ids = new Set(createdOrders.map(o => o.id));
+        const scaled = createdOrders.map(o => {
+          const newTrans = Math.round(o.transportCost * scale * 100) / 100;
+          const materialVat = o.unitPrice * o.quantity + o.vatAmount;
+          return { ...o, transportCost: newTrans, totalAmount: Math.round((materialVat + newTrans) * 100) / 100 };
+        });
+        return [...prev.filter(o => !ids.has(o.id)), ...scaled];
+      });
+    }
+    if (walletPaid > 0) {
+      pushNotification(currentUser!.id, 'order', 'Wallet orders placed',
+        `${createdOrders.length} order(s) totalling ${formatCurrency(walletPaid)} were paid instantly from your wallet.`);
     }
     showAlert('Order placed successfully! 📦 Total: ' + formatCurrency(totals.total), 'success');
     clearCart();
     setShowCartSummary(false);
     setCurrentPage('orders');
     setIsCalculating(false);
+    setPaymentMethod('bank');
   };
 
   // ---------- Export ----------
@@ -879,17 +1190,73 @@ function App() {
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: string) => {
-    setOrders(prev => prev.map(order => {
-      if (order.id === orderId) {
-        const updated = { ...order, status: status as Order['status'] };
-        if (status === 'delivered') {
-          updated.deliveryDate = new Date().toISOString().split('T')[0];
-          updated.paymentStatus = 'paid';
+    const existing = orders.find(o => o.id === orderId);
+    if (!existing) return;
+    const updated: Order = { ...existing, status: status as Order['status'] };
+    const supplierCompany = getCompanyById(existing.companyId);
+    const supplierUser = supplierCompany ? getUserById(supplierCompany.userId) : undefined;
+
+    if (status === 'confirmed') {
+      // Reduce supplier stock on confirmation and alert on low stock.
+      setMaterials(prev => prev.map(m => m.id === existing.materialId
+        ? { ...m, quantity: Math.max(0, m.quantity - existing.quantity) } : m));
+      const material = getMaterialById(existing.materialId);
+      if (material) {
+        const remaining = Math.max(0, material.quantity - existing.quantity);
+        if (remaining <= LOW_STOCK_THRESHOLD && supplierUser) {
+          pushNotification(supplierUser.id, 'stock', 'Low-stock alert',
+            `${material.name} now has ${remaining} ${material.unit || 'units'} left — consider restocking.`);
         }
-        return updated;
       }
-      return order;
-    }));
+      // Wallet orders already went through walletToInvoice; supplier income is
+      // credited on delivery below to avoid crediting before the goods ship.
+      pushNotification(existing.customerId, 'order', 'Order confirmed ✅',
+        `${existing.invoiceNumber} (${formatCurrency(existing.totalAmount)}) was confirmed by ${supplierCompany?.name || 'the supplier'}.`);
+    }
+    if (status === 'shipped') {
+      updated.deliveryDate = new Date().toISOString().split('T')[0];
+      pushNotification(existing.customerId, 'order', 'Order shipped 🚚',
+        `${existing.invoiceNumber} is on its way from ${supplierCompany?.city || 'the supplier'}.`);
+      if (supplierUser) {
+        pushNotification(supplierUser.id, 'order', 'Shipment confirmed',
+          `${existing.invoiceNumber} marked as shipped.`);
+      }
+    }
+    if (status === 'delivered') {
+      updated.deliveryDate = new Date().toISOString().split('T')[0];
+      updated.paymentStatus = 'paid';
+      updated.revenueCredited = true;
+      // Credit the supplier's wallet (net of an 8% platform commission).
+      if (supplierUser) {
+        const gross = existing.totalAmount;
+        const commission = Math.round(gross * 0.08 * 100) / 100;
+        const net = gross - commission;
+        applyWalletChange(supplierUser.id, 'income', net,
+          `Invoice ${existing.invoiceNumber} delivered — net of 8% platform fee (${formatCurrency(commission)})`);
+        pushNotification(supplierUser.id, 'payment', 'Payment received 💰',
+          `You earned ${formatCurrency(net)} (after 8% platform fee) for ${existing.invoiceNumber}.`);
+      }
+      pushNotification(existing.customerId, 'order', 'Order delivered 🎉',
+        `${existing.invoiceNumber} was delivered — you can now rate the product.`);
+    }
+    if (status === 'cancelled') {
+      updated.paymentStatus = 'refunded';
+      // Refund the buyer's wallet when they originally paid with it.
+      if (existing.walletPayment && existing.paymentStatus === 'paid') {
+        const refunded = applyWalletChange(existing.customerId, 'refund', existing.totalAmount,
+          `Refund for cancelled ${existing.invoiceNumber}`);
+        pushNotification(existing.customerId, 'payment', 'Refund issued 💳',
+          `ETB ${existing.totalAmount.toLocaleString()} returned to your wallet${refunded !== null ? ' — new balance ' + formatCurrency(refunded) : ''}.`);
+      } else {
+        pushNotification(existing.customerId, 'order', 'Order cancelled',
+          `${existing.invoiceNumber} was cancelled by the supplier.`);
+      }
+      if (supplierUser) {
+        pushNotification(supplierUser.id, 'order', 'Order cancelled',
+          `${existing.invoiceNumber} has been cancelled.`);
+      }
+    }
+    setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
     showAlert('Order status updated to ' + status + ' 🚀', 'success');
   };
 
@@ -1063,6 +1430,16 @@ function App() {
             <button className="icon-btn" onClick={toggleFullscreen} title="Fullscreen">
               {isFullscreen ? '⛶' : '⛶'}
             </button>
+            {currentUser && (
+              <button className="icon-btn notif-btn" onClick={() => setShowNotifications(true)} title="Notifications">
+                🔔 {unreadNotifications() > 0 && <span className="notif-badge">{unreadNotifications()}</span>}
+              </button>
+            )}
+            {currentUser && (
+              <button className="wallet-chip" onClick={() => setShowWallet(true)} title="E-SCON Wallet">
+                💳 {formatCurrency(walletBalance(currentUser.id))}
+              </button>
+            )}
             {currentUser ? renderUserNav() : renderGuestNav()}
             {currentUser && currentUser.userType === 'customer' && (
               <button className="cart-icon-btn" onClick={handleCheckout}>
@@ -1135,6 +1512,7 @@ function App() {
       <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
           <div className="modal-header"><h2>🛒 Shopping Cart</h2><button className="modal-close" onClick={() => setShowCartSummary(false)}>✕</button></div>
+          <div className="cart-datetime-bar"><LiveClock /></div>
           <div className="modal-body">
             {cart.length === 0 ? (
               <div className="empty-cart"><span className="empty-cart-icon">🛒</span><h3>Your cart is empty</h3><button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button></div>
@@ -1172,11 +1550,23 @@ function App() {
                   <h3>Financial Summary</h3>
                   <div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
                   <div className="summary-row"><span>VAT ({Math.round(cartDetails.vatAmount / Math.max(cartDetails.subtotal, 0.01) * 100)}%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
-                  {multipleSuppliers ? (
-                    <div className="summary-row"><span>Delivery Fee ({supplierGroups.length} suppliers):</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
-                  ) : (
-                    <div className="summary-row"><span>Delivery Fee:</span><span>{formatCurrency(cartDetails.transportCost)}</span></div>
-                  )}
+                  <div className="summary-row">
+                    <span>Delivery Fee{multipleSuppliers ? ` (${supplierGroups.length} suppliers)` : ''}:</span>
+                    <span className="delivery-fee-edit">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={deliveryFeeOverride !== null ? deliveryFeeOverride : cartDetails.transportCost}
+                        onChange={(e) => handleDeliveryFeeChange(parseFloat(e.target.value))}
+                        aria-label="Delivery fee (ETB)"
+                      />
+                      <span className="delivery-fee-currency">ETB</span>
+                      {deliveryFeeOverride !== null && (
+                        <button type="button" className="link-btn delivery-fee-reset" onClick={handleDeliveryFeeReset} title="Use the automatic delivery fee">⟲ auto</button>
+                      )}
+                    </span>
+                  </div>
                   {cartDetails.freeDeliveryApplied && (
                     <div className="summary-row free-delivery-row"><span>🎉 Free delivery applied (order above threshold):</span><span>ETB 0.00</span></div>
                   )}
@@ -1189,6 +1579,35 @@ function App() {
                     ) : (
                       <div className="min-order-notice ok">✅ Meets the minimum order requirement of {formatCurrency(cartDetails.minOrderAmount || 0)}.</div>
                     )
+                  )}
+                </div>
+                <div className="payment-selector">
+                  <h4>💳 Payment Method</h4>
+                  <div className="payment-options">
+                    <label className={'pay-option' + (paymentMethod === 'wallet' ? ' active' : '')}>
+                      <input type="radio" name="paymentMethod" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
+                      <span className="pay-icon">💳</span>
+                      <span className="pay-meta"><strong>E-SCON Wallet</strong><small>Balance {formatCurrency(walletBalance(currentUser!.id))}</small></span>
+                      <span className="pay-check">{paymentMethod === 'wallet' ? '✓' : ''}</span>
+                    </label>
+                    <label className={'pay-option' + (paymentMethod === 'bank' ? ' active' : '')}>
+                      <input type="radio" name="paymentMethod" checked={paymentMethod === 'bank'} onChange={() => setPaymentMethod('bank')} />
+                      <span className="pay-icon">🏦</span>
+                      <span className="pay-meta"><strong>Bank Transfer</strong><small>Pay on invoice (proforma)</small></span>
+                      <span className="pay-check">{paymentMethod === 'bank' ? '✓' : ''}</span>
+                    </label>
+                    <label className={'pay-option' + (paymentMethod === 'cod' ? ' active' : '')}>
+                      <input type="radio" name="paymentMethod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} />
+                      <span className="pay-icon">💵</span>
+                      <span className="pay-meta"><strong>Cash on Delivery</strong><small>Pay when goods arrive</small></span>
+                      <span className="pay-check">{paymentMethod === 'cod' ? '✓' : ''}</span>
+                    </label>
+                  </div>
+                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') < cartDetails.total && (
+                    <div className="min-order-notice error">⚠️ Insufficient wallet balance ({formatCurrency(walletBalance(currentUser ? currentUser.id : ''))}). <button className="link-btn" onClick={() => { setShowCartSummary(false); setShowWallet(true); }}>Top up now</button></div>
+                  )}
+                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') >= cartDetails.total && (
+                    <div className="min-order-notice ok">✅ Balance covers this order — instant checkout.</div>
                   )}
                 </div>
                 <div className="cart-actions">
@@ -1623,15 +2042,53 @@ function App() {
     if (!selectedMaterial) return null;
     const company = getCompanyById(selectedMaterial.companyId);
     const isInCart = cart.some(item => item.materialId === selectedMaterial.id);
+    const history = selectedMaterial.priceHistory || [];
+    const forecast = forecastPrice(history, selectedMaterial.price);
+    const productReviews = reviewForMaterial(selectedMaterial.id);
+    const avgRating = ratingForMaterial(selectedMaterial);
+    const isLowStock = selectedMaterial.quantity <= LOW_STOCK_THRESHOLD;
+    const canReview = currentUser?.userType === 'customer' &&
+      orders.some(o => o.customerId === currentUser.id && o.materialId === selectedMaterial.id && o.status === 'delivered');
 
     return (
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
         <div className="modal-content glass" onClick={e => e.stopPropagation()}>
-          <div className="modal-header"><h2>{selectedMaterial.name}</h2><button className="modal-close" onClick={() => setSelectedMaterial(null)}>✕</button></div>
+          <div className="modal-header">
+            <h2>{selectedMaterial.name}</h2>
+            <button className="modal-close" onClick={() => setSelectedMaterial(null)}>✕</button>
+          </div>
           <div className="modal-body">
+            {isLowStock && <div className="stock-flag stock-flag-low">⚠️ Low stock — only {selectedMaterial.quantity} {selectedMaterial.unit || 'units'} left</div>}
             {renderProductGallery(selectedMaterial)}
             <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
-            <div><h3>💰 Pricing</h3><p>Unit: {formatCurrency(selectedMaterial.price)} / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity}</p></div>
+            <div><h3>💰 Pricing</h3>
+              <p>Unit: <strong>{formatCurrency(selectedMaterial.price)}</strong> / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity} {selectedMaterial.unit}</p>
+              <div className="rating-summary">
+                <StarRatingDisplay value={avgRating} />
+                <span className="rating-num">{avgRating.toFixed(1)}</span>
+                <span className="rating-count">({productReviews.length} review{productReviews.length !== 1 ? 's' : ''})</span>
+              </div>
+            </div>
+            {history.length >= 2 && forecast && (
+              <div className="forecast-panel">
+                <div className="forecast-header">
+                  <h3>🤖 AI Price Forecast</h3>
+                  <span className={'trend-chip trend-' + forecast.trend}>
+                    {forecast.trend === 'up' ? '📈 Trending up' : forecast.trend === 'down' ? '📉 Trending down' : '➡️ Stable'}
+                  </span>
+                </div>
+                <Sparkline points={history.map(p => p.price)} width={220} height={56} />
+                <div className="forecast-details">
+                  <span>Predicted next price: <strong>{formatCurrency(forecast.next)}</strong></span>
+                  <span className={forecast.changePct > 0 ? 'forecast-pos' : forecast.changePct < 0 ? 'forecast-neg' : ''}>
+                    {forecast.changePct > 0 ? '+' : ''}{forecast.changePct.toFixed(1)}% vs today
+                  </span>
+                  {selectedMaterial.category === 'Fuel' && (
+                    <span className="forecast-note">⚠️ Fuel prices are volatile — order at current price when the trend is rising</span>
+                  )}
+                </div>
+              </div>
+            )}
             <div><h3>🏢 Supplier</h3>
               <p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p>
               <p>
@@ -1643,9 +2100,44 @@ function App() {
                     {distanceToSelected.toFixed(1)} km
                   </span>
                 ) : ' Unable to calculate'}
+                {distanceToSelected !== null && <span className="eta-chip">🕒 ETA {deliveryEta(distanceToSelected)}</span>}
               </p>
               {company && (
                 <button className="btn btn-primary map-route-btn" onClick={() => { handleOpenMapWithRoute(company.id); setSelectedMaterial(null); }}>🗺️ View Route on Map</button>
+              )}
+            </div>
+            <div className="reviews-section">
+              <h3>⭐ Customer Reviews</h3>
+              {currentUser?.userType === 'customer' && (
+                <div className="review-form">
+                  <StarRatingInput value={reviewDraft.rating} onChange={(v) => setReviewDraft(prev => ({ ...prev, rating: v }))} />
+                  <textarea
+                    className="form-input"
+                    placeholder={canReview ? 'Share your experience with this product…' : 'Only customers who received this product can review it (close & collect after delivery).'}
+                    value={reviewDraft.comment}
+                    disabled={!canReview}
+                    rows={2}
+                    onChange={(e) => setReviewDraft(prev => ({ ...prev, comment: e.target.value }))}
+                  />
+                  <button className="btn btn-primary" disabled={!canReview} onClick={() => submitReview(selectedMaterial.id)}>Post Review</button>
+                </div>
+              )}
+              {productReviews.length === 0 ? (
+                <p className="reviews-empty">No reviews yet — be the first to rate this product.</p>
+              ) : (
+                <div className="reviews-list">
+                  {productReviews.map(r => (
+                    <div key={r.id} className="review-item">
+                      <div className="review-top">
+                        <span className="review-avatar">{r.userName.charAt(0).toUpperCase()}</span>
+                        <span className="review-name">{r.userName}</span>
+                        <span className="review-date">{timeAgo(r.date)}</span>
+                      </div>
+                      <StarRatingDisplay value={r.rating} size={12} />
+                      {r.comment && <p className="review-comment">{r.comment}</p>}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
             {currentUser?.userType === 'customer' && (
@@ -1709,6 +2201,17 @@ function App() {
           <button className="mobile-icon-btn" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme">
             {darkMode ? '☀️' : '🌙'}
           </button>
+          {currentUser && (
+            <button className="mobile-icon-btn" onClick={() => setShowNotifications(true)} aria-label="Notifications">
+              🔔
+              {unreadNotifications() > 0 && <span className="mobile-badge">{unreadNotifications()}</span>}
+            </button>
+          )}
+          {currentUser && (
+            <button className="mobile-icon-btn" onClick={() => setShowWallet(true)} aria-label="Wallet" title="Wallet">
+              💳
+            </button>
+          )}
           {currentUser && currentUser.userType === 'customer' && (
             <button className="mobile-icon-btn mobile-cart" onClick={handleCheckout} aria-label="Open cart">
               🛒
@@ -1830,6 +2333,8 @@ function App() {
               onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard'); }}
             />
             <Action icon="🗺️" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
+            <Action icon="💳" label="E-SCON Wallet" sub={currentUser ? 'Balance ' + formatCurrency(walletBalance(currentUser.id)) : 'Top up & pay with wallet'} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
+            <Action icon="🔔" label="Notifications" sub={unreadNotifications() > 0 ? unreadNotifications() + ' unread' : 'All caught up'} onClick={() => { setMobileMenuOpen(false); setShowNotifications(true); }} />
             <Action
               icon="⚖️"
               label="Compare Products"
@@ -1840,6 +2345,9 @@ function App() {
             <Action icon={darkMode ? '☀️' : '🌙'} label={darkMode ? 'Light Theme' : 'Dark Theme'} onClick={() => setDarkMode(!darkMode)} />
             {currentUser && (
               <Action icon="📥" label="Export Orders" sub="Download your orders as CSV" onClick={() => { setMobileMenuOpen(false); handleExportOrders(); }} />
+            )}
+            {currentUser && (
+              <Action icon="🛡️" label="Data Center" sub="JSON backup & restore" onClick={() => { setMobileMenuOpen(false); setShowDataCenter(true); }} />
             )}
             {isAdmin && <Action icon="⚙️" label="Platform Settings" sub="Delivery fees, zones & minimum order" onClick={() => { setMobileMenuOpen(false); navigateTo('settings'); }} />}
           </div>
@@ -2142,12 +2650,30 @@ function App() {
                     <strong>Total {formatCurrency(order.totalAmount)}</strong>
                     <small>{formatDate(order.orderDate)}</small>
                   </div>
+                  <div className="m-order-pay">
+                    <span className={'pay-pill pay-' + order.paymentStatus}>
+                      {order.paymentStatus === 'paid' ? '💳 Paid' : order.paymentStatus === 'refunded' ? '↩️ Refunded' : '⏳ Payment pending'}
+                    </span>
+                    <span className="pay-method">{order.paymentMethod}</span>
+                  </div>
                   <div className="m-order-actions">
                     {!isCompany && (
                       <button className="m-order-btn" onClick={() => handleQuickReorder(order.materialId)}>🔄 Reorder</button>
                     )}
+                    {!isCompany && order.status === 'delivered' && m && (
+                      <button className="m-order-btn primary" onClick={() => setSelectedMaterial(m)}>⭐ Rate product</button>
+                    )}
                     {isCompany && order.status === 'pending' && (
-                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm Order</button>
+                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button>
+                    )}
+                    {isCompany && order.status === 'confirmed' && (
+                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'shipped')}>🚚 Ship</button>
+                    )}
+                    {isCompany && order.status === 'shipped' && (
+                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'delivered')}>📦 Delivered</button>
+                    )}
+                    {isCompany && (order.status === 'pending' || order.status === 'confirmed') && (
+                      <button className="m-order-btn danger" onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}>🚫 Cancel</button>
                     )}
                     <button className="m-order-btn" onClick={handleExportOrders}>📥 Export</button>
                   </div>
@@ -2428,7 +2954,7 @@ function App() {
                       <div className="compare-row"><span>Unit</span><span>{m.unit}</span></div>
                       <div className="compare-row"><span>Min Order</span><span>{m.minOrder}</span></div>
                       <div className="compare-row"><span>Stock</span><span className={m.quantity > 0 ? 'in-stock' : 'out-stock'}>{m.quantity}</span></div>
-                      <div className="compare-row"><span>Rating</span><span>⭐ {m.rating || 'N/A'}</span></div>
+                      <div className="compare-row"><span>Rating</span><span>⭐ {ratingForMaterial(m)}</span></div>
                       <div className="compare-row"><span>Brand</span><span>{m.brand || '—'}</span></div>
                       <div className="compare-row"><span>Weight</span><span>{m.specifications?.weight || '—'}</span></div>
                       <div className="compare-row"><span>Origin</span><span>{m.specifications?.origin || 'Ethiopia'}</span></div>
@@ -2450,6 +2976,134 @@ function App() {
       </div>
       {isMobile ? renderMobileBottomNav() : renderFooter()}
       {isMobile && renderMobileMoreSheet()}
+
+      {/* ---------- Notifications drawer ---------- */}
+      {showNotifications && currentUser && (
+        <div className="modal-overlay" onClick={() => setShowNotifications(false)}>
+          <div className={'notifications-panel' + (isMobile ? ' notifications-panel-mobile' : '')} onClick={e => e.stopPropagation()}>
+            <div className="notifications-header">
+              <h3>🔔 Notifications</h3>
+              <div>
+                <button className="btn-secondary btn-sm" onClick={markAllNotificationsRead}>Mark all read</button>
+                <button className="modal-close" onClick={() => setShowNotifications(false)}>✕</button>
+              </div>
+            </div>
+            <div className="notifications-body">
+              {notifications.filter(n => n.userId === currentUser.id).length === 0 ? (
+                <div className="notif-empty"><span>🔕</span><p>You're all caught up — no notifications yet.</p></div>
+              ) : (
+                notifications.filter(n => n.userId === currentUser.id).map(n => (
+                  <button key={n.id} className={'notif-item' + (n.read ? '' : ' unread')} onClick={() => markNotificationRead(n.id)}>
+                    <span className="notif-icon">
+                      {n.type === 'order' ? '📦' : n.type === 'payment' ? '💳' : n.type === 'stock' ? '⚠️' : n.type === 'rating' ? '⭐' : 'ℹ️'}
+                    </span>
+                    <span className="notif-content">
+                      <span className="notif-title">{n.title}</span>
+                      <span className="notif-msg">{n.message}</span>
+                      <span className="notif-time">{timeAgo(n.createdAt)}</span>
+                    </span>
+                    {!n.read && <span className="notif-dot" />}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Wallet modal ---------- */}
+      {showWallet && currentUser && (
+        <div className="modal-overlay" onClick={() => setShowWallet(false)}>
+          <div className="modal-content wallet-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h2>💳 E-SCON Wallet</h2><button className="modal-close" onClick={() => setShowWallet(false)}>✕</button></div>
+            <div className="modal-body">
+              <div className="wallet-hero">
+                <div className="wallet-balance">{formatCurrency(walletBalance(currentUser.id))}</div>
+                <div className="wallet-balance-label">Available balance</div>
+                <button className="btn btn-primary" onClick={() => setShowTopUp(true)}>➕ Top Up</button>
+              </div>
+              <div className="wallet-methods-note">
+                💡 Wallet payments settle instantly. Suppliers are credited automatically on delivery (net of an 8% platform fee).
+              </div>
+              {showTopUp && (
+                <div className="topup-panel">
+                  <h4>Top up your wallet</h4>
+                  <div className="topup-quick">
+                    {[5000, 10000, 20000, 50000].map(amt => (
+                      <button key={amt} className={'topup-quick-btn' + (topUpAmount === amt ? ' active' : '')} onClick={() => setTopUpAmount(amt)}>{formatCurrency(amt)}</button>
+                    ))}
+                  </div>
+                  <input type="number" className="form-input" value={topUpAmount} min={100} onChange={(e) => setTopUpAmount(parseInt(e.target.value))} />
+                  <div className="topup-methods">
+                    {['Telebirr', 'Chappa', 'CBE Birr', 'Awash Bank'].map(m => (
+                      <label key={m} className={'topup-method' + (topUpMethod === m ? ' active' : '')}>
+                        <input type="radio" name="topupMethod" checked={topUpMethod === m} onChange={() => setTopUpMethod(m)} />
+                        {m}
+                      </label>
+                    ))}
+                  </div>
+                  <button className="btn btn-primary btn-block" onClick={() => topUpWallet(topUpAmount, topUpMethod)}>
+                    Confirm {formatCurrency(topUpAmount)} via {topUpMethod}
+                  </button>
+                </div>
+              )}
+              <div className="wallet-ledger">
+                <h4>Recent activity</h4>
+                {transactions.filter(t => t.userId === currentUser.id).length === 0 ? (
+                  <p className="reviews-empty">No transactions yet. Top up or place an order to get started.</p>
+                ) : (
+                  <div className="ledger-list">
+                    {transactions.filter(t => t.userId === currentUser.id).slice(0, 15).map(tx => (
+                      <div key={tx.id} className="ledger-item">
+                        <span className={'ledger-icon ledger-' + tx.kind}>
+                          {tx.kind === 'topup' ? '➕' : tx.kind === 'payment' ? '➖' : tx.kind === 'income' ? '💰' : '↩️'}
+                        </span>
+                        <span className="ledger-info">
+                          <strong>{tx.note}</strong>
+                          <small>{timeAgo(tx.date)} · Balance {formatCurrency(tx.balanceAfter)}</small>
+                        </span>
+                        <span className={'ledger-amount ' + (tx.kind === 'topup' || tx.kind === 'income' || tx.kind === 'refund' ? 'positive' : 'negative')}>
+                          {tx.kind === 'topup' || tx.kind === 'income' || tx.kind === 'refund' ? '+' : '−'}{formatCurrency(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Data Center (backup & restore) ---------- */}
+      {showDataCenter && currentUser && (
+        <div className="modal-overlay" onClick={() => setShowDataCenter(false)}>
+          <div className="modal-content data-center-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h2>🛡️ Data Center</h2><button className="modal-close" onClick={() => setShowDataCenter(false)}>✕</button></div>
+            <div className="modal-body">
+              <div className="dc-card">
+                <div className="dc-icon">📦</div>
+                <h4>Export backup</h4>
+                <p>Download all products, orders, wallet, notifications and settings as a portable JSON file.</p>
+                <button className="btn btn-primary" onClick={handleBackupExport}>⬇️ Download JSON backup</button>
+              </div>
+              <div className="dc-card dc-danger">
+                <div className="dc-icon">♻️</div>
+                <h4>Restore backup</h4>
+                <p>Load a previous backup file. This replaces the current app data on this device.</p>
+                <label className="btn btn-secondary">
+                  ⬆️ Choose backup file…
+                  <input type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleBackupRestore(file);
+                  }} />
+                </label>
+              </div>
+              <p className="dc-note">⚠️ Backups are stored locally in your browser. Export regularly to keep a safe copy.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -72,6 +72,14 @@ export interface Material {
   taxIncluded: boolean;
   vatPercentage: number;
   lastUpdated: string;
+  /** Rolling price-snapshot history used by the AI price-forecast chart. */
+  priceHistory?: PricePoint[];
+}
+
+/** A single price snapshot (timestamp + selling price) in a material's history. */
+export interface PricePoint {
+  date: number;
+  price: number;
 }
 
 export interface Order {
@@ -92,7 +100,11 @@ export interface Order {
   taxAmount: number;
   vatAmount: number;
   paymentMethod: string;
-  paymentStatus: 'pending' | 'paid' | 'failed';
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  /** True when this order was settled from the buyer's E-SCON wallet. */
+  walletPayment?: boolean;
+  /** True once the supplier's wallet has been credited for a paid order. */
+  revenueCredited?: boolean;
 }
 
 export interface Alert {
@@ -267,4 +279,54 @@ export interface ProformaShareData {
   del: number; // delivery fee
   tot: number; // grand total
   c: 'ETB';
+}
+
+/** Platform notification shown in the bell drawer. Persisted per app. */
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: 'order' | 'payment' | 'stock' | 'system' | 'rating';
+  title: string;
+  message: string;
+  createdAt: number;
+  read: boolean;
+}
+
+/** A wallet ledger entry (top-up, payment, income, refund). */
+export interface WalletTx {
+  id: string;
+  userId: string;
+  kind: 'topup' | 'payment' | 'income' | 'refund';
+  amount: number;
+  balanceAfter: number;
+  note: string;
+  date: number;
+}
+
+/** Customer rating left on a delivered order / product. */
+export interface ProductReview {
+  id: string;
+  materialId: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  date: number;
+  orderId?: string;
+}
+
+/** Snapshot serialized to JSON by the Data Center backup/restore. */
+export interface BackupPayload {
+  app: 'ESCON';
+  version: number;
+  exportedAt: string;
+  users: User[];
+  companies: Company[];
+  materials: Material[];
+  orders: Order[];
+  notifications: AppNotification[];
+  wallets: Record<string, number>;
+  transactions: WalletTx[];
+  reviews: ProductReview[];
+  settings: SystemSettings | null;
 }

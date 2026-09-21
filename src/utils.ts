@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { SystemSettings, ProformaShareData } from './types';
+import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload } from './types';
 
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
@@ -406,7 +406,7 @@ export const exportOrdersToCSV = (orders: any[], materials: any[], companies: an
 
 export const geocodeAddress = async (address: string, city: string): Promise<{ lat: number; lng: number } | null> => {
   try {
-    const query = encodeURIComponent(`${address}, ${city}, Ethiopia`);
+const query = encodeURIComponent(`${address}, ${city}, Ethiopia`);
     const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
     const response = await fetch(url, {
       headers: { 'User-Agent': 'E-SCON-App' }
@@ -438,4 +438,148 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string |
     console.warn('Reverse geocoding failed', error);
     return null;
   }
+};
+
+// ----------------------------------------------------------------//
+// v6 — Advanced features: forecasts, wallets, ETA, ratings, backup //
+// ----------------------------------------------------------------//
+
+/** Deterministic ID generator for notifications, wallet txs, reviews… */
+export const genId = (prefix: string): string =>
+  `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+export interface ForecastResult {
+  next: number;
+  change: number;
+  changePct: number;
+  trend: 'up' | 'down' | 'flat';
+}
+
+/**
+ * Lightweight "AI" price forecast over a material's price history.
+ * Uses a least-squares linear trend over the last N points and extrapolates
+ * one step ahead (same unit as the prices). Gracefully falls back to the
+ * latest price when there is too little history to be meaningful.
+ */
+export const forecastPrice = (history: PricePoint[] | undefined, basePrice: number, horizon = 1): ForecastResult | null => {
+  const points = (history || []).filter(p => typeof p.price === 'number' && isFinite(p.price));
+  if (points.length === 0) return null;
+  const sorted = [...points].sort((a, b) => a.date - b.date).slice(-12);
+  const n = sorted.length;
+  const y = sorted.map(p => p.price);
+  const latest = y[n - 1];
+  let slope = 0;
+  if (n >= 3) {
+    const xAvg = (n - 1) / 2;
+    const yAvg = y.reduce((s, v) => s + v, 0) / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) {
+      num += (i - xAvg) * (y[i] - yAvg);
+      den += (i - xAvg) * (i - xAvg);
+    }
+    slope = den > 0 ? num / den : 0;
+  } else if (n === 2) {
+    slope = y[1] - y[0];
+  }
+  const next = Math.max(0, latest + slope * horizon);
+  const change = next - (basePrice || latest);
+  const changePct = basePrice > 0 ? (change / basePrice) * 100 : 0;
+  return { next, change, changePct, trend: changePct > 1.5 ? 'up' : changePct < -1.5 ? 'down' : 'flat' };
+};
+
+/** Effective rating = average of customer reviews when present, else base. */
+export const effectiveRating = (base: number, reviews: ProductReview[] | undefined): number => {
+  const list = (reviews || []).filter(r => r && typeof r.rating === 'number');
+  if (list.length === 0) return base || 0;
+  const avg = list.reduce((s, r) => s + r.rating, 0) / list.length;
+  return Math.round(avg * 10) / 10;
+};
+
+/**
+ * Wallet ledger helper — validates the operation and returns the new balance,
+ * or null when the operation is not allowed (e.g. overdrawing).
+ */
+export const applyWalletOp = (
+  balance: number,
+  kind: 'topup' | 'payment' | 'income' | 'refund',
+  amount: number
+): number | null => {
+  if (!isFinite(amount) || amount <= 0) return null;
+  let next = balance;
+  if (kind === 'topup' || kind === 'income' || kind === 'refund') {
+    next = balance + amount;
+  } else if (kind === 'payment') {
+    if (balance < amount) return null;
+    next = balance - amount;
+  }
+  return Math.round(next * 100) / 100;
+};
+
+/** Estimated delivery time from a driving distance (avg 50 km/h + margin). */
+export const deliveryEta = (distanceKm: number, avgSpeedKmh = 50): string => {
+  if (!isFinite(distanceKm) || distanceKm <= 0) return '—';
+  const hours = distanceKm / avgSpeedKmh;
+  if (hours < 1) return `~${Math.max(30, Math.round(hours * 60))} min`;
+  if (hours < 24) {
+    const h = Math.max(1, Math.round(hours));
+    return `~${h} hr${h > 1 ? 's' : ''}`;
+  }
+  const d = Math.round(hours / 24);
+  return `~${d} day${d > 1 ? 's' : ''}`;
+};
+
+/** Human-relative timestamp ("2h ago") for notifications & ledger. */
+export const timeAgo = (ts: number): string => {
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24);
+  if (d < 7) return d + 'd ago';
+  return new Date(ts).toLocaleDateString('en-ET', { month: 'short', day: 'numeric' });
+};
+
+// ---------- Data Center (JSON backup & restore) ----------
+
+const BACKUP_MAGIC = 'ESCON';
+
+/** Validate arbitrary parsed JSON as a BackupPayload. */
+export const validateBackup = (raw: unknown): BackupPayload | null => {
+  try {
+    if (typeof raw !== 'object' || raw === null) return null;
+    const obj = raw as BackupPayload;
+    if (obj.app !== BACKUP_MAGIC) return null;
+    if (!Array.isArray(obj.users) || !Array.isArray(obj.companies) || !Array.isArray(obj.materials)) return null;
+    if (!Array.isArray(obj.orders)) return null;
+    return {
+      app: BACKUP_MAGIC,
+      version: obj.version || 1,
+      exportedAt: obj.exportedAt || '',
+      users: obj.users,
+      companies: obj.companies,
+      materials: obj.materials,
+      orders: obj.orders,
+      notifications: Array.isArray(obj.notifications) ? obj.notifications : [],
+      wallets: obj.wallets && typeof obj.wallets === 'object' ? obj.wallets : {},
+      transactions: Array.isArray(obj.transactions) ? obj.transactions : [],
+      reviews: Array.isArray(obj.reviews) ? obj.reviews : [],
+      settings: obj.settings || null,
+    };
+  } catch (e) {
+    console.warn('Backup validation failed', e);
+    return null;
+  }
+};
+
+/** Download a JSON file (used by Data Center export). */
+export const downloadJson = (payload: BackupPayload, filename: string): void => {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };

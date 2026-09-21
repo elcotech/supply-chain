@@ -17,6 +17,33 @@ interface ProformaInvoiceProps {
   onClose: () => void;
 }
 
+// Standard / specification helper: builds "PN 16, ISO 4427" style strings from
+// the product metadata the application actually stores.
+function specString(item: CartItem): string {
+  const s = item.specifications;
+  if (!s) return '';
+  const parts: string[] = [];
+  if (s.materialType) parts.push(s.materialType);
+  if (s.grade) parts.push(s.grade);
+  if (s.dimensions) parts.push(s.dimensions);
+  if (s.weight) parts.push(s.weight);
+  if (s.origin) parts.push(s.origin);
+  if (s.certification && s.certification.length > 0) parts.push(s.certification.join(', '));
+  return parts.join(' · ');
+}
+
+// Convert an amount into English words with Birr + cents support.
+function amountToWords(amount: number): string {
+  const abs = Math.abs(amount);
+  const birr = Math.floor(abs);
+  const cents = Math.round((abs - birr) * 100);
+  const birrText = (birr === 0 ? 'Zero' : numberToWords(birr)) + ' Ethiopian Birr';
+  const centText = cents > 0
+    ? ' and ' + numberToWords(cents) + (cents === 1 ? ' Cent' : ' Cents')
+    : '';
+  return birrText + centText + ' Only';
+}
+
 const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   cart,
   report,
@@ -28,11 +55,12 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   // Capture the timestamp once for a stable proforma number / date — not a ticking clock
   const [now] = useState(() => new Date());
 
-  // Flexible delivery & remarks (editable per order/proforma)
+  // Flexible delivery & remarks (editable per order/proforma). Editable inputs
+  // render as plain text when printed.
   const [deliveryService, setDeliveryService] = useState('Supplier Delivery');
   const [deliveryEta, setDeliveryEta] = useState('3-5 business days');
   const [remarks, setRemarks] = useState(
-    'This is a proforma invoice, not a tax invoice.\nPayment terms: 50% advance, 50% on delivery.'
+    'Please confirm the delivery address and contact number before dispatch.'
   );
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrStatus, setQrStatus] = useState<'generating' | 'ready' | 'failed'>('generating');
@@ -58,6 +86,21 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     String(now.getMonth() + 1).padStart(2, '0') +
     '-' +
     String(now.getTime()).slice(-6);
+
+  const validUntil = new Date(
+    now.getTime() + 30 * 24 * 60 * 60 * 1000
+  ).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const signatureDate =
+    String(now.getDate()).padStart(2, '0') +
+    ' / ' +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    ' / ' +
+    now.getFullYear();
 
   // QR encodes a URL + compact, non-sensitive proforma data so it works both on
   // screen and when paper-printed — scanning opens a mobile-friendly view.
@@ -90,20 +133,52 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const totalWords = numberToWords(Math.round(report.total));
-  const minOrderText = cart
-    .filter((i) => i.minOrder > 1)
-    .map((i) => i.materialName + ': ' + i.minOrder + ' ' + i.unit)
-    .join(' · ');
-
-  // Minimum-order visibility — warn inside the document too, so the customer
-  // learns about the rule before committing, not after submission.
   const settings = loadSettings();
   const minOrderCheck = checkMinOrder(settings, report.subtotal);
+
+  // ------------------------------------------------------------------ finance
+  const vatPercent = report.subtotal > 0
+    ? Math.round((report.vatAmount / report.subtotal) * 100)
+    : 0;
+  const totalBeforeVat = report.subtotal + report.transportCost;
+  const words = amountToWords(report.total);
 
   const handlePrint = () => {
     window.print();
   };
+
+  // ----------------------------------------------------------------- parts
+  const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const supplierNotes = cart
+    .filter((i) => i.minOrder > 1)
+    .map((i) => i.materialName + ': ' + i.minOrder + ' ' + i.unit)
+    .join(' · ');
+
+  const box = (title: string, icon: string, children: React.ReactNode) => (
+    <div className="pf-box">
+      <div className="pf-box-head">
+        <span className="pf-box-icon">{icon}</span>
+        <span>{title}</span>
+      </div>
+      <div className="pf-box-body">{children}</div>
+    </div>
+  );
+
+  const infoRow = (label: string, value: React.ReactNode) => (
+    <div className="pf-info-row">
+      <span className="pf-info-label">{label}</span>
+      <span className="pf-info-value">{value || '—'}</span>
+    </div>
+  );
+
+  const termItem = (icon: string, title: string, body: React.ReactNode) => (
+    <div className="pf-term-item">
+      <span className="pf-term-icon">{icon}</span>
+      <div className="pf-term-text">
+        <strong>{title}:</strong> {body}
+      </div>
+    </div>
+  );
 
   return (
     <div className="proforma-overlay" onClick={onClose}>
@@ -119,340 +194,293 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
         </div>
 
         {/* Invoice Document */}
-        <div className="proforma-document">
-          {/* Header */}
-          <div className="proforma-header">
-            <div className="proforma-logo-section">
-              <div className="proforma-logo-icon">🏗️</div>
-              <div>
-                <h1 className="proforma-brand">E-SCON</h1>
-                <p className="proforma-brand-sub">
-                  Ethio-Supply Chain Optimization Network
+        <div className="proforma-document pf-document">
+          {/* ============================= HEADER ============================= */}
+          <div className="pf-header">
+            <div className="pf-brand">
+              <div className="pf-logo">
+                <img
+                  src={process.env.PUBLIC_URL + '/logo512.png'}
+                  alt="E-SCON logo"
+                  className="pf-logo-img"
+                />
+              </div>
+              <div className="pf-company">
+                <h1 className="pf-company-name">E-SCON</h1>
+                <p className="pf-company-full">Ethio-Supply Chain Optimization Network</p>
+                <p className="pf-tagline">
+                  Smarter Supply Chains&nbsp;&nbsp;|&nbsp;&nbsp;Better Decisions&nbsp;&nbsp;|&nbsp;&nbsp;A Stronger Ethiopia
                 </p>
               </div>
             </div>
-            <div className="proforma-title-section">
-              <h2 className="proforma-doc-title">PROFORMA</h2>
-              <div className="proforma-meta">
-                <div className="proforma-meta-row">
-                  <span className="meta-label">Proforma No:</span>
-                  <span className="meta-value">{proformaNumber}</span>
+
+            <div className="pf-meta">
+              <div className="pf-title-banner">
+                <div className="pf-banner-stripe">
+                  <span />
+                  <span />
                 </div>
-                <div className="proforma-meta-row">
-                  <span className="meta-label">Date & Time:</span>
-                  <span className="meta-value">{dt.date} · {dt.time}</span>
+                <h2 className="pf-title">Proforma Invoice</h2>
+              </div>
+              <div className="pf-meta-rows">
+                <div className="pf-meta-row">
+                  <span className="pf-meta-label">Proforma No.</span>
+                  <span className="pf-meta-value">{proformaNumber}</span>
                 </div>
-                <div className="proforma-meta-row">
-                  <span className="meta-label">Currency:</span>
-                  <span className="meta-value">ETB – Ethiopian Birr</span>
+                <div className="pf-meta-row">
+                  <span className="pf-meta-label">Date &amp; Time</span>
+                  <span className="pf-meta-value">{dt.date} – {dt.time}</span>
                 </div>
-                <div className="proforma-meta-row">
-                  <span className="meta-label">Valid Until:</span>
-                  <span className="meta-value">
-                    {new Date(
-                      now.getTime() + 30 * 24 * 60 * 60 * 1000
-                    ).toLocaleDateString('en-GB', {
-                      day: '2-digit',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </span>
+                <div className="pf-meta-row">
+                  <span className="pf-meta-label">Currency</span>
+                  <span className="pf-meta-value">ETB – Ethiopian Birr</span>
+                </div>
+                <div className="pf-meta-row">
+                  <span className="pf-meta-label">Valid Until</span>
+                  <span className="pf-meta-value">{validUntil}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="proforma-divider" />
+          {/* ============================= PARTIES ============================= */}
+          <div className="pf-parties">
+            {box('SUPPLIER DETAILS', '🏢',
+              suppliers.length > 0 ? (
+                suppliers.map((s, idx) => (
+                  <div key={s.id} className={'pf-supplier' + (idx > 0 ? ' pf-supplier-alt' : '')}>
+                    {suppliers.length > 1 && (
+                      <div className="pf-supplier-index">Supplier {idx + 1}</div>
+                    )}
+                    {infoRow('Company Name', <strong>{s.name}</strong>)}
+                    {infoRow('Address', s.city + (s.location ? ' – ' + s.location : ''))}
+                    {infoRow('TIN', s.tinNumber)}
+                    {infoRow('VAT No.', s.vatNumber)}
+                    {infoRow('Contact Person', '—')}
+                    {infoRow('Phone', s.phone)}
+                    {infoRow('Email', s.email)}
+                  </div>
+                ))
+              ) : (
+                <>
+                  {infoRow('Company Name', <strong>{supplier?.name || '—'}</strong>)}
+                  {infoRow('Address', supplier?.city || '—')}
+                </>
+              )
+            )}
 
-          {/* Parties — Supplier(s) & Buyer side-by-side */}
-          <div className="proforma-parties">
-            <div className="proforma-party">
-              <h4 className="party-title">
-                Supplier Details
-                {suppliers.length > 1 && (
-                  <span className="party-count"> ({suppliers.length} suppliers)</span>
-                )}
-              </h4>
-              <div className="party-details">
-                {suppliers.length > 0 ? (
-                  suppliers.map((s, idx) => (
-                    <div key={s.id} className={'party-supplier' + (idx > 0 ? ' party-supplier-alt' : '')}>
-                      {suppliers.length > 1 && (
-                        <p className="party-supplier-index">Supplier {idx + 1}</p>
-                      )}
-                      <p><strong>{s.name}</strong></p>
-                      <p>📍 {s.city}{s.location ? ' - ' + s.location : ''}</p>
-                      {s.tinNumber && <p>📋 TIN: {s.tinNumber}</p>}
-                      {s.vatNumber && <p>💰 VAT: {s.vatNumber}</p>}
-                      {s.phone && <p>📞 {s.phone}</p>}
-                    </div>
-                  ))
-                ) : (
-                  <p><strong>{supplier?.name || 'N/A'}</strong></p>
-                )}
-              </div>
-            </div>
-            <div className="proforma-party">
-              <h4 className="party-title">Buyer Details</h4>
-              <div className="party-details">
-                <p><strong>{currentUser?.name || 'N/A'}</strong></p>
-                <p>📍 {currentUser?.city || 'N/A'}</p>
-                {currentUser?.address && <p>{currentUser.address}</p>}
-                <p>📧 {currentUser?.email || 'N/A'}</p>
-                <p>📞 {currentUser?.phone || 'N/A'}</p>
-                {currentUser?.tinNumber && (
-                  <p>📋 TIN: {currentUser.tinNumber}</p>
-                )}
-              </div>
-            </div>
+            {box('BUYER DETAILS', '👤',
+              <>
+                {infoRow('Company Name', <strong>{currentUser?.name || '—'}</strong>)}
+                {infoRow('Address', currentUser?.city ? currentUser.city + (currentUser.address ? ' – ' + currentUser.address : '') : '—')}
+                {infoRow('TIN', currentUser?.tinNumber)}
+                {infoRow('VAT No.', currentUser?.vatNumber)}
+                {infoRow('Contact Person', currentUser?.name || '—')}
+                {infoRow('Phone', currentUser?.phone)}
+                {infoRow('Email', currentUser?.email)}
+              </>
+            )}
           </div>
 
-          <div className="proforma-divider" />
-
-          {/* Financial Summary — upper part, immediately visible */}
-          <div className="proforma-summary-section">
-            <div className="proforma-amount-words">
-              <h4>Amount in Words</h4>
-              <p className="amount-words-text">{totalWords} Ethiopian Birr Only</p>
-              <p className="amount-items-line">
-                {report.uniqueItems} line item{report.uniqueItems === 1 ? '' : 's'} · {report.itemCount} unit{report.itemCount === 1 ? '' : 's'} total
-              </p>
+          {/* ============================= ITEMS ============================= */}
+          <div className="pf-items">
+            <div className="pf-section-head">
+              <span className="pf-section-icon">🛒</span>
+              <span>Order Items</span>
+              <span className="pf-section-count">{cart.length} item{cart.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</span>
             </div>
-            <div className="proforma-summary-right">
-              <h4>Financial Summary</h4>
-              <div className="summary-table">
-                <div className="summary-line">
-                  <span>Subtotal (Before Tax):</span>
-                  <span>{formatCurrency(report.subtotal)}</span>
-                </div>
-                <div className="summary-line">
-                  <span>VAT ({Math.round(report.vatAmount / Math.max(report.subtotal, 0.01) * 100)}%):</span>
-                  <span>{formatCurrency(report.vatAmount)}</span>
-                </div>
-                {suppliers.length > 1 ? (
-                  <>
-                    <div className="summary-line">
-                      <span>Delivery / Transport Fee ({suppliers.length} suppliers):</span>
-                      <span>{formatCurrency(report.transportCost)}</span>
-                    </div>
-                    {suppliers.map((s, idx) => (
-                      <div key={s.id} className="summary-line summary-line-sub">
-                        <span>↳ {idx + 1}. {s.name} ({s.distanceKm.toFixed(1)} km)</span>
-                        <span>{formatCurrency(s.transportCost)}</span>
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <div className="summary-line">
-                      <span>Delivery / Transport Fee:</span>
-                      <span>{formatCurrency(report.transportCost)}</span>
-                    </div>
-                    <div className="summary-line">
-                      <span>Distance:</span>
-                      <span>{report.distanceKm.toFixed(1)} km</span>
-                    </div>
-                  </>
-                )}
-                <div className="summary-line grand-total">
-                  <span>GRAND TOTAL:</span>
-                  <span>{formatCurrency(report.total)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="proforma-divider" />
-
-          {/* Items Table — all selected items, no duplicates, no omissions */}
-          <div className="proforma-items-section">
-            <h4 className="section-heading">📦 ORDER ITEMS</h4>
-            <div className="proforma-table-wrapper">
-              <table className="proforma-table">
+            <div className="pf-table-wrap">
+              <table className="pf-table">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Item Description</th>
-                    <th>Supplier</th>
-                    <th>Unit</th>
-                    <th>Qty</th>
-                    <th>Unit Price</th>
-                    <th>Subtotal</th>
-                    <th>VAT ({Math.round(report.vatAmount / Math.max(report.subtotal, 0.01) * 100)}%)</th>
-                    <th>Total</th>
+                    <th className="pf-col-no">No.</th>
+                    <th className="pf-col-desc">Item Description</th>
+                    <th className="pf-col-spec">Standard / Specification</th>
+                    <th className="pf-col-unit">Unit</th>
+                    <th className="pf-col-qty">Qty</th>
+                    <th className="pf-col-price">Unit Price<br />(ETB)</th>
+                    <th className="pf-col-amount">Amount<br />(ETB)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cart.map((item, index) => {
                     const unitPrice = item.basePrice * (1 + item.profitMargin);
-                    const itemSubtotal = unitPrice * item.quantity;
-                    const itemVat = itemSubtotal * (item.vatPercentage / 100);
-                    const itemTotal = itemSubtotal + itemVat;
+                    const amount = unitPrice * item.quantity;
                     return (
                       <tr key={item.id}>
-                        <td>{index + 1}</td>
-                        <td>
-                          <strong>{item.materialName}</strong>
-                          {(item.specifications?.materialType || item.specifications?.grade) && (
-                            <small className="item-spec">
-                              {' '}
-                              {item.specifications?.materialType ||
-                                item.specifications?.grade}
-                            </small>
-                          )}
-                        </td>
-                        <td className="proforma-supplier">{item.supplierName}</td>
-                        <td>{item.unit}</td>
-                        <td>{item.quantity.toLocaleString()}</td>
-                        <td>{formatCurrency(unitPrice)}</td>
-                        <td>{formatCurrency(itemSubtotal)}</td>
-                        <td>{formatCurrency(itemVat)}</td>
-                        <td className="proforma-price">{formatCurrency(itemTotal)}</td>
+                        <td className="pf-col-no pf-numeric">{index + 1}</td>
+                        <td className="pf-col-desc">{item.materialName}</td>
+                        <td className="pf-col-spec">{specString(item) || '—'}</td>
+                        <td className="pf-col-unit pf-center">{item.unit}</td>
+                        <td className="pf-col-qty pf-numeric">{item.quantity.toLocaleString()}</td>
+                        <td className="pf-col-price pf-numeric">{formatCurrency(unitPrice)}</td>
+                        <td className="pf-col-amount pf-numeric pf-bold">{formatCurrency(amount)}</td>
                       </tr>
                     );
                   })}
+                  {cart.length === 0 && (
+                    <tr><td colSpan={7} className="pf-empty">No items in cart.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
-          </div>
 
-          <div className="proforma-divider" />
-
-          {/* Notes, Delivery & Remarks — flexible per order */}
-          <div className="proforma-notes-section no-print-borders">
-            <h4>📝 Notes, Delivery & Remarks</h4>
-            <div className="note-fields-grid">
-              <div className="proforma-field">
-                <label htmlFor="pf-delivery-service">Delivery Service</label>
-                <select
-                  id="pf-delivery-service"
-                  value={deliveryService}
-                  onChange={(e) => setDeliveryService(e.target.value)}
-                >
-                  <option value="Supplier Delivery">Supplier Delivery</option>
-                  <option value="Customer Pickup">Customer Pickup</option>
-                  <option value="Courier Service">Courier Service</option>
-                  <option value="Custom Arrangement">Custom Arrangement</option>
-                </select>
+            {minOrderCheck.enabled && (
+              <div className={minOrderCheck.below ? 'pf-min-order pf-min-order-warn' : 'pf-min-order'}>
+                {minOrderCheck.below
+                  ? <>⚠️ Order below the configured minimum goods value of {formatCurrency(minOrderCheck.amount)} — subtotal is {formatCurrency(minOrderCheck.subtotal)}.</>
+                  : <>✅ Meets the minimum order requirement ({formatCurrency(minOrderCheck.amount)}).</>}
               </div>
-              <div className="proforma-field">
-                <label htmlFor="pf-delivery-eta">Delivery ETA</label>
-                <input
-                  id="pf-delivery-eta"
-                  type="text"
-                  value={deliveryEta}
-                  onChange={(e) => setDeliveryEta(e.target.value)}
-                  placeholder="e.g. 3-5 business days"
-                />
-              </div>
-            </div>
-            <div className="proforma-field">
-              <label htmlFor="pf-remarks">Notes & Remarks</label>
-              <textarea
-                id="pf-remarks"
-                rows={2}
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-              />
-            </div>
-            {minOrderText && (
-              <p className="min-order-note">
-                🗒️ Minimum order per item: {minOrderText}
-              </p>
             )}
           </div>
 
-          <div className="proforma-divider" />
-
-          {/* Minimum-order advisory (only when the rule is enabled) */}
-          {minOrderCheck.enabled && (
-            <div className={(minOrderCheck.below ? 'min-order-warning' : 'min-order-ok')}>
-              {minOrderCheck.below ? (
-                <>⚠️ Order below minimum. Minimum goods value: {formatCurrency(minOrderCheck.amount)} — your subtotal is {formatCurrency(minOrderCheck.subtotal)}.</>
-              ) : (
-                <>✅ Meets minimum order requirement ({formatCurrency(minOrderCheck.amount)}).</>
-              )}
+          {/* ============================= SUMMARY ============================= */}
+          <div className="pf-summary-wrap">
+            <div className="pf-words">
+              <div className="pf-words-label">
+                <span className="pf-words-icon">💰</span>
+                Amount in Words
+              </div>
+              <div className="pf-words-text">{words}</div>
             </div>
-          )}
-
-          {/* Terms & Conditions — compact, side-by-side columns */}
-          <div className="proforma-terms">
-            <h4>📜 Terms & Conditions</h4>
-            <div className="terms-grid">
-              <div className="term-item">
-                <strong>1. Payment Terms</strong>
-                <p>50% advance payment required. Balance due upon delivery. Accepted: Bank Transfer, Mobile Money.</p>
+            <div className="pf-summary">
+              <div className="pf-sum-row">
+                <span>Subtotal (Goods)</span>
+                <span>{formatCurrency(report.subtotal)}</span>
               </div>
-              <div className="term-item">
-                <strong>2. Delivery</strong>
-                <p>Estimated 3-5 business days from order confirmation. Subject to stock availability.</p>
+              <div className="pf-sum-row">
+                <span>Delivery Cost</span>
+                <span>{formatCurrency(report.transportCost)}</span>
               </div>
-              <div className="term-item">
-                <strong>3. Warranty</strong>
-                <p>Standard manufacturer warranty applies. Damaged goods must be reported within 48 hours.</p>
+              <div className="pf-sum-row">
+                <span>Total Before VAT</span>
+                <span>{formatCurrency(totalBeforeVat)}</span>
               </div>
-              <div className="term-item">
-                <strong>4. Compliance</strong>
-                <p>All transactions comply with Ethiopian Trade Regulations and VAT requirements.</p>
+              <div className="pf-sum-row">
+                <span>VAT ({vatPercent}%)</span>
+                <span>{formatCurrency(report.vatAmount)}</span>
               </div>
-              <div className="term-item">
-                <strong>5. Returns</strong>
-                <p>Unopened items may be returned within 7 days. Restocking fee of 10% may apply.</p>
-              </div>
-              <div className="term-item">
-                <strong>6. Disputes</strong>
-                <p>Any disputes shall be resolved under Ethiopian law in Addis Ababa courts.</p>
+              <div className="pf-sum-row pf-grand">
+                <span>Grand Total</span>
+                <span>{formatCurrency(report.total)}</span>
               </div>
             </div>
           </div>
 
-          <div className="proforma-divider" />
-
-          {/* Signatures */}
-          <div className="proforma-signatures">
-            <div className="signature-block">
-              <div className="signature-line" />
-              <p className="signature-label">Authorized Supplier Signature</p>
-              <p className="signature-name">{suppliers.length > 1 ? 'All Listed Suppliers' : (suppliers[0]?.name || supplier?.name || '')}</p>
-              <p className="signature-date">Date: _______________</p>
+          {/* ============================= TERMS ============================= */}
+          <div className="pf-terms">
+            <div className="pf-section-head">
+              <span className="pf-section-icon">📋</span>
+              <span>Terms, Conditions, Delivery &amp; Remarks</span>
             </div>
-            <div className="signature-block">
-              <div className="signature-line" />
-              <p className="signature-label">Buyer's Acknowledgment</p>
-              <p className="signature-name">{currentUser?.name || ''}</p>
-              <p className="signature-date">Date: _______________</p>
+            <div className="pf-terms-grid">
+              <div className="pf-terms-col">
+                {termItem('💳', 'Payment Terms',
+                  <span className="pf-editable-inline">
+                    50% advance required. Balance due upon delivery.
+                  </span>)}
+                {termItem('🚚', 'Delivery',
+                  <span className="pf-editable-inline">
+                    <select
+                      className="pf-inline-edit pf-inline-select"
+                      value={deliveryService}
+                      onChange={(e) => setDeliveryService(e.target.value)}
+                      aria-label="Delivery service"
+                    >
+                      <option value="Supplier Delivery">Supplier Delivery</option>
+                      <option value="Customer Pickup">Customer Pickup</option>
+                      <option value="Courier Service">Courier Service</option>
+                      <option value="Custom Arrangement">Custom Arrangement</option>
+                    </select>{' '}
+                    — <input
+                      className="pf-inline-edit pf-inline-input"
+                      type="text"
+                      value={deliveryEta}
+                      onChange={(e) => setDeliveryEta(e.target.value)}
+                      aria-label="Delivery ETA"
+                    /> from order confirmation. Subject to stock availability.
+                  </span>)}
+                {termItem('🛡️', 'Warranty',
+                  <span>Standard manufacturer warranty applies. Damaged goods must be reported within 48 hours.</span>)}
+              </div>
+              <div className="pf-terms-col">
+                {termItem('↩️', 'Returns',
+                  <span>Unopened items may be returned within 7 days. Restocking fee of 10% may apply.</span>)}
+                {termItem('💱', 'Pricing',
+                  <span>Prices are subject to change without prior notice.</span>)}
+                {termItem('📝', 'Remarks',
+                  <textarea
+                    className="pf-inline-edit pf-inline-textarea"
+                    rows={2}
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    aria-label="Remarks"
+                  />)}
+              </div>
+            </div>
+            {supplierNotes && (
+              <div className="pf-min-order">🗒️ Minimum order per item: {supplierNotes}</div>
+            )}
+          </div>
+
+          {/* ============================= SIGNATURES ============================= */}
+          <div className="pf-signatures">
+            <div className="pf-sig-box">
+              <div className="pf-sig-head">Authorized Supplier Signature</div>
+              <div className="pf-sig-name">
+                {suppliers.length > 1 ? 'All Listed Suppliers' : (suppliers[0]?.name || supplier?.name || '—')}
+              </div>
+              <div className="pf-sig-line" />
+              <div className="pf-sig-date">Date: {signatureDate}</div>
+            </div>
+            <div className="pf-sig-box">
+              <div className="pf-sig-head">Buyer's Acknowledgment</div>
+              <div className="pf-sig-name">{currentUser?.name || '—'}</div>
+              <div className="pf-sig-line" />
+              <div className="pf-sig-date">Date: {signatureDate}</div>
             </div>
           </div>
 
-          {/* Footer — only QR & contact (the E-SCON heading appears once, above) */}
-          <div className="proforma-footer">
-            <p>Ethio-Supply Chain Optimization Network</p>
-            <p>
-              📧 meharinageb@gmail.com | 📱 +251909919154
-            </p>
-            <p className="proforma-footer-legal">
-              This document was generated electronically and is valid without
-              signature or stamp.
-            </p>
-            <div className="proforma-qr-block">
+          {/* ============================= FOOTER ============================= */}
+          <div className="pf-footer">
+            <div className="pf-footer-left">
+              <div className="pf-footer-brand">E-SCON</div>
+              <div className="pf-footer-brand-sub">Ethio-Supply Chain Optimization Network</div>
               {qrStatus === 'generating' && (
-                <p className="proforma-qr-caption">Generating QR code…</p>
+                <p className="pf-qr-caption">Generating QR code…</p>
               )}
               {qrStatus === 'failed' && (
-                <p className="proforma-qr-caption">QR code unavailable.</p>
+                <p className="pf-qr-caption">QR code unavailable.</p>
               )}
               {qrStatus === 'ready' && qrDataUrl && (
-                <>
+                <div className="pf-qr">
                   <img
-                    className="proforma-qr-img"
+                    className="pf-qr-img"
                     src={qrDataUrl}
                     alt={'QR code to view Proforma ' + proformaNumber}
                   />
-                  <p className="proforma-qr-caption">
-                    🔍 Scan to view Proforma {proformaNumber}
-                  </p>
-                </>
+                  <p className="pf-qr-caption">🔍 Scan to verify</p>
+                </div>
               )}
+            </div>
+            <div className="pf-footer-center">
+              <p className="pf-footer-contact">
+                <span>📧 meharinageb@gmail.com</span>
+                <span className="pf-footer-divider">|</span>
+                <span>📱 +251909919154</span>
+              </p>
+              <p className="pf-footer-legal">
+                This document was generated electronically and is valid without signature or stamp.
+              </p>
+              <p className="pf-footer-copy">
+                Proforma {proformaNumber} · Generated {dt.date} {dt.time}
+              </p>
+            </div>
+            <div className="pf-footer-right" aria-hidden="true">
+              <div className="pf-foot-graphic">
+                <span className="pf-foot-shape pf-foot-shape-blue" />
+                <span className="pf-foot-shape pf-foot-shape-yellow" />
+              </div>
             </div>
           </div>
         </div>
@@ -461,7 +489,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   );
 };
 
-// Helper: convert number to words (simplified for ETB)
+// Helper: convert an integer to English words (reused by amountToWords).
 function numberToWords(num: number): string {
   if (num === 0) return 'Zero';
   const ones = [
