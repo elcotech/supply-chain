@@ -345,6 +345,10 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 ### 10.5 Cart & checkout
 Multi-supplier cart: customers can add products from any number of suppliers into one cart. Checkout computes subtotal + VAT (per-item %) + delivery fee per supplier (OSRM-based) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item, resets the cart, and shows the Orders page. A proforma invoice is always issued per supplier — see [10.21](#1021-single-supplier-proforma-invoice-new-in-v51).
 
+**Order entry (NEW):** a customer never picks a quantity in a list. The 🛒 button on a results row, the **Order** button on a mobile product card and **View & Order** in the compare modal all open the **product details**, where the only `+ / −` control lives (`DetailsOrderBox` + `QuantityStepper`, with the minimum order enforced and a live total). The cart modal still allows per-line quantity edits. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
+
+**Stock visibility (NEW):** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price, unit and minimum order only.
+
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
 
@@ -358,7 +362,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 ### 10.8 Product Comparison (NEW)
 - Compare up to **4 products** side-by-side in a modal.
 - Toggle comparison via ⚖️ button on search results; a floating compare bar appears at the bottom.
-- Shows: category, price, unit, min order, stock, rating, brand, weight, origin.
+- Shows: category, price, unit, min order, rating, brand, weight, origin — plus the **stock row for suppliers/admins only** (see [13.1](#131-ordering-flow--supplier-only-stock)).
 
 ### 10.9 Favorites / Wishlist (NEW)
 - Toggle ❤️/🤍 on search results to save/unsave favorites.
@@ -480,12 +484,29 @@ L.Icon.Default.mergeOptions({
 
 ## 12. Styling System & Themes
 
-Everything is styled in **`src/App.css`** (~2,000 lines, organized in comment sections).
+Everything is styled in **`src/App.css`** (~5,700 lines, organized in comment sections).
 
 ### CSS variables
 `:root` defines a **light** palette; `[data-theme="dark"]` (set on `<html>` by `App.tsx`) overrides it. A `.dark-mode` class on the app container also applies targeted overrides.
 
 Key tokens: `--bg`, `--card-bg`, `--text`, `--text-light`, `--border`, `--shadow`, `--glass-bg`, `--glass-border`, `--primary` (#0f2b3d), `--primary-light`, `--secondary` (orange #e67e22), `--accent` (green), `--danger`, `--warning`, `--info`, `--radius`, `--transition`, `--font`.
+
+#### Dark palette — navy blue, never black
+Every dark surface is a shade of navy, so the app never reads as a black screen:
+
+| Token | Light (`:root`) | Dark (`[data-theme="dark"]`) | Used by |
+| --- | --- | --- | --- |
+| `--bg` | `#f4f7fb` | `#0c1e33` | `body`, form sections, list rows, icon buttons |
+| `--card-bg` | `rgba(255,255,255,0.72)` | `rgba(24, 46, 74, 0.82)` | cards, modals, mobile sheet/tab bar, stat tiles |
+| `--glass-bg` | `rgba(255,255,255,0.6)` | `rgba(14, 34, 56, 0.75)` | `.glass` header/footer, map modal, compare bar, supplier panel |
+| `--primary` / `--primary-light` | `#0f2b3d` / `#1a4058` | `#2a4a6a` / `#3a6a8a` | splash screen, gradient heroes, table headers |
+
+Rules to respect when theming:
+- **Never introduce a pure-black background** (`#000`, `rgba(0,0,0,α)`) as a *page surface*. Dim scrims are tinted navy: `rgba(8, 22, 40, 0.5)` for modal/sheet overlays and `rgba(8, 22, 40, 0.6)` for map + proforma overlays (also inside `@keyframes modalBgFade`).
+- The one deliberate exception is `.datetime-widget.inverted` (`rgba(0,0,0,0.55)`) — it is a high-contrast readability toggle, not a theme surface.
+- `.dark-mode` overrides (the block near the end of the "Dark Mode" section) hard-code the card colour and **must be kept in sync** with `[data-theme="dark"]` `--card-bg`, otherwise the `!important` rule wins and the card turns grey.
+- `public/index.html` and `public/manifest.json` carry `theme-color: #0c1e33`, matching the dark page background for the browser/PWA chrome.
+- Palette tokens and scrim colours are the **only** existing rules that may be edited in place; everything else is appended (see §19.1).
 
 ### Design language
 - **Glassmorphism** utility `.glass` (blur + translucency + border).
@@ -493,9 +514,11 @@ Key tokens: `--bg`, `--card-bg`, `--text`, `--text-light`, `--border`, `--shadow
 - Rounded corners (10–16 px), pill buttons, soft shadows, smooth transitions.
 - Zebra-striped tables with sticky gradient headers and orange hover.
 - **Beautiful `<select>` list boxes**: custom chevron via inline SVG `background-image`, `appearance: none`, hover/focus rings, readable `option` colors in both themes.
+- **Order box** (`.order-box`, `.qty-stepper`): the product-details quantity control, styled once for all breakpoints (44px touch targets on ≤ 768px).
+- **Stock flags** (`.stock-flag` / `.stock-flag-low`): amber pill used for the supplier-only low-stock warning inside the product details view.
 
 ### Sections (for navigation)
-Header → Navigation → Buttons → Cards → Search → Product Grid → Tables → Product Row → Modal → Map Picker → Edit Company → Alert → Stats → Features → Footer → Home Hero → User Info → Cart → Dashboard → Distance Loader → Map Styles → PWA → Swipe → Icon Buttons → Dark Mode → Responsive → **UI v2 polish (appended section)**.
+Header → Navigation → Buttons → Cards → Search → Product Grid → Tables → Product Row → Modal → Map Picker → Edit Company → Alert → Stats → Features → Footer → Home Hero → User Info → Cart → Dashboard → Distance Loader → Map Styles → PWA → Swipe → Icon Buttons → Dark Mode → Responsive → **UI v2 polish (appended section)** → Mobile shell (≤ 768px) → Order box / quantity stepper → Stock flags → Legacy proforma & print.
 
 ---
 
@@ -520,10 +543,43 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
   - **Bottom tab bar** (`mobile-tabbar`, fixed, safe-area aware): Home / Search (customers) or Board (companies & admin) / center **FAB** (Cart for customers with badge, Add Product for companies, Login for guests) / Orders (with active-order badge) / More (profile sheet). Guests get Home / Search / FAB-Login / Map / Install.
   - **More sheet** (`m-sheet-overlay` + `m-sheet`): slide-up bottom sheet with profile header + Logout, dashboard, supplier map, compare, install app, theme toggle, CSV export and admin settings shortcuts, plus a horizontally scrollable "Saved products" strip.
   - **Mobile home** (`renderHomeMobile`): gradient greeting hero card with live stat tiles (active orders, delivered, revenue/spent), 2×2 quick-action grid, "Saved for later" strip, horizontally scroll-snapping **Trending products carousel** (star-rating sorted) using the reusable `MobileProductCard`, and recent-order rows with status pills.
-  - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with qty stepper + Add / In-Cart buttons) instead of the wide table; distance, supplier, stock and price chips are shown per card.
+  - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with an **Order** button that opens the product details, or an **In Cart — Open** button once the product is in the cart) instead of the wide table; distance, supplier and price chips are shown per card. Stock chips are supplier-only (see §13.1).
   - **Orders** on mobile render stacked order cards with the `OrderTimeline` shipment stepper, customer/supplier line, itemised totals and Confirm/Reorder/Export actions.
   - **Dashboards** on mobile render 2×2 stat tiles plus compact product/order lists (`renderMobileDashboard(true|false)`).
   - **Modals become bottom sheets** on mobile (`.modal-overlay` aligns to bottom, `.modal-content` gets top-rounded corners) and forms use 16px inputs to prevent iOS auto-zoom. The floating compare bar and PWA banner are lifted above the tab bar.
+
+### 13.1 Ordering flow & supplier-only stock
+
+Two rules govern what a customer sees about quantities and stock.
+
+**1. The `+ / −` quantity control appears only in the product details view.**
+It is the step where the customer has actually seen the product and is ready to order, so a list never shows a quantity picker:
+
+| Surface | Customer action |
+| --- | --- |
+| Desktop results row (`🛒`) | opens the product details (`setSelectedMaterial`) |
+| Mobile product card (`🛒 Order`) | opens the product details |
+| Compare modal (`View & Order`) | closes the modal and opens the product details |
+| Product details (`DetailsOrderBox`) | `QuantityStepper` + running total + **Add to Cart / Update Cart** |
+| Cart modal | per-line number input (`updateCartQuantity`) |
+
+- `QuantityStepper` and `DetailsOrderBox` are defined in `App.tsx` next to `renderMaterialDetails`. The stepper steps by the product's `minOrder` and can never go below it; the `−` button is disabled at the minimum.
+- `DetailsOrderBox` owns its quantity state, so it resets to `minOrder` every time the modal is opened (no `document.getElementById` juggling any more).
+- A sold-out product shows **"Currently unavailable — please contact the supplier."** instead of the stepper, so nothing un-orderable can be added to the cart.
+- The old native `prompt("Quantity (Min: …)")` on the desktop results row and the card-level `m-stepper` are **removed** — keep it that way; never reintroduce a quantity control in a list.
+
+**2. Stock levels are supplier-only data.**
+`const canSeeStock = currentUser?.userType === 'company' || currentUser?.userType === 'admin'` (`App.tsx`, "Role visibility") gates **every** stock number in the UI. Customers *and* signed-out visitors see none:
+
+| Where | Gated by |
+| --- | --- |
+| Desktop results `<th>`/`<td>` Stock column | `{canSeeStock && …}` (both cells, or the columns misalign) |
+| Product details "Stock: N unit" pricing line | `{canSeeStock && …}` |
+| Product details low-stock banner | `isLowStock = canSeeStock && quantity <= LOW_STOCK_THRESHOLD` |
+| Mobile product card `m-pc-stock` chip | `{canSeeStock && …}` |
+| Compare modal "Stock" row | `{canSeeStock && …}` |
+
+Suppliers and admins keep full visibility: the company dashboard table, the mobile company dashboard (`N in stock`), the add/edit product forms, the low-stock banner and the low-stock notifications (`LOW_STOCK_THRESHOLD = 10`) are all unchanged. When you add a new surface that prints `material.quantity`, gate it with `canSeeStock`.
 
 ---
 
@@ -638,10 +694,13 @@ Read this before touching any code. It prevents the most common mistakes.
 2. **Never commit `.env.local`.** It holds a live Vercel OIDC token and is already gitignored. Do not read it into code, logs or console output.
 3. **Money always goes through `formatCurrency`** (in `utils.ts`). Do not hand-roll `Intl.NumberFormat` or template strings with different separators.
 4. **Never delete the admin seeder.** In `App.tsx` initialization, `ADMIN_USER` is re-appended if missing. Removing it logs out platform management silently.
-5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place.
+5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place. The only exception is the palette: theme tokens (`[data-theme="dark"]`) and the navy scrim colours may be edited in place when the theme changes (see §12).
 6. **Desktop layout is frozen.** The mobile shell must be added *next to* it, never instead of it: JSX branches on `isMobile` (`useIsMobile`), and every mobile rule lives inside `@media (max-width: 768px)` at the end of `App.css`. Keep the JS breakpoint and the CSS breakpoint identical (`768px`).
 7. **Tests are pure-logic only.** Do not write tests that import `App.tsx`, `MapComponent.tsx` or Leaflet — they need DOM APIs jsdom can't provide. Run `CI=true npm test -- --watchAll=false`.
 8. **Mobile reuse** — build mobile UI from existing helpers (`renderProductImage`, `formatCurrency`, `handleCheckout`, `handleQuickReorder`, …); `MobileProductCard` is the single reusable product card for the carousel and search grid. New mobile-only files go under `src/hooks/` / `src/components/` and use CSS variables so dark mode keeps working.
+9. **No black surfaces.** The dark theme is navy. Use the `--bg` / `--card-bg` / `--glass-bg` tokens or a navy scrim (`rgba(8, 22, 40, α)`) for any new background, never `#000` / `rgba(0,0,0,α)` (except `.datetime-widget.inverted`).
+10. **Quantities are chosen in one place only** — the product details order box (§13.1). A list, card or carousel may only *navigate* to it; do not add a stepper, quantity input or `prompt()` to a results row, product card or table.
+11. **Stock is supplier-only.** Any new UI that prints `material.quantity` must be wrapped in `canSeeStock` (company + admin). Customers and guests must never see a stock number, an "In stock"/"Out" chip or a low-stock banner.
 
 ### 19.2 Where things live
 - **Business rules** (delivery fee, zones, min order) → `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates, cart totals and order creation all use `computeDeliveryFee` now.
@@ -651,6 +710,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **QR / sharing** → `encodeProformaPayload`, `decodeProformaPayload`, `buildProformaQrUrl`, `generateProformaQrDataUrl` in `utils.ts`; rendering in `ProformaInvoice.tsx` and `PublicProforma.tsx`. The hash format is `#escon=<base64url(ESCON1+json)>`.
 - **PWA** → `public/sw.js` (custom, version `VERSION` const), `src/index.tsx` registration (production only), `src/components/InstallGuide.tsx`, banner logic in `App.tsx`.
 - **Admin page routing** → a `case 'settings'` in the `renderCurrentPage` switch guards `userType === 'admin'`.
+- **Role visibility** → `canSeeStock` in the "Role visibility" block of `App.tsx` (top of the component, right after the state) is the single source of truth for supplier-only data; the customer-only blocks use `currentUser?.userType === 'customer'`.
 
 ### 19.3 Common change scenarios
 - **"Change the delivery fee":** open the app with `admin@escon.et` → ⚙️ Settings → edit → Save. No code required. To change the default that new installations get, edit `DEFAULT_SETTINGS` in `settings.ts`.
@@ -660,6 +720,8 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Invoice a second supplier from the same cart":** close the proforma, reopen the cart (🛒) and press "👁️ Preview Proforma" again — the supplier picker lists every supplier in the cart. Each invoice is independent.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
+- **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
+- **"Add a quantity control somewhere new":** don't. Open the product details (`setSelectedMaterial`) and let `DetailsOrderBox` handle it.
 
 ### 19.4 Known limitations (do not "fix" without discussion)
 - Passwords stored in plaintext — demo only.

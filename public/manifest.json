@@ -9,7 +9,7 @@
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#ffffff",
-  "theme_color": "#0f2b3d",
+  "theme_color": "#0c1e33",
   "lang": "en",
   "categories": ["business", "shopping", "productivity"],
   "icons": [

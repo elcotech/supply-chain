@@ -122,6 +122,13 @@ function App() {
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  // ---------- Role visibility ----------
+  // Stock levels are internal supplier data: only signed-in suppliers (company
+  // accounts) and admins ever see them. Customers and signed-out visitors must
+  // not learn how much of a product is left, so every stock number in the UI is
+  // gated behind this flag.
+  const canSeeStock = currentUser?.userType === 'company' || currentUser?.userType === 'admin';
+
   // ---------- Mobile / desktop shell ----------
   const isMobile = useIsMobile();
   useEffect(() => {
@@ -2023,7 +2030,6 @@ function App() {
                       isFav={favorites.includes(item.id)}
                       distanceKm={item.distance}
                       onOpen={() => setSelectedMaterial(item)}
-                      onAdd={(m, q) => addToCart(m, q)}
                       onToggleFav={() => toggleFavorite(item.id)}
                       onGoToCart={handleCheckout}
                       variant="list"
@@ -2035,7 +2041,7 @@ function App() {
           ) : (
             <ScrollableTable minWidth="1100px">
               <table className="data-table">
-                <thead><tr><th className="th-sticky">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
+                <thead><tr><th className="th-sticky">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th>{canSeeStock && <th>Stock</th>}<th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
                 <tbody>
                   {(displayMaterials as SearchResult[]).map(item => {
                     const company = getCompanyById(item.companyId);
@@ -2061,7 +2067,9 @@ function App() {
                         <td>{company?.city || 'N/A'}</td>
                         <td className="price-cell">{formatCurrency(item.price)}</td>
                         <td>{item.unit}</td>
-                        <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td>
+                        {canSeeStock && (
+                          <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td>
+                        )}
                         <td>⭐ {item.rating || 'N/A'}</td>
                         <td className="distance-cell">
                           <span className="distance-badge" title={currentUser ? 'Distance from your location' : 'Distance from default location (Addis Ababa)'}>
@@ -2076,15 +2084,11 @@ function App() {
                           <button className="btn-icon contact" title="Call supplier" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button>
                           {currentUser?.userType === 'customer' && (
                             isInCart ? (
-                              <button className="btn-icon success" onClick={(e) => { e.stopPropagation(); handleCheckout(); }}>🛒</button>
+                              <button className="btn-icon success" title="Open cart" onClick={(e) => { e.stopPropagation(); handleCheckout(); }}>🛒</button>
                             ) : (
-                              <button className="btn-icon add-to-cart" onClick={(e) => {
-                                e.stopPropagation();
-                                const qty = prompt('Quantity (Min: ' + item.minOrder + ' ' + item.unit + '):', item.minOrder.toString());
-                                if (qty && !isNaN(parseInt(qty))) {
-                                  addToCart(item, parseInt(qty));
-                                }
-                              }}>➕</button>
+                              // Quantity is chosen in the product details (the +/- stepper
+                              // lives there), never straight from the results row.
+                              <button className="btn-icon add-to-cart" title="View product & choose quantity" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>🛒</button>
                             )
                           )}
                         </td>
@@ -2161,6 +2165,42 @@ function App() {
     );
   };
 
+  // The quantity +/- control lives ONLY here, in the product details view — the
+  // step where a customer has actually seen the product and is ready to order.
+  // Search results, product cards and carousels only ever open this view.
+  const QuantityStepper = ({ value, min, unit, onChange }: { value: number; min: number; unit: string; onChange: (v: number) => void }) => (
+    <div className="qty-stepper" role="group" aria-label="Quantity">
+      <button type="button" onClick={() => onChange(Math.max(min, value - min))} aria-label="Decrease quantity" disabled={value <= min}>−</button>
+      <span className="qty-value">{value} <small>{unit || 'units'}</small></span>
+      <button type="button" onClick={() => onChange(value + min)} aria-label="Increase quantity">+</button>
+    </div>
+  );
+
+  const DetailsOrderBox = ({ material, isInCart, onAdded }: { material: Material; isInCart: boolean; onAdded: () => void }) => {
+    const min = Math.max(1, material.minOrder || 1);
+    const [qty, setQty] = useState(min);
+    const soldOut = material.quantity <= 0;
+    return (
+      <div className="order-box">
+        <h3>🛒 Add to Cart</h3>
+        {soldOut ? (
+          <p className="order-box-note">Currently unavailable — please contact the supplier.</p>
+        ) : (
+          <>
+            <div className="order-box-row">
+              <QuantityStepper value={qty} min={min} unit={material.unit} onChange={setQty} />
+              <span className="order-box-hint">Minimum order: {min} {material.unit || 'units'}</span>
+            </div>
+            <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
+            <button className="btn btn-primary order-box-btn" onClick={() => { addToCart(material, qty); onAdded(); }}>
+              {isInCart ? '🔄 Update Cart' : '➕ Add to Cart'}
+            </button>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const renderMaterialDetails = () => {
     if (!selectedMaterial) return null;
     const company = getCompanyById(selectedMaterial.companyId);
@@ -2169,7 +2209,7 @@ function App() {
     const forecast = forecastPrice(history, selectedMaterial.price);
     const productReviews = reviewForMaterial(selectedMaterial.id);
     const avgRating = ratingForMaterial(selectedMaterial);
-    const isLowStock = selectedMaterial.quantity <= LOW_STOCK_THRESHOLD;
+    const isLowStock = canSeeStock && selectedMaterial.quantity <= LOW_STOCK_THRESHOLD;
     const canReview = currentUser?.userType === 'customer' &&
       orders.some(o => o.customerId === currentUser.id && o.materialId === selectedMaterial.id && o.status === 'delivered');
 
@@ -2185,7 +2225,7 @@ function App() {
             {renderProductGallery(selectedMaterial)}
             <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
             <div><h3>💰 Pricing</h3>
-              <p>Unit: <strong>{formatCurrency(selectedMaterial.price)}</strong> / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}<br/>Stock: {selectedMaterial.quantity} {selectedMaterial.unit}</p>
+              <p>Unit: <strong>{formatCurrency(selectedMaterial.price)}</strong> / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}{canSeeStock && <><br/>Stock: {selectedMaterial.quantity} {selectedMaterial.unit}</>}</p>
               <div className="rating-summary">
                 <StarRatingDisplay value={avgRating} />
                 <span className="rating-num">{avgRating.toFixed(1)}</span>
@@ -2264,15 +2304,7 @@ function App() {
               )}
             </div>
             {currentUser?.userType === 'customer' && (
-              <div>
-                <h3>Add to Cart</h3>
-                <input type="number" className="form-input" id="cartQuantity" defaultValue={selectedMaterial.minOrder} />
-                <button className="btn btn-primary" onClick={() => {
-                  const qty = parseInt((document.getElementById('cartQuantity') as HTMLInputElement).value);
-                  addToCart(selectedMaterial, qty);
-                  setSelectedMaterial(null);
-                }}>{isInCart ? '🔄 Update' : '➕ Add'}</button>
-              </div>
+              <DetailsOrderBox material={selectedMaterial} isInCart={isInCart} onAdded={() => setSelectedMaterial(null)} />
             )}
           </div>
         </div>
@@ -2492,20 +2524,17 @@ function App() {
     );
   };
 
-  const MobileProductCard = ({ material, company, isInCart, isFav, distanceKm, onOpen, onAdd, onToggleFav, onGoToCart, variant }: {
+  const MobileProductCard = ({ material, company, isInCart, isFav, distanceKm, onOpen, onToggleFav, onGoToCart, variant }: {
     material: Material;
     company?: Company;
     isInCart: boolean;
     isFav: boolean;
     distanceKm?: number;
     onOpen: () => void;
-    onAdd: (m: Material, qty: number) => void;
     onToggleFav: () => void;
     onGoToCart: () => void;
     variant: 'list' | 'carousel';
   }) => {
-    const [qty, setQty] = useState<number>(material.minOrder || 1);
-    const min = Math.max(1, material.minOrder || 1);
     const outOfStock = material.quantity <= 0;
     return (
       <div className={'m-product-card ' + variant}>
@@ -2525,21 +2554,18 @@ function App() {
           {distanceKm != null && <div className="m-pc-distance">🚗 {distanceKm.toFixed(1)} km</div>}
           <div className="m-pc-price-row">
             <div className="m-pc-price">{formatCurrency(material.price)}<span className="m-pc-unit"> / {material.unit}</span></div>
-            <span className={outOfStock ? 'm-pc-stock out' : 'm-pc-stock'}>{outOfStock ? 'Out' : 'In stock'}</span>
+            {canSeeStock && (
+              <span className={outOfStock ? 'm-pc-stock out' : 'm-pc-stock'}>{outOfStock ? 'Out' : 'In stock'}</span>
+            )}
           </div>
           {currentUser?.userType === 'customer' && (
             <div className="m-pc-buy">
               {isInCart ? (
                 <button className="m-pc-cart-btn" onClick={onGoToCart}>🛒 In Cart — Open</button>
               ) : (
-                <>
-                  <div className="m-stepper">
-                    <button onClick={() => setQty(v => Math.max(min, v - min))} aria-label="Decrease">−</button>
-                    <span>{qty}</span>
-                    <button onClick={() => setQty(v => v + min)} aria-label="Increase">+</button>
-                  </div>
-                  <button className="m-pc-add-btn" disabled={outOfStock} onClick={() => onAdd(material, qty)}>Add</button>
-                </>
+                // Tapping the card opens the product details, where the +/- stepper
+                // appears only at the moment the customer is ready to order.
+                <button className="m-pc-add-btn" onClick={onOpen}>🛒 Order</button>
               )}
             </div>
           )}
@@ -2676,7 +2702,6 @@ function App() {
                       isInCart={cart.some(c => c.materialId === m.id)}
                       isFav={favorites.includes(m.id)}
                       onOpen={() => setSelectedMaterial(m)}
-                      onAdd={(mat, q) => { addToCart(mat, q); }}
                       onToggleFav={() => toggleFavorite(m.id)}
                       onGoToCart={handleCheckout}
                       variant="carousel"
@@ -3077,7 +3102,9 @@ function App() {
                       <div className="compare-row"><span>Price</span><span className="price-cell">{formatCurrency(m.price)}</span></div>
                       <div className="compare-row"><span>Unit</span><span>{m.unit}</span></div>
                       <div className="compare-row"><span>Min Order</span><span>{m.minOrder}</span></div>
-                      <div className="compare-row"><span>Stock</span><span className={m.quantity > 0 ? 'in-stock' : 'out-stock'}>{m.quantity}</span></div>
+                      {canSeeStock && (
+                        <div className="compare-row"><span>Stock</span><span className={m.quantity > 0 ? 'in-stock' : 'out-stock'}>{m.quantity}</span></div>
+                      )}
                       <div className="compare-row"><span>Rating</span><span>⭐ {ratingForMaterial(m)}</span></div>
                       <div className="compare-row"><span>Brand</span><span>{m.brand || '—'}</span></div>
                       <div className="compare-row"><span>Weight</span><span>{m.specifications?.weight || '—'}</span></div>

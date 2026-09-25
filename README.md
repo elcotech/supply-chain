@@ -34,6 +34,8 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 📷 **Product photos** (up to 6 per product, base64 stored locally)
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
 - 🛒 Multi-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), VAT, configurable delivery fees & minimum order, checkout → orders
+- ➕ **Order from the product view** — the `+ / −` quantity control appears only in the product details (with the minimum order enforced and a live total); results rows, product cards and the compare view just open the product
+- 🔒 **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 📄 **One supplier per proforma** — a cart with several suppliers asks which supplier to invoice, and the proforma then carries only that supplier's items, VAT and delivery fee (reusable modal, styled like the cart)
 - 🔍 **Scannable QR proforma** — scanning the invoice QR opens a mobile-friendly view of the order (works from paper)
 - ⚙️ **Admin platform settings** — delivery pricing, zones, free delivery & minimum order, no code changes needed
@@ -43,7 +45,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports
 - ✅ Unit tests for fees, formatting, settings, QR payloads and single-supplier proforma reports
-- 🌙 Dark / light themes, 📱 fully responsive & touch-friendly
+- 🌙 Dark / light themes (deep navy dark palette — no black screens), 📱 fully responsive & touch-friendly
 
 ---
 
