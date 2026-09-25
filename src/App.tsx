@@ -9,7 +9,7 @@ import {
   safeLocalStorage, formatCurrency, formatDate,
   calculateDistance, calculateTransportCost, isUserLocked,
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
-  geocodeAddress, computeDeliveryFee, checkMinOrder,
+  geocodeAddress, computeDeliveryFee, checkMinOrder, buildSingleSupplierReport,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson
 } from './utils';
@@ -80,6 +80,10 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
   const [showProforma, setShowProforma] = useState(false);
+  // Report the proforma is rendered from. Kept apart from cartDetails because a
+  // proforma always covers one supplier, while the cart can hold many.
+  const [proformaDetails, setProformaDetails] = useState<CartReport | null>(null);
+  const [showProformaSupplierPicker, setShowProformaSupplierPicker] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compareItems, setCompareItems] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
@@ -173,7 +177,7 @@ function App() {
     tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false,
     materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '',
     materialMinOrder: '', materialDescription: '', searchQuery: '', searchCategory: 'all',
-    searchMaxPrice: '', searchSupplier: '', searchCity: 'all', searchSortBy: 'price_asc',
+    searchMaxPrice: '', searchSupplier: 'all', searchCity: 'all', searchSortBy: 'price_asc',
     orderQuantity: '', orderAddress: '', materialBrand: '', materialModel: '', materialWeight: '',
     materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [],
     companyName: '', companyDescription: '', companyLocation: '', companyCity: '',
@@ -777,7 +781,7 @@ function App() {
 
   // ---------- Live Search ----------
   const performSearch = useCallback(async () => {
-    const { searchQuery, searchCategory, searchMaxPrice, searchCity, searchSortBy } = formData;
+    const { searchQuery, searchCategory, searchMaxPrice, searchSupplier, searchCity, searchSortBy } = formData;
     let filtered = materials.filter(material => {
       let matches = true;
       if (searchQuery) {
@@ -792,6 +796,9 @@ function App() {
       }
       if (searchMaxPrice) {
         matches = matches && material.price <= parseFloat(searchMaxPrice);
+      }
+      if (searchSupplier && searchSupplier !== 'all') {
+        matches = matches && material.companyId === searchSupplier;
       }
       if (searchCity && searchCity !== 'all') {
         const company = getCompanyById(material.companyId);
@@ -837,7 +844,7 @@ function App() {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => { performSearch(); }, 300);
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
-  }, [formData.searchQuery, formData.searchCategory, formData.searchMaxPrice, formData.searchCity, formData.searchSortBy, performSearch, currentPage]);
+  }, [formData.searchQuery, formData.searchCategory, formData.searchMaxPrice, formData.searchSupplier, formData.searchCity, formData.searchSortBy, performSearch, currentPage]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -848,7 +855,7 @@ function App() {
   const clearFilters = () => {
     setSearchResults([]);
     setIsSearchPerformed(false);
-    setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchCity: 'all' }));
+    setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchSupplier: 'all', searchCity: 'all' }));
   };
 
   // Favorites
@@ -938,6 +945,39 @@ function App() {
     setCartDetails(null);
     setDeliveryFeeOverride(null);
     showAlert('Cart cleared', 'info');
+  };
+
+  // Cart lines grouped by supplier, used by the single-supplier proforma picker.
+  const groupCartBySupplier = () => {
+    const map = new Map<string, {
+      supplierId: string;
+      supplierName: string;
+      supplierCity: string;
+      items: CartItem[];
+      itemCount: number;
+      goodsValue: number;
+    }>();
+    cart.forEach(item => {
+      const company = getCompanyById(item.supplierId);
+      if (!company) return;
+      const value = item.price * item.quantity;
+      const existing = map.get(item.supplierId);
+      if (existing) {
+        existing.items.push(item);
+        existing.itemCount += item.quantity;
+        existing.goodsValue += value;
+      } else {
+        map.set(item.supplierId, {
+          supplierId: company.id,
+          supplierName: company.name,
+          supplierCity: company.city,
+          items: [item],
+          itemCount: item.quantity,
+          goodsValue: value,
+        });
+      }
+    });
+    return Array.from(map.values());
   };
 
   const calculateCartTotals = async (): Promise<CartReport | null> => {
@@ -1031,12 +1071,31 @@ function App() {
     setShowCartSummary(true);
   };
 
-  // Preview the Proforma from the current cart so items & totals always match
+  // Preview the Proforma from the current cart so items & totals always match.
+  // A proforma invoice is always issued by a single supplier, so a cart holding
+  // items from several suppliers asks which one to invoice first.
   const handlePreviewProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
+    const groups = groupCartBySupplier();
+    if (groups.length > 1) {
+      setShowProformaSupplierPicker(true);
+      return;
+    }
+    await openProformaFor(groups[0]?.supplierId);
+  };
+
+  // Open the proforma of one supplier only (its own items, VAT and delivery fee).
+  const openProformaFor = async (supplierId?: string) => {
     const totals = await calculateCartTotals();
     if (!totals) return;
-    setCartDetails(totals);
+    // A proforma invoice is issued by a single supplier: derive it from the cart
+    // report so the printed numbers match the per-supplier cart figures.
+    const scoped = supplierId
+      ? buildSingleSupplierReport(totals, supplierId, systemSettings)
+      : totals;
+    if (!scoped) return;
+    setProformaDetails(scoped);
+    setShowProformaSupplierPicker(false);
     setShowProforma(true);
   };
 
@@ -1629,6 +1688,54 @@ function App() {
     );
   };
 
+  // A proforma invoice is issued by one supplier, so a multi-supplier cart asks
+  // which supplier to invoice. Reuses the cart modal styling.
+  const renderProformaSupplierPicker = () => {
+    if (!showProformaSupplierPicker) return null;
+    const groups = groupCartBySupplier();
+    if (groups.length === 0) return null;
+    return (
+      <div className="modal-overlay" onClick={() => setShowProformaSupplierPicker(false)}>
+        <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>🏢 Choose Proforma Supplier</h2>
+            <button className="modal-close" onClick={() => setShowProformaSupplierPicker(false)}>✕</button>
+          </div>
+          <div className="modal-body">
+            <div className="cart-supplier-info">
+              <h3>🛒 {groups.length} suppliers in this cart</h3>
+              <p>📄 Every proforma invoice is issued by a single supplier. Pick the supplier to invoice now — the others can be invoiced separately.</p>
+            </div>
+            {groups.map(group => (
+              <div key={group.supplierId} className="cart-supplier-group">
+                <div className="cart-supplier-group-header">
+                  <span className="cart-supplier-group-name">🏢 {group.supplierName}</span>
+                  <span className="cart-supplier-group-meta">📍 {group.supplierCity} • 📦 {group.itemCount} units • 💰 {formatCurrency(group.goodsValue)}</span>
+                </div>
+                <div className="cart-items">
+                  {group.items.map(item => (
+                    <div key={item.id} className="cart-item">
+                      <div className="cart-item-info">
+                        <h4>{item.materialName}</h4>
+                        <p>{formatCurrency(item.price)} / {item.unit} • Qty: {item.quantity} • Min: {item.minOrder}</p>
+                      </div>
+                      <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
+                    </div>
+                  ))}
+                </div>
+                <div className="cart-actions">
+                  <button className="btn-primary" onClick={() => openProformaFor(group.supplierId)} disabled={isCalculating}>
+                    {isCalculating ? 'Calculating...' : '📄 Generate Proforma'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderHome = () => {
     if (isMobile) return renderHomeMobile();
     const stats = {
@@ -1843,6 +1950,15 @@ function App() {
     // Else show all materials
     const displayMaterials = isSearchPerformed ? searchResults : materials;
 
+    // Suppliers that actually list products, used by the supplier filter listbox.
+    const supplierOptions = companies
+      .filter(company => materials.some(material => material.companyId === company.id))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const activeSupplierName = formData.searchSupplier !== 'all'
+      ? supplierOptions.find(company => company.id === formData.searchSupplier)?.name
+      : undefined;
+
     return (
       <main className="main-content">
         <div className="search-hero glass">
@@ -1857,6 +1973,12 @@ function App() {
               <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}>
                 <option value="all">Dept</option>
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <select className="filter-select" name="searchSupplier" value={formData.searchSupplier} onChange={handleInputChange} aria-label="Filter by supplier">
+                <option value="all">Supplier</option>
+                {supplierOptions.map(company => (
+                  <option key={company.id} value={company.id}>{company.name} — {company.city}</option>
+                ))}
               </select>
               <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}>
                 <option value="all">City</option>
@@ -1879,6 +2001,7 @@ function App() {
               {isSearchPerformed 
                 ? `📊 Results (${displayMaterials.length})` 
                 : '📦 All Products'}
+              {activeSupplierName ? ` · 🏢 ${activeSupplierName}` : ''}
             </h2>
             <button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button>
           </div>
@@ -2891,13 +3014,14 @@ function App() {
       {renderCurrentPage()}
       {renderMaterialDetails()}
       {renderCartSummary()}
-      {showProforma && cartDetails && (
+      {renderProformaSupplierPicker()}
+      {showProforma && proformaDetails && (
         <ProformaInvoice
-          cart={cart}
-          report={cartDetails}
+          cart={proformaDetails.items}
+          report={proformaDetails}
           currentUser={currentUser}
-          supplier={getCompanyById(cart[0]?.supplierId || '') || null}
-          suppliers={cartDetails.suppliers
+          supplier={getCompanyById(proformaDetails.suppliers[0]?.supplierId || '') || null}
+          suppliers={proformaDetails.suppliers
             .map(sup => {
               const comp = getCompanyById(sup.supplierId);
               return comp ? { ...comp, transportCost: sup.transportCost, distanceKm: sup.distanceKm } : null;

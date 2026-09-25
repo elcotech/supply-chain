@@ -2,7 +2,7 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 5.0 (Mobile Banking UX)
+> **Version:** 5.1 (Supplier filter + single-supplier proforma)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -36,10 +36,11 @@
 
 **E-SCON** (Ethio-Supply Chain Optimization Network) is a single-page web application that connects **suppliers** (companies) with **customers** in Ethiopia. It provides:
 
-- Product catalogue with **live search & filtering** (department, city, max price, sorting).
+- Product catalogue with **live search & filtering** (department, **supplier**, city, max price, sorting).
 - **GIS supplier mapping** built on Leaflet, with **driving routes**, **distance**, and **transport cost** calculations.
 - **Company dashboards** for suppliers to manage products & orders, and **customer dashboards** for order history.
 - **Cart & checkout** flow with VAT (15%) and delivery-fee computation.
+- **Proforma invoices** — one supplier per invoice, scannable QR, print-ready.
 - **Compliance** data capture (TIN, business license, VAT).
 - CSV **export** and **printable reports**.
 - **Product photos** (base64 uploads stored locally).
@@ -127,17 +128,17 @@ supply-chain1/
 │   ├── types.ts            # TypeScript interfaces (User, Company, Material, SystemSettings, …)
 │   ├── constants.ts        # Sample data + city/unit/department lists
 │   ├── settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
-│   ├── utils.ts            # Helpers: distance, fees, min-order, QR payloads, CSV, formatting
+│   ├── utils.ts            # Helpers: distance, fees, min-order, single-supplier report, QR payloads, CSV, formatting
 │   ├── hooks/
 │   │   └── useIsMobile.ts  # matchMedia("(max-width: 768px)") — drives the mobile shell
 │   ├── settings.test.ts    # Unit tests for SystemSettings persistence
-│   ├── utils.test.ts       # Unit tests for formatting, fees, min-order, QR payloads
+│   ├── utils.test.ts       # Unit tests for formatting, fees, min-order, QR payloads, single-supplier report
 │   └── components/
 │       ├── MapComponent.tsx      # Full-screen Leaflet map with routes + Locate Me
 │       ├── MapPicker.tsx         # Small map to pick a location (company edit) + Locate Me
 │       ├── EditCompany.tsx       # Company profile edit modal
 │       ├── DateTime.tsx          # Global live date/time widget (every screen)
-│       ├── ProformaInvoice.tsx   # Professional proforma invoice modal with FX QR
+│       ├── ProformaInvoice.tsx   # Professional single-supplier proforma invoice modal with FX QR
 │       ├── PublicProforma.tsx    # Mobile-friendly proforma shown when a QR is scanned
 │       ├── AdminSettings.tsx     # Admin-only configuration page (business rules)
 │       ├── InstallGuide.tsx      # "Install E-SCON" device-specific instructions modal
@@ -178,11 +179,19 @@ supply-chain1/
 
 **Data flow example (search)**
 
-1. User types in the search box on the Search page.
+1. User types in the search box on the Search page, or picks a filter pill (department, **supplier**, city, max price, sort).
 2. A debounced `useEffect` (300 ms) calls `performSearch()`.
 3. `performSearch` filters `materials`, then for each match calls the OSRM API for distance and transport cost (parallel `Promise.all`).
 4. Results are enriched into `SearchResult[]` (material + company + distance + costs) and rendered in a sortable table.
 5. Clicking a product row sets `autoRouteSupplierId` → the map modal opens and **automatically draws the driving route**.
+
+**Data flow example (proforma)**
+
+1. Cart → "👁️ Preview Proforma" → `groupCartBySupplier()` groups the cart lines per supplier.
+2. One supplier → straight to step 4. Several suppliers → the supplier picker modal asks which one to invoice.
+3. `calculateCartTotals()` builds the whole-cart `CartReport` (subtotal, VAT, per-supplier delivery fee).
+4. `buildSingleSupplierReport(report, supplierId, settings)` narrows that report to the chosen supplier, and it is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched).
+5. `ProformaInvoice` renders from `proformaDetails` and generates the QR (`generateProformaQrDataUrl`), which encodes the same single-supplier summary for `PublicProforma`.
 
 ---
 
@@ -259,6 +268,7 @@ All state lives in `App.tsx` using React hooks (no Redux/Context — fine for th
 - `formData` — a single object holding every form field value (login, register, product add/edit, search filters, company edit).
 - `searchResults`, `isSearchPerformed` — search page state.
 - `cart`, `cartDetails`, `showCartSummary` — cart flow.
+- `proformaDetails`, `showProformaSupplierPicker` — the report the proforma renders from (always one supplier) and the "choose supplier" modal.
 - `showSupplierMap`, `autoRouteSupplierId` — map modal & route targeting.
 - `selectedMaterial`, `editingMaterial` — details modal & product editing.
 - `darkMode`, `isFullscreen` — UI preferences.
@@ -274,6 +284,8 @@ All state lives in `App.tsx` using React hooks (no Redux/Context — fine for th
 - `pageAnimating` — controls page transition animation.
 
 Key `useCallback` helpers: `showAlert`, `getCompanyById`, `getMaterialById`, `getCompanyByUserId`, `getUserById`, `navigateTo`, `geocodeCompany`, `geocodeAllCompanies`, `performSearch`, `toggleFavorite`, `toggleCompare`.
+
+Plain (non-memo) helpers worth knowing: `calculateCartTotals` (whole-cart `CartReport`), `groupCartBySupplier` (cart lines grouped per supplier), `openProformaFor` (builds the single-supplier proforma), `handleDeliveryFeeChange` / `handleDeliveryFeeReset` (manual delivery fee, split pro-rata across the cart's suppliers), `handlePreviewProforma`, `renderCartSummary`, `renderProformaSupplierPicker`, `renderSearchMaterials`.
 
 ---
 
@@ -321,10 +333,17 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 - **Display:** Thumbnails appear in the search results table, the supplier dashboard table, and a **gallery** inside the product-details modal. Products without photos show a category-based emoji placeholder (🏗️ 🚚 💊 …).
 
 ### 10.4 Live search & filters
-Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filters for department, city, max price, and sort (price ↑↓, rating, newest). Each result computes OSRM distance and transport cost in parallel.
+Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filters for department, **supplier**, city, max price, and sort (price ↑↓, rating, newest). Each result computes OSRM distance and transport cost in parallel.
+
+**Supplier listbox filter (NEW):**
+- The filter row on the Search page holds a **supplier listbox** (`<select name="searchSupplier">`) between the department and city filters, reusing the existing `.filter-select` pill styling — no new CSS.
+- Options are built from `companies`, keeping only suppliers that actually list products (`materials.some(m => m.companyId === company.id)`), sorted alphabetically and labelled `Name — City`. The first option is `all` (labelled `Supplier`), so no filter is applied by default.
+- Filtering happens in `performSearch` (`App.tsx`) with `material.companyId === searchSupplier`, so it composes with the other filters, sorting and the distance/delivery estimates.
+- The field is `FormData.searchSupplier`, is part of the debounce dependency list, and is reset by the ✕ clear-filters button.
+- The active supplier is echoed in the results header (`📊 Results (12) · 🏢 Build Well Trading`) so the filtered state is obvious. The same filter row is rendered on mobile, so phones get it too.
 
 ### 10.5 Cart & checkout
-Multi-supplier cart: customers can add products from any number of suppliers into one cart. Checkout computes subtotal + VAT (per-item %) + delivery fee per supplier (OSRM-based) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs; a single **collective proforma** covers all items. Confirming creates one `Order` per item, resets the cart, and shows the Orders page.
+Multi-supplier cart: customers can add products from any number of suppliers into one cart. Checkout computes subtotal + VAT (per-item %) + delivery fee per supplier (OSRM-based) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item, resets the cart, and shows the Orders page. A proforma invoice is always issued per supplier — see [10.21](#1021-single-supplier-proforma-invoice-new-in-v51).
 
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
@@ -333,7 +352,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 - **File:** `src/components/ProformaInvoice.tsx`.
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
 - Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs), financial summary (subtotal, VAT 15%, delivery, grand total), amount in words, terms & conditions (6 clauses), and signature lines.
-- Accessible from the cart summary modal via "📄 Proforma Invoice" button.
+- Accessible from the cart summary modal via the "👁️ Preview Proforma" button, which asks which supplier to invoice when the cart holds several — see [10.21](#1021-single-supplier-proforma-invoice-new-in-v51).
 - **Print-ready**: `@media print` styles hide action buttons and format for A4.
 
 ### 10.8 Product Comparison (NEW)
@@ -359,7 +378,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 - Text wraps naturally with `-webkit-line-clamp: 2` for long product names.
 
 ### 10.13 Optimized Filter Frame (NEW)
-- Search filters use compact sizing: shorter labels (`Dept`, `City`, `Price ↑`), reduced padding and font-size.
+- Search filters use compact sizing: shorter labels (`Dept`, `Supplier`, `City`, `Price ↑`), reduced padding and font-size.
 - Filter pills use 20px border-radius for a modern look.
 - Search button shows only 🔍 icon on desktop (saves width).
 
@@ -420,6 +439,17 @@ Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lo
 
 ### 10.20 Consistent currency (NEW in v4)
 All money values (search results, product cards, cart summary, proforma, order exports, admin settings preview) use the single `formatCurrency` helper. **"ETH" appears only in company/brand names** (e.g. "ETH Steel"), which is correct and must not be changed.
+
+### 10.21 Single-supplier proforma invoice (NEW in v5.1)
+A proforma invoice is a legal document issued by **one** seller, so the proforma is now always generated from a **single supplier**, even when the cart contains items from several.
+
+- **Rule:** `handlePreviewProforma` groups the cart with `groupCartBySupplier()` (`App.tsx`). One supplier → the proforma opens straight away (unchanged behaviour). Several suppliers → the **"🏢 Choose Proforma Supplier"** modal opens.
+- **Picker UI** (`renderProformaSupplierPicker`): reuses the existing cart modal classes (`modal-overlay`, `modal-content cart-modal`, `modal-header`, `modal-body`, `cart-supplier-group`, `cart-item`, `btn-primary`) — **no new CSS**. Each supplier block shows city, unit count, goods value and its line items, with a "📄 Generate Proforma" button.
+- **Scoping helper:** `buildSingleSupplierReport(report, supplierId, settings)` in `src/utils.ts` derives the single-supplier `CartReport` from the cart report that `calculateCartTotals()` already produced. It keeps the supplier's line items, recomputes that supplier's subtotal/VAT, and takes the supplier's own delivery fee — which already includes its pro-rata share of any manually edited fee (the cart scales the per-supplier transport so the parts still add up to the grand total). Unit-tested in `src/utils.test.ts`.
+  - Because the numbers come from the cart report, the proforma always matches the per-supplier figures the buyer saw in the cart.
+- **Separate report state:** the proforma renders from `proformaDetails`, not `cartDetails`, so opening a single-supplier proforma never mutates the cart summary behind it. `confirmOrder` and checkout keep using the whole-cart report, so ordering behaviour is untouched.
+- **Document (`ProformaInvoice.tsx`):** renders one supplier block (`suppliers[0] || supplier`), the item table, quantity counts and minimum-order notes all read from `report.items` (falling back to the `cart` prop), the signature line names that supplier, the QR payload carries a single supplier entry, and a **Supplier** row was added to the header meta block so the seller is identified at the top of the printed page.
+- `PublicProforma` (the QR scan view) needs no change — it renders whatever supplier list the payload carries, which is now always one.
 
 ---
 
@@ -506,7 +536,7 @@ No router library — `currentPage` switch in `App.tsx`:
 | `splash`             | `renderSplash`              | 3 s intro                       |
 | `home`               | `renderHome`                | Hero + stats + features        |
 | `login` / `register` | `renderLogin`/`renderRegister` | Auth cards                |
-| `search-materials`   | `renderSearchMaterials`     | Live search + results table    |
+| `search-materials`   | `renderSearchMaterials`     | Live search + supplier/dept/city/price filters + results table |
 | `company-dashboard`  | `renderCompanyDashboard`    | Supplier view                  |
 | `customer-dashboard` | `renderCustomerDashboard`   | Customer view                  |
 | `add-material`       | `renderAddMaterial`         | Product form (+ photos)        |
@@ -518,7 +548,7 @@ No router library — `currentPage` switch in `App.tsx`:
 | (mobile orders)      | `renderOrdersMobile`    | Order cards + `OrderTimeline` stepper when `isMobile` |
 | (mobile dashboards)  | `renderMobileDashboard` | Stat tiles + compact lists for company/customer when `isMobile` |
 | (map)                | `renderSupplierMap`         | Modal flag `showSupplierMap`   |
-| (modals)             | `renderMaterialDetails`, `renderCartSummary`, EditCompany, `ProformaInvoice`, `compare-modal` | Overlays |
+| (modals)             | `renderMaterialDetails`, `renderCartSummary`, `renderProformaSupplierPicker`, EditCompany, `ProformaInvoice`, `compare-modal` | Overlays |
 | (compare bar)        | Floating compare bar at bottom | Shows when `compareItems.length > 0` |
 | (PWA banner)         | `pwa-install-banner` | Shows when browser supports install prompt |
 | (public proforma)    | `PublicProforma` overlay | Opens automatically when URL hash is `#escon=<token>` |
@@ -593,9 +623,9 @@ npm test
 | File                  | What it covers                                                       |
 | --------------------- | -------------------------------------------------------------------- |
 | `src/settings.test.ts` | Defaults, round-trip persistence, corrupted-JSON repair, number sanitising, admin seed |
-| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), QR payload encode→decode round-trip, tampered token rejection, scannable URL format |
+| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), QR payload encode→decode round-trip, tampered token rejection, scannable URL format, `buildSingleSupplierReport` (single-supplier totals, unknown supplier, minimum-order flag) |
 
-20 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
+23 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
 
 ---
 
@@ -616,6 +646,8 @@ Read this before touching any code. It prevents the most common mistakes.
 ### 19.2 Where things live
 - **Business rules** (delivery fee, zones, min order) → `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates, cart totals and order creation all use `computeDeliveryFee` now.
 - **Currency** → `formatCurrency` in `utils.ts` (used by App, ProformaInvoice, AdminSettings, PublicProforma).
+- **Search filters** → `FormData.search*` fields + `performSearch` in `App.tsx`; the filter row is `renderSearchMaterials` and reuses `.search-filters` / `.filter-select` / `.filter-input` / `.filter-clear`. A new filter needs: the field in `FormData` (`types.ts`), the `formData` initialiser, the check in `performSearch`, the control in the filter row, the debounce dependency list, and the reset in `clearFilters`.
+- **Proforma scope** → a proforma is always one supplier: `groupCartBySupplier` + `renderProformaSupplierPicker` (App) and `buildSingleSupplierReport` (`utils.ts`) build it from the cart report in `proformaDetails`. Do not render the proforma from `cartDetails`, and do not add multi-supplier blocks back to `ProformaInvoice.tsx`.
 - **QR / sharing** → `encodeProformaPayload`, `decodeProformaPayload`, `buildProformaQrUrl`, `generateProformaQrDataUrl` in `utils.ts`; rendering in `ProformaInvoice.tsx` and `PublicProforma.tsx`. The hash format is `#escon=<base64url(ESCON1+json)>`.
 - **PWA** → `public/sw.js` (custom, version `VERSION` const), `src/index.tsx` registration (production only), `src/components/InstallGuide.tsx`, banner logic in `App.tsx`.
 - **Admin page routing** → a `case 'settings'` in the `renderCurrentPage` switch guards `userType === 'admin'`.
@@ -625,6 +657,8 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a new Ethiopian city to a zone":** Settings → zone → the "+" button adds a city selector. The city list is `ETHIOPIAN_CITIES` in `constants.ts`.
 - **"Point the map at a different tile server":** edit the tile-layer URLs in `MapComponent.tsx` and `MapPicker.tsx`. If you add a cross-origin tile host, update `sw.js` caching rules too.
 - **"Add a page":** add a `case` in `renderCurrentPage`, a nav button in `renderUserNav`/`renderGuestNav`, and optionally a hash shortcut in `manifest.json` (`shortcuts`).
+- **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
+- **"Invoice a second supplier from the same cart":** close the proforma, reopen the cart (🛒) and press "👁️ Preview Proforma" again — the supplier picker lists every supplier in the cart. Each invoice is independent.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
 
 ### 19.4 Known limitations (do not "fix" without discussion)

@@ -27,13 +27,14 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 
 ## Key features
 
-- 🔍 Live search & filtering (department, city, price, sort)
+- 🔍 Live search & filtering (department, **supplier listbox**, city, price, sort)
 - 🗺️ Leaflet supplier map with **OSRM driving routes**, distance & delivery cost
 - 🚗 **Click a product → map opens with the route & distance immediately**
 - 🎯 **Locate Me** button on the maps (with friendly handling of denied/unavailable GPS)
 - 📷 **Product photos** (up to 6 per product, base64 stored locally)
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
 - 🛒 Multi-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), VAT, configurable delivery fees & minimum order, checkout → orders
+- 📄 **One supplier per proforma** — a cart with several suppliers asks which supplier to invoice, and the proforma then carries only that supplier's items, VAT and delivery fee (reusable modal, styled like the cart)
 - 🔍 **Scannable QR proforma** — scanning the invoice QR opens a mobile-friendly view of the order (works from paper)
 - ⚙️ **Admin platform settings** — delivery pricing, zones, free delivery & minimum order, no code changes needed
 - 📲 **Installable PWA** with offline support and a device-specific install guide
@@ -41,7 +42,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 📱 **Mobile banking-style app** — a dedicated mobile shell (bottom tab bar, centre cart button, "More" sheet, greeting home, trending-products carousel, card-based search, order cards with a shipment progress stepper) automatically appears on phones; the desktop layout stays untouched
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports
-- ✅ Unit tests for fees, formatting, settings and QR payloads
+- ✅ Unit tests for fees, formatting, settings, QR payloads and single-supplier proforma reports
 - 🌙 Dark / light themes, 📱 fully responsive & touch-friendly
 
 ---

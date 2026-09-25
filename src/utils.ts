@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload } from './types';
+import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, CartReport } from './types';
 
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
@@ -140,6 +140,52 @@ export const checkMinOrder = (settings: SystemSettings, goodsSubtotal: number): 
   const subtotal = typeof goodsSubtotal === 'number' && isFinite(goodsSubtotal) ? goodsSubtotal : 0;
   const below = enabled && subtotal < amount;
   return { enabled, amount, subtotal, below, shortfall: below ? amount - subtotal : 0 };
+};
+
+// ---------- Single-supplier proforma ----------
+// A proforma invoice is always issued by one supplier. The cart report already
+// carries the per-supplier split (that supplier's line items and its share of
+// the delivery fee, including any manually edited fee), so a single-supplier
+// report is derived from it. The proforma numbers therefore stay identical to
+// the per-supplier figures shown in the cart.
+export const buildSingleSupplierReport = (
+  report: CartReport,
+  supplierId: string,
+  settings: SystemSettings
+): CartReport | null => {
+  const supplier = (report.suppliers || []).find(s => s.supplierId === supplierId);
+  if (!supplier) return null;
+  const items = supplier.items || [];
+  const round = (value: number) => Math.round(value * 100) / 100;
+  let subtotal = 0;
+  let vatAmount = 0;
+  items.forEach(item => {
+    const lineTotal = item.basePrice * (1 + item.profitMargin) * item.quantity;
+    subtotal += lineTotal;
+    vatAmount += lineTotal * ((item.vatPercentage || 0) / 100);
+  });
+  const transportCost = round(supplier.transportCost || 0);
+  const minOrderCheck = checkMinOrder(settings, subtotal);
+  const threshold = settings.delivery.freeDeliveryThreshold;
+  return {
+    items,
+    subtotal,
+    vatAmount,
+    transportCost,
+    total: round(subtotal + vatAmount + transportCost),
+    distanceKm: supplier.distanceKm || 0,
+    suppliers: [supplier],
+    supplierName: supplier.supplierName,
+    supplierCity: supplier.supplierCity,
+    itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+    uniqueItems: items.length,
+    currency: report.currency || 'ETB',
+    reportDate: report.reportDate,
+    freeDeliveryApplied: transportCost === 0 && threshold > 0 && subtotal >= threshold,
+    minOrderEnabled: minOrderCheck.enabled,
+    minOrderAmount: minOrderCheck.amount,
+    belowMinOrder: minOrderCheck.below,
+  };
 };
 
 // ---------- QR / share payload for proformas & orders ----------

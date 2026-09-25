@@ -52,6 +52,11 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   suppliers,
   onClose,
 }) => {
+  // A proforma invoice is always issued by a single supplier, so the document
+  // renders one supplier block and only that supplier's line items.
+  const items = report.items && report.items.length > 0 ? report.items : cart;
+  const primarySupplier = suppliers.length > 0 ? suppliers[0] : supplier;
+
   // Capture the timestamp once for a stable proforma number / date — not a ticking clock
   const [now] = useState(() => new Date());
 
@@ -106,7 +111,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   // screen and when paper-printed — scanning opens a mobile-friendly view.
   useEffect(() => {
     let cancelled = false;
-    const items = (report.items || cart).map(i => ({
+    const shareItems = items.map(i => ({
       n: i.materialName,
       u: i.unit,
       q: i.quantity,
@@ -117,8 +122,8 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
       n: proformaNumber,
       d: now.toISOString().split('T')[0],
       b: currentUser?.name || 'Customer',
-      s: (suppliers.length > 0 ? suppliers : []).map(s => ({ n: s.name, c: s.city })),
-      i: items.slice(0, 40),
+      s: primarySupplier ? [{ n: primarySupplier.name, c: primarySupplier.city }] : [],
+      i: shareItems.slice(0, 40),
       sub: Math.round(report.subtotal * 100) / 100,
       vat: Math.round(report.vatAmount * 100) / 100,
       del: Math.round(report.transportCost * 100) / 100,
@@ -148,8 +153,8 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   };
 
   // ----------------------------------------------------------------- parts
-  const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const supplierNotes = cart
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const supplierNotes = items
     .filter((i) => i.minOrder > 1)
     .map((i) => i.materialName + ': ' + i.minOrder + ' ' + i.unit)
     .join(' · ');
@@ -224,6 +229,10 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               </div>
               <div className="pf-meta-rows">
                 <div className="pf-meta-row">
+                  <span className="pf-meta-label">Supplier</span>
+                  <span className="pf-meta-value">{primarySupplier?.name || '—'}</span>
+                </div>
+                <div className="pf-meta-row">
                   <span className="pf-meta-label">Proforma No.</span>
                   <span className="pf-meta-value">{proformaNumber}</span>
                 </div>
@@ -268,25 +277,20 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
           {/* ============================= PARTIES ============================= */}
           <div className="pf-parties">
             {box('SUPPLIER DETAILS', '🏢',
-              suppliers.length > 0 ? (
-                suppliers.map((s, idx) => (
-                  <div key={s.id} className={'pf-supplier' + (idx > 0 ? ' pf-supplier-alt' : '')}>
-                    {suppliers.length > 1 && (
-                      <div className="pf-supplier-index">Supplier {idx + 1}</div>
-                    )}
-                    {infoRow('Company Name', <strong>{s.name}</strong>)}
-                    {infoRow('Address', s.city + (s.location ? ' – ' + s.location : ''))}
-                    {infoRow('TIN', s.tinNumber)}
-                    {infoRow('VAT No.', s.vatNumber)}
-                    {infoRow('Contact Person', '—')}
-                    {infoRow('Phone', s.phone)}
-                    {infoRow('Email', s.email)}
-                  </div>
-                ))
+              primarySupplier ? (
+                <>
+                  {infoRow('Company Name', <strong>{primarySupplier.name}</strong>)}
+                  {infoRow('Address', primarySupplier.city + (primarySupplier.location ? ' – ' + primarySupplier.location : ''))}
+                  {infoRow('TIN', primarySupplier.tinNumber)}
+                  {infoRow('VAT No.', primarySupplier.vatNumber)}
+                  {infoRow('Contact Person', '—')}
+                  {infoRow('Phone', primarySupplier.phone)}
+                  {infoRow('Email', primarySupplier.email)}
+                </>
               ) : (
                 <>
-                  {infoRow('Company Name', <strong>{supplier?.name || '—'}</strong>)}
-                  {infoRow('Address', supplier?.city || '—')}
+                  {infoRow('Company Name', <strong>—</strong>)}
+                  {infoRow('Address', '—')}
                 </>
               )
             )}
@@ -309,7 +313,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             <div className="pf-section-head">
               <span className="pf-section-icon">🛒</span>
               <span>Order Items</span>
-              <span className="pf-section-count">{cart.length} item{cart.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</span>
+              <span className="pf-section-count">{items.length} item{items.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</span>
             </div>
             <div className="pf-table-wrap">
               <table className="pf-table">
@@ -325,7 +329,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {cart.map((item, index) => {
+                  {items.map((item, index) => {
                     const unitPrice = item.basePrice * (1 + item.profitMargin);
                     const amount = unitPrice * item.quantity;
                     return (
@@ -340,7 +344,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                       </tr>
                     );
                   })}
-                  {cart.length === 0 && (
+                  {items.length === 0 && (
                     <tr><td colSpan={7} className="pf-empty">No items in cart.</td></tr>
                   )}
                 </tbody>
@@ -449,9 +453,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
           <div className="pf-signatures">
             <div className="pf-sig-box">
               <div className="pf-sig-head">Authorized Supplier Signature</div>
-              <div className="pf-sig-name">
-                {suppliers.length > 1 ? 'All Listed Suppliers' : (suppliers[0]?.name || supplier?.name || '—')}
-              </div>
+              <div className="pf-sig-name">{primarySupplier?.name || '—'}</div>
               <div className="pf-sig-line" />
               <div className="pf-sig-date">Date: {signatureDate}</div>
             </div>
