@@ -5116,6 +5116,22 @@ econdary);
 .pf-meta-label { color: #45627a; font-weight: 600; }
 .pf-meta-value { color: #173b63; font-weight: 700; text-align: right; }
 
+/* ------------------------- Header QR ------------------------- */
+.pf-header-qr {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding-left: 18px;
+  border-left: 1px solid #b8dff2;
+}
+.pf-header-qr .pf-qr { margin-top: 0; align-items: center; }
+.pf-header-qr .pf-qr-img { width: 74px; height: 74px; }
+.pf-header-qr .pf-qr-caption { text-align: center; white-space: nowrap; }
+.pf-qr-img-placeholder {
+  border: 1px dashed #b8dff2;
+  background: repeating-linear-gradient(45deg, #f4fafe, #f4fafe 4px, #e8f4fc 4px, #e8f4fc 8px);
+}
+
 /* ------------------------- Supplier / Buyer boxes ------------------------- */
 .pf-parties {
   display: grid;
@@ -5460,6 +5476,13 @@ econdary);
   .pf-header { flex-direction: column; }
   .pf-brand { border-right: none; border-bottom: 1px solid #b8dff2; padding-right: 0; padding-bottom: 10px; }
   .pf-meta { padding-left: 0; }
+  .pf-header-qr {
+    border-left: none;
+    border-top: 1px solid #b8dff2;
+    padding: 10px 0 0;
+  }
+  .pf-header-qr .pf-qr { flex-direction: row; align-items: center; gap: 8px; }
+  .pf-header-qr .pf-qr-img { width: 64px; height: 64px; }
   .pf-parties,
   .pf-terms-grid,
   .pf-signatures { grid-template-columns: 1fr; }
@@ -5509,6 +5532,8 @@ econdary);
   .pf-sig-line { margin: 8px 6px 3px; }
   .pf-footer { margin-top: 8px; padding-top: 8px; }
   .pf-qr-img { width: 52px; height: 52px; }
+  .pf-header-qr { padding-left: 12px; }
+  .pf-header-qr .pf-qr-img { width: 58px; height: 58px; }
   .pf-footer-contact { font-size: 0.62rem; }
   .pf-footer-legal { font-size: 0.56rem; }
   .pf-footer-copy { font-size: 0.54rem; }

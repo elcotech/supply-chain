@@ -241,6 +241,28 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                 </div>
               </div>
             </div>
+
+            <div className="pf-header-qr">
+              {qrStatus === 'generating' && (
+                <div className="pf-qr">
+                  <div className="pf-qr-img pf-qr-img-placeholder" />
+                  <p className="pf-qr-caption">Generating…</p>
+                </div>
+              )}
+              {qrStatus === 'failed' && (
+                <p className="pf-qr-caption">QR code unavailable.</p>
+              )}
+              {qrStatus === 'ready' && qrDataUrl && (
+                <div className="pf-qr">
+                  <img
+                    className="pf-qr-img"
+                    src={qrDataUrl}
+                    alt={'QR code to view Proforma ' + proformaNumber}
+                  />
+                  <p className="pf-qr-caption">🔍 Scan to verify</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ============================= PARTIES ============================= */}
@@ -446,22 +468,6 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             <div className="pf-footer-left">
               <div className="pf-footer-brand">E-SCON</div>
               <div className="pf-footer-brand-sub">Ethio-Supply Chain Optimization Network</div>
-              {qrStatus === 'generating' && (
-                <p className="pf-qr-caption">Generating QR code…</p>
-              )}
-              {qrStatus === 'failed' && (
-                <p className="pf-qr-caption">QR code unavailable.</p>
-              )}
-              {qrStatus === 'ready' && qrDataUrl && (
-                <div className="pf-qr">
-                  <img
-                    className="pf-qr-img"
-                    src={qrDataUrl}
-                    alt={'QR code to view Proforma ' + proformaNumber}
-                  />
-                  <p className="pf-qr-caption">🔍 Scan to verify</p>
-                </div>
-              )}
             </div>
             <div className="pf-footer-center">
               <p className="pf-footer-contact">
