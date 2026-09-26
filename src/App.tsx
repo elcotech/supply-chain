@@ -52,6 +52,47 @@ const LOW_STOCK_THRESHOLD = 10;
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
+// The cart quantity has to be freely editable. A number input wired straight to
+// state re-renders on every keystroke (clearing the box yields NaN), which makes
+// the cart look read-only — so the field keeps a local draft string and only
+// commits a valid whole number, on blur, on Enter or via the − / + keys.
+// Module scope on purpose: defined inside App() it would be a new component type
+// on every render, remounting the input and dropping the draft.
+const CartQuantityInput = ({ item, onCommit }: { item: CartItem; onCommit: (itemId: string, quantity: number) => void }) => {
+  const [draft, setDraft] = useState(String(item.quantity));
+  useEffect(() => { setDraft(String(item.quantity)); }, [item.quantity]);
+
+  const commit = (raw: string) => {
+    const parsed = parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed >= 1) {
+      setDraft(String(parsed));
+      onCommit(item.id, parsed);
+      return;
+    }
+    // Nothing valid typed (e.g. an empty field while editing) — resync silently.
+    setDraft(String(item.quantity));
+  };
+
+  return (
+    <div className="cart-item-quantity">
+      <button type="button" className="cart-qty-btn" onClick={() => commit(String(Math.max(1, item.quantity - 1)))} aria-label={'Decrease quantity of ' + item.materialName}>−</button>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={draft}
+        min={1}
+        step={1}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={e => commit(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }}
+        aria-label={'Quantity of ' + item.materialName}
+      />
+      <button type="button" className="cart-qty-btn" onClick={() => commit(String(item.quantity + 1))} aria-label={'Increase quantity of ' + item.materialName}>+</button>
+      <span>{item.unit}</span>
+    </div>
+  );
+};
+
 function App() {
   // ---------- State ----------
   const [showSplash, setShowSplash] = useState(true);
@@ -1614,7 +1655,7 @@ function App() {
                       {sup.items.map(item => (
                         <div key={item.id} className="cart-item">
                           <div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div>
-                          <div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={1} step={1} /><span>{item.unit}</span></div>
+                          <CartQuantityInput item={item} onCommit={updateCartQuantity} />
                           <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
                           <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
                         </div>
@@ -1858,6 +1899,14 @@ function App() {
     const company = getCompanyByUserId(currentUser.id);
     const companyMaterials = materials.filter(m => m.companyId === company?.id);
     const stats = calculateStats();
+    // A supplier always sees the full picture of their own stock: how many units
+    // are on hand, what they are worth, and which lines need restocking.
+    const stockSummary = {
+      units: companyMaterials.reduce((sum, m) => sum + (m.quantity || 0), 0),
+      value: companyMaterials.reduce((sum, m) => sum + (m.quantity || 0) * m.price, 0),
+      low: companyMaterials.filter(m => m.quantity > 0 && m.quantity <= LOW_STOCK_THRESHOLD).length,
+      out: companyMaterials.filter(m => (m.quantity || 0) <= 0).length,
+    };
     return (
       <main className="main-content">
         <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🏢</span><h1>Supplier Dashboard</h1></div><p>Welcome {company?.name}!</p></div>
@@ -1867,10 +1916,22 @@ function App() {
           <div className="dashboard-card glass"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
           <div className="dashboard-card glass"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
+        <div className="card glass stock-summary-card">
+          <div className="card-header"><h3>📥 My stock</h3><span className="stock-summary-hint">Visible to you only — customers never see stock levels</span></div>
+          <div className="stock-summary-grid">
+            <div className="stock-summary-tile"><span className="stock-tile-icon">📦</span><strong>{stockSummary.units}</strong><small>Units in stock</small></div>
+            <div className="stock-summary-tile"><span className="stock-tile-icon">💵</span><strong>{formatCurrency(stockSummary.value)}</strong><small>Stock value</small></div>
+            <div className={'stock-summary-tile' + (stockSummary.low > 0 ? ' warn' : '')}><span className="stock-tile-icon">⚠️</span><strong>{stockSummary.low}</strong><small>Low stock (≤ {LOW_STOCK_THRESHOLD})</small></div>
+            <div className={'stock-summary-tile' + (stockSummary.out > 0 ? ' danger' : '')}><span className="stock-tile-icon">🚫</span><strong>{stockSummary.out}</strong><small>Out of stock</small></div>
+          </div>
+        </div>
         <div className="card glass"><div className="card-header"><h3>📦 Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button><button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button></div>
-          <ScrollableTable minWidth="900px">
-            <table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>Stock</th><th>Rating</th><th>Actions</th></tr></thead><tbody>
-              {companyMaterials.map(m => (
+          <ScrollableTable minWidth="1000px">
+            <table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>In Stock</th><th>Stock Status</th><th>Stock Value</th><th>Rating</th><th>Actions</th></tr></thead><tbody>
+              {companyMaterials.map(m => {
+                const inStock = (m.quantity || 0) > 0;
+                const isLow = inStock && m.quantity <= LOW_STOCK_THRESHOLD;
+                return (
                 <tr key={m.id}>
                   <td className="product-cell">
                     {renderProductImage(m.images, m.category, 'sm')}
@@ -1879,7 +1940,15 @@ function App() {
                   <td>{m.category}</td>
                   <td className="price-cell">{formatCurrency(m.price)}</td>
                   <td>{m.unit}</td>
-                  <td>{m.quantity}</td>
+                  <td className="stock-cell"><strong>{m.quantity}</strong> {m.unit}</td>
+                  <td>
+                    {!inStock
+                      ? <span className="stock-chip stock-chip-out">🚫 Out of stock</span>
+                      : isLow
+                        ? <span className="stock-chip stock-chip-low">⚠️ Low stock</span>
+                        : <span className="stock-chip stock-chip-in">✅ In stock</span>}
+                  </td>
+                  <td className="stock-cell">{formatCurrency((m.quantity || 0) * m.price)}</td>
                   <td>⭐ {m.rating || 'N/A'}</td>
                   <td>
                     <button className="btn-icon" title="View details" onClick={() => setSelectedMaterial(m)}>👁️</button>
@@ -1887,7 +1956,8 @@ function App() {
                     <button className="btn-icon danger" title="Delete product" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody></table>
           </ScrollableTable>
         </div>
@@ -2862,6 +2932,12 @@ function App() {
       const company = getCompanyByUserId(currentUser.id);
       const companyMaterials = materials.filter(m => m.companyId === company?.id);
       const companyOrders = orders.filter(o => company && o.companyId === company.id);
+      const mobileStock = {
+        units: companyMaterials.reduce((sum, m) => sum + (m.quantity || 0), 0),
+        value: companyMaterials.reduce((sum, m) => sum + (m.quantity || 0) * m.price, 0),
+        low: companyMaterials.filter(m => m.quantity > 0 && m.quantity <= LOW_STOCK_THRESHOLD).length,
+        out: companyMaterials.filter(m => (m.quantity || 0) <= 0).length,
+      };
       return (
         <main className="main-content mobile-dashboard">
           <div className="mobile-page-head">
@@ -2873,6 +2949,15 @@ function App() {
             <div className="m-stat-tile"><span className="m-stat-icon">📊</span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
             <div className="m-stat-tile"><span className="m-stat-icon">⏳</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
             <div className="m-stat-tile"><span className="m-stat-icon">💰</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Revenue</small></div>
+          </div>
+          <div className="m-section">
+            <div className="m-section-head"><h3>📥 My stock</h3></div>
+            <div className="m-stock-grid">
+              <div className="m-stock-tile"><strong>{mobileStock.units}</strong><small>Units in stock</small></div>
+              <div className="m-stock-tile"><strong>{formatCurrency(mobileStock.value)}</strong><small>Stock value</small></div>
+              <div className={'m-stock-tile' + (mobileStock.low > 0 ? ' warn' : '')}><strong>{mobileStock.low}</strong><small>Low stock</small></div>
+              <div className={'m-stock-tile' + (mobileStock.out > 0 ? ' danger' : '')}><strong>{mobileStock.out}</strong><small>Out of stock</small></div>
+            </div>
           </div>
           <div className="m-section">
             <div className="m-section-head">
@@ -2888,7 +2973,12 @@ function App() {
                     {renderProductImage(m.images, m.category, 'sm')}
                     <div className="m-dash-row-info">
                       <strong>{m.name}</strong>
-                      <small>{m.category} · {m.quantity} in stock</small>
+                      <small>{m.category} · {m.quantity} {m.unit} in stock · {formatCurrency((m.quantity || 0) * m.price)}</small>
+                      {(m.quantity || 0) <= 0
+                        ? <span className="stock-chip stock-chip-out">🚫 Out of stock</span>
+                        : m.quantity <= LOW_STOCK_THRESHOLD
+                          ? <span className="stock-chip stock-chip-low">⚠️ Low stock</span>
+                          : <span className="stock-chip stock-chip-in">✅ In stock</span>}
                     </div>
                     <strong className="m-dash-row-price">{formatCurrency(m.price)}</strong>
                     <button className="btn-icon edit" onClick={() => handleEditMaterial(m)}>✏️</button>

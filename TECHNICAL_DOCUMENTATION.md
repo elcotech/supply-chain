@@ -285,7 +285,7 @@ All state lives in `App.tsx` using React hooks (no Redux/Context — fine for th
 
 Key `useCallback` helpers: `showAlert`, `getCompanyById`, `getMaterialById`, `getCompanyByUserId`, `getUserById`, `navigateTo`, `geocodeCompany`, `geocodeAllCompanies`, `performSearch`, `toggleFavorite`, `toggleCompare`.
 
-Plain (non-memo) helpers worth knowing: `calculateCartTotals` (whole-cart `CartReport`), `groupCartBySupplier` (cart lines grouped per supplier), `openProformaFor` (builds the single-supplier proforma), `handleDeliveryFeeChange` / `handleDeliveryFeeReset` (manual delivery fee, split pro-rata across the cart's suppliers), `handlePreviewProforma`, `renderCartSummary`, `renderProformaSupplierPicker`, `renderSearchMaterials`.
+Plain (non-memo) helpers worth knowing: `calculateCartTotals` (whole-cart `CartReport`), `groupCartBySupplier` (cart lines grouped per supplier), `openProformaFor` (builds the single-supplier proforma), `handleDeliveryFeeChange` / `handleDeliveryFeeReset` (manual delivery fee, split pro-rata across the cart's suppliers), `handlePreviewProforma`, `renderCartSummary`, `renderProformaSupplierPicker`, `renderSearchMaterials`. Module-scope component: `CartQuantityInput` (the editable per-line quantity field, §10.5).
 
 ---
 
@@ -316,7 +316,7 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 ### 10.1 Global live Date & Time widget (NEW)
 - **File:** `src/components/DateTime.tsx`, rendered once inside the app **header**, therefore visible on **every screen** (home, search, dashboards, map modal, login, etc.).
 - Updates **every second** (`setInterval`).
-- **Invert colors** toggle (🎨) — flips the widget to a dark chip with inverted text (and light-on-dark mode flips to a light chip).
+- **Invert colors** toggle (🎨) — flips the widget from its light frosted chip to a dark chip with inverted text (and back again).
 - **Transparency** toggle (👻) — makes the widget fully transparent ("ghost").
 - Both preferences persist to `localStorage`.
 
@@ -362,10 +362,18 @@ Multi-supplier cart: customers can add products from any number of suppliers int
 
 **No per-product minimum (v5.4):** customers may order **any quantity of 1 or more**. A product's `minOrder` field is kept as **supplier reference data** (product form, cart snapshot, proforma notes, comparison view) but is no longer enforced in the ordering path — `addToCart`, `updateCartQuantity`, the cart quantity inputs and the product-details stepper all work in units of 1, and the customer-facing description panel no longer shows a "Min Order" line. The separate **admin-configured minimum-order value** in ETB (goods-subtotal threshold, see [10.5](#105-cart--checkout)) is a different rule and is untouched.
 
+**Cart quantity is freely editable (v5.4):** each cart line renders `CartQuantityInput` (module scope in `App.tsx`, just above `function App()`) — a number field with `−` / `+` keys. It keeps a **local draft string** and only calls `updateCartQuantity` with a valid whole number (on blur, on Enter or via the keys). The old inline `onChange={e => updateCartQuantity(item.id, parseInt(e.target.value))}` re-rendered the field on every keystroke, so clearing the box produced `NaN`, bounced an alert and made the cart look read-only. Keep the component at module scope — defined inside `App()` it becomes a new component type on every render, which remounts the input and drops the draft mid-typing. The `Qty:` label was dropped so the unit sits next to the field, and the native spinners are hidden in favour of the `−` / `+` buttons (`.cart-qty-btn`, 38px on touch).
+
 **Stock visibility:** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price and unit only.
 
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
+
+**Own-stock detail (v5.4):** a supplier always sees everything about *their own* stock (this is the one surface where a stock number is not behind `canSeeStock`, because a supplier is reading their own inventory):
+- A **"📥 My stock"** card with four tiles: units in stock, stock value (`Σ quantity × price`), low-stock lines (`0 < quantity ≤ LOW_STOCK_THRESHOLD`) and out-of-stock lines. The tiles turn amber/red when the count is above zero.
+- The products table gains **In Stock** (`N unit`), **Stock Status** (`.stock-chip-in` / `.stock-chip-low` / `.stock-chip-out`) and **Stock Value** columns; the header/footer hint states that stock is private to the supplier.
+- The mobile supplier dashboard gets the same four tiles (`.m-stock-grid`) plus a status chip on every product row.
+- Nothing here is customer-visible: these components only render for `currentUser.userType === 'company'`, and the product-details/compare/search stock surfaces remain `canSeeStock`-gated (§13.1).
 
 ### 10.7 Proforma Invoice (NEW)
 - **File:** `src/components/ProformaInvoice.tsx`.
@@ -425,6 +433,8 @@ All animations are **CSS-only** (no JS animation libraries), using CSS custom pr
 
 ### 10.15 Auth & security simulation
 Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lockUntil`). Passwords are stored in plaintext (demo only — do **not** use in production).
+
+**Sign-in / create-account layout (v5.4):** `renderLogin` and `renderRegister` both render `<main class="main-content"><div class="auth-container"><div class="auth-card glass">`. The `.auth-*` classes had no CSS at all, so the form sat in the top-left and its inputs rendered unstyled. They are now a centered, frosted card (see §12) and the `.form-*` controls are styled for every form in the app. The Customer/Supplier switch on the register page is `.auth-tabs` / `.auth-tab.active`.
 
 ### 10.16 System Settings (admin) (NEW in v4)
 - **File:** `src/settings.ts` (module) + `src/components/AdminSettings.tsx` (page).
@@ -501,29 +511,43 @@ L.Icon.Default.mergeOptions({
 
 ## 12. Styling System & Themes
 
-Everything is styled in **`src/App.css`** (~5,700 lines, organized in comment sections).
+Everything is styled in **`src/App.css`** (~6,100 lines, organized in comment sections).
 
 ### CSS variables
-`:root` defines a **light** palette; `[data-theme="dark"]` (set on `<html>` by `App.tsx`) overrides it. A `.dark-mode` class on the app container also applies targeted overrides.
+`:root` defines the base palette; `[data-theme="dark"]` (set on `<html>` by `App.tsx`) overrides it. A `.dark-mode` class on the app container also applies targeted overrides.
 
-Key tokens: `--bg`, `--card-bg`, `--text`, `--text-light`, `--border`, `--shadow`, `--glass-bg`, `--glass-border`, `--primary` (#0f2b3d), `--primary-light`, `--secondary` (orange #e67e22), `--accent` (green), `--danger`, `--warning`, `--info`, `--radius`, `--transition`, `--font`.
+Key tokens: `--bg`, `--bg-alt`, `--surface`, `--surface-alt`, `--card-bg`, `--text`, `--text-light`, `--text-muted`, `--border`, `--shadow`, `--glass-bg`, `--glass-border`, `--primary` (#0f4c81), `--primary-light`, `--secondary` (orange #e67e22), `--accent` (green), `--danger`, `--warning`, `--info`, `--radius`, `--transition`, `--font`.
 
-#### Dark palette — navy blue, never black
-Every dark surface is a shade of navy, so the app never reads as a black screen:
+`--bg-alt`, `--surface`, `--surface-alt` and `--text-muted` used to be **used but never defined**, which left every rule that referenced them (cart quantity field, delivery-fee field, cart meta text, settings/admin helper text) with a transparent background or a grey fallback. They are now part of both palettes — keep them defined.
 
-| Token | Light (`:root`) | Dark (`[data-theme="dark"]`) | Used by |
+#### Light-blue palette in both themes
+The app is **light blue everywhere** — the page background is a soft blue wash, cards are frosted white and the text is deep navy. The ☀️/🌙 toggle still works; it switches between two *blue tints* (a paler blue and a slightly deeper blue) rather than between light and dark. Nothing in the app is navy or black any more.
+
+| Token | `:root` (paler blue) | `[data-theme="dark"]` (deeper blue) | Used by |
 | --- | --- | --- | --- |
-| `--bg` | `#f4f7fb` | `#0c1e33` | `body`, form sections, list rows, icon buttons |
-| `--card-bg` | `rgba(255,255,255,0.72)` | `rgba(24, 46, 74, 0.82)` | cards, modals, mobile sheet/tab bar, stat tiles |
-| `--glass-bg` | `rgba(255,255,255,0.6)` | `rgba(14, 34, 56, 0.75)` | `.glass` header/footer, map modal, compare bar, supplier panel |
-| `--primary` / `--primary-light` | `#0f2b3d` / `#1a4058` | `#2a4a6a` / `#3a6a8a` | splash screen, gradient heroes, table headers |
+| `--bg` | `#e4f0fd` | `#cbe0f8` | `body`, form sections, list rows, icon buttons |
+| `--bg-alt` | `#d3e6fa` | `#bcd6f3` | inset strips, the cart quantity field |
+| `--surface` / `--surface-alt` | `#ffffff` / `rgba(15,76,129,0.06)` | `#ffffff` / `rgba(11,63,109,0.08)` | inputs, selects, textareas, stock tiles |
+| `--card-bg` | `rgba(255,255,255,0.8)` | `rgba(255,255,255,0.86)` | cards, modals, mobile sheet/tab bar, stat tiles |
+| `--glass-bg` | `rgba(255,255,255,0.68)` | `rgba(255,255,255,0.76)` | `.glass` header/footer, map modal, compare bar, supplier panel |
+| `--text` / `--text-light` | `#12314f` / `#4a6b8a` | `#0f2b4a` / `#43617f` | all body copy |
+| `--primary` / `--primary-light` | `#0f4c81` / `#1a6fb5` | `#0b3f6d` / `#12588f` | splash screen, gradient heroes, table headers, primary buttons |
 
 Rules to respect when theming:
-- **Never introduce a pure-black background** (`#000`, `rgba(0,0,0,α)`) as a *page surface*. Dim scrims are tinted navy: `rgba(8, 22, 40, 0.5)` for modal/sheet overlays and `rgba(8, 22, 40, 0.6)` for map + proforma overlays (also inside `@keyframes modalBgFade`).
-- The one deliberate exception is `.datetime-widget.inverted` (`rgba(0,0,0,0.55)`) — it is a high-contrast readability toggle, not a theme surface.
-- `.dark-mode` overrides (the block near the end of the "Dark Mode" section) hard-code the card colour and **must be kept in sync** with `[data-theme="dark"]` `--card-bg`, otherwise the `!important` rule wins and the card turns grey.
-- `public/index.html` and `public/manifest.json` carry `theme-color: #0c1e33`, matching the dark page background for the browser/PWA chrome.
-- Palette tokens and scrim colours are the **only** existing rules that may be edited in place; everything else is appended (see §19.1).
+- **Never introduce a dark page surface.** The page, cards, modals, header band, sheets and tab bars are all light blue / frosted white. Deep blue (`--primary`) is allowed only as an *accent* that carries white text: the splash screen, the search/home/mobile heroes, gradient table headers, primary buttons, avatars and badges.
+- The `.dark-mode` overrides (the "Dark Mode" block) were converted from navy surfaces to light ones and must stay in sync with `[data-theme="dark"]`, otherwise the `!important` rules win. Anything that used to be `rgba(255,255,255,0.08)` or `#6ee7b7`-style pastel is now a light tint with a **dark** foreground (`#047857`, `#b45309`, `#b91c1c`, `#1d4ed8`).
+- Dim scrims are still navy-tinted (`rgba(8, 22, 40, 0.5)` for modal/sheet overlays, `rgba(8, 22, 40, 0.6)` for map + proforma overlays) — they are overlays, not surfaces.
+- The one deliberate exception is `.datetime-widget.inverted` (`rgba(0,0,0,0.55)`) — it is a high-contrast readability toggle, not a theme surface. The normal `.datetime-widget` is a light frosted chip with `color: var(--text)`.
+- `public/index.html` and `public/manifest.json` carry `theme-color: #cbe0f8` (and `background_color: #cbe0f8`), matching the default page background for the browser/PWA chrome. Update both if you re-tint the page.
+- Palette tokens, `.dark-mode` overrides and scrim colours are the **only** existing rules that may be edited in place; everything else is appended (see §19.1).
+
+### Form controls, auth card & supplier stock (appended v5.4 section)
+These classes were used in the JSX but had **no base rules at all** (only a mobile font-size bump), so the sign-in and create-account forms rendered as raw browser inputs in the top-left corner. They now have a base block at the end of `App.css`:
+- `.form-label`, `.form-input`, `.form-select`, `.form-textarea`, `.btn-submit` — one visual language for the login form, the create-account form, the add/edit product forms and the wallet top-up. The 16px font / 46px min-height touch sizes are re-asserted inside `@media (max-width: 768px)` so iOS does not zoom on focus.
+- `.auth-container` / `.auth-card` / `.auth-header` / `.auth-icon` / `.auth-body` / `.auth-tabs` / `.auth-tab` — the sign-in and create-account card is centered horizontally (`width: min(100%, 480px)`) and vertically (`min-height: 58vh`), with a round gradient icon, centered header and a two-tab Customer/Supplier switch. On phones the vertical centering is dropped so the long create-account form scrolls normally.
+- `.form-group label.checkbox-label` — higher specificity than `.form-group label` (`display: block`) and `.form-group input` (`width: 100%`), so a checkbox stays a small box **on the same line as its text** (VAT Registered, "I agree to Ethiopian Trade Regulations").
+- `.cart-qty-btn` / `.cart-item-quantity input` — the cart quantity editor (see §10.5).
+- `.stock-summary-*`, `.stock-chip-*`, `.m-stock-*` — supplier-only stock tiles and status chips (see §10.6).
 
 ### Design language
 - **Glassmorphism** utility `.glass` (blur + translucency + border).
@@ -533,9 +557,10 @@ Rules to respect when theming:
 - **Beautiful `<select>` list boxes**: custom chevron via inline SVG `background-image`, `appearance: none`, hover/focus rings, readable `option` colors in both themes.
 - **Order box** (`.order-box`, `.qty-stepper`): the product-details quantity control, styled once for all breakpoints (44px touch targets on ≤ 768px).
 - **Stock flags** (`.stock-flag` / `.stock-flag-low`): amber pill used for the supplier-only low-stock warning inside the product details view.
+- **Stock chips** (`.stock-chip-in` / `.stock-chip-low` / `.stock-chip-out`): green / amber / red pills used on the supplier dashboard so a supplier reads their own stock status at a glance (never shown to customers).
 
 ### Sections (for navigation)
-Header → Navigation → Buttons → Cards → Search → Product Grid → Tables → Product Row → Modal → Map Picker → Edit Company → Alert → Stats → Features → Footer → Home Hero → User Info → Cart → Dashboard → Distance Loader → Map Styles → PWA → Swipe → Icon Buttons → Dark Mode → Responsive → **UI v2 polish (appended section)** → Mobile shell (≤ 768px) → Order box / quantity stepper → Stock flags → Legacy proforma & print.
+Header → Navigation → Buttons → Cards → Search → Product Grid → Tables → Product Row → Modal → Map Picker → Edit Company → Alert → Stats → Features → Footer → Home Hero → User Info → Cart → Dashboard → Distance Loader → Map Styles → PWA → Swipe → Icon Buttons → Dark Mode → Responsive → **UI v2 polish (appended section)** → Mobile shell (≤ 768px) → Order box / quantity stepper → Stock flags → **Proforma invoice & print** → **Product card "View details" affordance** → **Form controls / checkbox rows** → **Auth pages (centered sign-in)** → **Cart quantity editor** → **Supplier stock tiles & chips**.
 
 ---
 
@@ -565,6 +590,8 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
   - **Orders** on mobile render stacked order cards with the `OrderTimeline` shipment stepper, customer/supplier line, itemised totals and Confirm/Reorder/Export actions.
   - **Dashboards** on mobile render 2×2 stat tiles plus compact product/order lists (`renderMobileDashboard(true|false)`).
   - **Modals become bottom sheets** on mobile (`.modal-overlay` aligns to bottom, `.modal-content` gets top-rounded corners) and forms use 16px inputs to prevent iOS auto-zoom. The floating compare bar and PWA banner are lifted above the tab bar.
+- **Forms (v5.4)**: `.form-input` / `.form-select` / `.form-textarea` / `.btn-submit` are re-stated inside the `768px` block (16px font, 46px min-height) because their base rules now live at the end of the file and would otherwise win. The sign-in card drops its vertical centering on phones, and the cart quantity field grows its `−` / `+` keys to 38px.
+- **Supplier stock (v5.4)**: the mobile supplier dashboard shows the same four stock tiles as the desktop one (`.m-stock-grid`, 2×2) plus a per-row status chip.
 
 ### 13.1 Ordering flow & supplier-only stock
 
@@ -713,15 +740,16 @@ Read this before touching any code. It prevents the most common mistakes.
 2. **Never commit `.env.local`.** It holds a live Vercel OIDC token and is already gitignored. Do not read it into code, logs or console output.
 3. **Money always goes through `formatCurrency`** (in `utils.ts`). Do not hand-roll `Intl.NumberFormat` or template strings with different separators.
 4. **Never delete the admin seeder.** In `App.tsx` initialization, `ADMIN_USER` is re-appended if missing. Removing it logs out platform management silently.
-5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place. The exceptions are (a) the palette — theme tokens (`[data-theme="dark"]`) and the navy scrim colours may be edited in place when the theme changes (see §12) — and (b) an explicit layout change requested for an existing component, which is edited inside **that component's own block** and never by borrowing rules from another section (e.g. the proforma party/totals layout in the `.pf-*` block, see §10.7).
+5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place. The exceptions are (a) the palette — theme tokens (`:root` / `[data-theme="dark"]`), the `.dark-mode` overrides and the navy scrim colours may be edited in place when the theme changes (see §12) — and (b) an explicit layout change requested for an existing component, which is edited inside **that component's own block** and never by borrowing rules from another section (e.g. the proforma party/totals layout in the `.pf-*` block, see §10.7).
 6. **Desktop layout is frozen.** The mobile shell must be added *next to* it, never instead of it: JSX branches on `isMobile` (`useIsMobile`), and every mobile rule lives inside `@media (max-width: 768px)` at the end of `App.css`. Keep the JS breakpoint and the CSS breakpoint identical (`768px`). An explicitly requested layout change to an existing responsive component is the one thing that may edit its own block (§10.7, rule 5b).
 7. **Tests are pure-logic only.** Do not write tests that import `App.tsx`, `MapComponent.tsx` or Leaflet — they need DOM APIs jsdom can't provide. Run `CI=true npm test -- --watchAll=false`.
-8. **Mobile reuse** — build mobile UI from existing helpers (`renderProductImage`, `formatCurrency`, `handleCheckout`, `handleQuickReorder`, …); `MobileProductCard` is the single reusable product card for the carousel and search grid. New mobile-only files go under `src/hooks/` / `src/components/` and use CSS variables so dark mode keeps working.
-9. **No black surfaces.** The dark theme is navy. Use the `--bg` / `--card-bg` / `--glass-bg` tokens or a navy scrim (`rgba(8, 22, 40, α)`) for any new background, never `#000` / `rgba(0,0,0,α)` (except `.datetime-widget.inverted`).
+8. **Mobile reuse** — build mobile UI from existing helpers (`renderProductImage`, `formatCurrency`, `handleCheckout`, `handleQuickReorder`, …); `MobileProductCard` is the single reusable product card for the carousel and search grid. New mobile-only files go under `src/hooks/` / `src/components/` and use CSS variables so both themes keep working.
+9. **No dark surfaces.** Both themes are light blue. Use the `--bg` / `--card-bg` / `--glass-bg` / `--surface` tokens for any new background; deep blue (`--primary`) is only for accents that carry white text (heroes, primary buttons, avatars, badges). Never paint a page, card, modal or bar in `#000` / navy / `rgba(0,0,0,α)` (except `.datetime-widget.inverted`). Dim overlays may use the navy scrim `rgba(8, 22, 40, α)`.
 10. **Quantities are chosen in one place only** — the product details order box (§13.1). A list, card or carousel may only *navigate* to it; do not add a stepper, quantity input or `prompt()` to a results row, product card or table.
-11. **Stock is supplier-only.** Any new UI that prints `material.quantity` must be wrapped in `canSeeStock` (company + admin). Customers and guests must never see a stock number, an "In stock"/"Out" chip or a low-stock banner.
+11. **Stock is supplier-only.** Any new UI that prints `material.quantity` must be wrapped in `canSeeStock` (company + admin) — the only exception is a supplier reading **their own** inventory on the company dashboard, which already renders inside the `userType === 'company'` guard (§10.6). Customers and guests must never see a stock number, an "In stock"/"Out" chip or a low-stock banner.
 12. **Never enforce a per-product minimum.** `Material.minOrder` is supplier reference data; the customer path works in units of 1 (§13.1). The only minimum a customer can hit is the admin-configured goods-subtotal rule in `settings.ts`.
 13. **A route request is a nonce, not a flag.** When the map should show a route, bump `routeRequestId` *and* set `autoRouteSupplierId`; never clear the destination to "reset" it (§10.2). Drawing waits for `isMapReady` and always goes through `drawRouteForSupplier`, which starts from the real GPS position once it is known.
+14. **Never write a checkbox into `.form-group` without `checkbox-label`.** `.form-group label` is `display: block` and `.form-group input` is `width: 100%`, so a bare `<input type="checkbox">` becomes a full-width bar with its text on the next line. Use `<label className="checkbox-label">` (§12).
 
 ### 19.2 Where things live
 - **Business rules** (delivery fee, zones, min order) → `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates, cart totals and order creation all use `computeDeliveryFee` now.

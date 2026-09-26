@@ -1,17 +1,25 @@
 /* ===== App.css – Optimized, Production‑Ready ===== */
 
-/* ---------- CSS Variables (Light / Dark) ---------- */
+/* ---------- CSS Variables (Light / Dark) ----------
+   Both themes are LIGHT BLUE: the page background is a soft blue wash, cards are
+   frosted white and the text is deep navy. The ☀️/🌙 toggle still works, it just
+   switches between two blue tints instead of light/dark — nothing in the app is
+   navy or black any more. */
 :root {
-  --bg: #f4f7fb;
-  --card-bg: rgba(255, 255, 255, 0.72);
-  --text: #1e2a3a;
-  --text-light: #5a6e85;
-  --border: rgba(220, 227, 237, 0.5);
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  --glass-bg: rgba(255, 255, 255, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --primary: #0f2b3d;
-  --primary-light: #1a4058;
+  --bg: #e4f0fd;
+  --bg-alt: #d3e6fa;
+  --surface: #ffffff;
+  --surface-alt: rgba(15, 76, 129, 0.06);
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --text: #12314f;
+  --text-light: #4a6b8a;
+  --text-muted: #6d89a6;
+  --border: rgba(18, 76, 129, 0.18);
+  --shadow: 0 8px 30px rgba(18, 76, 129, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --primary: #0f4c81;
+  --primary-light: #1a6fb5;
   --secondary: #e67e22;
   --secondary-light: #f39c12;
   --accent: #2ecc71;
@@ -24,18 +32,22 @@
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Dark theme palette — deep navy blue surfaces (never pure black). */
+/* "Dark" theme — a slightly deeper light-blue wash (never navy, never black). */
 [data-theme="dark"] {
-  --bg: #0c1e33;
-  --card-bg: rgba(24, 46, 74, 0.82);
-  --text: #e8edf2;
-  --text-light: #9aaebf;
-  --border: rgba(60, 80, 100, 0.3);
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-  --glass-bg: rgba(14, 34, 56, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --primary: #2a4a6a;
-  --primary-light: #3a6a8a;
+  --bg: #cbe0f8;
+  --bg-alt: #bcd6f3;
+  --surface: #ffffff;
+  --surface-alt: rgba(11, 63, 109, 0.08);
+  --card-bg: rgba(255, 255, 255, 0.86);
+  --text: #0f2b4a;
+  --text-light: #43617f;
+  --text-muted: #5c7c9c;
+  --border: rgba(11, 63, 109, 0.22);
+  --shadow: 0 8px 30px rgba(11, 63, 109, 0.18);
+  --glass-bg: rgba(255, 255, 255, 0.76);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --primary: #0b3f6d;
+  --primary-light: #12588f;
 }
 
 /* ---------- Base ---------- */
@@ -725,8 +737,11 @@ body {
 .data-table th:last-child {
   border-top-right-radius: 12px;
 }
+/* Both themes share the deep-blue banner: the hero keeps white text, so it stays
+   a brand accent on the light-blue page instead of turning into a light box. */
 .dark-mode .data-table th {
-  background: linear-gradient(135deg, #1a2a3a, #2a4a6a);
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: #ffffff;
 }
 .data-table td {
   padding: 12px 14px;
@@ -742,7 +757,7 @@ body {
   background: rgba(15, 43, 61, 0.03);
 }
 .dark-mode .data-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(15, 76, 129, 0.04);
 }
 .data-table tr:hover td {
   background: rgba(230, 126, 34, 0.09);
@@ -1652,27 +1667,30 @@ body {
 .dark-mode .map-picker-content,
 .dark-mode .map-modal-content,
 .dark-mode .supplier-detail-panel {
-  background: rgba(24, 46, 74, 0.82) !important;
-  border-color: rgba(60, 80, 100, 0.3) !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  border-color: rgba(11, 63, 109, 0.18) !important;
 }
+/* Hero banner stays deep blue in both themes — it carries white text. */
 .dark-mode .search-hero {
-  background: linear-gradient(135deg, #1a2a3a, #2a4a6a) !important;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light), var(--primary)) !important;
+  color: #ffffff;
 }
+/* Alerts stay light in both themes — the dark variants used to be dark boxes. */
 .dark-mode .alert-success {
-  background: #0a2e1a;
-  color: #a7f3d0;
+  background: #d1fae5;
+  color: #065f46;
 }
 .dark-mode .alert-danger {
-  background: #2a0a0a;
-  color: #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
 }
 .dark-mode .alert-warning {
-  background: #2a1f0a;
-  color: #fcd34d;
+  background: #fef3c7;
+  color: #92400e;
 }
 .dark-mode .alert-info {
-  background: #0a1a2a;
-  color: #93c5fd;
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 /* ---------- Responsive ---------- */
@@ -1975,13 +1993,13 @@ body {
 .btn-icon.success { background: #d1fae5; color: #065f46; }
 .btn-icon.add-to-cart { background: #fef3c7; color: #92400e; }
 .btn-icon.map { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff; }
-.dark-mode .btn-icon { background: rgba(255, 255, 255, 0.08); color: var(--text); }
-.dark-mode .btn-icon.edit { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
-.dark-mode .btn-icon.danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+.dark-mode .btn-icon { background: rgba(15, 76, 129, 0.08); color: var(--text); }
+.dark-mode .btn-icon.edit { background: rgba(29, 78, 216, 0.14); color: #1d4ed8; }
+.dark-mode .btn-icon.danger { background: rgba(185, 28, 28, 0.12); color: #b91c1c; }
 .dark-mode .btn-icon.contact,
-.dark-mode .btn-icon.success { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
-.dark-mode .btn-icon.add-to-cart { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
-.dark-mode .btn-icon.map { background: linear-gradient(135deg, #2a4a6a, #3a6a8a); }
+.dark-mode .btn-icon.success { background: rgba(4, 120, 87, 0.12); color: #047857; }
+.dark-mode .btn-icon.add-to-cart { background: rgba(180, 83, 9, 0.12); color: #b45309; }
+.dark-mode .btn-icon.map { background: linear-gradient(135deg, #0f4c81, #1a6fb5); }
 
 /* ---------- Product images ---------- */
 .product-img {
@@ -2131,7 +2149,7 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
-.dark-mode .distance-badge { color: #6ee7b7; }
+.dark-mode .distance-badge { color: #047857; }
 .distance-link {
   cursor: pointer;
   color: #0e9f5a;
@@ -2139,7 +2157,7 @@ body {
   text-decoration: underline;
   transition: color 0.2s ease;
 }
-.dark-mode .distance-link { color: #6ee7b7; }
+.dark-mode .distance-link { color: #047857; }
 .distance-link:hover { color: var(--secondary); }
 .default-location-note {
   font-size: 0.75rem;
@@ -2148,18 +2166,20 @@ body {
 .map-route-btn { margin-top: 8px; }
 
 /* ---------- DateTime widget (shown on every screen) ---------- */
+/* Light frosted chip — both themes are light blue now, so the widget needs a
+   light surface with dark text (it used to be white text on a dark page). */
 .datetime-widget {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 18px rgba(0, 0, 0, 0.12);
-  color: #fff;
+  box-shadow: 0 6px 18px rgba(15, 76, 129, 0.12);
+  color: var(--text);
   transition: all 0.3s ease;
 }
 .datetime-widget.inverted {
@@ -2174,14 +2194,14 @@ body {
   box-shadow: none;
 }
 .dark-mode .datetime-widget {
-  background: rgba(10, 20, 30, 0.35);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #e8edf2;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(11, 63, 109, 0.18);
+  color: #0f2b4a;
 }
 .dark-mode .datetime-widget.inverted {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #0f1a24;
+  background: rgba(0, 0, 0, 0.55);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #eafff4;
 }
 .dark-mode .datetime-widget.ghost { background: transparent; border-color: transparent; }
 .datetime-inner {
@@ -3499,16 +3519,16 @@ a:focus-visible {
   color: #ef4444;
 }
 .dark-mode .btn-icon.fav-active {
-  background: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.16);
+  color: #b91c1c;
 }
 .btn-icon.compare-active {
   background: rgba(46, 204, 113, 0.15);
   color: #059669;
 }
 .dark-mode .btn-icon.compare-active {
-  background: rgba(46, 204, 113, 0.25);
-  color: #6ee7b7;
+  background: rgba(46, 204, 113, 0.18);
+  color: #047857;
 }
 
 /* =====================================================================
@@ -3543,11 +3563,11 @@ a:focus-visible {
   background: rgba(231, 76, 60, 0.15);
   color: #991b1b;
 }
-.dark-mode .status-pending { color: #fcd34d; }
-.dark-mode .status-confirmed { color: #93c5fd; }
-.dark-mode .status-shipped { color: #c4b5fd; }
-.dark-mode .status-delivered { color: #6ee7b7; }
-.dark-mode .status-cancelled { color: #fca5a5; }
+.dark-mode .status-pending { color: #b45309; }
+.dark-mode .status-confirmed { color: #1d4ed8; }
+.dark-mode .status-shipped { color: #6d28d9; }
+.dark-mode .status-delivered { color: #047857; }
+.dark-mode .status-cancelled { color: #b91c1c; }
 
 /* =====================================================================
    Optimized Filter Frame
@@ -3665,7 +3685,7 @@ a:focus-visible {
   background: rgba(230, 126, 34, 0.12);
 }
 .dark-mode .td-sticky {
-  background: rgba(30, 42, 58, 0.9);
+  background: rgba(255, 255, 255, 0.94);
 }
 .dark-mode .product-row:hover .td-sticky {
   background: rgba(230, 126, 34, 0.15);
@@ -5734,3 +5754,340 @@ a:focus-visible {
   .m-pc-view-icon { animation: none; }
   .m-pc-img { transition: none; }
 }
+
+/* =====================================================================
+   Checkbox rows: the box stays on the same line as its text
+   `.form-group label` is display:block and `.form-group input` is
+   width:100%, which stretched every checkbox into a full-width bar and
+   pushed its label onto the next line. The higher-specificity pair below
+   puts the box and the text back together (VAT Registered, I agree to …).
+   ===================================================================== */
+.form-group label.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.form-group label.checkbox-label input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* =====================================================================
+   Form controls — base styles for .form-input / .form-select /
+   .form-textarea / .form-label / .btn-submit
+   These classes are used by the sign-in form, the create-account form, the
+   add/edit product forms and the wallet top-up, but they only had a mobile
+   font-size rule — on a desktop they rendered as raw browser inputs. The
+   16px / 46px touch sizes are re-asserted for phones further down so iOS
+   does not zoom on focus.
+   ===================================================================== */
+.form-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.form-input,
+.form-select,
+.form-textarea {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.92rem;
+  outline: none;
+  transition: all var(--transition);
+}
+.form-textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--surface-alt);
+}
+.form-input::placeholder,
+.form-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+.btn-submit {
+  width: 100%;
+  padding: 12px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: #ffffff;
+  font-family: var(--font);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-submit:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+@media (max-width: 768px) {
+  .form-input, .form-select, .form-textarea { font-size: 16px; min-height: 46px; }
+  .form-textarea { min-height: 110px; }
+  .btn-submit { min-height: 46px; }
+}
+
+/* =====================================================================
+   Auth pages (sign in / create account) — centered card
+   The .auth-* classes had no layout rules at all, so the form sat in the
+   top-left of the page. This centers the card horizontally and vertically
+   and gives it the same glass language as the rest of the app.
+   ===================================================================== */
+.auth-container {
+  width: min(100%, 480px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 58vh;
+  padding: 20px 0;
+}
+.auth-card {
+  width: 100%;
+  padding: 26px 24px;
+  border-radius: var(--radius);
+}
+.auth-header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.auth-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: #ffffff;
+  font-size: 1.35rem;
+  margin-bottom: 10px;
+  box-shadow: 0 8px 18px rgba(15, 76, 129, 0.25);
+}
+.auth-header h2 {
+  font-size: 1.22rem;
+  color: var(--text);
+}
+.auth-header p {
+  font-size: 0.82rem;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+.auth-body .form-group {
+  margin-bottom: 14px;
+}
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.auth-tab {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text-light);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.auth-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+.auth-body .btn-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+@media (max-width: 768px) {
+  /* A long create-account form must not fight the vertical centering. */
+  .auth-container { min-height: auto; padding: 14px; }
+  .auth-card { padding: 20px 16px; }
+}
+
+/* =====================================================================
+   Cart quantity editor — a real editable field with − / + keys
+   ===================================================================== */
+.cart-item-quantity input {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-weight: 700;
+  min-height: 34px;
+  -moz-appearance: textfield;
+}
+.cart-item-quantity input::-webkit-outer-spin-button,
+.cart-item-quantity input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.cart-item-quantity input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--surface-alt);
+}
+.cart-qty-btn {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.cart-qty-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+@media (max-width: 768px) {
+  .cart-qty-btn { width: 38px; height: 38px; }
+  .cart-item-quantity input { min-height: 38px; font-size: 0.95rem; }
+}
+
+/* =====================================================================
+   Supplier stock: summary tiles + status chips
+   Supplier-only surface (a supplier always sees their own stock); the
+   chips reuse the same vocabulary as the product-details low-stock flag.
+   ===================================================================== */
+.stock-summary-card {
+  margin-bottom: 16px;
+}
+.stock-summary-hint {
+  font-size: 0.72rem;
+  color: var(--text-light);
+}
+.stock-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.stock-summary-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+.stock-summary-tile .stock-tile-icon { font-size: 1.05rem; }
+.stock-summary-tile strong {
+  font-size: 1.15rem;
+  color: var(--text);
+}
+.stock-summary-tile small {
+  font-size: 0.7rem;
+  color: var(--text-light);
+}
+.stock-summary-tile.warn {
+  background: rgba(241, 196, 15, 0.14);
+  border-color: rgba(241, 196, 15, 0.45);
+}
+.stock-summary-tile.warn strong { color: #b45309; }
+.stock-summary-tile.danger {
+  background: rgba(231, 76, 60, 0.12);
+  border-color: rgba(231, 76, 60, 0.4);
+}
+.stock-summary-tile.danger strong { color: #b91c1c; }
+.stock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stock-chip-in {
+  background: rgba(46, 204, 113, 0.16);
+  border: 1px solid rgba(46, 204, 113, 0.45);
+  color: #047857;
+}
+.stock-chip-low {
+  background: rgba(241, 196, 15, 0.18);
+  border: 1px solid rgba(241, 196, 15, 0.5);
+  color: #b45309;
+}
+.stock-chip-out {
+  background: rgba(231, 76, 60, 0.14);
+  border: 1px solid rgba(231, 76, 60, 0.45);
+  color: #b91c1c;
+}
+.stock-cell strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.m-dash-row-info .stock-chip {
+  margin-top: 3px;
+}
+.m-stock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.m-stock-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+.m-stock-tile strong {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.m-stock-tile small {
+  font-size: 0.64rem;
+  color: var(--text-light);
+}
+.m-stock-tile.warn {
+  background: rgba(241, 196, 15, 0.16);
+  border-color: rgba(241, 196, 15, 0.45);
+}
+.m-stock-tile.warn strong { color: #b45309; }
+.m-stock-tile.danger {
+  background: rgba(231, 76, 60, 0.12);
+  border-color: rgba(231, 76, 60, 0.4);
+}
+.m-stock-tile.danger strong { color: #b91c1c; }
