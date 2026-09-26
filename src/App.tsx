@@ -93,6 +93,48 @@ const CartQuantityInput = ({ item, onCommit }: { item: CartItem; onCommit: (item
   );
 };
 
+// Order-quantity picker on the product details page. The number is a real input,
+// not a read-only label: the customer can tap − / + OR type any whole number and
+// press Enter (or click away). Same draft-string trick as CartQuantityInput, so
+// clearing the field never pushes NaN into the order total. Module scope on
+// purpose — defined inside App() it would remount on every render and drop the
+// draft while the customer is typing.
+const QuantityStepper = ({ value, min, unit, onChange }: { value: number; min: number; unit: string; onChange: (v: number) => void }) => {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => { setDraft(String(value)); }, [value]);
+
+  const commit = (raw: string) => {
+    const parsed = parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed >= min) {
+      setDraft(String(parsed));
+      onChange(parsed);
+      return;
+    }
+    // Empty or below the minimum while editing — resync silently, never NaN.
+    setDraft(String(value));
+  };
+
+  return (
+    <div className="qty-stepper" role="group" aria-label="Quantity">
+      <button type="button" onClick={() => onChange(Math.max(min, value - 1))} aria-label="Decrease quantity" disabled={value <= min}>−</button>
+      <input
+        className="qty-value"
+        type="number"
+        inputMode="numeric"
+        value={draft}
+        min={min}
+        step={1}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={e => commit(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }}
+        aria-label={'Quantity in ' + (unit || 'units')}
+      />
+      <span className="qty-unit">{unit || 'units'}</span>
+      <button type="button" onClick={() => onChange(value + 1)} aria-label="Increase quantity">+</button>
+    </div>
+  );
+};
+
 function App() {
   // ---------- State ----------
   const [showSplash, setShowSplash] = useState(true);
@@ -2249,14 +2291,6 @@ function App() {
   // The quantity +/- control lives ONLY here, in the product details view — the
   // step where a customer has actually seen the product and is ready to order.
   // Search results, product cards and carousels only ever open this view.
-  const QuantityStepper = ({ value, min, unit, onChange }: { value: number; min: number; unit: string; onChange: (v: number) => void }) => (
-    <div className="qty-stepper" role="group" aria-label="Quantity">
-      <button type="button" onClick={() => onChange(Math.max(min, value - min))} aria-label="Decrease quantity" disabled={value <= min}>−</button>
-      <span className="qty-value">{value} <small>{unit || 'units'}</small></span>
-      <button type="button" onClick={() => onChange(value + min)} aria-label="Increase quantity">+</button>
-    </div>
-  );
-
   const DetailsOrderBox = ({ material, isInCart, onAdded }: { material: Material; isInCart: boolean; onAdded: () => void }) => {
     const min = 1; // customers may order any amount — no minimum order
     const [qty, setQty] = useState(min);
@@ -2270,7 +2304,7 @@ function App() {
           <>
             <div className="order-box-row">
               <QuantityStepper value={qty} min={min} unit={material.unit} onChange={setQty} />
-              <span className="order-box-hint">Any quantity — order exactly what you need.</span>
+              <span className="order-box-hint">Any quantity — use − / + or tap the number to type your own.</span>
             </div>
             <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
             <button className="btn btn-primary order-box-btn" onClick={() => { addToCart(material, qty); onAdded(); }}>

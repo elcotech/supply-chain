@@ -44,13 +44,13 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 📊 Supplier & customer dashboards, order management
 - 📱 **Mobile banking-style app** — a dedicated mobile shell (bottom tab bar, centre cart button, "More" sheet, greeting home, trending-products carousel, card-based search, order cards with a shipment progress stepper) automatically appears on phones; the desktop layout stays untouched
 - 👁️ **Tap-to-explore** — the product photo on the trending carousel and the mobile search grid opens the description, and says so with a pulsing "View details" pill (motion is skipped for reduced-motion users)
-- 🧾 **Readable proforma** — supplier and buyer details always sit side by side (phones and print included) and the amount in words sits directly under the totals
+- 🧾 **Readable proforma** — supplier and buyer details always sit side by side (phones and print included), the authorization block does too (supplier name + date beside buyer name + date), and the amount in words sits directly under the totals
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports
 - ✅ Unit tests for fees, formatting, settings, QR payloads and single-supplier proforma reports
 - 🌙 **Light-blue interface in every theme** — soft blue page, frosted-white cards, deep navy text; the ☀️/🌙 toggle switches between two blue tints (nothing navy or black), 📱 fully responsive & touch-friendly
 - 🔐 **Centered sign-in & create-account forms** — a frosted, centered card with styled inputs, a Customer/Supplier switch and checkboxes that sit on the same line as their text
-- ✏️ **Editable cart quantities** — change the amount of any line straight in the cart with a number field plus `−` / `+` keys
+- ✏️ **Editable quantities** — change the amount of any line straight in the cart with a number field plus `−` / `+` keys, and on a product page tap the quantity to type a custom number instead of tapping `+` over and over
 - 📥 **Supplier stock overview** — a "My stock" panel with units on hand, stock value, low-stock and out-of-stock counts, plus an in-stock column, a status pill and a stock value per product (supplier-only, never shown to customers)
 
 ---

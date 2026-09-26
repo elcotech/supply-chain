@@ -5507,13 +5507,20 @@ a:focus-visible {
   }
   /* Supplier and buyer stay side by side on phones too (explicitly requested) —
      the label column and the box chrome shrink so both columns stay readable.
-     Terms and signatures keep stacking, they need the full width. */
+     The signature/authorization block follows the same rule: supplier name and
+     buyer name side by side, each with its own date. Only the terms keep the
+     full width, they are prose. */
   .pf-parties { grid-template-columns: 1fr 1fr; gap: 8px; }
   .pf-parties .pf-info-row { grid-template-columns: 68px 1fr; font-size: 0.6rem; gap: 5px; padding: 2px 0; }
   .pf-parties .pf-box-head { font-size: 0.62rem; letter-spacing: 1px; padding: 6px 8px; }
   .pf-parties .pf-box-body { padding: 6px 8px 8px; }
-  .pf-terms-grid,
-  .pf-signatures { grid-template-columns: 1fr; }
+  .pf-terms-grid { grid-template-columns: 1fr; }
+  .pf-signatures { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pf-sig-box { padding: 6px 6px 8px; }
+  .pf-sig-head { font-size: 0.56rem; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .pf-sig-name { font-size: 0.66rem; }
+  .pf-sig-line { margin: 8px 4px 3px; }
+  .pf-sig-date { font-size: 0.58rem; }
   .pf-summary-wrap { flex-direction: column; align-items: stretch; }
   .pf-summary { width: 100%; min-width: 0; }
   .pf-words { width: 100%; min-width: 0; }
@@ -5678,8 +5685,26 @@ a:focus-visible {
   text-align: center;
   font-weight: 800;
   font-size: 0.95rem;
+  /* input reset — it has to sit flush inside the pill, not look like a form box */
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: var(--font);
+  padding: 0;
 }
-.qty-value small { font-size: 0.68rem; font-weight: 600; color: var(--text-light); }
+/* The middle of the product-details stepper is a typed field, not a label: it
+   looks identical to the old read-only value but takes a custom number. The
+   native spinner is hidden so the only controls are − / + (and typing). */
+.qty-value::-webkit-outer-spin-button,
+.qty-value::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qty-value { -moz-appearance: textfield; appearance: textfield; }
+.qty-value:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+}
+.qty-unit { font-size: 0.68rem; font-weight: 600; color: var(--text-light); padding-right: 2px; }
 
 @media (max-width: 768px) {
   .order-box { padding: 12px 12px 14px; }
