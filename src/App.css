@@ -5244,14 +5244,14 @@ a:focus-visible {
 /* ------------------------- Summary + amount in words ------------------------- */
 .pf-summary-wrap {
   display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  gap: 16px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
   margin-top: 14px;
 }
 .pf-words {
-  flex: 1;
-  min-width: 0;
+  width: 46%;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -5485,11 +5485,18 @@ a:focus-visible {
     padding-top: 10px;
     border-top: 1px solid #b8dff2;
   }
-  .pf-parties,
+  /* Supplier and buyer stay side by side on phones too (explicitly requested) —
+     the label column and the box chrome shrink so both columns stay readable.
+     Terms and signatures keep stacking, they need the full width. */
+  .pf-parties { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pf-parties .pf-info-row { grid-template-columns: 68px 1fr; font-size: 0.6rem; gap: 5px; padding: 2px 0; }
+  .pf-parties .pf-box-head { font-size: 0.62rem; letter-spacing: 1px; padding: 6px 8px; }
+  .pf-parties .pf-box-body { padding: 6px 8px 8px; }
   .pf-terms-grid,
   .pf-signatures { grid-template-columns: 1fr; }
-  .pf-summary-wrap { flex-direction: column; }
+  .pf-summary-wrap { flex-direction: column; align-items: stretch; }
   .pf-summary { width: 100%; min-width: 0; }
+  .pf-words { width: 100%; min-width: 0; }
   .pf-footer { flex-direction: column; align-items: center; text-align: center; }
   .pf-footer-left { align-items: center; }
   .pf-footer-right { margin-top: 4px; }
@@ -5531,7 +5538,7 @@ a:focus-visible {
   .pf-title-banner { border-radius: 5px; }
   .pf-title { font-size: 0.84rem; padding: 6px 10px 6px 8px; }
   .pf-meta-row { font-size: 0.64rem; }
-  .pf-parties { margin-top: 8px; gap: 8px; }
+  .pf-parties { margin-top: 8px; gap: 8px; grid-template-columns: 1fr 1fr; }
   .pf-box { border-radius: 6px; }
   .pf-box-head { font-size: 0.66rem; padding: 6px 8px; }
   .pf-box-body { padding: 5px 8px 7px; }
@@ -5542,8 +5549,9 @@ a:focus-visible {
   .pf-table th { padding: 5px 6px; font-size: 0.6rem; }
   .pf-table td { padding: 4px 6px; font-size: 0.66rem; }
   .pf-col-amount { font-size: 0.68rem; }
-  .pf-summary-wrap { margin-top: 8px; gap: 10px; }
-  .pf-words { padding: 8px 10px; }
+  .pf-summary-wrap { margin-top: 8px; gap: 6px; }
+  .pf-summary { width: 52%; min-width: 240px; }
+  .pf-words { width: 52%; min-width: 240px; padding: 8px 10px; }
   .pf-words-label { font-size: 0.64rem; }
   .pf-words-text { font-size: 0.7rem; margin-top: 5px; }
   .pf-sum-row { padding: 5px 10px; font-size: 0.68rem; }
@@ -5675,4 +5683,54 @@ a:focus-visible {
   background: rgba(241, 196, 15, 0.14);
   border: 1px solid rgba(241, 196, 15, 0.4);
   color: var(--warning);
+}
+
+/* ----------------- Product card: "View details" affordance -----------------
+   The product image opens the description view, so it must look tappable: the
+   button scales on press and carries a pulsing "View details" pill. Used by the
+   trending-products carousel and the mobile search grid. */
+@media (max-width: 768px) {
+  .m-pc-img { position: relative; transition: transform 0.15s ease; }
+  .m-pc-img:active { transform: scale(0.97); }
+  .m-pc-view-hint {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px 5px 8px;
+    border-radius: 20px;
+    background: rgba(8, 22, 40, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 4px 12px rgba(8, 22, 40, 0.35);
+    color: #ffffff;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    animation: mViewHintIn 0.4s ease both;
+  }
+  .m-pc-view-icon {
+    display: inline-flex;
+    font-size: 0.78rem;
+    animation: mViewPulse 1.9s ease-in-out infinite;
+  }
+}
+@keyframes mViewHintIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mViewPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.22); opacity: 0.75; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-pc-view-hint,
+  .m-pc-view-icon { animation: none; }
+  .m-pc-img { transition: none; }
 }

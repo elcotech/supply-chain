@@ -80,7 +80,14 @@ interface MapComponentProps {
   onClose: () => void;
   onSelectSupplier?: (company: Company) => void;
   autoRouteSupplierId?: string | null;
-  onRouteShown?: () => void;
+  /**
+   * Bumped by the parent every time a route is explicitly requested. It lets the
+   * map re-draw the route even when the *same* supplier is requested again, so a
+   * second click always refreshes the line from the current position.
+   */
+  routeRequestId?: number;
+  /** Fired after a route has been drawn, with the supplier it points to. */
+  onRouteShown?: (companyId: string) => void;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({
@@ -90,6 +97,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   onClose,
   onSelectSupplier,
   autoRouteSupplierId,
+  routeRequestId = 0,
   onRouteShown,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -103,6 +111,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [geoLocationStatus, setGeoLocationStatus] = useState<'requesting' | 'granted' | 'denied' | 'error' | 'timeout' | 'unsupported'>('requesting');
   const [locateMeMsg, setLocateMeMsg] = useState<string | null>(null);
+  // The Leaflet instance is created in a mount effect that runs *after* the
+  // auto-route effect, so routing waits for this flag instead of silently
+  // bailing out on a map that does not exist yet.
+  const [isMapReady, setIsMapReady] = useState(false);
 
   // Refs for guaranteed cleanup without stale closures
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
@@ -115,6 +127,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     accuracy: 0,
   });
   const currentCompanyIdRef = useRef<string | null>(null);
+  // Latest route drawer, so the geolocation watcher can refresh an already drawn
+  // route once the real GPS position is known (declared after that watcher).
+  const drawRouteRef = useRef<((company: Company) => Promise<void>) | null>(null);
+  const selectedCompanyRef = useRef<Company | null>(null);
+  const hasGpsFixRef = useRef(false);
+  const drawnRequestRef = useRef<number>(-1);
 
   const getCoords = useCallback((company: Company): { lat: number; lng: number } => {
     if (company.lat && company.lng && company.lat !== 0 && company.lng !== 0) {
@@ -132,6 +150,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (overlayGroupRef.current && leafletMap.current) {
       leafletMap.current.removeLayer(overlayGroupRef.current);
       overlayGroupRef.current = null;
+    }
+    // The first "Your Location" marker is placed straight on the map (before any
+    // route exists), so it has to be dropped explicitly — otherwise a leftover
+    // marker survives the next redraw.
+    if (userMarkerRef.current && leafletMap.current) {
+      leafletMap.current.removeLayer(userMarkerRef.current);
     }
     userMarkerRef.current = null;
     accuracyCircleRef.current = null;
@@ -160,6 +184,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
         if (leafletMap.current && accuracyCircleRef.current) {
           accuracyCircleRef.current.setLatLng([latitude, longitude]);
           accuracyCircleRef.current.setRadius(accuracy);
+        }
+
+        // First real fix: if a route is already on screen it was built from the
+        // registered address (or the Addis default), so redraw it from "my
+        // current location" to the destination. Runs once per mount/selection.
+        if (!hasGpsFixRef.current) {
+          hasGpsFixRef.current = true;
+          const active = selectedCompanyRef.current;
+          if (active) drawRouteRef.current?.(active);
         }
       },
       (error) => {
@@ -302,16 +335,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setIsDistanceLoading(false);
   }, [clearAllOverlays, fetchRoute, getCoords, getUserPosition]);
 
-  // Handle supplier click — clears previous, draws new
+  // Handle supplier click — always clears the previous route and draws a fresh
+  // one, even when the same supplier is picked again.
   const handleSupplierSelect = useCallback(async (company: Company) => {
-    if (company.id === currentCompanyIdRef.current) return;
-
     // Highlight the selected supplier marker
     supplierMarkersRef.current.forEach((marker, id) => {
       marker.setIcon(id === company.id ? selectedSupplierIcon : supplierIcon);
     });
 
     currentCompanyIdRef.current = company.id;
+    selectedCompanyRef.current = company;
     setSelectedCompany(company);
     setCompanyMaterials(materials.filter((m) => m.companyId === company.id));
 
@@ -319,18 +352,34 @@ const MapComponent: React.FC<MapComponentProps> = ({
     await drawRouteForSupplier(company);
 
     if (onSelectSupplier) onSelectSupplier(company);
-  }, [materials, drawRouteForSupplier, onSelectSupplier]);
+    if (onRouteShown) onRouteShown(company.id);
+  }, [materials, drawRouteForSupplier, onSelectSupplier, onRouteShown]);
 
-  // Auto-route when supplier ID is passed (e.g., from product row click)
+  // Keep the latest drawer reachable from the geolocation watcher.
   useEffect(() => {
-    if (autoRouteSupplierId && companies.length > 0) {
-      const company = companies.find((c) => c.id === autoRouteSupplierId);
-      if (company && company.id !== currentCompanyIdRef.current) {
-        handleSupplierSelect(company);
-        if (onRouteShown) onRouteShown();
-      }
-    }
-  }, [autoRouteSupplierId, companies, onRouteShown, handleSupplierSelect]);
+    drawRouteRef.current = drawRouteForSupplier;
+  }, [drawRouteForSupplier]);
+
+  // Marker clicks are wired up in the mount effect (empty deps), so they go
+  // through this ref to always reach the current selection logic.
+  const selectSupplierRef = useRef<(company: Company) => void>(() => {});
+  useEffect(() => {
+    selectSupplierRef.current = (company: Company) => { handleSupplierSelect(company); };
+  }, [handleSupplierSelect]);
+
+  // Auto-route whenever a destination is requested (product row click, the map
+  // being opened, or a new request for the supplier already shown). Re-running
+  // always redraws from scratch, so the previous route is never left behind.
+  useEffect(() => {
+    if (!isMapReady || !autoRouteSupplierId || companies.length === 0) return;
+    const company = companies.find((c) => c.id === autoRouteSupplierId);
+    if (!company) return;
+    const alreadyDrawn = drawnRequestRef.current === routeRequestId &&
+      company.id === currentCompanyIdRef.current;
+    if (alreadyDrawn) return;
+    drawnRequestRef.current = routeRequestId;
+    handleSupplierSelect(company);
+  }, [isMapReady, autoRouteSupplierId, companies, handleSupplierSelect, routeRequestId]);
 
   // Initialize map once on mount
   useEffect(() => {
@@ -352,6 +401,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }).addTo(map);
 
     leafletMap.current = map;
+    setIsMapReady(true);
 
     // Place supplier markers
     const allLatLngs: L.LatLngExpression[] = [];
@@ -375,7 +425,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       `);
 
       marker.on('click', () => {
-        handleSupplierSelect(company);
+        selectSupplierRef.current(company);
       });
 
       supplierMarkersRef.current.set(company.id, marker);
@@ -398,7 +448,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     (window as any).__selectSupplier = (companyId: string) => {
       const company = companies.find((c) => c.id === companyId);
-      if (company) handleSupplierSelect(company);
+      if (company) selectSupplierRef.current(company);
     };
 
     const markers = supplierMarkersRef.current;

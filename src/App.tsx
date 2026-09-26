@@ -79,6 +79,9 @@ function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
+  // Bumped on every explicit route request so the map redraws the route even when
+  // the same supplier is clicked twice in a row.
+  const [routeRequestId, setRouteRequestId] = useState(0);
   const [showProforma, setShowProforma] = useState(false);
   // Report the proforma is rendered from. Kept apart from cartDetails because a
   // proforma always covers one supplier, while the cart can hold many.
@@ -560,8 +563,12 @@ function App() {
   }, [selectedMaterial, currentUser, getCompanyById]);
 
   // ---------- Open map with route ----------
+  // Opens the map straight onto the route from the customer's current location to
+  // the chosen supplier. The destination is remembered, so reopening the map
+  // shows the same route, and every new click replaces the previous one.
   const handleOpenMapWithRoute = (companyId: string) => {
     setAutoRouteSupplierId(companyId);
+    setRouteRequestId(id => id + 1);
     setShowSupplierMap(true);
   };
 
@@ -899,7 +906,9 @@ function App() {
   const addToCart = (material: Material, quantity: number) => {
     if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return; }
     if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return; }
-    if (quantity < material.minOrder) { showAlert('Minimum order quantity is ' + material.minOrder + ' ' + material.unit, 'danger'); return; }
+    // Customers may order any amount: a per-product `minOrder` is supplier
+    // reference data only and is never enforced here.
+    if (!Number.isFinite(quantity) || quantity < 1) { showAlert('Please enter a quantity of at least 1', 'danger'); return; }
     const materialCompany = getCompanyById(material.companyId);
     if (!materialCompany) return;
     addToCartLogic(material, quantity, materialCompany);
@@ -939,11 +948,12 @@ function App() {
 
   const updateCartQuantity = (itemId: string, newQuantity: number) => {
     const item = cart.find(i => i.id === itemId);
-    if (item && newQuantity >= item.minOrder) {
-      setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: newQuantity } : i));
-    } else if (item && newQuantity < item.minOrder) {
-      showAlert('Minimum quantity is ' + item.minOrder + ' ' + item.unit, 'warning');
+    if (!item) return;
+    if (!Number.isFinite(newQuantity) || newQuantity < 1) {
+      showAlert('Quantity must be at least 1 ' + (item.unit || 'unit'), 'warning');
+      return;
     }
+    setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.round(newQuantity) } : i));
   };
 
   const clearCart = () => {
@@ -1604,7 +1614,7 @@ function App() {
                       {sup.items.map(item => (
                         <div key={item.id} className="cart-item">
                           <div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div>
-                          <div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={item.minOrder} step={item.minOrder} /><span>{item.unit}</span></div>
+                          <div className="cart-item-quantity"><label>Qty:</label><input type="number" value={item.quantity} onChange={(e) => updateCartQuantity(item.id, parseInt(e.target.value))} min={1} step={1} /><span>{item.unit}</span></div>
                           <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
                           <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
                         </div>
@@ -2010,7 +2020,6 @@ function App() {
                 : '📦 All Products'}
               {activeSupplierName ? ` · 🏢 ${activeSupplierName}` : ''}
             </h2>
-            <button className="btn btn-secondary" onClick={handleExportMaterials}>📥 Export</button>
           </div>
           {displayMaterials.length === 0 ? (
             <div className="no-results glass">
@@ -2147,7 +2156,8 @@ function App() {
   };
 
   const renderSupplierMap = () => {
-    // Ensure we always have a supplier to route to
+    // Route to the destination the map last showed, or to the first supplier
+    // when it is opened without one.
     const firstCompanyId = companies.length > 0 ? companies[0].id : null;
     const routeId = autoRouteSupplierId || firstCompanyId;
     return (
@@ -2159,7 +2169,8 @@ function App() {
           onClose={() => setShowSupplierMap(false)}
           onSelectSupplier={(company) => console.log('Selected supplier:', company)}
           autoRouteSupplierId={routeId}
-          onRouteShown={() => setAutoRouteSupplierId(null)}
+          routeRequestId={routeRequestId}
+          onRouteShown={(companyId) => setAutoRouteSupplierId(companyId)}
         />
       </Suspense>
     );
@@ -2177,7 +2188,7 @@ function App() {
   );
 
   const DetailsOrderBox = ({ material, isInCart, onAdded }: { material: Material; isInCart: boolean; onAdded: () => void }) => {
-    const min = Math.max(1, material.minOrder || 1);
+    const min = 1; // customers may order any amount — no minimum order
     const [qty, setQty] = useState(min);
     const soldOut = material.quantity <= 0;
     return (
@@ -2189,7 +2200,7 @@ function App() {
           <>
             <div className="order-box-row">
               <QuantityStepper value={qty} min={min} unit={material.unit} onChange={setQty} />
-              <span className="order-box-hint">Minimum order: {min} {material.unit || 'units'}</span>
+              <span className="order-box-hint">Any quantity — order exactly what you need.</span>
             </div>
             <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
             <button className="btn btn-primary order-box-btn" onClick={() => { addToCart(material, qty); onAdded(); }}>
@@ -2225,7 +2236,7 @@ function App() {
             {renderProductGallery(selectedMaterial)}
             <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
             <div><h3>💰 Pricing</h3>
-              <p>Unit: <strong>{formatCurrency(selectedMaterial.price)}</strong> / {selectedMaterial.unit}<br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}{canSeeStock && <><br/>Stock: {selectedMaterial.quantity} {selectedMaterial.unit}</>}</p>
+              <p>Unit: <strong>{formatCurrency(selectedMaterial.price)}</strong> / {selectedMaterial.unit}{canSeeStock && <><br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}</>}{canSeeStock && <><br/>Stock: {selectedMaterial.quantity} {selectedMaterial.unit}</>}</p>
               <div className="rating-summary">
                 <StarRatingDisplay value={avgRating} />
                 <span className="rating-num">{avgRating.toFixed(1)}</span>
@@ -2538,8 +2549,12 @@ function App() {
     const outOfStock = material.quantity <= 0;
     return (
       <div className={'m-product-card ' + variant}>
-        <button className="m-pc-img" onClick={onOpen} aria-label="View details">
+        <button className="m-pc-img" onClick={onOpen} aria-label={'View details of ' + material.name}>
           {renderProductImage(material.images, material.category, 'md')}
+          <span className="m-pc-view-hint" aria-hidden="true">
+            <span className="m-pc-view-icon">👁️</span>
+            <span className="m-pc-view-text">View details</span>
+          </span>
         </button>
         {!isFav && (
           <button className="m-pc-fav" onClick={onToggleFav} aria-label="Save for later">❤️</button>

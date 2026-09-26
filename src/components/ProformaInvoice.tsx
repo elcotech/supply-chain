@@ -362,13 +362,6 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           {/* ============================= SUMMARY ============================= */}
           <div className="pf-summary-wrap">
-            <div className="pf-words">
-              <div className="pf-words-label">
-                <span className="pf-words-icon">💰</span>
-                Amount in Words
-              </div>
-              <div className="pf-words-text">{words}</div>
-            </div>
             <div className="pf-summary">
               <div className="pf-sum-row">
                 <span>Subtotal (Goods)</span>
@@ -390,6 +383,14 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                 <span>Grand Total</span>
                 <span>{formatCurrency(report.total)}</span>
               </div>
+            </div>
+            {/* The words sit directly under the numeric total. */}
+            <div className="pf-words">
+              <div className="pf-words-label">
+                <span className="pf-words-icon">💰</span>
+                Amount in Words
+              </div>
+              <div className="pf-words-text">{words}</div>
             </div>
           </div>
 

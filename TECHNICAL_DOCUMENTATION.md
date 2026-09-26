@@ -183,7 +183,7 @@ supply-chain1/
 2. A debounced `useEffect` (300 ms) calls `performSearch()`.
 3. `performSearch` filters `materials`, then for each match calls the OSRM API for distance and transport cost (parallel `Promise.all`).
 4. Results are enriched into `SearchResult[]` (material + company + distance + costs) and rendered in a sortable table.
-5. Clicking a product row sets `autoRouteSupplierId` → the map modal opens and **automatically draws the driving route**.
+5. Clicking a product row sets `autoRouteSupplierId` and bumps `routeRequestId` → the map modal opens and **automatically draws the driving route** from the customer's current position.
 
 **Data flow example (proforma)**
 
@@ -269,7 +269,7 @@ All state lives in `App.tsx` using React hooks (no Redux/Context — fine for th
 - `searchResults`, `isSearchPerformed` — search page state.
 - `cart`, `cartDetails`, `showCartSummary` — cart flow.
 - `proformaDetails`, `showProformaSupplierPicker` — the report the proforma renders from (always one supplier) and the "choose supplier" modal.
-- `showSupplierMap`, `autoRouteSupplierId` — map modal & route targeting.
+- `showSupplierMap`, `autoRouteSupplierId`, `routeRequestId` — map modal, the supplier the map should route to (sticky), and a nonce bumped on every explicit route request so the same supplier can be re-routed.
 - `selectedMaterial`, `editingMaterial` — details modal & product editing.
 - `darkMode`, `isFullscreen` — UI preferences.
 - `distanceToSelected`, `isDistanceLoading` — distance shown in product details.
@@ -327,6 +327,18 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 - The **"View Route on Map"** button in the product-details modal does the same.
 - Guests get a **default location (Addis Ababa)** with the note *"(default location – login to use yours)"* — see `MapComponent.tsx` (`userLocation` / `hasUserLocation`).
 
+**Automatic routing & re-routing (v5.4)** — three bugs made the route feel unreliable; all three are fixed in `MapComponent.tsx` / `App.tsx`:
+
+| Problem | Cause | Fix |
+| --- | --- | --- |
+| Route sometimes never appeared | the auto-route effect ran **before** the mount effect created the Leaflet map, so `drawRouteForSupplier` hit `if (!map) return` | `isMapReady` state is set right after the map is constructed; routing waits for it |
+| Clicking the same supplier twice did nothing | `handleSupplierSelect` early-returned when `company.id === currentCompanyIdRef.current` | the early return is gone — a selection always redraws; `drawnRequestRef` + the parent's `routeRequestId` nonce keep it to one draw per request |
+| Route stayed on screen after another supplier was chosen | `onRouteShown` cleared `autoRouteSupplierId` in the parent, so the next open silently fell back to the first supplier | the parent now **remembers** the destination (`setAutoRouteSupplierId(companyId)`) and re-requests it with an incremented `routeRequestId` |
+
+- **Current location is the route origin.** While GPS is pending, the route starts from the registered address (or the Addis default) and the geolocation watch **redraws it from the real position** on the first fix (`hasGpsFixRef` + `selectedCompanyRef` + `drawRouteRef`, one redraw per selection).
+- `clearAllOverlays` also removes the standalone "Your Location" marker, which is placed on the map before any route exists — otherwise a stale marker survives the next redraw.
+- Marker clicks and `window.__selectSupplier` go through `selectSupplierRef`, so they always hit the current selection logic instead of the first-render closure.
+
 ### 10.3 Product pictures (NEW)
 - **Upload:** On the *Add Product* and *Edit Product* forms there is a **"📷 Upload Photos"** button (accepts `image/*`, multiple, max 6). Files are read with the `FileReader` API and stored as **base64 data URLs** in `formData.materialImages` → saved to `Material.images`.
 - **Preview:** Uploaded photos show as thumbnails with an ✕ remove button before saving.
@@ -341,13 +353,16 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 - Filtering happens in `performSearch` (`App.tsx`) with `material.companyId === searchSupplier`, so it composes with the other filters, sorting and the distance/delivery estimates.
 - The field is `FormData.searchSupplier`, is part of the debounce dependency list, and is reset by the ✕ clear-filters button.
 - The active supplier is echoed in the results header (`📊 Results (12) · 🏢 Build Well Trading`) so the filtered state is obvious. The same filter row is rendered on mobile, so phones get it too.
+- **No results-header export (v5.4):** the 📥 Export button that used to sit next to the results count is removed — the header 📥 menu and the company dashboard export are the only product exports. `handleExportMaterials` stays in use by those two.
 
 ### 10.5 Cart & checkout
 Multi-supplier cart: customers can add products from any number of suppliers into one cart. Checkout computes subtotal + VAT (per-item %) + delivery fee per supplier (OSRM-based) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item, resets the cart, and shows the Orders page. A proforma invoice is always issued per supplier — see [10.21](#1021-single-supplier-proforma-invoice-new-in-v51).
 
-**Order entry (NEW):** a customer never picks a quantity in a list. The 🛒 button on a results row, the **Order** button on a mobile product card and **View & Order** in the compare modal all open the **product details**, where the only `+ / −` control lives (`DetailsOrderBox` + `QuantityStepper`, with the minimum order enforced and a live total). The cart modal still allows per-line quantity edits. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
+**Order entry:** a customer never picks a quantity in a list. The 🛒 button on a results row, the **Order** button on a mobile product card and **View & Order** in the compare modal all open the **product details**, where the only `+ / −` control lives (`DetailsOrderBox` + `QuantityStepper`, steps of 1 with a live total). The cart modal still allows per-line quantity edits. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
 
-**Stock visibility (NEW):** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price, unit and minimum order only.
+**No per-product minimum (v5.4):** customers may order **any quantity of 1 or more**. A product's `minOrder` field is kept as **supplier reference data** (product form, cart snapshot, proforma notes, comparison view) but is no longer enforced in the ordering path — `addToCart`, `updateCartQuantity`, the cart quantity inputs and the product-details stepper all work in units of 1, and the customer-facing description panel no longer shows a "Min Order" line. The separate **admin-configured minimum-order value** in ETB (goods-subtotal threshold, see [10.5](#105-cart--checkout)) is a different rule and is untouched.
+
+**Stock visibility:** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price and unit only.
 
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
@@ -356,6 +371,8 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 - **File:** `src/components/ProformaInvoice.tsx`.
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
 - Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs), financial summary (subtotal, VAT 15%, delivery, grand total), amount in words, terms & conditions (6 clauses), and signature lines.
+- **Layout (v5.4):** supplier and buyer blocks stay **side by side** everywhere — desktop, phones (`≤760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be ≤760px). Terms and signature blocks still stack on phones, they need the full width.
+- **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it.
 - Accessible from the cart summary modal via the "👁️ Preview Proforma" button, which asks which supplier to invoice when the cart holds several — see [10.21](#1021-single-supplier-proforma-invoice-new-in-v51).
 - **Print-ready**: `@media print` styles hide action buttons and format for A4.
 
@@ -544,6 +561,7 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
   - **More sheet** (`m-sheet-overlay` + `m-sheet`): slide-up bottom sheet with profile header + Logout, dashboard, supplier map, compare, install app, theme toggle, CSV export and admin settings shortcuts, plus a horizontally scrollable "Saved products" strip.
   - **Mobile home** (`renderHomeMobile`): gradient greeting hero card with live stat tiles (active orders, delivered, revenue/spent), 2×2 quick-action grid, "Saved for later" strip, horizontally scroll-snapping **Trending products carousel** (star-rating sorted) using the reusable `MobileProductCard`, and recent-order rows with status pills.
   - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with an **Order** button that opens the product details, or an **In Cart — Open** button once the product is in the cart) instead of the wide table; distance, supplier and price chips are shown per card. Stock chips are supplier-only (see §13.1).
+  - **Tap-to-explore affordance (v5.4)**: the product photo inside `MobileProductCard` opens the description, so it must look tappable — `.m-pc-img` scales to 0.97 on press and carries a `.m-pc-view-hint` pill (👁️ View details) that fades in (`mViewHintIn`) while the eye pulses (`mViewPulse`, 1.9 s). The pill is `pointer-events: none` so taps always reach the button, it is `aria-hidden` next to a descriptive `aria-label` on the button, and both animations plus the press transition are disabled under `@media (prefers-reduced-motion: reduce)`. Shared by the trending carousel and the mobile search grid.
   - **Orders** on mobile render stacked order cards with the `OrderTimeline` shipment stepper, customer/supplier line, itemised totals and Confirm/Reorder/Export actions.
   - **Dashboards** on mobile render 2×2 stat tiles plus compact product/order lists (`renderMobileDashboard(true|false)`).
   - **Modals become bottom sheets** on mobile (`.modal-overlay` aligns to bottom, `.modal-content` gets top-rounded corners) and forms use 16px inputs to prevent iOS auto-zoom. The floating compare bar and PWA banner are lifted above the tab bar.
@@ -563,8 +581,9 @@ It is the step where the customer has actually seen the product and is ready to 
 | Product details (`DetailsOrderBox`) | `QuantityStepper` + running total + **Add to Cart / Update Cart** |
 | Cart modal | per-line number input (`updateCartQuantity`) |
 
-- `QuantityStepper` and `DetailsOrderBox` are defined in `App.tsx` next to `renderMaterialDetails`. The stepper steps by the product's `minOrder` and can never go below it; the `−` button is disabled at the minimum.
-- `DetailsOrderBox` owns its quantity state, so it resets to `minOrder` every time the modal is opened (no `document.getElementById` juggling any more).
+- `QuantityStepper` and `DetailsOrderBox` are defined in `App.tsx` next to `renderMaterialDetails`. It steps by **1** and stops at **1** — customers may order any amount, so the stepper must not derive its step or floor from `minOrder` (`min` is hard-coded to `1`).
+- `DetailsOrderBox` owns its quantity state, so it resets to `1` every time the modal is opened (no `document.getElementById` juggling any more). Its hint reads "Any quantity — order exactly what you need."
+- `addToCart` and `updateCartQuantity` only guard against non-finite values and quantities below 1. The cart line input uses `min={1} step={1}`. **Do not** re-add a `minOrder` check to either function; the per-product minimum is reference data only (see [10.5](#105-cart--checkout)).
 - A sold-out product shows **"Currently unavailable — please contact the supplier."** instead of the stepper, so nothing un-orderable can be added to the cart.
 - The old native `prompt("Quantity (Min: …)")` on the desktop results row and the card-level `m-stepper` are **removed** — keep it that way; never reintroduce a quantity control in a list.
 
@@ -574,7 +593,7 @@ It is the step where the customer has actually seen the product and is ready to 
 | Where | Gated by |
 | --- | --- |
 | Desktop results `<th>`/`<td>` Stock column | `{canSeeStock && …}` (both cells, or the columns misalign) |
-| Product details "Stock: N unit" pricing line | `{canSeeStock && …}` |
+| Product details "Stock: N unit" pricing line | `{canSeeStock && …}` (the "Min Order" line on the same paragraph is gated the same way) |
 | Product details low-stock banner | `isLowStock = canSeeStock && quantity <= LOW_STOCK_THRESHOLD` |
 | Mobile product card `m-pc-stock` chip | `{canSeeStock && …}` |
 | Compare modal "Stock" row | `{canSeeStock && …}` |
@@ -694,13 +713,15 @@ Read this before touching any code. It prevents the most common mistakes.
 2. **Never commit `.env.local`.** It holds a live Vercel OIDC token and is already gitignored. Do not read it into code, logs or console output.
 3. **Money always goes through `formatCurrency`** (in `utils.ts`). Do not hand-roll `Intl.NumberFormat` or template strings with different separators.
 4. **Never delete the admin seeder.** In `App.tsx` initialization, `ADMIN_USER` is re-appended if missing. Removing it logs out platform management silently.
-5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place. The only exception is the palette: theme tokens (`[data-theme="dark"]`) and the navy scrim colours may be edited in place when the theme changes (see §12).
-6. **Desktop layout is frozen.** The mobile shell must be added *next to* it, never instead of it: JSX branches on `isMobile` (`useIsMobile`), and every mobile rule lives inside `@media (max-width: 768px)` at the end of `App.css`. Keep the JS breakpoint and the CSS breakpoint identical (`768px`).
+5. **Append new CSS at the end of `App.css`** in clearly-commented sections; never rewrite existing rules in place. The exceptions are (a) the palette — theme tokens (`[data-theme="dark"]`) and the navy scrim colours may be edited in place when the theme changes (see §12) — and (b) an explicit layout change requested for an existing component, which is edited inside **that component's own block** and never by borrowing rules from another section (e.g. the proforma party/totals layout in the `.pf-*` block, see §10.7).
+6. **Desktop layout is frozen.** The mobile shell must be added *next to* it, never instead of it: JSX branches on `isMobile` (`useIsMobile`), and every mobile rule lives inside `@media (max-width: 768px)` at the end of `App.css`. Keep the JS breakpoint and the CSS breakpoint identical (`768px`). An explicitly requested layout change to an existing responsive component is the one thing that may edit its own block (§10.7, rule 5b).
 7. **Tests are pure-logic only.** Do not write tests that import `App.tsx`, `MapComponent.tsx` or Leaflet — they need DOM APIs jsdom can't provide. Run `CI=true npm test -- --watchAll=false`.
 8. **Mobile reuse** — build mobile UI from existing helpers (`renderProductImage`, `formatCurrency`, `handleCheckout`, `handleQuickReorder`, …); `MobileProductCard` is the single reusable product card for the carousel and search grid. New mobile-only files go under `src/hooks/` / `src/components/` and use CSS variables so dark mode keeps working.
 9. **No black surfaces.** The dark theme is navy. Use the `--bg` / `--card-bg` / `--glass-bg` tokens or a navy scrim (`rgba(8, 22, 40, α)`) for any new background, never `#000` / `rgba(0,0,0,α)` (except `.datetime-widget.inverted`).
 10. **Quantities are chosen in one place only** — the product details order box (§13.1). A list, card or carousel may only *navigate* to it; do not add a stepper, quantity input or `prompt()` to a results row, product card or table.
 11. **Stock is supplier-only.** Any new UI that prints `material.quantity` must be wrapped in `canSeeStock` (company + admin). Customers and guests must never see a stock number, an "In stock"/"Out" chip or a low-stock banner.
+12. **Never enforce a per-product minimum.** `Material.minOrder` is supplier reference data; the customer path works in units of 1 (§13.1). The only minimum a customer can hit is the admin-configured goods-subtotal rule in `settings.ts`.
+13. **A route request is a nonce, not a flag.** When the map should show a route, bump `routeRequestId` *and* set `autoRouteSupplierId`; never clear the destination to "reset" it (§10.2). Drawing waits for `isMapReady` and always goes through `drawRouteForSupplier`, which starts from the real GPS position once it is known.
 
 ### 19.2 Where things live
 - **Business rules** (delivery fee, zones, min order) → `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates, cart totals and order creation all use `computeDeliveryFee` now.
@@ -721,6 +742,8 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Invoice a second supplier from the same cart":** close the proforma, reopen the cart (🛒) and press "👁️ Preview Proforma" again — the supplier picker lists every supplier in the cart. Each invoice is independent.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
+- **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
+- **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
 - **"Add a quantity control somewhere new":** don't. Open the product details (`setSelectedMaterial`) and let `DetailsOrderBox` handle it.
 
 ### 19.4 Known limitations (do not "fix" without discussion)
