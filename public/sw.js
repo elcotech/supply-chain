@@ -3,8 +3,15 @@
  * - Network-first navigation so users always get fresh data when online.
  * - Runtime caches same-origin GET responses (API-free SPA; everything else
  *   is served from node_modules-bundled assets or localStorage data).
+ *
+ * Bumping VERSION is the "clear the cache for everyone" switch: on `activate`
+ * every cache whose name is not the current shell/runtime pair is deleted, so
+ * each client drops its stale asset + tile copies and re-fetches the new build.
+ * This only touches the Cache Storage buckets - accounts, companies, products,
+ * orders, carts, wallets, reviews and notifications live in localStorage and
+ * are never removed here, so no user data is lost.
  */
-const VERSION = 'e-scon-v1.0.0';
+const VERSION = 'e-scon-v1.0.1';
 const SHELL_CACHE = VERSION + '-shell';
 const RUNTIME_CACHE = VERSION + '-runtime';
 

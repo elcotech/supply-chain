@@ -40,7 +40,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 📄 **One supplier per proforma** — a cart with several suppliers asks which supplier to invoice, and the proforma then carries only that supplier's items, VAT and delivery fee (reusable modal, styled like the cart)
 - 🔍 **Scannable QR proforma** — scanning the invoice QR opens a mobile-friendly view of the order (works from paper)
 - ⚙️ **Admin platform settings** — delivery pricing, zones, free delivery & minimum order, no code changes needed
-- 📲 **Installable PWA** with offline support and a device-specific install guide
+- 📲 **Installable PWA** with offline support and a device-specific install guide — every release bumps the service-worker version, so all users' cached assets are purged automatically while their accounts, products and orders stay untouched
 - 📊 Supplier & customer dashboards, order management
 - 📱 **Mobile banking-style app** — a dedicated mobile shell (bottom tab bar, centre cart button, "More" sheet, greeting home, trending-products carousel, card-based search, order cards with a shipment progress stepper) automatically appears on phones; the desktop layout stays untouched
 - 👁️ **Tap-to-explore** — the product photo on the trending carousel and the mobile search grid opens the description, and says so with a pulsing "View details" pill (motion is skipped for reduced-motion users)
