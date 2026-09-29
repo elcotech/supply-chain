@@ -43,6 +43,23 @@ export interface Company {
   email?: string;
 }
 
+/**
+ * Delivery terms a supplier publishes for a material.
+ *
+ * When `offered` is true the buyer can tick "include delivery cost" on that cart
+ * line and the fee is the supplier's own rate: a flat *delivery service starting
+ * fee* plus a *per-kilometre* charge applied to the real supplier -> buyer
+ * distance, which is only known later (at cart/proforma time). When the supplier
+ * leaves it off, the platform's admin-configured delivery rules apply instead.
+ */
+export interface MaterialDelivery {
+  offered: boolean;
+  /** ETB charged for every kilometre travelled (0 = distance is not billed). */
+  perKm: number;
+  /** Flat "delivery service starting fee" (ETB) charged once delivery is used. */
+  startFee: number;
+}
+
 export interface Material {
   id: string;
   companyId: string;
@@ -59,6 +76,8 @@ export interface Material {
   rating: number;
   brand?: string;
   model?: string;
+  /** Optional per-km delivery terms published by the supplier. */
+  delivery?: MaterialDelivery;
   specifications?: {
     weight?: string;
     dimensions?: string;
@@ -101,6 +120,8 @@ export interface Order {
   vatAmount: number;
   paymentMethod: string;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  /** True when the buyer ticked "include delivery cost" for this order line. */
+  deliveryIncluded?: boolean;
   /** True when this order was settled from the buyer's E-SCON wallet. */
   walletPayment?: boolean;
   /** True once the supplier's wallet has been credited for a paid order. */
@@ -151,6 +172,9 @@ export interface FormData {
   materialOrigin: string;
   materialCertifications: string;
   materialImages: string[];
+  materialDeliveryOffered: boolean;
+  materialDeliveryPerKm: string;
+  materialDeliveryStartFee: string;
   // Company edit fields
   companyName: string;
   companyDescription: string;
@@ -188,7 +212,18 @@ export interface CartItem {
   basePrice: number;
   profitMargin: number;
   weightPerUnit: number;
+  /**
+   * The buyer's "with / without delivery cost" choice for this line. Optional so
+   * carts persisted before the option existed still load; `undefined` is read as
+   * `true` (delivery included), which is how the cart has always behaved.
+   */
+  includeDelivery?: boolean;
+  /** The supplier's published per-km rate, snapshotted when the line was added. */
+  deliveryRate?: MaterialDelivery;
 }
+
+/** How a supplier's delivery fee was priced for one cart/order. */
+export type DeliveryMode = 'supplier' | 'platform' | 'none';
 
 export interface CartSupplier {
   supplierId: string;
@@ -197,6 +232,10 @@ export interface CartSupplier {
   distanceKm: number;
   transportCost: number;
   items: CartItem[];
+  /** Whether this supplier's fee came from its own per-km rate, the platform, or nowhere. */
+  deliveryMode?: DeliveryMode;
+  /** Short human-readable pricing basis, e.g. "15 ETB/km + 300 ETB start". */
+  deliveryBasis?: string;
 }
 
 export interface CartReport {
@@ -273,7 +312,11 @@ export interface ProformaShareData {
   d: string; // ISO date
   b: string; // buyer name (display only)
   s: { n: string; c: string }[]; // suppliers: name + city
-  i: { n: string; u: string; q: number; p: number }[]; // items
+  i: { n: string; u: string; q: number; p: number; d?: 0 | 1 }[]; // items (d = delivery included)
+  /** Per-supplier delivery breakdown: name, distance km, fee. */
+  f?: { n: string; k: number; c: number }[];
+  /** True line-item count, present only when the QR had to truncate the item list. */
+  tc?: number;
   sub: number; // subtotal
   vat: number; // VAT amount
   del: number; // delivery fee

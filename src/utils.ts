@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, CartReport } from './types';
+import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, MaterialDelivery, DeliveryMode } from './types';
 
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
@@ -122,6 +122,65 @@ export const computeDeliveryFee = async (input: DeliveryFeeInput): Promise<numbe
 const numberOr = (value: number | undefined, fallback: number): number =>
   typeof value === 'number' && isFinite(value) && value >= 0 ? value : fallback;
 
+const round2 = (value: number): number => Math.round(value * 100) / 100;
+
+export interface LineDeliveryInput {
+  /** The buyer ticked "include delivery cost" for this cart line. */
+  includeDelivery: boolean;
+  /** The supplier's published per-km rate for this item, if it offers delivery. */
+  rate?: MaterialDelivery;
+  /** Real supplier -> buyer road distance in km (only known at cart time). */
+  distanceKm: number;
+  /** Platform fee already resolved by computeDeliveryFee; used as the fallback. */
+  platformFee?: number;
+}
+
+/**
+ * Delivery fee for a single cart line.
+ *
+ * The buyer's checkbox is the master switch: unticked, nothing is charged for the
+ * line. Ticked, the supplier's own published rate wins — a flat delivery service
+ * starting fee plus a per-kilometre charge on the measured distance — and only
+ * when the supplier has not published a rate does the platform's admin
+ * configuration (free threshold / zones / distance rules) apply instead.
+ */
+export const computeLineDeliveryFee = (input: LineDeliveryInput): number => {
+  if (!input.includeDelivery) return 0;
+  const rate = input.rate;
+  if (rate && rate.offered) {
+    const startFee = numberOr(rate.startFee, 0);
+    const perKm = numberOr(rate.perKm, 0);
+    const km = typeof input.distanceKm === 'number' && isFinite(input.distanceKm) && input.distanceKm > 0
+      ? input.distanceKm
+      : 0;
+    return round2(startFee + perKm * km);
+  }
+  return round2(Math.max(0, numberOr(input.platformFee, 0)));
+};
+
+/**
+ * Which pricing rule a line will be billed under. The distance and the platform
+ * fee are irrelevant here — only the checkbox and the supplier's rate matter.
+ */
+export const lineDeliveryMode = (input: Pick<LineDeliveryInput, 'includeDelivery' | 'rate'>): DeliveryMode => {
+  if (!input.includeDelivery) return 'none';
+  return input.rate && input.rate.offered ? 'supplier' : 'platform';
+};
+
+/** Short, human-readable explanation of how a line's delivery fee is priced. */
+export const deliveryBasisLabel = (rate?: MaterialDelivery, includeDelivery = true): string => {
+  if (!includeDelivery) return 'No delivery cost — you arrange the transport';
+  if (rate && rate.offered) {
+    const parts: string[] = [];
+    if (numberOr(rate.startFee, 0) > 0) parts.push(`${formatCurrency(rate.startFee)} starting fee`);
+    if (numberOr(rate.perKm, 0) > 0) parts.push(`${formatCurrency(rate.perKm)}/km`);
+    return parts.length > 0
+      ? `Supplier delivery · ${parts.join(' + ')}`
+      : 'Supplier delivery · free of charge';
+  }
+  return 'Platform delivery rate';
+};
+
 export interface MinOrderCheck {
   enabled: boolean;
   amount: number;
@@ -142,57 +201,58 @@ export const checkMinOrder = (settings: SystemSettings, goodsSubtotal: number): 
   return { enabled, amount, subtotal, below, shortfall: below ? amount - subtotal : 0 };
 };
 
-// ---------- Single-supplier proforma ----------
-// A proforma invoice is always issued by one supplier. The cart report already
-// carries the per-supplier split (that supplier's line items and its share of
-// the delivery fee, including any manually edited fee), so a single-supplier
-// report is derived from it. The proforma numbers therefore stay identical to
-// the per-supplier figures shown in the cart.
-export const buildSingleSupplierReport = (
-  report: CartReport,
-  supplierId: string,
-  settings: SystemSettings
-): CartReport | null => {
-  const supplier = (report.suppliers || []).find(s => s.supplierId === supplierId);
-  if (!supplier) return null;
-  const items = supplier.items || [];
-  const round = (value: number) => Math.round(value * 100) / 100;
-  let subtotal = 0;
-  let vatAmount = 0;
-  items.forEach(item => {
-    const lineTotal = item.basePrice * (1 + item.profitMargin) * item.quantity;
-    subtotal += lineTotal;
-    vatAmount += lineTotal * ((item.vatPercentage || 0) / 100);
-  });
-  const transportCost = round(supplier.transportCost || 0);
-  const minOrderCheck = checkMinOrder(settings, subtotal);
-  const threshold = settings.delivery.freeDeliveryThreshold;
-  return {
-    items,
-    subtotal,
-    vatAmount,
-    transportCost,
-    total: round(subtotal + vatAmount + transportCost),
-    distanceKm: supplier.distanceKm || 0,
-    suppliers: [supplier],
-    supplierName: supplier.supplierName,
-    supplierCity: supplier.supplierCity,
-    itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    uniqueItems: items.length,
-    currency: report.currency || 'ETB',
-    reportDate: report.reportDate,
-    freeDeliveryApplied: transportCost === 0 && threshold > 0 && subtotal >= threshold,
-    minOrderEnabled: minOrderCheck.enabled,
-    minOrderAmount: minOrderCheck.amount,
-    belowMinOrder: minOrderCheck.below,
-  };
-};
-
 // ---------- QR / share payload for proformas & orders ----------
 // The QR encodes a URL (so scanning opens the app) AND the compact proforma
 // data (so it works anywhere, including printed copies scanned by any phone).
+// The QR always lives in the document header, whatever the cart holds, so the
+// payload is trimmed to stay scannable: only the first MAX_QR_LINE_ITEMS lines
+// travel, and the true count is carried in `tc`. The printed document itself
+// always lists every item.
 
 const PAYLOAD_PREFIX = 'ESCON1';
+
+/** Line items encoded into the QR before the list is truncated for scannability. */
+export const MAX_QR_LINE_ITEMS = 12;
+
+export interface ProformaShareInput {
+  proformaNumber: string;
+  dateISO: string;
+  buyerName: string;
+  suppliers: { n: string; c: string }[];
+  items: { n: string; u: string; q: number; p: number; d?: 0 | 1 }[];
+  deliveryLines: { n: string; k: number; c: number }[];
+  subtotal: number;
+  vat: number;
+  delivery: number;
+  total: number;
+}
+
+/** Assemble the compact payload embedded in the proforma verification QR code. */
+export const buildProformaShareData = (input: ProformaShareInput): ProformaShareData => {
+  const items = input.items.map(item => ({
+    n: item.n,
+    u: item.u,
+    q: item.q,
+    p: round2(item.p),
+    d: (item.d ? 1 : 0) as 0 | 1,
+  }));
+  const data: ProformaShareData = {
+    v: 1,
+    n: input.proformaNumber,
+    d: input.dateISO,
+    b: input.buyerName || 'Customer',
+    s: input.suppliers,
+    i: items.slice(0, MAX_QR_LINE_ITEMS),
+    f: input.deliveryLines,
+    sub: round2(input.subtotal),
+    vat: round2(input.vat),
+    del: round2(input.delivery),
+    tot: round2(input.total),
+    c: 'ETB',
+  };
+  if (items.length > MAX_QR_LINE_ITEMS) data.tc = items.length;
+  return data;
+};
 
 export const encodeProformaPayload = (data: ProformaShareData): string => {
   const json = JSON.stringify(data);

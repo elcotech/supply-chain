@@ -50,6 +50,7 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
                 <th>Item</th>
                 <th>Qty</th>
                 <th>Unit</th>
+                <th>Delivery</th>
                 <th>Unit Price</th>
                 <th>Subtotal</th>
               </tr>
@@ -64,6 +65,7 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
                     <td>{item.n}</td>
                     <td>{qty.toLocaleString()}</td>
                     <td>{item.u}</td>
+                    <td>{item.d ? '🚚 Yes' : '—'}</td>
                     <td>{formatCurrency(unitPrice)}</td>
                     <td className="p-pf-price">{formatCurrency(unitPrice * qty)}</td>
                   </tr>
@@ -71,6 +73,23 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
               })}
             </tbody>
           </table>
+
+          {data.tc !== undefined && data.tc > data.i.length && (
+            <p className="public-proforma-note">
+              Showing the first {data.i.length} of {data.tc} line items — the printed
+              proforma lists every item.
+            </p>
+          )}
+
+          {data.f && data.f.length > 0 && (
+            <div className="public-proforma-suppliers">
+              {data.f.map((line, idx) => (
+                <span key={idx}>
+                  🚚 {line.n}: {(Number(line.k) || 0).toFixed(1)} km — {formatCurrency(Number(line.c) || 0)}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="public-proforma-summary">
             <div><span>Items:</span><strong>{data.i.length} line item{data.i.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</strong></div>

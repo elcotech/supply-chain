@@ -1,15 +1,16 @@
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload, DeliveryMode, MaterialDelivery } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
   sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
 } from './constants';
 import {
   safeLocalStorage, formatCurrency, formatDate,
-  calculateDistance, calculateTransportCost, isUserLocked,
+  calculateDistance, isUserLocked,
   exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
-  geocodeAddress, computeDeliveryFee, checkMinOrder, buildSingleSupplierReport,
+  geocodeAddress, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
+  deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson
 } from './utils';
@@ -56,11 +57,20 @@ const MapComponent = React.lazy(() => import('./components/MapComponent'));
 // state re-renders on every keystroke (clearing the box yields NaN), which makes
 // the cart look read-only — so the field keeps a local draft string and only
 // commits a valid whole number, on blur, on Enter or via the − / + keys.
-// Module scope on purpose: defined inside App() it would be a new component type
-// on every render, remounting the input and dropping the draft.
-const CartQuantityInput = ({ item, onCommit }: { item: CartItem; onCommit: (itemId: string, quantity: number) => void }) => {
+// Next to the quantity sits the "with / without delivery cost" checkbox, so the
+// buyer decides while filling in how many units they want. Module scope on
+// purpose: defined inside App() it would be a new component type on every
+// render, remounting the input and dropping the draft.
+const CartQuantityInput = ({ item, onCommit, onToggleDelivery }: {
+  item: CartItem;
+  onCommit: (itemId: string, quantity: number) => void;
+  onToggleDelivery: (itemId: string, includeDelivery: boolean) => void;
+}) => {
   const [draft, setDraft] = useState(String(item.quantity));
   useEffect(() => { setDraft(String(item.quantity)); }, [item.quantity]);
+  // Carts saved before the option existed have no flag; `undefined` means the
+  // historical behaviour — delivery included.
+  const withDelivery = item.includeDelivery !== false;
 
   const commit = (raw: string) => {
     const parsed = parseInt(raw, 10);
@@ -89,8 +99,75 @@ const CartQuantityInput = ({ item, onCommit }: { item: CartItem; onCommit: (item
       />
       <button type="button" className="cart-qty-btn" onClick={() => commit(String(item.quantity + 1))} aria-label={'Increase quantity of ' + item.materialName}>+</button>
       <span>{item.unit}</span>
+      <label className={'cart-delivery-toggle' + (withDelivery ? ' on' : '')}>
+        <input
+          type="checkbox"
+          checked={withDelivery}
+          onChange={e => onToggleDelivery(item.id, e.target.checked)}
+          aria-label={'Include delivery cost for ' + item.materialName}
+        />
+        <span>With delivery</span>
+      </label>
     </div>
   );
+};
+
+// Resolve the delivery fee for one cart line, shared by the cart summary and the
+// order it produces so the two can never disagree. The buyer's checkbox is the
+// master switch; when it is on, the supplier's published rate (starting fee +
+// per km over the measured distance) wins, and the platform's admin rules are
+// only consulted when the supplier has no rate of its own.
+const resolveLineDelivery = async (
+  item: CartItem,
+  supplier: Company,
+  distanceKm: number,
+  orderSubtotal: number,
+  customer: User,
+  settings: SystemSettings
+): Promise<{ fee: number; mode: DeliveryMode }> => {
+  const includeDelivery = item.includeDelivery !== false;
+  const rate = item.deliveryRate;
+  if (!includeDelivery) return { fee: 0, mode: 'none' };
+  let platformFee = 0;
+  if (!(rate && rate.offered)) {
+    platformFee = await computeDeliveryFee({
+      supplierLat: supplier.lat,
+      supplierLng: supplier.lng,
+      customerLat: customer.lat || 9.0320,
+      customerLng: customer.lng || 38.7469,
+      customerCity: customer.city || null,
+      weightTons: (item.weightPerUnit || 0.001) * item.quantity,
+      orderSubtotal,
+      settings,
+    });
+  }
+  return {
+    fee: computeLineDeliveryFee({ includeDelivery, rate, distanceKm, platformFee }),
+    mode: lineDeliveryMode({ includeDelivery, rate }),
+  };
+};
+
+// Two lines from the same supplier can be billed differently (one with delivery
+// at the supplier's rate, one collected by the buyer). Fold their modes into the
+// single badge the cart group and the proforma show.
+const combineDeliveryModes = (a?: DeliveryMode, b?: DeliveryMode): DeliveryMode => {
+  if (!a) return b || 'none';
+  if (!b) return a;
+  if (a === b) return a;
+  if (a === 'none') return b;
+  if (b === 'none') return a;
+  return 'platform'; // a genuine mix of supplier-rate and platform-rate lines
+};
+
+// Read a supplier's delivery terms out of the add/edit product form. The rate is
+// only kept when the supplier ticks the box AND supplies a non-zero number,
+// otherwise the platform's admin-configured delivery rules apply instead.
+const buildMaterialDelivery = (form: FormData): MaterialDelivery | undefined => {
+  if (!form.materialDeliveryOffered) return undefined;
+  const perKm = Math.max(0, parseFloat(form.materialDeliveryPerKm) || 0);
+  const startFee = Math.max(0, parseFloat(form.materialDeliveryStartFee) || 0);
+  if (perKm <= 0 && startFee <= 0) return { offered: false, perKm: 0, startFee: 0 };
+  return { offered: true, perKm, startFee };
 };
 
 // Order-quantity picker on the product details page. The number is a real input,
@@ -169,7 +246,6 @@ function App() {
   // Report the proforma is rendered from. Kept apart from cartDetails because a
   // proforma always covers one supplier, while the cart can hold many.
   const [proformaDetails, setProformaDetails] = useState<CartReport | null>(null);
-  const [showProformaSupplierPicker, setShowProformaSupplierPicker] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compareItems, setCompareItems] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
@@ -273,6 +349,7 @@ function App() {
     searchMaxPrice: '', searchSupplier: 'all', searchCity: 'all', searchSortBy: 'price_asc',
     orderQuantity: '', orderAddress: '', materialBrand: '', materialModel: '', materialWeight: '',
     materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [],
+    materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '',
     companyName: '', companyDescription: '', companyLocation: '', companyCity: '',
     companyPhone: '', companyEmail: '', companyWebsite: '', companyWorkingHours: '',
     companyTinNumber: '', companyBusinessLicense: '', companyVatNumber: '', companyTradeLicenseExpiry: '',
@@ -772,12 +849,24 @@ function App() {
     showAlert('Platform settings saved and applied ✅', 'success');
   };
 
+  // Money carried by a line when the buyer leaves the "with delivery" tick on but
+  // the supplier publishes no rate: the platform's own delivery rules apply, and
+  // the buyer is told so rather than seeing a fee with no explanation.
+  const platformDeliveryHint = (supplierGroups: CartSupplier[]): string | null => {
+    const platformGroups = supplierGroups.filter(s => s.deliveryMode === 'platform');
+    if (platformGroups.length === 0) return null;
+    return platformGroups.length === 1
+      ? '⚠️ ' + platformGroups[0].supplierName + ' does not publish a delivery rate for this item, so the platform delivery fee applies.'
+      : '⚠️ ' + platformGroups.length + ' suppliers do not publish a delivery rate for these items, so the platform delivery fee applies to them.';
+  };
+
   // ---------- Material CRUD ----------
   const handleAddMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!currentUser || currentUser.userType !== 'company') { showAlert('Only company users can add materials', 'danger'); return; }
     const company = getCompanyByUserId(currentUser.id);
     if (!company) { showAlert('Company profile not found', 'danger'); return; }
+    // Delivery terms are read straight off formData by buildMaterialDelivery().
     const { materialName, materialCategory, materialPrice, materialQuantity, materialUnit, materialMinOrder, materialDescription, materialBrand, materialModel, materialWeight, materialDimensions, materialGrade, materialOrigin, materialCertifications, materialImages } = formData;
     const basePrice = parseFloat(materialPrice);
     const profitMargin = 0.15;
@@ -791,6 +880,7 @@ function App() {
       id: 'mat' + (materials.length + 1), companyId: company.id, name: materialName, category: materialCategory,
       basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,      minOrder: parseInt(materialMinOrder) || 1, description: materialDescription, transportCost: 15, rating: 0,
       brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: materialImages,
+      delivery: buildMaterialDelivery(formData),
       taxIncluded: true, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0],
       priceHistory: [{ date: Date.now(), price: sellingPrice }]
     };
@@ -801,7 +891,7 @@ function App() {
     }
     showAlert('Product added successfully! 🎉', 'success');
     setCurrentPage('company-dashboard');
-    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '', materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [] }));
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
   };
 
   const handleEditMaterial = (material: Material) => {
@@ -822,7 +912,10 @@ function App() {
       materialGrade: material.specifications?.grade || '',
       materialOrigin: material.specifications?.origin || 'Ethiopia',
       materialCertifications: material.specifications?.certification?.join(', ') || '',
-      materialImages: material.images || []
+      materialImages: material.images || [],
+      materialDeliveryOffered: Boolean(material.delivery?.offered),
+      materialDeliveryPerKm: material.delivery?.perKm ? String(material.delivery.perKm) : '',
+      materialDeliveryStartFee: material.delivery?.startFee ? String(material.delivery.startFee) : '',
     }));
     setCurrentPage('edit-material');
   };
@@ -856,9 +949,16 @@ function App() {
         weightPerUnit: editingMaterial.specifications?.weightPerUnit || 0.001
       },
       images: formData.materialImages,
+      delivery: buildMaterialDelivery(formData),
       lastUpdated: new Date().toISOString().split('T')[0]
     };
     setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? updatedMaterial : m));
+    // Cart lines snapshot the supplier's rate, so a changed rate must reach the
+    // carts that still hold this product or they would be billed on stale terms.
+    const rate = updatedMaterial.delivery;
+    setCart(prev => prev.map(item => item.materialId === updatedMaterial.id
+      ? { ...item, deliveryRate: rate && rate.offered ? rate : undefined }
+      : item));
     if (updatedMaterial.quantity <= LOW_STOCK_THRESHOLD) {
       pushNotification(currentUser?.id || '', 'stock', 'Low-stock alert',
         `${updatedMaterial.name} has only ${updatedMaterial.quantity} ${updatedMaterial.unit || 'units'} left — restock soon.`);
@@ -866,7 +966,7 @@ function App() {
     showAlert('Product updated successfully! ✏️', 'success');
     setEditingMaterial(null);
     setCurrentPage(currentUser?.userType === 'company' ? 'company-dashboard' : 'search-materials');
-    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '', materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [] }));
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
   };
 
   const handleDeleteMaterial = (id: string): void => {
@@ -986,7 +1086,7 @@ function App() {
   };
 
   // ---------- Cart ----------
-  const addToCart = (material: Material, quantity: number) => {
+  const addToCart = (material: Material, quantity: number, includeDelivery: boolean) => {
     if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return; }
     if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return; }
     // Customers may order any amount: a per-product `minOrder` is supplier
@@ -994,14 +1094,17 @@ function App() {
     if (!Number.isFinite(quantity) || quantity < 1) { showAlert('Please enter a quantity of at least 1', 'danger'); return; }
     const materialCompany = getCompanyById(material.companyId);
     if (!materialCompany) return;
-    addToCartLogic(material, quantity, materialCompany);
+    addToCartLogic(material, quantity, materialCompany, includeDelivery);
   };
 
-  const addToCartLogic = (material: Material, quantity: number, company: Company) => {
+  const addToCartLogic = (material: Material, quantity: number, company: Company, includeDelivery: boolean) => {
     const existingItem = cart.find(item => item.materialId === material.id);
+    // Snapshot the supplier's published rate onto the line: the fee is worked out
+    // from the distance later, so the cart has to remember which rate applies.
+    const rate = material.delivery && material.delivery.offered ? material.delivery : undefined;
     setCart(prev => {
       if (prev.some(item => item.materialId === material.id)) {
-        return prev.map(item => item.materialId === material.id ? { ...item, quantity: item.quantity + quantity } : item);
+        return prev.map(item => item.materialId === material.id ? { ...item, quantity: item.quantity + quantity, includeDelivery, deliveryRate: rate } : item);
       }
       const newCartItem: CartItem = {
         id: Date.now().toString(),
@@ -1017,7 +1120,9 @@ function App() {
         specifications: material.specifications,
         basePrice: material.basePrice,
         profitMargin: material.profitMargin,
-        weightPerUnit: material.specifications?.weightPerUnit || 0.001
+        weightPerUnit: material.specifications?.weightPerUnit || 0.001,
+        includeDelivery,
+        deliveryRate: rate
       };
       return [...prev, newCartItem];
     });
@@ -1036,8 +1141,23 @@ function App() {
       showAlert('Quantity must be at least 1 ' + (item.unit || 'unit'), 'warning');
       return;
     }
+    if (item.quantity === Math.round(newQuantity)) return;
     setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.round(newQuantity) } : i));
   };
+
+  // The "with / without delivery cost" checkbox on a cart line. Ticking it on a
+  // product the supplier delivers themselves stores that supplier's rate, so the
+  // per-km fee can be calculated from the real distance in the cart totals.
+  const updateCartDelivery = (itemId: string, includeDelivery: boolean) => {
+    setCart(prev => prev.map(item => {
+      if (item.id !== itemId) return item;
+      const material = getMaterialById(item.materialId);
+      const rate = material && material.delivery && material.delivery.offered ? material.delivery : item.deliveryRate;
+      return { ...item, includeDelivery, deliveryRate: rate };
+    }));
+  };
+
+
 
   const clearCart = () => {
     setCart([]);
@@ -1047,82 +1167,56 @@ function App() {
     showAlert('Cart cleared', 'info');
   };
 
-  // Cart lines grouped by supplier, used by the single-supplier proforma picker.
-  const groupCartBySupplier = () => {
-    const map = new Map<string, {
-      supplierId: string;
-      supplierName: string;
-      supplierCity: string;
-      items: CartItem[];
-      itemCount: number;
-      goodsValue: number;
-    }>();
-    cart.forEach(item => {
-      const company = getCompanyById(item.supplierId);
-      if (!company) return;
-      const value = item.price * item.quantity;
-      const existing = map.get(item.supplierId);
-      if (existing) {
-        existing.items.push(item);
-        existing.itemCount += item.quantity;
-        existing.goodsValue += value;
-      } else {
-        map.set(item.supplierId, {
-          supplierId: company.id,
-          supplierName: company.name,
-          supplierCity: company.city,
-          items: [item],
-          itemCount: item.quantity,
-          goodsValue: value,
-        });
-      }
-    });
-    return Array.from(map.values());
-  };
-
-  const calculateCartTotals = async (): Promise<CartReport | null> => {
-    if (cart.length === 0) return null;
+  // Price a set of cart lines. Delivery is resolved per line: the buyer's checkbox
+  // decides whether anything is charged, the supplier's published per-km rate is
+  // applied to the real supplier→buyer distance, and the platform settings are
+  // only used for lines whose supplier has no rate of their own.
+  const priceCartItems = async (items: CartItem[]): Promise<CartReport | null> => {
+    if (items.length === 0) return null;
     if (!currentUser) return null;
     setIsCalculating(true);
     let subtotal = 0, vatAmount = 0, transportCost = 0;
     const supplierMap = new Map<string, CartSupplier>();
     const settings = systemSettings;
-    for (const item of cart) {
-      const supplierCompany = getCompanyById(item.supplierId);
-      if (!supplierCompany) continue;
-      const sellingPrice = item.basePrice * (1 + item.profitMargin);
-      const itemTotal = sellingPrice * item.quantity;
-      subtotal += itemTotal;
-      vatAmount += itemTotal * (item.vatPercentage / 100);
-      const weight = (item.weightPerUnit || 0.001) * item.quantity;
-      // Per-supplier delivery fee resolved from SystemSettings.
-      const transCost = await computeDeliveryFee({
-        supplierLat: supplierCompany.lat, supplierLng: supplierCompany.lng,
-        customerLat: currentUser.lat || 9.0320, customerLng: currentUser.lng || 38.7469,
-        customerCity: currentUser.city || null,
-        weightTons: weight,
-        orderSubtotal: subtotal,
-        settings,
-      });
-      transportCost += transCost;
-      const dist = await calculateDistance(
-        supplierCompany.lat, supplierCompany.lng,
-        currentUser.lat || 9.0320, currentUser.lng || 38.7469
-      );
-      const existing = supplierMap.get(item.supplierId);
-      if (existing) {
-        existing.items.push(item);
-        existing.transportCost += transCost;
-      } else {
-        supplierMap.set(item.supplierId, {
-          supplierId: supplierCompany.id,
-          supplierName: supplierCompany.name,
-          supplierCity: supplierCompany.city,
-          distanceKm: dist,
-          transportCost: transCost,
-          items: [item]
-        });
+    try {
+      for (const item of items) {
+        const supplierCompany = getCompanyById(item.supplierId);
+        if (!supplierCompany) continue;
+        const sellingPrice = item.basePrice * (1 + item.profitMargin);
+        const itemTotal = sellingPrice * item.quantity;
+        subtotal += itemTotal;
+        vatAmount += itemTotal * (item.vatPercentage / 100);
+        const dist = await calculateDistance(
+          supplierCompany.lat, supplierCompany.lng,
+          currentUser.lat || 9.0320, currentUser.lng || 38.7469
+        );
+        const { fee, mode } = await resolveLineDelivery(
+          item, supplierCompany, dist, subtotal, currentUser, settings
+        );
+        transportCost += fee;
+        const existing = supplierMap.get(item.supplierId);
+        if (existing) {
+          existing.items.push(item);
+          existing.transportCost = Math.round((existing.transportCost + fee) * 100) / 100;
+          existing.deliveryMode = combineDeliveryModes(existing.deliveryMode, mode);
+          if (mode === 'supplier' && !existing.deliveryBasis) {
+            existing.deliveryBasis = deliveryBasisLabel(item.deliveryRate, true);
+          }
+        } else {
+          supplierMap.set(item.supplierId, {
+            supplierId: supplierCompany.id,
+            supplierName: supplierCompany.name,
+            supplierCity: supplierCompany.city,
+            distanceKm: dist,
+            transportCost: fee,
+            deliveryMode: mode,
+            deliveryBasis: mode === 'supplier' ? deliveryBasisLabel(item.deliveryRate, true) : undefined,
+            items: [item]
+          });
+        }
       }
+    } finally {
+      setIsCalculating(false);
     }
     const suppliers = Array.from(supplierMap.values());
     // Honour an optional manually-edited delivery fee. When set, the automatic
@@ -1141,9 +1235,8 @@ function App() {
     const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
     const minOrderCheck = checkMinOrder(settings, subtotal);
     const threshold = settings.delivery.freeDeliveryThreshold;
-    setIsCalculating(false);
     return {
-      items: cart,
+      items,
       subtotal,
       vatAmount,
       transportCost,
@@ -1152,8 +1245,8 @@ function App() {
       suppliers,
       supplierName: multiple ? 'Multiple Suppliers (' + suppliers.length + ')' : (suppliers[0]?.supplierName || ''),
       supplierCity: multiple ? '' : (suppliers[0]?.supplierCity || ''),
-      itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
-      uniqueItems: cart.length,
+      itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      uniqueItems: items.length,
       currency: 'ETB',
       reportDate: new Date().toLocaleString(),
       freeDeliveryApplied: transportCost === 0 && threshold > 0 && subtotal >= threshold,
@@ -1163,39 +1256,55 @@ function App() {
     };
   };
 
+  const calculateCartTotals = (): Promise<CartReport | null> => priceCartItems(cart);
+
+  // Two repricings of the cart are only worth doing when the lines themselves
+  // differ, so the effect below keys off a signature of quantity + delivery flag.
+  const cartSignature = (items: CartItem[]) =>
+    JSON.stringify(items.map(i => [i.id, i.quantity, i.includeDelivery !== false]));
+
+  const priceCartItemsRef = useRef(priceCartItems);
+  priceCartItemsRef.current = priceCartItems;
+  const repricedCart = useRef('');
+
+  // Re-price the open cart whenever a quantity, a "with delivery" checkbox or the
+  // manual delivery override changes, so the totals on screen always match the
+  // cart. The pricing helper lives in a ref because it is rebuilt on every render
+  // and must not itself be an effect dependency.
+  useEffect(() => {
+    if (!showCartSummary || cart.length === 0) return;
+    const signature = cartSignature(cart) + '|' + deliveryFeeOverride;
+    if (signature === repricedCart.current) return;
+    repricedCart.current = signature;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      priceCartItemsRef.current(cart).then(totals => {
+        if (cancelled || !totals) return;
+        setCartDetails(totals);
+      });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [cart, showCartSummary, deliveryFeeOverride]);
+
   const handleCheckout = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
     const totals = await calculateCartTotals();
     if (!totals) return;
     setCartDetails(totals);
     setShowCartSummary(true);
+    // Mark these exact lines as priced so the re-pricing effect above does not
+    // immediately recalculate what we just calculated.
+    repricedCart.current = cartSignature(cart) + '|' + deliveryFeeOverride;
   };
 
-  // Preview the Proforma from the current cart so items & totals always match.
-  // A proforma invoice is always issued by a single supplier, so a cart holding
-  // items from several suppliers asks which one to invoice first.
+  // Preview the proforma straight from the current cart. It covers every selected
+  // item — from one supplier or many — so the verification QR always sits in the
+  // document header and the buyer never has to pick a supplier first.
   const handlePreviewProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
-    const groups = groupCartBySupplier();
-    if (groups.length > 1) {
-      setShowProformaSupplierPicker(true);
-      return;
-    }
-    await openProformaFor(groups[0]?.supplierId);
-  };
-
-  // Open the proforma of one supplier only (its own items, VAT and delivery fee).
-  const openProformaFor = async (supplierId?: string) => {
     const totals = await calculateCartTotals();
     if (!totals) return;
-    // A proforma invoice is issued by a single supplier: derive it from the cart
-    // report so the printed numbers match the per-supplier cart figures.
-    const scoped = supplierId
-      ? buildSingleSupplierReport(totals, supplierId, systemSettings)
-      : totals;
-    if (!scoped) return;
-    setProformaDetails(scoped);
-    setShowProformaSupplierPicker(false);
+    setProformaDetails(totals);
     setShowProforma(true);
   };
 
@@ -1260,15 +1369,19 @@ function App() {
       if (!material) continue;
       const supplierCompany = getCompanyById(item.supplierId);
       if (!supplierCompany) continue;
-      const weight = (item.weightPerUnit || 0.001) * item.quantity;
-      const transportCostItem = await calculateTransportCost(
-        supplierCompany.lat, supplierCompany.lng,
-        currentUser!.lat || 9.0320, currentUser!.lng || 38.7469,
-        weight
-      );
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const materialTotal = sellingPrice * item.quantity;
       const vatAmountItem = materialTotal * (item.vatPercentage / 100);
+      // Delivery must match what the buyer approved on the proforma: the same
+      // per-line checkbox, the supplier's per-km rate over the real distance, or
+      // the platform fallback when that supplier publishes no rate.
+      const distanceKm = await calculateDistance(
+        supplierCompany.lat, supplierCompany.lng,
+        currentUser!.lat || 9.0320, currentUser!.lng || 38.7469
+      ).catch(() => 0);
+      const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
+        item, supplierCompany, distanceKm, totals.subtotal, currentUser!, systemSettings
+      );
       const totalAmount = materialTotal + vatAmountItem + transportCostItem;
       const newOrder: Order = {
         id: 'order' + (orders.length + 1) + '_' + Date.now() + '_' + item.materialId,
@@ -1289,11 +1402,11 @@ function App() {
         paymentMethod: paymentMethod === 'wallet' ? 'E-SCON Wallet' : paymentMethod === 'cod' ? 'Cash on Delivery' : 'Bank Transfer',
         paymentStatus: paymentMethod === 'wallet' ? 'paid' : 'pending',
         walletPayment: paymentMethod === 'wallet',
+        deliveryIncluded: deliveryMode !== 'none',
         revenueCredited: false
       };
       createdOrders.push(newOrder);
       setOrders(prev => [...prev, newOrder]);
-      const distanceKm = await calculateDistance(supplierCompany.lat, supplierCompany.lng, currentUser!.lat || 9.0320, currentUser!.lng || 38.7469).catch(() => 0);
       notifyOrderParties(newOrder, `New order ${newOrder.invoiceNumber}`,
         `${currentUser!.name} ordered ${item.quantity} ${material.unit} of ${material.name} — ETA ${deliveryEta(distanceKm)}.`);
       const buyerCompany = material.name;
@@ -1448,6 +1561,70 @@ function App() {
   const switchUserType = (type: string) => {
     setFormData(prev => ({ ...prev, registerUserType: type }));
   };
+
+  // Shared "does this product include delivery, and at what rate?" block used by
+  // both the add and the edit product form. The rate fields only matter when the
+  // supplier ticks the box, so they are hidden until then.
+  const deliveryStartFee = Math.max(0, parseFloat(formData.materialDeliveryStartFee) || 0);
+  const deliveryPerKm = Math.max(0, parseFloat(formData.materialDeliveryPerKm) || 0);
+  const renderDeliveryTermsFields = () => (
+    <div className="delivery-terms">
+      <div className="form-group">
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            name="materialDeliveryOffered"
+            checked={formData.materialDeliveryOffered}
+            onChange={handleInputChange}
+          />
+          🚚 This item is delivered by me (supplier)
+        </label>
+        <small className="form-hint">
+          Tick this to publish your own delivery rate. Buyers then see a “with delivery cost”
+          option on this item and the fee is calculated from the distance later.
+        </small>
+      </div>
+      {formData.materialDeliveryOffered && (
+        <div className="form-row">
+          <div className="form-group">
+            <label>🛣️ Delivery Price per km (ETB) *</label>
+            <input
+              type="number"
+              className="form-input"
+              name="materialDeliveryPerKm"
+              value={formData.materialDeliveryPerKm}
+              onChange={handleInputChange}
+              step="0.01"
+              min="0"
+              placeholder="e.g. 12"
+            />
+          </div>
+          <div className="form-group">
+            <label>🏁 Delivery Service Starting Fee (ETB) *</label>
+            <input
+              type="number"
+              className="form-input"
+              name="materialDeliveryStartFee"
+              value={formData.materialDeliveryStartFee}
+              onChange={handleInputChange}
+              step="0.01"
+              min="0"
+              placeholder="e.g. 300"
+            />
+          </div>
+        </div>
+      )}
+      {formData.materialDeliveryOffered && (
+        <p className="delivery-terms-preview">
+          💡 A buyer ordering this item with delivery is charged{' '}
+          <strong>{formatCurrency(deliveryStartFee)}</strong> starting fee
+          {' + '}
+          <strong>{formatCurrency(deliveryPerKm)}</strong> per km
+          travelled, worked out from the real road distance when they check out.
+        </p>
+      )}
+    </div>
+  );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -1691,13 +1868,23 @@ function App() {
                   <div key={sup.supplierId} className="cart-supplier-group">
                     <div className="cart-supplier-group-header">
                       <span className="cart-supplier-group-name">🏢 {sup.supplierName}</span>
-                      <span className="cart-supplier-group-meta">📍 {sup.supplierCity} • 🚗 {sup.distanceKm.toFixed(1)} km • 🚚 {formatCurrency(sup.transportCost)}</span>
+                      <span className="cart-supplier-group-meta">
+                        📍 {sup.supplierCity} • 🚗 {sup.distanceKm.toFixed(1)} km • 🚚 {formatCurrency(sup.transportCost)}
+                        {sup.deliveryMode && sup.deliveryMode !== 'none' && sup.deliveryBasis ? ' · ' + sup.deliveryBasis : ''}
+                        {sup.deliveryMode === 'none' ? ' · no delivery cost' : ''}
+                      </span>
                     </div>
                     <div className="cart-items">
                       {sup.items.map(item => (
                         <div key={item.id} className="cart-item">
-                          <div className="cart-item-info"><h4>{item.materialName}</h4><p>{formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}</p></div>
-                          <CartQuantityInput item={item} onCommit={updateCartQuantity} />
+                          <div className="cart-item-info">
+                            <h4>{item.materialName}</h4>
+                            <p>
+                              {formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}
+                              {item.includeDelivery !== false && ' • 🚚 delivery included'}
+                            </p>
+                          </div>
+                          <CartQuantityInput item={item} onCommit={updateCartQuantity} onToggleDelivery={updateCartDelivery} />
                           <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
                           <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
                         </div>
@@ -1707,6 +1894,12 @@ function App() {
                 ))}
                 <div className="cart-summary">
                   <h3>Financial Summary</h3>
+                  <div className="cart-delivery-hint">
+                    🚚 Tick <strong>“With delivery”</strong> next to a quantity to include its delivery cost, or untick it to collect the item yourself.
+                  </div>
+                  {platformDeliveryHint(supplierGroups) && (
+                    <div className="min-order-notice warn">{platformDeliveryHint(supplierGroups)}</div>
+                  )}
                   <div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
                   <div className="summary-row"><span>VAT ({Math.round(cartDetails.vatAmount / Math.max(cartDetails.subtotal, 0.01) * 100)}%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
                   <div className="summary-row">
@@ -1782,54 +1975,6 @@ function App() {
                 </div>
               </>
             )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // A proforma invoice is issued by one supplier, so a multi-supplier cart asks
-  // which supplier to invoice. Reuses the cart modal styling.
-  const renderProformaSupplierPicker = () => {
-    if (!showProformaSupplierPicker) return null;
-    const groups = groupCartBySupplier();
-    if (groups.length === 0) return null;
-    return (
-      <div className="modal-overlay" onClick={() => setShowProformaSupplierPicker(false)}>
-        <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
-          <div className="modal-header">
-            <h2>🏢 Choose Proforma Supplier</h2>
-            <button className="modal-close" onClick={() => setShowProformaSupplierPicker(false)}>✕</button>
-          </div>
-          <div className="modal-body">
-            <div className="cart-supplier-info">
-              <h3>🛒 {groups.length} suppliers in this cart</h3>
-              <p>📄 Every proforma invoice is issued by a single supplier. Pick the supplier to invoice now — the others can be invoiced separately.</p>
-            </div>
-            {groups.map(group => (
-              <div key={group.supplierId} className="cart-supplier-group">
-                <div className="cart-supplier-group-header">
-                  <span className="cart-supplier-group-name">🏢 {group.supplierName}</span>
-                  <span className="cart-supplier-group-meta">📍 {group.supplierCity} • 📦 {group.itemCount} units • 💰 {formatCurrency(group.goodsValue)}</span>
-                </div>
-                <div className="cart-items">
-                  {group.items.map(item => (
-                    <div key={item.id} className="cart-item">
-                      <div className="cart-item-info">
-                        <h4>{item.materialName}</h4>
-                        <p>{formatCurrency(item.price)} / {item.unit} • Qty: {item.quantity} • Min: {item.minOrder}</p>
-                      </div>
-                      <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
-                    </div>
-                  ))}
-                </div>
-                <div className="cart-actions">
-                  <button className="btn-primary" onClick={() => openProformaFor(group.supplierId)} disabled={isCalculating}>
-                    {isCalculating ? 'Calculating...' : '📄 Generate Proforma'}
-                  </button>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
@@ -2053,6 +2198,7 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
       </form>
@@ -2067,6 +2213,7 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>Cancel</button></div>
       </form>
@@ -2152,7 +2299,6 @@ function App() {
                       distanceKm={item.distance}
                       onOpen={() => setSelectedMaterial(item)}
                       onToggleFav={() => toggleFavorite(item.id)}
-                      onGoToCart={handleCheckout}
                       variant="list"
                     />
                   </div>
@@ -2166,7 +2312,6 @@ function App() {
                 <tbody>
                   {(displayMaterials as SearchResult[]).map(item => {
                     const company = getCompanyById(item.companyId);
-                    const isInCart = cart.some(c => c.materialId === item.id);
                     return (
                       <tr 
                         key={item.id}
@@ -2204,13 +2349,10 @@ function App() {
                           <button className="btn-icon" title="View details" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>👁️</button>
                           <button className="btn-icon contact" title="Call supplier" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞</button>
                           {currentUser?.userType === 'customer' && (
-                            isInCart ? (
-                              <button className="btn-icon success" title="Open cart" onClick={(e) => { e.stopPropagation(); handleCheckout(); }}>🛒</button>
-                            ) : (
-                              // Quantity is chosen in the product details (the +/- stepper
-                              // lives there), never straight from the results row.
-                              <button className="btn-icon add-to-cart" title="View product & choose quantity" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>🛒</button>
-                            )
+                            // Quantity — and whether the line includes delivery — is
+                            // chosen in the product details, never from this row. The
+                            // cart itself is reached from the header button.
+                            <button className="btn-icon add-to-cart" title="View product & choose quantity" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>🛒</button>
                           )}
                         </td>
                       </tr>
@@ -2294,6 +2436,10 @@ function App() {
   const DetailsOrderBox = ({ material, isInCart, onAdded }: { material: Material; isInCart: boolean; onAdded: () => void }) => {
     const min = 1; // customers may order any amount — no minimum order
     const [qty, setQty] = useState(min);
+    // Delivery is a decision the buyer makes here, while filling in the quantity.
+    // It defaults to on: if the supplier publishes a per-km rate that is the fee
+    // basis, otherwise the platform's configured delivery rate applies.
+    const [withDelivery, setWithDelivery] = useState(true);
     const soldOut = material.quantity <= 0;
     return (
       <div className="order-box">
@@ -2306,8 +2452,20 @@ function App() {
               <QuantityStepper value={qty} min={min} unit={material.unit} onChange={setQty} />
               <span className="order-box-hint">Any quantity — use − / + or tap the number to type your own.</span>
             </div>
+            <label className={'order-box-delivery' + (withDelivery ? ' on' : '')}>
+              <input
+                type="checkbox"
+                checked={withDelivery}
+                onChange={e => setWithDelivery(e.target.checked)}
+                aria-label={'Include delivery cost for ' + material.name}
+              />
+              <span className="order-box-delivery-text">
+                <strong>With delivery cost</strong>
+                <small>{deliveryBasisLabel(material.delivery, withDelivery)}</small>
+              </span>
+            </label>
             <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
-            <button className="btn btn-primary order-box-btn" onClick={() => { addToCart(material, qty); onAdded(); }}>
+            <button className="btn btn-primary order-box-btn" onClick={() => { addToCart(material, qty, withDelivery); onAdded(); }}>
               {isInCart ? '🔄 Update Cart' : '➕ Add to Cart'}
             </button>
           </>
@@ -2482,14 +2640,6 @@ function App() {
               💳
             </button>
           )}
-          {currentUser && currentUser.userType === 'customer' && (
-            <button className="mobile-icon-btn mobile-cart" onClick={handleCheckout} aria-label="Open cart">
-              🛒
-              {cart.length > 0 && (
-                <span className="mobile-badge">{cart.reduce((s, i) => s + i.quantity, 0)}</span>
-              )}
-            </button>
-          )}
           {currentUser && (
             <button className="mobile-avatar" onClick={() => setMobileMenuOpen(true)} aria-label="Account menu">
               {currentUser.name?.charAt(0).toUpperCase() || '?'}
@@ -2639,7 +2789,7 @@ function App() {
     );
   };
 
-  const MobileProductCard = ({ material, company, isInCart, isFav, distanceKm, onOpen, onToggleFav, onGoToCart, variant }: {
+  const MobileProductCard = ({ material, company, isInCart, isFav, distanceKm, onOpen, onToggleFav, variant }: {
     material: Material;
     company?: Company;
     isInCart: boolean;
@@ -2647,7 +2797,6 @@ function App() {
     distanceKm?: number;
     onOpen: () => void;
     onToggleFav: () => void;
-    onGoToCart: () => void;
     variant: 'list' | 'carousel';
   }) => {
     const outOfStock = material.quantity <= 0;
@@ -2679,13 +2828,13 @@ function App() {
           </div>
           {currentUser?.userType === 'customer' && (
             <div className="m-pc-buy">
-              {isInCart ? (
-                <button className="m-pc-cart-btn" onClick={onGoToCart}>🛒 In Cart — Open</button>
-              ) : (
-                // Tapping the card opens the product details, where the +/- stepper
-                // appears only at the moment the customer is ready to order.
-                <button className="m-pc-add-btn" onClick={onOpen}>🛒 Order</button>
-              )}
+              {/* Tapping the card opens the product details, where the +/- stepper
+                  and the with/without-delivery checkbox appear only at the moment
+                  the customer is ready to order. The cart is opened from the
+                  bottom tab bar, so this is not a second cart button. */}
+              <button className="m-pc-add-btn" onClick={onOpen}>
+                {isInCart ? '🛒 Edit order' : '🛒 Order'}
+              </button>
             </div>
           )}
         </div>
@@ -2770,7 +2919,6 @@ function App() {
         {currentUser && isCustomer && (
           <div className="m-quick-grid">
             <Quick icon="🔍" label="Find" sub="Materials" onClick={() => navigateTo('search-materials')} />
-            <Quick icon="🛒" label="Cart" sub={cart.length + ' items'} badge={cart.reduce((s, i) => s + i.quantity, 0)} onClick={handleCheckout} />
             <Quick icon="📦" label="Orders" sub={myOrders.length + ' total'} onClick={() => navigateTo('orders')} />
             <Quick icon="🗺️" label="Map" sub="Suppliers" onClick={() => setShowSupplierMap(true)} />
           </div>
@@ -2822,7 +2970,6 @@ function App() {
                       isFav={favorites.includes(m.id)}
                       onOpen={() => setSelectedMaterial(m)}
                       onToggleFav={() => toggleFavorite(m.id)}
-                      onGoToCart={handleCheckout}
                       variant="carousel"
                     />
                   </div>
@@ -3178,19 +3325,14 @@ function App() {
       {renderCurrentPage()}
       {renderMaterialDetails()}
       {renderCartSummary()}
-      {renderProformaSupplierPicker()}
       {showProforma && proformaDetails && (
         <ProformaInvoice
           cart={proformaDetails.items}
           report={proformaDetails}
           currentUser={currentUser}
-          supplier={getCompanyById(proformaDetails.suppliers[0]?.supplierId || '') || null}
           suppliers={proformaDetails.suppliers
-            .map(sup => {
-              const comp = getCompanyById(sup.supplierId);
-              return comp ? { ...comp, transportCost: sup.transportCost, distanceKm: sup.distanceKm } : null;
-            })
-            .filter((s): s is (Company & { transportCost: number; distanceKm: number }) => s !== null)}
+            .map(sup => getCompanyById(sup.supplierId) || null)
+            .filter((s): s is Company => s !== null)}
           onClose={() => setShowProforma(false)}
         />
       )}

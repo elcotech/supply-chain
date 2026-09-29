@@ -1355,6 +1355,35 @@ body {
   font-size: 0.75rem;
   color: var(--text-muted, #6b7280);
 }
+/* "With delivery" checkbox — the buyer's per-line delivery decision. */
+.cart-delivery-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-alt);
+  color: var(--text-muted, #6b7280);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.cart-delivery-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--primary, #075ca8);
+  cursor: pointer;
+}
+.cart-delivery-toggle.on {
+  border-color: var(--primary, #075ca8);
+  background: rgba(7, 92, 168, 0.12);
+  color: var(--primary, #075ca8);
+}
 .cart-item-total {
   min-width: 90px;
   text-align: right;
@@ -2132,6 +2161,43 @@ body {
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--text-light);
+}
+
+/* ---------- Supplier delivery terms (add / edit product) ---------- */
+.delivery-terms {
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border, #d1d5db);
+  border-radius: 10px;
+  background: rgba(120, 120, 120, 0.05);
+}
+.delivery-terms .form-group { margin-bottom: 0; }
+.delivery-terms .form-row { margin-top: 10px; }
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.checkbox-label input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary, #075ca8);
+  cursor: pointer;
+}
+.delivery-terms-preview {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(7, 92, 168, 0.08);
+  color: var(--text, #1f2937);
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 /* ---------- Distance display ---------- */
@@ -4057,6 +4123,16 @@ a:focus-visible {
 }
 .min-order-notice.error { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35); }
 .min-order-notice.ok { background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.35); }
+.min-order-notice.warn { background: rgba(245, 197, 28, 0.12); color: #b7791f; border: 1px solid rgba(245, 197, 28, 0.4); }
+.cart-delivery-hint {
+  font-size: 0.76rem;
+  color: var(--text-light);
+  background: var(--surface-alt, rgba(120, 120, 120, 0.08));
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
 .free-delivery-row { color: #22c55e; font-weight: 600; }
 
 /* =====================================================================
@@ -5235,13 +5311,22 @@ a:focus-visible {
 }
 .pf-table tbody tr:nth-child(even) { background: #f7fcff; }
 .pf-table tbody tr:last-child td { border-bottom: none; }
-.pf-col-no { width: 5%; text-align: center; }
-.pf-col-desc { width: 23%; font-weight: 600; }
-.pf-col-spec { width: 25%; color: #45627a; }
-.pf-col-unit { width: 9%; }
-.pf-col-qty { width: 9%; }
+.pf-col-no { width: 4%; text-align: center; }
+.pf-col-desc { width: 20%; font-weight: 600; }
+.pf-col-spec { width: 20%; color: #45627a; }
+.pf-col-unit { width: 7%; }
+.pf-col-qty { width: 7%; }
+.pf-col-deliv { width: 12%; white-space: nowrap; }
 .pf-col-price { width: 15%; }
-.pf-col-amount { width: 14%; font-size: 0.74rem; }
+.pf-col-amount { width: 15%; font-size: 0.74rem; }
+/* Supplier name under an item, only shown on multi-supplier proformas. */
+.pf-line-supplier {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.64rem;
+  font-weight: 500;
+  color: #45627a;
+}
 .pf-numeric { text-align: right; font-variant-numeric: tabular-nums; }
 .pf-center { text-align: center; }
 .pf-bold { font-weight: 700; }
@@ -5297,6 +5382,52 @@ a:focus-visible {
   font-style: italic;
   color: #173b63;
   line-height: 1.55;
+}
+/* Per-supplier delivery breakdown, shown above the money summary. It shares the
+   summary's width so the three stacked blocks line up. */
+.pf-delivery-box {
+  width: 46%;
+  min-width: 280px;
+  border: 1px solid #b8dff2;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f4fbff;
+}
+.pf-delivery-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(90deg, #075ca8, #0873bd);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  padding: 7px 12px;
+}
+.pf-delivery-icon { font-size: 0.85rem; line-height: 1; }
+.pf-delivery-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  font-size: 0.74rem;
+  color: #173b63;
+  border-bottom: 1px solid #e2f0f9;
+}
+.pf-delivery-row:last-child { border-bottom: none; }
+.pf-delivery-name { min-width: 0; }
+.pf-delivery-name small {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.64rem;
+  color: #45627a;
+}
+.pf-delivery-total {
+  background: #eaf6fc;
+  font-weight: 700;
+  border-top: 1px solid #d4e7f3;
 }
 .pf-summary {
   width: 46%;
@@ -5362,6 +5493,13 @@ a:focus-visible {
   font-family: inherit;
 }
 .pf-inline-select { max-width: 130px; }
+.pf-term-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.66rem;
+  color: #45627a;
+  font-style: normal;
+}
 .pf-inline-input { width: 90px; }
 .pf-inline-textarea {
   width: 100%;
@@ -5371,9 +5509,11 @@ a:focus-visible {
 }
 
 /* ------------------------- Signatures ------------------------- */
+/* One block per supplier on the proforma, plus the buyer, so a multi-supplier
+   cart still gets a signature line for every party that must sign. */
 .pf-signatures {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
   margin-top: 16px;
 }
@@ -5577,6 +5717,10 @@ a:focus-visible {
   .pf-table td { padding: 4px 6px; font-size: 0.66rem; }
   .pf-col-amount { font-size: 0.68rem; }
   .pf-summary-wrap { margin-top: 8px; gap: 6px; }
+  .pf-delivery-box { width: 52%; min-width: 240px; }
+  .pf-delivery-head { font-size: 0.62rem; padding: 5px 10px; }
+  .pf-delivery-row { font-size: 0.66rem; padding: 4px 10px; }
+  .pf-delivery-name small { font-size: 0.58rem; }
   .pf-summary { width: 52%; min-width: 240px; }
   .pf-words { width: 52%; min-width: 240px; padding: 8px 10px; }
   .pf-words-label { font-size: 0.64rem; }
@@ -5643,6 +5787,46 @@ a:focus-visible {
 .order-box-total { margin-top: 10px; font-size: 0.9rem; color: var(--text-light); }
 .order-box-total strong { color: var(--text); font-size: 1.05rem; }
 .order-box-btn { width: 100%; margin-top: 10px; min-height: 44px; }
+/* With / without delivery cost, chosen while filling in the quantity. */
+.order-box-delivery {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-alt);
+  cursor: pointer;
+  user-select: none;
+}
+.order-box-delivery input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: var(--primary, #075ca8);
+  cursor: pointer;
+}
+.order-box-delivery-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.order-box-delivery-text strong {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+.order-box-delivery-text small {
+  font-size: 0.72rem;
+  color: var(--text-light);
+  line-height: 1.4;
+}
+.order-box-delivery.on {
+  border-color: var(--primary, #075ca8);
+  background: rgba(7, 92, 168, 0.1);
+}
+.order-box-delivery.on .order-box-delivery-text strong { color: var(--primary, #075ca8); }
 .order-box-note {
   margin: 0;
   padding: 10px 12px;

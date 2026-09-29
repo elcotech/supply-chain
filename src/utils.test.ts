@@ -2,13 +2,17 @@ import {
   formatCurrency,
   checkMinOrder,
   computeDeliveryFee,
+  computeLineDeliveryFee,
+  lineDeliveryMode,
+  deliveryBasisLabel,
   encodeProformaPayload,
   decodeProformaPayload,
   buildProformaQrUrl,
-  buildSingleSupplierReport,
+  buildProformaShareData,
+  MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
-import { SystemSettings, ProformaShareData, CartItem, CartReport } from './types';
+import { SystemSettings, ProformaShareData, MaterialDelivery } from './types';
 
 const baseInput = (overrides: Partial<any> = {}) => ({
   supplierLat: 9.032,
@@ -175,98 +179,135 @@ describe('proforma QR payload', () => {
   });
 });
 
-describe('single-supplier proforma report', () => {
-  const cartItem = (overrides: Partial<CartItem> = {}): CartItem => ({
-    id: 'ci1',
-    materialId: 'mat1',
-    materialName: 'Sand Mekii',
-    supplierId: 'comp1',
-    supplierName: 'Build Well Trading',
-    quantity: 10,
-    price: 100,
-    unit: 'm3',
-    minOrder: 10,
-    vatPercentage: 15,
-    basePrice: 100,
-    profitMargin: 0,
-    weightPerUnit: 1.6,
-    ...overrides,
+describe('computeLineDeliveryFee', () => {
+  // A supplier who delivers the item themselves: 300 ETB to start, 12 ETB per km.
+  const supplierRate: MaterialDelivery = { offered: true, perKm: 12, startFee: 300 };
+
+  it('charges nothing when the buyer unticks the delivery checkbox', () => {
+    expect(
+      computeLineDeliveryFee({ includeDelivery: false, rate: supplierRate, distanceKm: 100, platformFee: 500 })
+    ).toBe(0);
   });
 
-  // Two suppliers in one cart: 1,000 + 2,000 goods, 450 + 250 delivery fee.
-  const cartReport = (): CartReport => {
-    const first = cartItem();
-    const second = cartItem({
-      id: 'ci2',
-      materialId: 'mat2',
-      materialName: 'Cement',
-      supplierId: 'comp2',
-      supplierName: 'ETH Cement Co.',
-      quantity: 10,
-      basePrice: 200,
-    });
-    return {
-      items: [first, second],
-      subtotal: 3000,
-      vatAmount: 450,
-      transportCost: 700,
-      total: 4150,
-      distanceKm: 30,
-      suppliers: [
-        {
-          supplierId: 'comp1',
-          supplierName: 'Build Well Trading',
-          supplierCity: 'Addis Ababa',
-          distanceKm: 12,
-          transportCost: 450,
-          items: [first],
-        },
-        {
-          supplierId: 'comp2',
-          supplierName: 'ETH Cement Co.',
-          supplierCity: 'Adama',
-          distanceKm: 18,
-          transportCost: 250,
-          items: [second],
-        },
-      ],
-      supplierName: 'Multiple Suppliers (2)',
-      supplierCity: '',
-      itemCount: 20,
-      uniqueItems: 2,
-      currency: 'ETB',
-      reportDate: '2026-09-25 10:00:00',
-    };
+  it('applies the supplier starting fee plus per km over the distance', () => {
+    // 300 + (12 x 100 km)
+    expect(
+      computeLineDeliveryFee({ includeDelivery: true, rate: supplierRate, distanceKm: 100 })
+    ).toBe(1500);
+  });
+
+  it('charges only the starting fee when the rate has no per-km component', () => {
+    expect(
+      computeLineDeliveryFee({ includeDelivery: true, rate: { offered: true, perKm: 0, startFee: 400 }, distanceKm: 80 })
+    ).toBe(400);
+  });
+
+  it('is free when the supplier offers delivery with no charge at all', () => {
+    expect(
+      computeLineDeliveryFee({ includeDelivery: true, rate: { offered: true, perKm: 0, startFee: 0 }, distanceKm: 50 })
+    ).toBe(0);
+  });
+
+  it('falls back to the platform fee when the supplier publishes no rate', () => {
+    expect(
+      computeLineDeliveryFee({ includeDelivery: true, rate: undefined, distanceKm: 100, platformFee: 640 })
+    ).toBe(640);
+    // offered: false is the same as no rate at all
+    expect(
+      computeLineDeliveryFee({
+        includeDelivery: true,
+        rate: { offered: false, perKm: 20, startFee: 200 },
+        distanceKm: 100,
+        platformFee: 640,
+      })
+    ).toBe(640);
+  });
+
+  it('never falls back to a negative platform fee', () => {
+    expect(computeLineDeliveryFee({ includeDelivery: true, distanceKm: 10, platformFee: -50 })).toBe(0);
+  });
+
+  it('treats a missing or nonsensical distance as zero km', () => {
+    expect(computeLineDeliveryFee({ includeDelivery: true, rate: supplierRate, distanceKm: NaN })).toBe(300);
+    expect(computeLineDeliveryFee({ includeDelivery: true, rate: supplierRate, distanceKm: -5 })).toBe(300);
+  });
+
+  it('reports which pricing rule each line falls under', () => {
+    expect(lineDeliveryMode({ includeDelivery: false, rate: supplierRate })).toBe('none');
+    expect(lineDeliveryMode({ includeDelivery: true, rate: supplierRate })).toBe('supplier');
+    expect(lineDeliveryMode({ includeDelivery: true, rate: undefined })).toBe('platform');
+  });
+});
+
+describe('deliveryBasisLabel', () => {
+  const supplierRate: MaterialDelivery = { offered: true, perKm: 12, startFee: 300 };
+
+  it('explains the supplier rate in both parts', () => {
+    expect(deliveryBasisLabel(supplierRate, true)).toBe('Supplier delivery · ETB 300.00 starting fee + ETB 12.00/km');
+  });
+
+  it('mentions the starting fee alone when only that is charged', () => {
+    expect(deliveryBasisLabel({ offered: true, perKm: 0, startFee: 250 }, true))
+      .toBe('Supplier delivery · ETB 250.00 starting fee');
+  });
+
+  it('says the platform rate applies when the supplier has none', () => {
+    expect(deliveryBasisLabel(undefined, true)).toBe('Platform delivery rate');
+  });
+
+  it('states plainly that nothing is charged without delivery', () => {
+    expect(deliveryBasisLabel(supplierRate, false)).toBe('No delivery cost — you arrange the transport');
+  });
+});
+
+describe('buildProformaShareData (multi-item cart)', () => {
+  const base = {
+    proformaNumber: 'PI-2026-09-123456',
+    dateISO: '2026-09-29',
+    buyerName: 'Test Buyer',
+    subtotal: 3000,
+    vat: 450,
+    delivery: 700,
+    total: 4150,
   };
 
-  it('keeps only the selected supplier, with that supplier\'s totals', () => {
-    const report = buildSingleSupplierReport(cartReport(), 'comp2', DEFAULT_SETTINGS);
-    expect(report).not.toBeNull();
-    expect(report!.suppliers).toHaveLength(1);
-    expect(report!.supplierName).toBe('ETH Cement Co.');
-    expect(report!.supplierCity).toBe('Adama');
-    expect(report!.items).toHaveLength(1);
-    expect(report!.uniqueItems).toBe(1);
-    expect(report!.itemCount).toBe(10);
-    expect(report!.subtotal).toBe(2000);
-    expect(report!.vatAmount).toBe(300);
-    expect(report!.transportCost).toBe(250);
-    expect(report!.total).toBe(2550);
-    expect(report!.distanceKm).toBe(18);
+  const line = (n: string, d: 0 | 1) => ({ n, u: 'bags', q: 10, p: 100, d });
+
+  it('carries every item and every supplier in one payload', () => {
+    const data = buildProformaShareData({
+      ...base,
+      suppliers: [
+        { n: 'Build Well Trading', c: 'Addis Ababa' },
+        { n: 'ETH Cement Co.', c: 'Adama' },
+      ],
+      items: [line('Sand', 1), line('Cement', 0)],
+      deliveryLines: [{ n: 'Build Well Trading', k: 12, c: 450 }],
+    });
+    expect(data.s).toHaveLength(2);
+    expect(data.i).toHaveLength(2);
+    expect(data.i[0].d).toBe(1);
+    expect(data.i[1].d).toBe(0);
+    expect(data.f).toEqual([{ n: 'Build Well Trading', k: 12, c: 450 }]);
+    expect(data.tot).toBe(4150);
   });
 
-  it('returns null for a supplier that is not in the cart', () => {
-    expect(buildSingleSupplierReport(cartReport(), 'comp99', DEFAULT_SETTINGS)).toBeNull();
+  it('truncates a very long item list but records the true count', () => {
+    const items = Array.from({ length: MAX_QR_LINE_ITEMS + 5 }, (_, i) => line('Item ' + i, 1));
+    const data = buildProformaShareData({ ...base, suppliers: [], items, deliveryLines: [] });
+    expect(data.i).toHaveLength(MAX_QR_LINE_ITEMS);
+    expect(data.tc).toBe(MAX_QR_LINE_ITEMS + 5);
   });
 
-  it('marks a below-minimum single-supplier report', () => {
-    const settings: SystemSettings = {
-      ...DEFAULT_SETTINGS,
-      minOrder: { enabled: true, amount: 5000 },
-    };
-    const report = buildSingleSupplierReport(cartReport(), 'comp1', settings);
-    expect(report!.belowMinOrder).toBe(true);
-    expect(report!.minOrderEnabled).toBe(true);
-    expect(report!.minOrderAmount).toBe(5000);
+  it('omits the truncated count when everything fits', () => {
+    const data = buildProformaShareData({
+      ...base, suppliers: [], items: [line('Sand', 1)], deliveryLines: [],
+    });
+    expect(data.tc).toBeUndefined();
+  });
+
+  it('still round-trips through encode → decode after truncation', () => {
+    const items = Array.from({ length: MAX_QR_LINE_ITEMS + 2 }, (_, i) => line('Item ' + i, 1));
+    const data = buildProformaShareData({ ...base, suppliers: [], items, deliveryLines: [] });
+    expect(decodeProformaPayload(encodeProformaPayload(data))).toEqual(data);
   });
 });

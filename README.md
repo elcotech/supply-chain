@@ -37,8 +37,11 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - ➕ **Order from the product view** — the `+ / −` quantity control appears only in the product details (steps of 1, live total, **any quantity** — no per-product minimum); results rows, product cards and the compare view just open the product
 - 🔒 **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 🗺️ **Automatic supplier routing** — the map always draws the route from the customer's real GPS position to the selected supplier, and re-draws it the moment GPS locks in; selecting another supplier (marker, list or re-opening) replaces the previous route instead of leaving it on screen
-- 📄 **One supplier per proforma** — a cart with several suppliers asks which supplier to invoice, and the proforma then carries only that supplier's items, VAT and delivery fee (reusable modal, styled like the cart)
-- 🔍 **Scannable QR proforma** — scanning the invoice QR opens a mobile-friendly view of the order (works from paper)
+- 📄 **One proforma for the whole cart** — every selected item is listed on a single document, from as many suppliers as the buyer chose, so the verification QR always sits in the document header no matter how many items are selected (no supplier picker)
+- 🧾 **Per-item delivery column** — each line is marked "Included" or "—", every supplier gets a delivery breakdown row (distance + which rate paid for it), and each supplier gets their own signature block next to the buyer's
+- 🚚 **Supplier-set delivery rate** — a supplier ticks "this item is delivered by me" and publishes a price per km plus a starting service fee; buyers see a "With delivery" checkbox beside every quantity and the fee is worked out from the real road distance at checkout
+- 🔍 **Scannable QR proforma** — scanning the invoice QR opens a mobile-friendly view of the order (works from paper); very long carts truncate the QR item list but record the true count, while the printed document always lists everything
+- 🛒 **Two ways into the cart, no more** — the header cart icon on desktop and the cart button in the mobile tab bar; the mobile top bar, the home quick-action tile, the results-row button and the product-card button are gone
 - ⚙️ **Admin platform settings** — delivery pricing, zones, free delivery & minimum order, no code changes needed
 - 📲 **Installable PWA** with offline support and a device-specific install guide — every release bumps the service-worker version, so all users' cached assets are purged automatically while their accounts, products and orders stay untouched
 - 📊 Supplier & customer dashboards, order management
@@ -47,7 +50,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🧾 **Readable proforma** — supplier and buyer details always sit side by side (phones and print included), the authorization block does too (supplier name + date beside buyer name + date), and the amount in words sits directly under the totals
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports
-- ✅ Unit tests for fees, formatting, settings, QR payloads and single-supplier proforma reports
+- ✅ Unit tests for fees, formatting, settings, QR payloads, per-line delivery pricing and multi-item proforma payloads
 - 🌙 **Light-blue interface in every theme** — soft blue page, frosted-white cards, deep navy text; the ☀️/🌙 toggle switches between two blue tints (nothing navy or black), 📱 fully responsive & touch-friendly
 - 🔐 **Centered sign-in & create-account forms** — a frosted, centered card with styled inputs, a Customer/Supplier switch and checkboxes that sit on the same line as their text
 - ✏️ **Editable quantities** — change the amount of any line straight in the cart with a number field plus `−` / `+` keys, and on a product page tap the quantity to type a custom number instead of tapping `+` over and over
