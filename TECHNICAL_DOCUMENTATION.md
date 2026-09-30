@@ -2,7 +2,7 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 5.2 (Whole-cart proforma + per-line delivery pricing)
+> **Version:** 5.6 (Single-supplier cart + three cart order actions + QR pinned top-right)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -19,7 +19,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-replaces-the-v51-single-supplier-rule) and [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52)
+10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52) and [10.23 Single-supplier cart](#1023-single-supplier-cart-v56)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -187,11 +187,11 @@ supply-chain1/
 
 **Data flow example (proforma)**
 
-1. Cart → "👁️ Preview Proforma" → `handlePreviewProforma()`.
-2. `priceCartItems(cart)` builds the **whole-cart** `CartReport`: subtotal, per-item VAT, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox → supplier's `startFee + perKm × km` → platform fallback), grouped by supplier with distance, mode and fee each.
-3. The report is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched) and `showProforma` is set.
-4. `ProformaInvoice` renders from `proformaDetails` — every item, every supplier, the delivery breakdown and one signature block per supplier.
-5. `buildProformaShareData` + `generateProformaQrDataUrl` encode the compact summary into the QR, which sits in the **document header** regardless of item count; the payload is capped at `MAX_QR_LINE_ITEMS` with the true count in `tc`, and `PublicProforma` renders it on scan.
+1. Cart → `1 To Purchase` / `2 To Proforma` / `3 To Preview` → `confirmOrder()` / `handlePrintProforma()` / `handlePreviewProforma()`. All three price the same cart; only the destination differs.
+2. `priceCartItems(cart)` builds the **whole-cart** `CartReport`: subtotal, per-item VAT, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox → supplier's `startFee + perKm × km` → platform fallback), grouped by supplier with distance, mode and fee each. A cart holds one supplier (§10.23), so the report normally has a single group.
+3. The report is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched) and `showProforma` is set. `To Preview` also clears `proformaAutoPrint`; `To Proforma` sets it, which makes `ProformaInvoice` fire `window.print()` once the modal has painted.
+4. `ProformaInvoice` renders from `proformaDetails` — every item, the supplier, the delivery breakdown and the supplier's signature block beside the buyer's.
+5. `buildProformaShareData` + `generateProformaQrDataUrl` encode the compact summary into the QR, which is a fixed top-right cell of the **document header** grid regardless of item count; the payload is capped at `MAX_QR_LINE_ITEMS` with the true count in `tc`, and `PublicProforma` renders it on scan.
 
 ---
 
@@ -408,7 +408,11 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 - **No results-header export (v5.4):** the 📥 Export button that used to sit next to the results count is removed — the header 📥 menu and the company dashboard export are the only product exports. `handleExportMaterials` stays in use by those two.
 
 ### 10.5 Cart & checkout
-Multi-supplier cart: customers can add products from any number of suppliers into one cart. Checkout computes subtotal + VAT (per-item %) + a **per-line** delivery fee (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item, resets the cart, and shows the Orders page. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52).
+**One supplier per cart (v5.6):** a proforma is a legal document issued by a single seller, and every distance, delivery rate, VAT line and signature on it assumes one, so a cart may only hold one supplier's goods. `findOtherCartSupplier` (the pure, unit-tested rule in `utils.ts`, wrapped by `otherSupplierInCart` in `App.tsx`) refuses an add from a second supplier with a warning naming both suppliers, and **leaves the cart exactly as it was** — it is never cleared or replaced on the buyer's behalf. The same rule is re-checked inside `addToCartLogic`'s functional `setCart` update against `prev` (the real cart at the moment of the write), so a cart persisted by an older build cannot smuggle in a second supplier. Re-adding a product that is already in the cart is a quantity change, not a new supplier, so it skips the check. See [10.23](#1023-single-supplier-cart-v56).
+
+Checkout computes subtotal + VAT (per-item %) + a **per-line** delivery fee (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item, resets the cart, and shows the Orders page. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
+
+**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals`, so the figures cannot disagree. The bottom of the modal now holds only `Clear Cart` — placing the order in two places at once was a way to commit to the wrong total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
 
 **Order entry:** a customer never picks a quantity in a list. The 🛒 button on a results row, the **Order** button on a mobile product card and **View & Order** in the compare modal all open the **product details**, where the only quantity control lives (`DetailsOrderBox` + `QuantityStepper`, steps of 1 with a live total, and since v5.5 the number itself is a **typed field** so a custom quantity can be entered without tapping + a hundred times). The cart modal still allows per-line quantity edits and per-line delivery toggles. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
 
@@ -425,6 +429,8 @@ Multi-supplier cart: customers can add products from any number of suppliers int
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
 
+**Header shows the supplier's name (v5.6):** the supplier's own name is bold and centred on **both** dashboards. Desktop renders `<p className="dashboard-supplier-name">{company?.name}</p>` inside `.dashboard-header-supplier`, on its own line under the "Supplier Dashboard" title, replacing the old `Welcome {company?.name}!` paragraph. Mobile puts the same `.dashboard-supplier-name` on the `<h2>` of `.mobile-page-head-supplier`, with "Supplier Dashboard" demoted to the `<p>` subtitle and the old `🏢` prefix dropped from the name. The rules are scoped to the supplier pages so the **customer** dashboard keeps its `Welcome {currentUser.name}!` / `Hi, {name}` greeting and its left alignment, and `word-break: break-word` keeps a long trading name from overflowing on a phone.
+
 **Own-stock detail (v5.4):** a supplier always sees everything about *their own* stock (this is the one surface where a stock number is not behind `canSeeStock`, because a supplier is reading their own inventory):
 - A **"📥 My stock"** card with four tiles: units in stock, stock value (`Σ quantity × price`), low-stock lines (`0 < quantity ≤ LOW_STOCK_THRESHOLD`) and out-of-stock lines. The tiles turn amber/red when the count is above zero.
 - The products table gains **In Stock** (`N unit`), **Stock Status** (`.stock-chip-in` / `.stock-chip-low` / `.stock-chip-out`) and **Stock Value** columns; the header/footer hint states that stock is private to the supplier.
@@ -436,9 +442,10 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
 - Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (subtotal, VAT 15%, delivery, grand total), amount in words, terms & conditions (6 clauses), and signature lines.
 - **Layout (v5.4, extended in v5.5):** supplier and buyer blocks stay **side by side** everywhere — desktop, phones (`≤760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be ≤760px). Only the terms block still stacks — it is prose and needs the full width.
-- **Signature grid (changed in v5.2):** `.pf-signatures` is now `repeat(auto-fit, minmax(200px, 1fr))`, so a multi-supplier proforma gives every supplier their own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
+- **Signature grid (changed in v5.2):** `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))`, so each party gets its own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
 - **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v5.2 `.pf-delivery-box` sits above them in that same column and shares the width so all three align.
-- Accessible from the cart summary modal via the "👁️ Preview Proforma" button, which covers the **whole cart** — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-replaces-the-v51-single-supplier-rule).
+- **Header is a 3-column grid (v5.6):** `.pf-header` is `display: grid` with `grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto` — `.pf-brand` column 1, `.pf-meta` column 2, `.pf-header-qr` column 3, all pinned to `grid-row: 1`. **Do not change it back to flex.** With flex, the long `.pf-tagline` plus `.pf-meta` could not shrink far enough on a mid-width screen, and the QR — which must never shrink — was pushed out of the row and wrapped onto a new line at the left. The grid makes "always top-right" structural, and the `≤760px` and `@media print` blocks only re-declare columns 1/2/3; they must keep `align-self: start` and `justify-self: end` on `.pf-header-qr` so it stays hard against the top-right corner, opposite the logo, whether the items table is 2 lines or 400.
+- Accessible from the cart summary modal via `2 To Proforma` (prints) and `3 To Preview` (screen only), both covering the **whole cart** — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56) and [10.5](#105-cart--checkout).
 - **Print-ready**: `@media print` styles hide action buttons and format for A4.
 
 ### 10.8 Product Comparison (NEW)
@@ -528,13 +535,14 @@ Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lo
 ### 10.20 Consistent currency (NEW in v4)
 All money values (search results, product cards, cart summary, proforma, order exports, admin settings preview) use the single `formatCurrency` helper. **"ETH" appears only in company/brand names** (e.g. "ETH Steel"), which is correct and must not be changed.
 
-### 10.21 Whole-cart proforma invoice (NEW in v5.2, replaces the v5.1 single-supplier rule)
-One proforma now covers **every selected item**, from as many suppliers as the buyer picked. The v5.1 "choose one supplier first" rule has been **removed** — it is gone from the state (`showProformaSupplierPicker`), the helper (`renderProformaSupplierPicker`), `src/utils.ts` (`buildSingleSupplierReport`, with its tests) and the docs.
+### 10.21 Whole-cart proforma invoice (NEW in v5.2, single supplier again from v5.6)
+One proforma covers **every selected item** in the cart. The v5.1 "choose one supplier first" **picker** is still gone — it was removed from the state (`showProformaSupplierPicker`), the helper (`renderProformaSupplierPicker`) and `src/utils.ts` (`buildSingleSupplierReport`) in v5.2 and has not come back. What v5.6 changed is the **cart** instead of the proforma: a cart can no longer contain a second supplier, so the document is naturally a single-seller invoice again without any picker or re-scoping step. See [10.23](#1023-single-supplier-cart-v56).
 
-- **Rule:** `handlePreviewProforma` prices the whole cart and opens the document. No picker, no re-scoping step, so a multi-supplier buyer never has to invoice N times to see N proformas.
-- **QR never moves (v5.2):** the verification QR is still rendered in `.pf-header-qr`, the third cell of `.pf-header`, so its position is independent of the item count. This was the point of the change — a longer items table must not push the QR down the page.
+- **Rule:** `handlePrintProforma` and `handlePreviewProforma` both price the whole cart and open the same document; the only difference is `proformaAutoPrint`. No picker, so a buyer never has to invoice N times to see N proformas.
+- **QR never moves (v5.2, hardened in v5.6):** the verification QR is rendered in `.pf-header-qr`, pinned to column 3 of the `.pf-header` **grid** so its position is independent of the item count. This was the point of the change — a longer items table must not push the QR down the page. In v5.6 the header was converted from flex to grid precisely so a long brand tagline or supplier name could never wrap the QR onto a new line; see [10.7](#107-proforma-invoice-new).
+- **Legacy mixed carts:** a cart persisted by a pre-v5.6 build can still hold more than one supplier. Nothing auto-clears it. `priceCartItems` keeps grouping by supplier and `ProformaInvoice` keeps rendering `SUPPLIER DETAILS (N)` with a signature block each, so such a cart still produces a correct document instead of silently dropping lines. The buyer is expected to clear it and start again.
 - **Payload vs document:** `buildProformaShareData` (`src/utils.ts`) truncates the QR item list at `MAX_QR_LINE_ITEMS = 12` so the code stays scannable, and records the true count in `tc` when it does. `PublicProforma` shows "Showing the first 12 of 40 line items — the printed proforma lists every item." The **printed document is never truncated.**
-- **Document (`ProformaInvoice.tsx`):** `suppliers: Company[]` replaces the old `supplier` + `ProformaSupplier[]` props. It renders every supplier in `SUPPLIER DETAILS (N)`, a `Delivery` column (`🚚 Included` / `—`) per line, the supplier name under the item description on multi-supplier documents (`.pf-line-supplier`), a **Delivery Breakdown** block (`.pf-delivery-box`: distance + `DeliveryMode` label + the `deliveryBasis` text) above the money summary, and a note under the delivery terms explaining how each line was priced. `.pf-signatures` became `repeat(auto-fit, minmax(200px, 1fr))` so each supplier gets a signature line next to the buyer's.
+- **Document (`ProformaInvoice.tsx`):** `suppliers: Company[]` replaced the old `supplier` + `ProformaSupplier[]` props. It renders every supplier in `SUPPLIER DETAILS (N)`, a `Delivery` column (`🚚 Included` / `—`) per line, the supplier name under the item description (`.pf-line-supplier`), a **Delivery Breakdown** block (`.pf-delivery-box`: distance + `DeliveryMode` label + the `deliveryBasis` text) above the money summary, and a note under the delivery terms explaining how each line was priced. `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))` so each party gets a signature line. `autoPrint?: boolean` (default `false`) fires `window.print()` 350 ms after mount, guarded by a `useRef` so a re-render cannot open a second dialog.
 - **Columns:** the item table's `pf-col-*` widths were re-balanced to make room for `pf-col-deliv` (12%) — the descriptions and specs give up the space.
 - **No double counting:** the delivery breakdown totals must equal `report.transportCost`, which is why a manual fee override is still scaled across suppliers in `priceCartItems` rather than applied afterwards.
 
@@ -558,6 +566,22 @@ The two rate fields and the live example sentence (`.delivery-terms-preview`) ar
 **Snapshot, not live lookup:** the rate is copied onto `CartItem.deliveryRate` at add-to-cart time and refreshed when the supplier edits that product (`handleUpdateMaterial` walks the cart), so a supplier raising prices never silently re-prices a cart the buyer already approved. The fee itself is calculated later — at checkout, when the proforma is previewed, and on every cart re-price — which is why the distance is only fetched there.
 
 **Single source of truth:** `confirmOrder` calls the same `resolveLineDelivery` for each line before writing an `Order`, and stores the outcome in `Order.deliveryIncluded`. Never re-derive a delivery fee in the order path; that is exactly how the proforma and the order drifted apart in earlier versions.
+
+### 10.23 Single-supplier cart (v5.6)
+A cart belongs to exactly one supplier. A proforma is a legal document issued by a **single seller**; its distance, delivery rate, VAT lines and signature block all assume that. Allowing a mixed cart produced an invoice no one could sign.
+
+**Where the rule lives** — a pure helper in `src/utils.ts` plus two call sites in `App.tsx`, all three required:
+1. `findOtherCartSupplier(cart, supplierId, materialId?)` (`utils.ts`, unit-tested) returns the first cart line from a *different* supplier, or `null`. Passing `materialId` lets a re-order of an already-carded product through — that is a quantity change, not a new supplier. `cartHasOtherSupplier` is the boolean form.
+2. `otherSupplierInCart` in `App.tsx` wraps that helper over the `cart` closure. `addToCartLogic` calls it before writing, and on a hit shows a warning that names the supplier already in the cart and the supplier being added, then **returns `false` without touching the cart**. The buyer's items are never cleared or swapped out for them.
+3. The same helper is called again inside the functional `setCart` update against `prev` — the real cart at the moment of the write, not the `cart` closure captured at render. This is the authoritative guard: a cart persisted by a pre-v5.6 build can already hold two suppliers and would otherwise slip through the first check. If it trips, the write is dropped and `prev` is returned unchanged.
+
+**Why `addToCart` returns `boolean`:** `DetailsOrderBox` only closes the product-details dialog when the add succeeded — `if (addToCart(...)) onAdded()`. On a rejection the dialog must stay open with the quantity and delivery choices intact so the buyer can simply clear the cart and retry. Do not reintroduce a flag set *inside* the `setCart` updater and read immediately after: React does not promise the updater has run yet, so that flag was always `false` at the check.
+
+**Re-adding is not a new supplier:** bumping the quantity of a line already in the cart (product details "Update Cart", the cart's `+`/`−`) must keep working, so the check is skipped when `cart.some(i => i.materialId === material.id)`. In the updater the same `materialId` test comes first for the same reason.
+
+**Legacy carts are not auto-cleared.** A mixed cart from an older build still prices, still renders and still proformas (see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56)); the buyer is expected to clear it. Only *new* adds are blocked.
+
+**Where it is documented for the buyer:** `README.md` ("One supplier per cart") and the in-cart supplier line, which names the single supplier.
 
 ---
 
@@ -699,6 +723,7 @@ It is the step where the customer has actually seen the product and is ready to 
 - `addToCart` and `updateCartQuantity` only guard against non-finite values and quantities below 1. The cart line input uses `min={1} step={1}`. **Do not** re-add a `minOrder` check to either function; the per-product minimum is reference data only (see [10.5](#105-cart--checkout)).
 - A sold-out product shows **"Currently unavailable — please contact the supplier."** instead of the stepper, so nothing un-orderable can be added to the cart.
 - The old native `prompt("Quantity (Min: …)")` on the desktop results row and the card-level `m-stepper` are **removed** — keep it that way; never reintroduce a quantity control in a list.
+- **Adding can be refused (v5.6).** `addToCart` returns `boolean`: `false` when the buyer is not a signed-in customer, when the quantity is invalid, when the supplier cannot be resolved, or when the cart already holds a **different** supplier. `DetailsOrderBox` calls `onAdded()` only on `true`, so a refused add leaves the dialog open with the quantity and delivery choices intact. Do not close the dialog unconditionally.
 
 **2. Stock levels are supplier-only data.**
 `const canSeeStock = currentUser?.userType === 'company' || currentUser?.userType === 'admin'` (`App.tsx`, "Role visibility") gates **every** stock number in the UI. Customers *and* signed-out visitors see none:
@@ -786,8 +811,11 @@ For the install prompt to work:
 | Frozen column overlaps other cells   | Ensure `.td-sticky` has proper `z-index` and `background` to cover scrolling content |
 | A cart's delivery fee ignores the "With delivery" box | The open cart is priced 250 ms after a change; a fee that never updates means a line lost `CartItem.deliveryRate`, so `resolveLineDelivery` fell back to the platform rules (§10.22) |
 | Proforma total ≠ order total         | Something computed a delivery fee outside `resolveLineDelivery`. Both `priceCartItems` and `confirmOrder` must call it (§10.22) |
-| QR moved down the page / no QR       | The QR must stay in `.pf-header-qr`. Never render it inside the items block or after the table (§10.21) |
+| QR moved down the page / no QR       | The QR must stay in `.pf-header-qr`, pinned to column 3 of the `.pf-header` **grid**. Never render it inside the items block or after the table, and never put `.pf-header` back on `display: flex` — a long brand tagline then wraps the QR onto a new line at the left on mid-width screens (§10.7, §10.21) |
 | Big cart → "Showing the first 12 of 40" | Expected: the QR payload is capped at `MAX_QR_LINE_ITEMS` for scannability and the true count is in `tc`. The printed document still lists everything (§10.21) |
+| Adding a second supplier wiped the cart | `findOtherCartSupplier` must `return false` **before** `setCart` and never clear or replace anything. The check belongs in both `addToCartLogic` and the updater (§10.23) |
+| Product details closes even though nothing was added | `addToCart` must return `boolean`; `DetailsOrderBox` calls `onAdded()` only on `true` (§10.23) |
+| "To Proforma" opens but does not print | `handlePrintProforma` must set `proformaAutoPrint`, and `ProformaInvoice`'s `autoPrint` effect must not be blocked by its `useRef` guard firing early (§10.5) |
 
 ---
 
@@ -821,9 +849,11 @@ npm test
 | File                  | What it covers                                                       |
 | --------------------- | -------------------------------------------------------------------- |
 | `src/settings.test.ts` | Defaults, round-trip persistence, corrupted-JSON repair, number sanitising, admin seed |
-| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode→decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, delivery breakdown, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation) |
+| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode→decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, delivery breakdown, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation) |
 
-36 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
+41 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
+
+The single-supplier rule is a **pure** function in `utils.ts` precisely so it can be tested: `App.tsx` calls `findOtherCartSupplier` in both the pre-flight check and the `setCart` updater, so the UI and the tests cannot disagree. If you ever inline the `supplierId !==` comparison back into `App.tsx`, these five tests stop covering the real code path.
 
 ---
 
@@ -848,12 +878,16 @@ Read this before touching any code. It prevents the most common mistakes.
 14. **Never write a checkbox into `.form-group` without `checkbox-label`.** `.form-group label` is `display: block` and `.form-group input` is `width: 100%`, so a bare `<input type="checkbox">` becomes a full-width bar with its text on the next line. Use `<label className="checkbox-label">` (§12).
 15. **A line's delivery fee is only ever computed by `resolveLineDelivery`.** Never call `computeDeliveryFee` or multiply a per-km rate by hand in the cart, the proforma or the order path. `confirmOrder` and `priceCartItems` must agree, or the invoice stops matching the order (§10.22). The same applies to the "is delivery included?" test: it is always `item.includeDelivery !== false`, never a truthiness check, because pre-v5.2 carts have no field at all and must keep charging delivery.
 16. **The cart has two entry points.** Desktop header (`.cart-icon-btn`) and mobile tab bar (`.m-fab-cart`). Do not add a third — a button on a product row, card, carousel or the mobile top bar may only navigate to the product details, never open the cart (§10.5).
+17. **One cart, one supplier.** Never let an add from a second supplier through, and never resolve the conflict by clearing or replacing the buyer's cart. Warn, name both suppliers, keep the dialog open, return `false`. Enforce it with `findOtherCartSupplier`, not an inline comparison, so the unit tests keep covering the real path (§10.23).
+18. **The proforma header is a grid, not a flex row.** `.pf-header` pins `.pf-brand` / `.pf-meta` / `.pf-header-qr` to columns 1 / 2 / 3 of row 1, and the `≤760px` and `@media print` blocks only re-declare the columns. Flex let a long tagline push the QR onto a new line at the left on some screens; never reintroduce it (§10.7).
 
 ### 19.2 Where things live
 - **Business rules** (delivery fee, zones, min order) → `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates use `computeDeliveryFee` directly; cart totals, the proforma and order creation go through `resolveLineDelivery`, which only falls back to `computeDeliveryFee` when a supplier publishes no rate of their own (§10.22).
 - **Currency** → `formatCurrency` in `utils.ts` (used by App, ProformaInvoice, AdminSettings, PublicProforma).
 - **Search filters** → `FormData.search*` fields + `performSearch` in `App.tsx`; the filter row is `renderSearchMaterials` and reuses `.search-filters` / `.filter-select` / `.filter-input` / `.filter-clear`. A new filter needs: the field in `FormData` (`types.ts`), the `formData` initialiser, the check in `performSearch`, the control in the filter row, the debounce dependency list, and the reset in `clearFilters`.
-- **Proforma scope** → a proforma is always the **whole cart**: `handlePreviewProforma` prices every line with `priceCartItems` and stores the report in `proformaDetails`. Do not render the proforma from `cartDetails`, and do not reintroduce a supplier picker, a "one supplier per invoice" scoping helper, or a QR that moves down the page as the item list grows (§10.21).
+- **Proforma scope** → a proforma is always the **whole cart**: `handlePrintProforma` and `handlePreviewProforma` both price every line with `priceCartItems` and store the report in `proformaDetails`. Do not render the proforma from `cartDetails`, and do not reintroduce a supplier picker, a "one supplier per invoice" scoping helper, or a QR that moves down the page as the item list grows (§10.21).
+- **Cart scope** → the cart holds **one supplier** (§10.23). The rule is `findOtherCartSupplier` in `utils.ts` (pure, unit-tested); `App.tsx` calls it in `addToCartLogic` before the write and again inside the `setCart` updater. `addToCart` returns a `boolean` so `DetailsOrderBox` can keep the dialog open on a rejection.
+- **Supplier dashboard name** → `.dashboard-supplier-name` in `App.css`, rendered on the desktop `.dashboard-header-supplier` and the mobile `.mobile-page-head-supplier`. Bold and centred; the customer dashboard keeps its greeting.
 - **QR / sharing** → `encodeProformaPayload`, `decodeProformaPayload`, `buildProformaQrUrl`, `generateProformaQrDataUrl`, `buildProformaShareData` and `MAX_QR_LINE_ITEMS` in `utils.ts`; rendering in `ProformaInvoice.tsx` and `PublicProforma.tsx`. The hash format is `#escon=<base64url(ESCON1+json)>`. Truncating the payload is allowed; truncating the **printed** document is not.
 - **PWA** → `public/sw.js` (custom, version `VERSION` const), `src/index.tsx` registration (production only), `src/components/InstallGuide.tsx`, banner logic in `App.tsx`.
 - **Admin page routing** → a `case 'settings'` in the `renderCurrentPage` switch guards `userType === 'admin'`.
@@ -865,9 +899,9 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Point the map at a different tile server":** edit the tile-layer URLs in `MapComponent.tsx` and `MapPicker.tsx`. If you add a cross-origin tile host, update `sw.js` caching rules too.
 - **"Add a page":** add a `case` in `renderCurrentPage`, a nav button in `renderUserNav`/`renderGuestNav`, and optionally a hash shortcut in `manifest.json` (`shortcuts`).
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
-- **"Invoice a second supplier from the same cart":** you do not — one proforma covers the whole cart, supplier by supplier, in a single document (§10.21). If you specifically need a single supplier's part, temporarily remove the other lines from the cart, or filter the printed table; do not add a scoping modal back.
+- **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.1.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.2.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.

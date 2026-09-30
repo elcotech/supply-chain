@@ -5087,15 +5087,26 @@ a:focus-visible {
 }
 
 /* ------------------------- Header ------------------------- */
+/* The header is a 3-column GRID, not a flex row. With flex, the long tagline in
+   .pf-brand plus the meta block could not shrink far enough on a mid-width
+   screen, and the QR — which must never shrink — was pushed out of the row and
+   wrapped onto a new line at the left. An explicit grid with the QR in the last
+   column makes "always top-right" structural: the QR cannot be displaced by the
+   width of the other two columns at any viewport width, and `justify-self: end`
+   + `align-self: start` keep it hard against the top-right corner, opposite the
+   logo, whether the items table is 2 lines or 400. Do not change this back to
+   flex, and never let the QR shrink. */
 .pf-header {
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto;
+  align-items: start;
   gap: 18px;
   padding-bottom: 12px;
   border-bottom: 2px solid #075ca8;
 }
 .pf-brand {
-  flex: 1.25;
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -5139,7 +5150,8 @@ a:focus-visible {
   color: #45627a;
 }
 .pf-meta {
-  flex: 1;
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -5189,13 +5201,21 @@ a:focus-visible {
 .pf-meta-value { color: #173b63; font-weight: 700; text-align: right; }
 
 /* ------------------------- Header QR ------------------------- */
-/* The verification QR is the last header item, pinned to the very top of the
-   document (top-right corner on desktop, beside the logo on phones/print). */
+/* The verification QR is the last header cell, hard-pinned to the top-right
+   corner opposite the logo. It is placed explicitly (column 3, row 1) rather
+   than auto-flowed, so it can never be reordered or wrapped by a long brand
+   tagline, a long supplier name or a tall items table. `align-self: start` stops
+   it stretching down beside the meta rows, and `justify-self: end` keeps it
+   against the right edge. */
 .pf-header-qr {
-  flex: 0 0 auto;
-  align-self: flex-start;
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
   display: flex;
   align-items: flex-start;
+  flex: 0 0 auto;
+  max-width: 100%;
   padding-left: 18px;
   border-left: 1px solid #b8dff2;
 }
@@ -5632,6 +5652,8 @@ a:focus-visible {
   .pf-header-qr {
     grid-column: 2;
     grid-row: 1;
+    align-self: start;
+    justify-self: end;
     border-left: none;
     border-top: none;
     padding: 0;
@@ -5675,15 +5697,19 @@ a:focus-visible {
 @media print {
   .pf-document { font-size: 0.72rem; color: #173b63; }
   /* The print page box is narrower than the desktop app, which would trigger the
-     phone layout — re-assert the row so the QR always prints at the top right. */
+     phone layout — re-assert the 3-column GRID (never flex) so the QR always
+     prints at the top right, opposite the logo, and cannot wrap under the
+     narrower page width. */
   .pf-header {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto;
+    align-items: start;
     gap: 12px;
     padding-bottom: 8px;
   }
   .pf-brand {
+    grid-column: 1;
+    grid-row: 1;
     gap: 8px;
     padding-right: 14px;
     padding-bottom: 0;
@@ -5691,13 +5717,22 @@ a:focus-visible {
     border-bottom: none;
   }
   .pf-header-qr {
-    align-self: flex-start;
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    justify-self: end;
     border-left: 1px solid #b8dff2;
     border-top: none;
     padding: 0 0 0 12px;
   }
   .pf-header-qr .pf-qr-img { width: 58px; height: 58px; }
-  .pf-meta { padding-left: 0; padding-top: 0; border-top: none; }
+  .pf-meta {
+    grid-column: 2;
+    grid-row: 1;
+    padding-left: 0;
+    padding-top: 0;
+    border-top: none;
+  }
   .pf-logo-img { width: 42px; height: 42px; }
   .pf-company-name { font-size: 1.25rem; }
   .pf-company-full { font-size: 0.64rem; }
@@ -6295,6 +6330,120 @@ a:focus-visible {
   border-color: rgba(241, 196, 15, 0.45);
 }
 .m-stock-tile.warn strong { color: #b45309; }
+
+/* =====================================================================
+   Supplier dashboard name (v5.6)
+   The supplier's own company name is the identity of the whole page, so it
+   is set bold and centred under the "Supplier Dashboard" title instead of
+   the old "Welcome <name>!" line. Scoped to .dashboard-header-supplier so
+   the customer dashboard and the order pages keep their current header.
+   ===================================================================== */
+.dashboard-header-supplier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.dashboard-header-supplier .dashboard-title {
+  justify-content: center;
+}
+/* The mobile supplier page head reuses .mobile-page-head, which the customer
+   dashboard shares - scope the centring so only the supplier name moves. */
+.mobile-page-head-supplier {
+  text-align: center;
+}
+.dashboard-supplier-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  text-align: center;
+  word-break: break-word;
+}
+@media (max-width: 768px) {
+  .dashboard-supplier-name { font-size: 1.02rem; }
+}
+
+/* =====================================================================
+   Cart: the three order actions (v5.6)
+   "To Purchase" (place the order) / "To Proforma" (printable invoice) /
+   "To Preview" (on-screen preview). One numbered row so the order of the
+   three steps is self-evident, kept above the fold on phones.
+   ===================================================================== */
+.cart-order-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.cart-order-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 62px;
+  padding: 9px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.cart-order-step:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 76, 129, 0.16);
+}
+.cart-order-step:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.cart-order-step .cart-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary, #0f4c81);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.cart-order-step .cart-step-label {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.cart-order-step .cart-step-hint {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--text-light);
+}
+.cart-order-step.is-primary {
+  border-color: var(--primary, #0f4c81);
+  background: linear-gradient(135deg, var(--primary, #0f4c81), var(--primary-light, #1a6fb5));
+  color: #fff;
+}
+.cart-order-step.is-primary .cart-step-num {
+  background: rgba(255, 255, 255, 0.24);
+}
+.cart-order-step.is-primary .cart-step-hint { color: rgba(255, 255, 255, 0.86); }
+@media (max-width: 768px) {
+  .cart-order-steps { gap: 6px; }
+  .cart-order-step { min-height: 58px; font-size: 0.72rem; }
+  .cart-order-step .cart-step-label { font-size: 0.7rem; }
+  .cart-order-step .cart-step-hint { display: none; }
+}
 .m-stock-tile.danger {
   background: rgba(231, 76, 60, 0.12);
   border-color: rgba(231, 76, 60, 0.4);

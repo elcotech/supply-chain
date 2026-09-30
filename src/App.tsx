@@ -8,11 +8,11 @@ import {
 import {
   safeLocalStorage, formatCurrency, formatDate,
   calculateDistance, isUserLocked,
-  exportToCSV, printCartReport, exportCartToCSV, exportOrdersToCSV,
+  exportToCSV, exportOrdersToCSV,
   geocodeAddress, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
-  deliveryEta, timeAgo, validateBackup, downloadJson
+  deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import EditCompany from './components/EditCompany';
@@ -243,8 +243,11 @@ function App() {
   // the same supplier is clicked twice in a row.
   const [routeRequestId, setRouteRequestId] = useState(0);
   const [showProforma, setShowProforma] = useState(false);
+  // "To Proforma" opens the document and queues the browser print dialog;
+  // "To Preview" opens the same document read-only on screen.
+  const [proformaAutoPrint, setProformaAutoPrint] = useState(false);
   // Report the proforma is rendered from. Kept apart from cartDetails because a
-  // proforma always covers one supplier, while the cart can hold many.
+  // proforma always covers the whole cart - one supplier, every selected line.
   const [proformaDetails, setProformaDetails] = useState<CartReport | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compareItems, setCompareItems] = useState<string[]>([]);
@@ -1086,23 +1089,52 @@ function App() {
   };
 
   // ---------- Cart ----------
-  const addToCart = (material: Material, quantity: number, includeDelivery: boolean) => {
-    if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return; }
-    if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return; }
+  // One cart belongs to exactly one supplier. A proforma is a legal document
+  // issued by a single seller, and every fee, distance, delivery rate and
+  // signature on it assumes that - so a buyer cannot mix sellers in one cart.
+  // The check lives here (and again inside `addToCartLogic`, against the
+  // functional `prev` state) so no other add path can slip past it. The rule
+  // itself is the pure, unit-tested `findOtherCartSupplier` in utils.ts.
+  const otherSupplierInCart = (supplierId: string, materialId?: string) =>
+    findOtherCartSupplier(cart, supplierId, materialId);
+
+  const addToCart = (material: Material, quantity: number, includeDelivery: boolean): boolean => {
+    if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return false; }
+    if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return false; }
     // Customers may order any amount: a per-product `minOrder` is supplier
     // reference data only and is never enforced here.
-    if (!Number.isFinite(quantity) || quantity < 1) { showAlert('Please enter a quantity of at least 1', 'danger'); return; }
+    if (!Number.isFinite(quantity) || quantity < 1) { showAlert('Please enter a quantity of at least 1', 'danger'); return false; }
     const materialCompany = getCompanyById(material.companyId);
-    if (!materialCompany) return;
-    addToCartLogic(material, quantity, materialCompany, includeDelivery);
+    if (!materialCompany) return false;
+    return addToCartLogic(material, quantity, materialCompany, includeDelivery);
   };
 
-  const addToCartLogic = (material: Material, quantity: number, company: Company, includeDelivery: boolean) => {
-    const existingItem = cart.find(item => item.materialId === material.id);
+  const addToCartLogic = (material: Material, quantity: number, company: Company, includeDelivery: boolean): boolean => {
+    // Re-adding the same product is always fine, whatever else is in the cart,
+    // so `materialId` is passed and findOtherCartSupplier lets that case through.
+    const foreign = otherSupplierInCart(material.companyId, material.id);
+    if (foreign) {
+      showAlert(
+        'Your cart can only contain items from one supplier. It currently holds ' +
+        foreign.supplierName + ' — remove those items or clear the cart before adding ' +
+        material.name + ' from ' + company.name + '.',
+        'warning'
+      );
+      return false;
+    }
     // Snapshot the supplier's published rate onto the line: the fee is worked out
     // from the distance later, so the cart has to remember which rate applies.
     const rate = material.delivery && material.delivery.offered ? material.delivery : undefined;
     setCart(prev => {
+      // Same rule as above, re-applied on `prev` — the real cart at the moment of
+      // the write. The pre-flight check above runs against the `cart` closure,
+      // which a cart persisted by an older build could already contradict; this
+      // one cannot. A cart that gets past it is left exactly as it was rather
+      // than gaining a second supplier.
+      const clash = findOtherCartSupplier(prev, material.companyId, material.id);
+      if (clash) return prev;
+      // Re-adding a product already in the cart is a quantity change, not a new
+      // supplier, so it bumps the quantity instead of adding a line.
       if (prev.some(item => item.materialId === material.id)) {
         return prev.map(item => item.materialId === material.id ? { ...item, quantity: item.quantity + quantity, includeDelivery, deliveryRate: rate } : item);
       }
@@ -1126,7 +1158,8 @@ function App() {
       };
       return [...prev, newCartItem];
     });
-    showAlert(existingItem ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
+    showAlert(cart.some(i => i.materialId === material.id) ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
+    return true;
   };
 
   const removeFromCart = (itemId: string) => {
@@ -1297,14 +1330,27 @@ function App() {
     repricedCart.current = cartSignature(cart) + '|' + deliveryFeeOverride;
   };
 
-  // Preview the proforma straight from the current cart. It covers every selected
-  // item — from one supplier or many — so the verification QR always sits in the
-  // document header and the buyer never has to pick a supplier first.
+  // "To Proforma" — open the proforma straight in its printable form. The buyer
+  // lands on the document with the print dialog already queued, which is what
+  // they want when they are ordering: a proforma to print, sign or save as PDF.
+  // The verification QR stays in the document header (§10.21).
+  const handlePrintProforma = async () => {
+    if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
+    const totals = await calculateCartTotals();
+    if (!totals) return;
+    setProformaDetails(totals);
+    setShowProforma(true);
+    setProformaAutoPrint(true);
+  };
+
+  // "To Preview" — the same proforma, but read on screen. Identical figures to
+  // the printed document; the only difference is that nothing auto-prints.
   const handlePreviewProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
     const totals = await calculateCartTotals();
     if (!totals) return;
     setProformaDetails(totals);
+    setProformaAutoPrint(false);
     setShowProforma(true);
   };
 
@@ -1446,13 +1492,6 @@ function App() {
   const handleExportMaterials = () => {
     exportToCSV(materials, 'materials_export');
     showAlert('Materials exported! 📊', 'success');
-  };
-  const handleExportCart = () => {
-    if (cart.length === 0) { showAlert('Cart is empty.', 'warning'); return; }
-    if (cartDetails) { exportCartToCSV(cart, cartDetails); showAlert('Cart exported! 🛒', 'success'); }
-  };
-  const handlePrintCart = () => {
-    if (cartDetails) { printCartReport(cartDetails); showAlert('Cart report sent to printer! 🖨️', 'success'); }
   };
   const handleExportOrders = () => {
     const userOrders = currentUser ? orders.filter(o => o.customerId === currentUser.id) : orders;
@@ -1854,10 +1893,32 @@ function App() {
               <div className="empty-cart"><span className="empty-cart-icon">🛒</span><h3>Your cart is empty</h3><button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button></div>
             ) : (
               <>
-                <div className="cart-actions-buttons">
-                  <button className="btn-secondary" onClick={handlePreviewProforma}>👁️ Preview Proforma</button>
-                  <button className="btn-secondary" onClick={handleExportCart}>📥 Export CSV</button>
-                  <button className="btn-secondary" onClick={handlePrintCart}>🖨️ Print Report</button>
+                {/* The three order actions, in the order the buyer works through
+                    them. "To Purchase" places the order, "To Proforma" opens the
+                    printable/save-as-PDF invoice, "To Preview" reads the same
+                    invoice on screen. Cart CSV export was removed: the proforma
+                    is now the buyer's only order document. */}
+                <div className="cart-order-steps">
+                  <button
+                    className="cart-order-step is-primary"
+                    onClick={confirmOrder}
+                    disabled={isCalculating || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
+                    title={cartDetails.minOrderEnabled && cartDetails.belowMinOrder ? 'Minimum order not met' : ''}
+                  >
+                    <span className="cart-step-num">1</span>
+                    <span className="cart-step-label">{isCalculating ? 'Calculating...' : 'To Purchase'}</span>
+                    <span className="cart-step-hint">Place the order</span>
+                  </button>
+                  <button className="cart-order-step" onClick={handlePrintProforma}>
+                    <span className="cart-step-num">2</span>
+                    <span className="cart-step-label">To Proforma</span>
+                    <span className="cart-step-hint">Print / save PDF</span>
+                  </button>
+                  <button className="cart-order-step" onClick={handlePreviewProforma}>
+                    <span className="cart-step-num">3</span>
+                    <span className="cart-step-label">To Preview</span>
+                    <span className="cart-step-hint">View on screen</span>
+                  </button>
                 </div>
                 {multipleSuppliers ? (
                   <div className="cart-supplier-info"><h3>🏢 {cartDetails.supplierName}</h3><p>📦 {cartDetails.itemCount} units from {supplierGroups.length} suppliers</p></div>
@@ -1962,16 +2023,11 @@ function App() {
                     <div className="min-order-notice ok">✅ Balance covers this order — instant checkout.</div>
                   )}
                 </div>
+                {/* Utility row only. Placing the order is the "To Purchase" step
+                    at the top, so the two cannot disagree about the total and a
+                    buyer never has to guess which of two buttons commits. */}
                 <div className="cart-actions">
                   <button className="btn-secondary" onClick={clearCart}>Clear Cart</button>
-                  <button
-                    className="btn-primary"
-                    onClick={confirmOrder}
-                    disabled={isCalculating || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
-                    title={cartDetails.minOrderEnabled && cartDetails.belowMinOrder ? 'Minimum order not met' : ''}
-                  >
-                    {isCalculating ? 'Calculating...' : 'Confirm Order ✅'}
-                  </button>
                 </div>
               </>
             )}
@@ -2096,7 +2152,10 @@ function App() {
     };
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🏢</span><h1>Supplier Dashboard</h1></div><p>Welcome {company?.name}!</p></div>
+        <div className="dashboard-header dashboard-header-supplier">
+          <div className="dashboard-title"><span className="title-icon">🏢</span><h1>Supplier Dashboard</h1></div>
+          <p className="dashboard-supplier-name">{company?.name}</p>
+        </div>
         <div className="dashboard-grid">
           <div className="dashboard-card glass"><div className="card-icon">📦</div><div className="stat-value">{companyMaterials.length}</div><div className="stat-label">Products</div></div>
           <div className="dashboard-card glass"><div className="card-icon">📊</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
@@ -2465,7 +2524,7 @@ function App() {
               </span>
             </label>
             <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
-            <button className="btn btn-primary order-box-btn" onClick={() => { addToCart(material, qty, withDelivery); onAdded(); }}>
+            <button className="btn btn-primary order-box-btn" onClick={() => { if (addToCart(material, qty, withDelivery)) onAdded(); }}>
               {isInCart ? '🔄 Update Cart' : '➕ Add to Cart'}
             </button>
           </>
@@ -3121,8 +3180,8 @@ function App() {
       };
       return (
         <main className="main-content mobile-dashboard">
-          <div className="mobile-page-head">
-            <h2>🏢 {company?.name}</h2>
+          <div className="mobile-page-head mobile-page-head-supplier">
+            <h2 className="dashboard-supplier-name">{company?.name}</h2>
             <p>Supplier Dashboard</p>
           </div>
           <div className="m-stat-grid">
@@ -3334,6 +3393,7 @@ function App() {
             .map(sup => getCompanyById(sup.supplierId) || null)
             .filter((s): s is Company => s !== null)}
           onClose={() => setShowProforma(false)}
+          autoPrint={proformaAutoPrint}
         />
       )}
 

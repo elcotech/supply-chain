@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CartItem, CartReport, User, Company, ProformaShareData, DeliveryMode } from '../types';
 import {
   formatCurrency, generateProformaQrDataUrl, checkMinOrder,
@@ -12,6 +12,12 @@ interface ProformaInvoiceProps {
   currentUser: User | null;
   /** Every supplier appearing on the proforma — one entry per cart group. */
   suppliers: Company[];
+  /**
+   * "To Proforma" opens the document with the browser print dialog queued, so the
+   * buyer goes straight to print / save-as-PDF. "To Preview" leaves it false and
+   * the document is just read on screen. Either way the figures are identical.
+   */
+  autoPrint?: boolean;
   onClose: () => void;
 }
 
@@ -53,11 +59,14 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   report,
   currentUser,
   suppliers,
+  autoPrint = false,
   onClose,
 }) => {
-  // One proforma covers the whole cart: every selected item is listed, from as
-  // many suppliers as the buyer picked. The verification QR therefore never
-  // moves out of the document header, whatever the item count.
+  // One proforma covers the whole cart, so the buyer never has to pick a supplier
+  // first and the verification QR never moves out of the document header. A cart
+  // holds one supplier (enforced in App.tsx); the grouping below still drives the
+  // party blocks and totals so a legacy mixed cart renders correctly instead of
+  // silently dropping lines.
   const items = report.items && report.items.length > 0 ? report.items : cart;
   const supplierGroups = report.suppliers || [];
   // Keep the document's party order aligned with the cart's supplier grouping.
@@ -120,8 +129,8 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
   // QR encodes a URL + compact, non-sensitive proforma data so it works both on
   // screen and when paper-printed — scanning opens a mobile-friendly view. The QR
-  // is generated once from the full cart (any number of items / suppliers) and is
-  // rendered in the document header, so its position never depends on the cart.
+  // is generated once from the full cart and is rendered in the document header,
+  // so its position never depends on the cart.
   useEffect(() => {
     let cancelled = false;
     const shareData: ProformaShareData = buildProformaShareData({
@@ -165,6 +174,17 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   const handlePrint = () => {
     window.print();
   };
+
+  // "To Proforma" — fire the print dialog once the modal has actually painted,
+  // otherwise the browser prints the page behind the overlay. One shot per open
+  // (the ref is set immediately) so a re-render cannot open a second dialog.
+  const autoPrintFired = useRef(false);
+  useEffect(() => {
+    if (!autoPrint || autoPrintFired.current) return;
+    autoPrintFired.current = true;
+    const timer = setTimeout(() => window.print(), 350);
+    return () => clearTimeout(timer);
+  }, [autoPrint]);
 
   // ----------------------------------------------------------------- parts
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);

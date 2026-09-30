@@ -9,6 +9,8 @@ import {
   decodeProformaPayload,
   buildProformaQrUrl,
   buildProformaShareData,
+  findOtherCartSupplier,
+  cartHasOtherSupplier,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -72,6 +74,54 @@ describe('checkMinOrder', () => {
     const on = { ...DEFAULT_SETTINGS, minOrder: { enabled: true, amount: 5000 } };
     expect(checkMinOrder(on, 5000).below).toBe(false);
     expect(checkMinOrder(on, 9000).below).toBe(false);
+  });
+});
+
+describe('findOtherCartSupplier (one supplier per cart)', () => {
+  const line = (id: string, supplierId: string, materialId: string) => ({
+    id,
+    materialId,
+    materialName: 'Item ' + materialId,
+    supplierId,
+    supplierName: 'Supplier ' + supplierId,
+    quantity: 1,
+    price: 100,
+    unit: 'pcs',
+  }) as any;
+
+  it('allows anything into an empty cart', () => {
+    expect(findOtherCartSupplier([], 'c1', 'm1')).toBeNull();
+    expect(cartHasOtherSupplier([], 'c1', 'm1')).toBe(false);
+  });
+
+  it('allows a second product from the same supplier', () => {
+    const cart = [line('1', 'c1', 'm1')];
+    expect(findOtherCartSupplier(cart, 'c1', 'm2')).toBeNull();
+    expect(cartHasOtherSupplier(cart, 'c1', 'm2')).toBe(false);
+  });
+
+  it('refuses a product from a second supplier and names the holder', () => {
+    const cart = [line('1', 'c1', 'm1')];
+    const clash = findOtherCartSupplier(cart, 'c2', 'm2');
+    expect(clash).not.toBeNull();
+    expect(clash!.supplierId).toBe('c1');
+    expect(clash!.materialId).toBe('m1');
+    expect(cartHasOtherSupplier(cart, 'c2', 'm2')).toBe(true);
+  });
+
+  it('lets a buyer raise the quantity of a product already in the cart', () => {
+    // Re-ordering is a quantity change, not a new supplier, so it must not be
+    // blocked - otherwise a legacy mixed cart would be impossible to edit.
+    const cart = [line('1', 'c1', 'm1'), line('2', 'c2', 'm9')];
+    expect(findOtherCartSupplier(cart, 'c2', 'm9')).toBeNull();
+    // ...but a genuinely new product from a third supplier is still refused.
+    expect(findOtherCartSupplier(cart, 'c3', 'm3')).not.toBeNull();
+  });
+
+  it('blocks a legacy mixed cart regardless of which supplier is added', () => {
+    const mixed = [line('1', 'c1', 'm1'), line('2', 'c2', 'm2')];
+    expect(findOtherCartSupplier(mixed, 'c1', 'm3')).not.toBeNull();
+    expect(findOtherCartSupplier(mixed, 'c2', 'm3')).not.toBeNull();
   });
 });
 

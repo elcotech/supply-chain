@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, MaterialDelivery, DeliveryMode } from './types';
+import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, MaterialDelivery, DeliveryMode, CartItem } from './types';
 
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
@@ -200,6 +200,39 @@ export const checkMinOrder = (settings: SystemSettings, goodsSubtotal: number): 
   const below = enabled && subtotal < amount;
   return { enabled, amount, subtotal, below, shortfall: below ? amount - subtotal : 0 };
 };
+
+// ---------- Cart: one supplier per cart ----------
+// A proforma is a legal document issued by a single seller, so a cart may only
+// hold one supplier's goods. Kept as a pure helper (not inline in App.tsx) so the
+// rule is unit-testable and so the pre-flight check in `addToCartLogic` and the
+// authoritative check inside the `setCart` updater cannot drift apart: both call
+// this same function.
+
+/**
+ * The first cart line that belongs to a supplier other than `supplierId`, or
+ * `null` when the cart is empty, holds only that supplier's goods, or is being
+ * re-ordered for a material already in it.
+ *
+ * Re-ordering an existing material is a quantity change, not a new supplier, so
+ * `materialId` is passed to let that case through: without it a buyer could not
+ * raise the quantity of a line that a legacy mixed cart also happens to contain.
+ */
+export const findOtherCartSupplier = (
+  cart: CartItem[],
+  supplierId: string,
+  materialId?: string
+): CartItem | null => {
+  if (!cart || cart.length === 0) return null;
+  if (materialId && cart.some(item => item.materialId === materialId)) return null;
+  return cart.find(item => item.supplierId !== supplierId) || null;
+};
+
+/** True when the cart already contains goods from a supplier other than `supplierId`. */
+export const cartHasOtherSupplier = (
+  cart: CartItem[],
+  supplierId: string,
+  materialId?: string
+): boolean => findOtherCartSupplier(cart, supplierId, materialId) !== null;
 
 // ---------- QR / share payload for proformas & orders ----------
 // The QR encodes a URL (so scanning opens the app) AND the compact proforma
