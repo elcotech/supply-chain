@@ -249,6 +249,9 @@ function App() {
   // Report the proforma is rendered from. Kept apart from cartDetails because a
   // proforma always covers the whole cart - one supplier, every selected line.
   const [proformaDetails, setProformaDetails] = useState<CartReport | null>(null);
+  // True for a few seconds after the buyer comes back from the proforma, so the
+  // cart can pulse its "To Purchase" step and make clear where they landed.
+  const [highlightPurchaseStep, setHighlightPurchaseStep] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [compareItems, setCompareItems] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
@@ -299,6 +302,14 @@ function App() {
   useEffect(() => {
     if (!isMobile) setMobileMenuOpen(false);
   }, [isMobile]);
+
+  // The "To Purchase" step pulses for a few seconds after the buyer returns from
+  // the proforma ("Back to To Purchase"), so it is obvious where they landed.
+  useEffect(() => {
+    if (!highlightPurchaseStep) return;
+    const timer = setTimeout(() => setHighlightPurchaseStep(false), 8000);
+    return () => clearTimeout(timer);
+  }, [highlightPurchaseStep]);
 
   // ---------- Proforma QR deep-link (#escon=payload) ----------
   // Decode the compact payload embedded in a QR code and open the
@@ -1354,6 +1365,28 @@ function App() {
     setShowProforma(true);
   };
 
+  // "Back to To Purchase" — the buyer read the proforma and wants to place the
+  // order, so they must land back on step 1 of the cart, not on the page behind
+  // it. Close the document, re-price the cart (delivery distances are live, so
+  // the figures may have moved while the proforma was open), reopen the cart
+  // modal and pulse the "To Purchase" step so the way forward is obvious.
+  const handleBackToPurchase = async () => {
+    setShowProforma(false);
+    setProformaAutoPrint(false);
+    if (cart.length === 0) {
+      setShowCartSummary(false);
+      showAlert('Your cart is empty. Add products to purchase.', 'warning');
+      navigateTo('search-materials');
+      return;
+    }
+    const totals = await calculateCartTotals();
+    if (!totals) return;
+    setCartDetails(totals);
+    setShowCartSummary(true);
+    setHighlightPurchaseStep(true);
+    repricedCart.current = cartSignature(cart) + '|' + deliveryFeeOverride;
+  };
+
   // Allow the buyer to edit the delivery fee on the cart. Overrides the
   // automatic fee everywhere (cart summary, proforma, placed orders).
   const handleDeliveryFeeChange = (value: number) => {
@@ -1821,7 +1854,9 @@ function App() {
                 🛒 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
               </button>
             )}
-            {currentUser && (
+            {/* Customers never export: the proforma is the buyer's only order
+                document, and the platform data stays with suppliers and admins. */}
+            {currentUser && currentUser.userType !== 'customer' && (
               <button className="export-btn" onClick={() => {
                 if (currentPage === 'search-materials') handleExportMaterials();
                 else if (currentPage === 'orders') handleExportOrders();
@@ -1896,18 +1931,20 @@ function App() {
                 {/* The three order actions, in the order the buyer works through
                     them. "To Purchase" places the order, "To Proforma" opens the
                     printable/save-as-PDF invoice, "To Preview" reads the same
-                    invoice on screen. Cart CSV export was removed: the proforma
-                    is now the buyer's only order document. */}
+                    invoice on screen. The proforma has a "Back to To Purchase"
+                    button that returns here and highlights step 1, so a buyer who
+                    reviewed the document is never stranded. Cart CSV export was
+                    removed: the proforma is now the buyer's only order document. */}
                 <div className="cart-order-steps">
                   <button
-                    className="cart-order-step is-primary"
+                    className={'cart-order-step is-primary' + (highlightPurchaseStep ? ' is-returned' : '')}
                     onClick={confirmOrder}
                     disabled={isCalculating || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
                     title={cartDetails.minOrderEnabled && cartDetails.belowMinOrder ? 'Minimum order not met' : ''}
                   >
                     <span className="cart-step-num">1</span>
                     <span className="cart-step-label">{isCalculating ? 'Calculating...' : 'To Purchase'}</span>
-                    <span className="cart-step-hint">Place the order</span>
+                    <span className="cart-step-hint">{highlightPurchaseStep ? 'Tap here to place your order' : 'Place the order'}</span>
                   </button>
                   <button className="cart-order-step" onClick={handlePrintProforma}>
                     <span className="cart-step-num">2</span>
@@ -2226,7 +2263,7 @@ function App() {
           <div className="dashboard-card glass"><div className="card-icon">✅</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
           <div className="dashboard-card glass"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
-        <div className="card glass"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div>
+        <div className="card glass"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button></div>
           <ScrollableTable minWidth="800px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>
               {userOrders.slice(0,5).map(order => {
@@ -2436,7 +2473,7 @@ function App() {
     const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span><button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button></div></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span>{isCompany && <button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button>}</div></div>
         {userOrders.length === 0 ? <div className="no-orders glass">No orders yet</div> : (
           <ScrollableTable minWidth="900px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>
@@ -2822,7 +2859,7 @@ function App() {
             />
             <Action icon="📲" label="Install App" sub="Work offline, home-screen icon" onClick={() => { setMobileMenuOpen(false); setShowInstallGuide(true); }} />
             <Action icon={darkMode ? '☀️' : '🌙'} label={darkMode ? 'Light Theme' : 'Dark Theme'} onClick={() => setDarkMode(!darkMode)} />
-            {currentUser && (
+            {currentUser && currentUser.userType !== 'customer' && (
               <Action icon="📥" label="Export Orders" sub="Download your orders as CSV" onClick={() => { setMobileMenuOpen(false); handleExportOrders(); }} />
             )}
             {currentUser && (
@@ -3148,7 +3185,7 @@ function App() {
                     {isCompany && (order.status === 'pending' || order.status === 'confirmed') && (
                       <button className="m-order-btn danger" onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}>🚫 Cancel</button>
                     )}
-                    <button className="m-order-btn" onClick={handleExportOrders}>📥 Export</button>
+                    {isCompany && <button className="m-order-btn" onClick={handleExportOrders}>📥 Export</button>}
                   </div>
                 </div>
               );
@@ -3393,6 +3430,7 @@ function App() {
             .map(sup => getCompanyById(sup.supplierId) || null)
             .filter((s): s is Company => s !== null)}
           onClose={() => setShowProforma(false)}
+          onBackToPurchase={handleBackToPurchase}
           autoPrint={proformaAutoPrint}
         />
       )}

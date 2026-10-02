@@ -19,6 +19,12 @@ interface ProformaInvoiceProps {
    */
   autoPrint?: boolean;
   onClose: () => void;
+  /**
+   * "Back to To Purchase": close the document and drop the buyer straight back
+   * onto step 1 of the cart so they can place the order they just reviewed.
+   * Falls back to `onClose` when the host does not supply it.
+   */
+  onBackToPurchase?: () => void;
 }
 
 // Standard / specification helper: builds "PN 16, ISO 4427" style strings from
@@ -61,6 +67,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   suppliers,
   autoPrint = false,
   onClose,
+  onBackToPurchase,
 }) => {
   // One proforma covers the whole cart, so the buyer never has to pick a supplier
   // first and the verification QR never moves out of the document header. A cart
@@ -227,8 +234,12 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
           <button className="btn btn-primary" onClick={handlePrint}>
             🖨️ Print Proforma
           </button>
-          <button className="btn btn-secondary" onClick={onClose}>
-            ← Back to Cart
+          <button
+            className="btn btn-secondary"
+            onClick={onBackToPurchase || onClose}
+            title="Return to step 1 of the cart and place this order"
+          >
+            🛒 Back to To Purchase
           </button>
         </div>
 

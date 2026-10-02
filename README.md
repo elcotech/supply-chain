@@ -1,6 +1,6 @@
 # E-SCON — Ethio-Supply Chain Optimization Network
 
-A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, cart/checkout with VAT, supplier & customer dashboards, product photos, CSV exports, and a global live date/time widget with invert-color & transparency toggles.
+A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, cart/checkout with VAT, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
 
 ## 📄 Full technical documentation
 
@@ -39,6 +39,8 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🔒 **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 🗺️ **Automatic supplier routing** — the map always draws the route from the customer's real GPS position to the selected supplier, and re-draws it the moment GPS locks in; selecting another supplier (marker, list or re-opening) replaces the previous route instead of leaving it on screen
 - 🧾 **Three order actions in the cart, in order** — `1 To Purchase` places the order, `2 To Proforma` opens the proforma ready to print or save as PDF, `3 To Preview` reads the identical document on screen. Cart CSV export and the old "Print Report" are gone: the proforma is the buyer's only order document
+- ↩️ **"Back to To Purchase" on the proforma** — reviewed the document and want to order it? The proforma's second button drops you straight back onto step 1 of the cart (re-priced, in case a delivery distance moved) and pulses the **To Purchase** button, so nobody is stranded behind a full-screen invoice. On an empty cart it returns you to product search
+- 🚫 **No export for customers** — CSV export is a supplier/admin tool: it is gone from the header, the customer dashboard, "My Orders" and the mobile "More" sheet. The proforma is the buyer's only order document
 - 📄 **One proforma for the whole cart** — every selected item is on a single document, so the verification QR always sits in the document header no matter how many items are selected
 - 🧭 **QR pinned to the top right** — the verification QR is a fixed third column of the proforma header grid, opposite the logo, on desktop, phone and print. A long supplier name or a long items table can never push it down the page or wrap it below the header
 - 🧾 **Per-item delivery column** — each line is marked "Included" or "—", the supplier gets a delivery breakdown row (distance + which rate paid for it), and the supplier's signature block sits next to the buyer's
@@ -53,7 +55,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 👁️ **Tap-to-explore** — the product photo on the trending carousel and the mobile search grid opens the description, and says so with a pulsing "View details" pill (motion is skipped for reduced-motion users)
 - 🧾 **Readable proforma** — supplier and buyer details always sit side by side (phones and print included), the authorization block does too (supplier name + date beside buyer name + date), and the amount in words sits directly under the totals
 - ✅ TIN / VAT / business-license compliance fields
-- 📥 CSV exports & printable reports
+- 📥 CSV exports & printable reports (suppliers and admins only)
 - ✅ Unit tests for fees, formatting, settings, QR payloads, per-line delivery pricing and multi-item proforma payloads
 - 🌙 **Light-blue interface in every theme** — soft blue page, frosted-white cards, deep navy text; the ☀️/🌙 toggle switches between two blue tints (nothing navy or black), 📱 fully responsive & touch-friendly
 - 🔐 **Centered sign-in & create-account forms** — a frosted, centered card with styled inputs, a Customer/Supplier switch and checkboxes that sit on the same line as their text
