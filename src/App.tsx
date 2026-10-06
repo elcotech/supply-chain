@@ -1363,7 +1363,7 @@ function App() {
     setProformaDetails(totals);
     setProformaAutoPrint(false);
     setShowProforma(true);
-  };
+  }; 
 
   // "Back to To Purchase" — the buyer read the proforma and wants to place the
   // order, so they must land back on step 1 of the cart, not on the page behind
