@@ -14,7 +14,8 @@ import {
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier
 } from './utils';
-import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
+import { loadSettings, saveSettings, refreshSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
+import { pullCloudToCache, cloudPush } from './lib/cloudStore';
 import EditCompany from './components/EditCompany';
 import DateTime from './components/DateTime';
 import ProformaInvoice from './components/ProformaInvoice';
@@ -581,23 +582,40 @@ function App() {
 
   useEffect(() => {
     if (!isInitialized) {
-      const savedUsers = safeLocalStorage.getItem('users');
-      const savedCompanies = safeLocalStorage.getItem('companies');
-      const savedMaterials = safeLocalStorage.getItem('materials');
-      const savedOrders = safeLocalStorage.getItem('orders');
-      const savedCurrentUser = safeLocalStorage.getItem('currentUser');
-
-      let baseCompanies: Company[] = sampleCompanies;
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        const merged = sampleCompanies.map(sampleComp => {
-          const existing = parsed.find((c: Company) => c.id === sampleComp.id);
-          return existing || sampleComp;
-        });
-        baseCompanies = merged;
-      }
-
       const init = async () => {
+        // Hydrate the local cache from the shared Supabase database BEFORE any
+        // state is read, so every device starts from the same source of truth.
+        // No-op (and no network call) when the cloud is not configured.
+        const pulled = await pullCloudToCache();
+        if (pulled) {
+          refreshSettings();
+          setSystemSettings(loadSettings());
+          const readJson = <T,>(key: string, fallback: T): T => {
+            const raw = safeLocalStorage.getItem(key);
+            return raw ? (JSON.parse(raw) as T) : fallback;
+          };
+          setNotifications(readJson('notifications', [] as AppNotification[]));
+          setWallets(readJson('wallets', {} as Record<string, number>));
+          setTransactions(readJson('wallet_transactions', [] as WalletTx[]));
+          setReviews(readJson('reviews', [] as ProductReview[]));
+        }
+
+        const savedUsers = safeLocalStorage.getItem('users');
+        const savedCompanies = safeLocalStorage.getItem('companies');
+        const savedMaterials = safeLocalStorage.getItem('materials');
+        const savedOrders = safeLocalStorage.getItem('orders');
+        const savedCurrentUser = safeLocalStorage.getItem('currentUser');
+
+        let baseCompanies: Company[] = sampleCompanies;
+        if (savedCompanies) {
+          const parsed = JSON.parse(savedCompanies);
+          const merged = sampleCompanies.map(sampleComp => {
+            const existing = parsed.find((c: Company) => c.id === sampleComp.id);
+            return existing || sampleComp;
+          });
+          baseCompanies = merged;
+        }
+
         const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
         setCompanies(enrichedCompanies);
         if (savedUsers) {
@@ -612,13 +630,15 @@ function App() {
           const seededUsers = [...sampleUsers, ADMIN_USER];
           setUsers(seededUsers);
           safeLocalStorage.setItem('users', JSON.stringify(seededUsers));
+          cloudPush('users', seededUsers);
         }
         if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
-        else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
+        else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); cloudPush('materials', sampleMaterials); }
         if (savedOrders) setOrders(JSON.parse(savedOrders));
-        else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); }
+        else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); cloudPush('orders', sampleOrders); }
         if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
         safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
+        cloudPush('companies', enrichedCompanies);
         setIsInitialized(true);
         showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
       };
@@ -631,22 +651,23 @@ function App() {
     if (isInitialized && materials.length === 0 && sampleMaterials.length > 0) {
       setMaterials(sampleMaterials);
       safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
+      cloudPush('materials', sampleMaterials);
       showAlert('Product data reloaded', 'success');
     }
   }, [isInitialized, materials, showAlert]);
 
-  // Persistence
+  // Persistence (localStorage cache + shared cloud database)
   useEffect(() => {
-    if (isInitialized && users.length) safeLocalStorage.setItem('users', JSON.stringify(users));
+    if (isInitialized && users.length) { safeLocalStorage.setItem('users', JSON.stringify(users)); cloudPush('users', users); }
   }, [users, isInitialized]);
   useEffect(() => {
-    if (isInitialized && companies.length) safeLocalStorage.setItem('companies', JSON.stringify(companies));
+    if (isInitialized && companies.length) { safeLocalStorage.setItem('companies', JSON.stringify(companies)); cloudPush('companies', companies); }
   }, [companies, isInitialized]);
   useEffect(() => {
-    if (isInitialized && materials.length) safeLocalStorage.setItem('materials', JSON.stringify(materials));
+    if (isInitialized && materials.length) { safeLocalStorage.setItem('materials', JSON.stringify(materials)); cloudPush('materials', materials); }
   }, [materials, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('orders', JSON.stringify(orders));
+    if (isInitialized) { safeLocalStorage.setItem('orders', JSON.stringify(orders)); cloudPush('orders', orders); }
   }, [orders, isInitialized]);
   useEffect(() => {
     if (currentUser && isInitialized) safeLocalStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -663,6 +684,7 @@ function App() {
   useEffect(() => {
     if (currentUser && isInitialized) {
       safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
+      cloudPush(`cart_${currentUser.id}`, cart);
     }
   }, [cart, currentUser, isInitialized]);
 
@@ -676,21 +698,22 @@ function App() {
   useEffect(() => {
     if (currentUser && isInitialized) {
       safeLocalStorage.setItem(`favs_${currentUser.id}`, JSON.stringify(favorites));
+      cloudPush(`favs_${currentUser.id}`, favorites);
     }
   }, [favorites, currentUser, isInitialized]);
 
   // ---------- Notifications / wallet / reviews persistence ----------
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('notifications', JSON.stringify(notifications));
+    if (isInitialized) { safeLocalStorage.setItem('notifications', JSON.stringify(notifications)); cloudPush('notifications', notifications); }
   }, [notifications, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('wallets', JSON.stringify(wallets));
+    if (isInitialized) { safeLocalStorage.setItem('wallets', JSON.stringify(wallets)); cloudPush('wallets', wallets); }
   }, [wallets, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+    if (isInitialized) { safeLocalStorage.setItem('wallet_transactions', JSON.stringify(transactions)); cloudPush('wallet_transactions', transactions); }
   }, [transactions, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('reviews', JSON.stringify(reviews));
+    if (isInitialized) { safeLocalStorage.setItem('reviews', JSON.stringify(reviews)); cloudPush('reviews', reviews); }
   }, [reviews, isInitialized]);
 
   // Grant every registered account its welcome wallet balance exactly once.
@@ -850,8 +873,12 @@ function App() {
     if (currentUser && currentUser.id === updatedUser.id) {
       setCurrentUser(updatedUser);
     }
-    safeLocalStorage.setItem('companies', JSON.stringify(companies.map(c => c.id === updatedCompany.id ? updatedCompany : c)));
-    safeLocalStorage.setItem('users', JSON.stringify(users.map(u => u.id === updatedUser.id ? updatedUser : u)));
+    const nextCompanies = companies.map(c => c.id === updatedCompany.id ? updatedCompany : c);
+    const nextUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+    safeLocalStorage.setItem('companies', JSON.stringify(nextCompanies));
+    safeLocalStorage.setItem('users', JSON.stringify(nextUsers));
+    cloudPush('companies', nextCompanies);
+    cloudPush('users', nextUsers);
     setShowEditCompany(false);
     showAlert('Company profile updated successfully! ✅', 'success');
   };
@@ -2424,7 +2451,7 @@ function App() {
                           {renderProductImage(item.images, item.category, 'sm')}
                           <div className="product-cell-info"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</div>
                         </td>
-                        <td>{item.category}</td>
+                        <td className="category-cell">{item.category}</td>
                         <td>{company?.name || 'Unknown'}</td>
                         <td>{company?.city || 'N/A'}</td>
                         <td className="price-cell">{formatCurrency(item.price)}</td>
@@ -2927,9 +2954,19 @@ function App() {
               {/* Tapping the card opens the product details, where the +/- stepper
                   and the with/without-delivery checkbox appear only at the moment
                   the customer is ready to order. The cart is opened from the
-                  bottom tab bar, so this is not a second cart button. */}
+                  bottom tab bar, so this is not a second cart button. The small
+                  Map button on the same row jumps straight to the driving route. */}
               <button className="m-pc-add-btn" onClick={onOpen}>
                 {isInCart ? '🛒 Edit order' : '🛒 Order'}
+              </button>
+              <button
+                className="m-pc-map-btn"
+                onClick={() => company && handleOpenMapWithRoute(company.id)}
+                disabled={!company}
+                aria-label={company ? 'Show route to ' + company.name : 'Supplier location unavailable'}
+                title="View route on map"
+              >
+                🗺️
               </button>
             </div>
           )}

@@ -20,7 +20,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52) and [10.23 Single-supplier cart](#1023-single-supplier-cart-v56)
+10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56) and [10.24 Branding, screenshots & search polish](#1024-branding-screenshot-protection--search-polish-v58)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -30,6 +30,7 @@
 17. [Extending the Project](#17-extending-the-project)
 18. [Testing](#18-testing-new-in-v4)
 19. [Instructions for the Next Programmer](#19-instructions-for-the-next-programmer)
+20. [Changelog (recent releases)](#20-changelog-recent-releases)
 
 ---
 
@@ -118,8 +119,8 @@ supply-chain1/
 │   ├── index.html          # HTML entry, meta tags, fonts, Leaflet CDN CSS, PWA meta
 │   ├── manifest.json       # PWA manifest (standalone app, icons, shortcuts)
 │   ├── sw.js               # Custom service worker (pre-cache + network-first)
-│   ├── favicon.ico
-│   ├── logo192.png / logo512.png
+│   ├── favicon.ico         # Generated from logo512.png
+│   ├── logo192.png / logo512.png  # App logo (logo512.png is the master icon source)
 │   └── robots.txt
 ├── src/
 │   ├── index.tsx           # React root — registers the service worker (production only)
@@ -129,21 +130,23 @@ supply-chain1/
 │   ├── types.ts            # TypeScript interfaces (User, Company, Material, SystemSettings, …)
 │   ├── constants.ts        # Sample data + city/unit/department lists
 │   ├── settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
-│   ├── utils.ts            # Helpers: distance, fees, per-line delivery pricing, min-order, QR payloads, CSV, formatting
+│   ├── utils.ts            # Helpers: distance, fees, per-line delivery pricing, fees, formatting
+│   ├── lib/
+│   │   ├── cloudStore.ts   # Supabase sync layer (push/pull, local-first)
+│   │   └── supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
 │   ├── hooks/
-│   │   └── useIsMobile.ts  # matchMedia("(max-width: 768px)") — drives the mobile shell
-│   ├── settings.test.ts    # Unit tests for SystemSettings persistence
-│   ├── utils.test.ts       # Unit tests for formatting, fees, min-order, per-line delivery pricing, QR payloads
-│   └── components/
-│       ├── MapComponent.tsx      # Full-screen Leaflet map with routes + Locate Me
-│       ├── MapPicker.tsx         # Small map to pick a location (company edit) + Locate Me
-│       ├── EditCompany.tsx       # Company profile edit modal
-│       ├── DateTime.tsx          # Global live date/time widget (every screen)
-│       ├── ProformaInvoice.tsx   # Professional whole-cart proforma modal with header QR + delivery breakdown
-│       ├── PublicProforma.tsx    # Mobile-friendly proforma shown when a QR is scanned
-│       ├── AdminSettings.tsx     # Admin-only configuration page (business rules)
-│       ├── InstallGuide.tsx      # "Install E-SCON" device-specific instructions modal
-│       └── OrderTimeline.tsx     # Shipment progress stepper (Ordered→Confirmed→In Transit→Delivered)
+│   │   └── useIsMobile.ts  # Reactive isMobile flag from matchMedia("(max-width: 768px)")
+│   ├── components/
+│   │   ├── ProformaInvoice.tsx, PublicProforma.tsx, AdminSettings.tsx,
+│   │   ├── InstallGuide.tsx, OrderTimeline.tsx, MapComponent.tsx (lazy) … see §10
+│   └── *.test.ts           # Jest unit tests (fees, formatting, settings, QR payloads)
+├── android/                # Capacitor Android project (see docs/ANDROID_BUILD.md)
+│   └── app/src/main/
+│       ├── java/et/escon/supplychain/MainActivity.java   # FLAG_SECURE → screenshots blocked
+│       └── res/mipmap-*/   # Launcher icons generated from public/logo512.png
+├── supabase/               # SQL schema for the optional cloud sync (docs/CLOUD_DATABASE.md)
+├── docs/                   # User guide, Android build, cloud DB, deployment, Play Store, privacy
+├── capacitor.config.json   # Capacitor app id / name / webDir (build)
 ├── package.json
 ├── tsconfig.json
 ├── README.md
@@ -519,6 +522,8 @@ All animations are **CSS-only** (no JS animation libraries), using CSS custom pr
 ### 10.15 Auth & security simulation
 Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lockUntil`). Passwords are stored in plaintext (demo only — do **not** use in production).
 
+**Screenshots are blocked in the Android app (v5.8):** `MainActivity.java` sets `WindowManager.LayoutParams.FLAG_SECURE`, so account, price and proforma content cannot be captured — see [10.24](#1024-branding-screenshot-protection--search-polish-v58).
+
 **Sign-in / create-account layout (v5.4):** `renderLogin` and `renderRegister` both render `<main class="main-content"><div class="auth-container"><div class="auth-card glass">`. The `.auth-*` classes had no CSS at all, so the form sat in the top-left and its inputs rendered unstyled. They are now a centered, frosted card (see §12) and the `.form-*` controls are styled for every form in the app. The Customer/Supplier switch on the register page is `.auth-tabs` / `.auth-tab.active`.
 
 ### 10.16 System Settings (admin) (NEW in v4)
@@ -603,6 +608,25 @@ A cart belongs to exactly one supplier. A proforma is a legal document issued by
 **Legacy carts are not auto-cleared.** A mixed cart from an older build still prices, still renders and still proformas (see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56)); the buyer is expected to clear it. Only *new* adds are blocked.
 
 **Where it is documented for the buyer:** `README.md` ("One supplier per cart") and the in-cart supplier line, which names the single supplier.
+
+---
+
+### 10.24 Branding, screenshot protection & search polish (v5.8)
+
+**One logo everywhere.** `public/logo512.png` is the master artwork. `public/logo192.png`, `public/favicon.ico` (16/32/48 multi-size ICO) and every Android launcher icon are **generated from it**, so the home-screen icon, the browser tab and the Play Store icon are the same mark:
+
+| Asset | Source / size |
+| --- | --- |
+| `public/logo192.png` | logo scaled to 80% on a 512-white square, then resized to 192×192 |
+| `public/favicon.ico` | 16 / 32 / 48 PNG entries in an ICO container |
+| `mipmap-mdpi|hdpi|xhdpi|xxhdpi|xxxhdpi/ic_launcher.png` and `ic_launcher_round.png` | 48 / 72 / 96 / 144 / 192 px — white square with the logo at 80% |
+| `mipmap-*/ic_launcher_foreground.png` | 108 / 162 / 216 / 324 / 432 px transparent canvas with the logo inside the **66% adaptive-icon safe zone**; the background layer stays `@color/ic_launcher_background` (`#FFFFFF`) |
+
+`AndroidManifest.xml` already wires `android:icon="@mipmap/ic_launcher"` and `android:roundIcon="@mipmap/ic_launcher_round"`; the adaptive-icon XMLs live in `mipmap-anydpi-v26/`. Regenerate every size from `public/logo512.png` after a logo change (see [ANDROID_BUILD.md](./docs/ANDROID_BUILD.md#10-icons--branding)).
+
+**Screenshots are blocked in the Android app (v5.8).** `MainActivity.java` sets `WindowManager.LayoutParams.FLAG_SECURE` in `onCreate`, so the OS refuses screenshots and screen recordings of the WebView, blanks the app in the recents thumbnail and hides it from most screen recorders. This is a **native-only** guarantee: a browser/PWA cannot stop the OS or the browser's own tooling from capturing the page. The Android app is therefore the place where prices, invoices and account data stay out of the screenshot gallery. Keep `FLAG_SECURE` — removing it silently re-enables screenshots on every page.
+
+**Find bar and results cards (v5.8).** See §10.4 and §13 for the full-bleed mobile Find bar, the bold/large department chip, the compact Order button and the Map button beside it.
 
 ---
 
@@ -714,7 +738,8 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
   - **Bottom tab bar** (`mobile-tabbar`, fixed, safe-area aware): Home / Search (customers) or Board (companies & admin) / center **FAB** (Cart for customers with badge, Add Product for companies, Login for guests) / Orders (with active-order badge) / More (profile sheet). Guests get Home / Search / FAB-Login / Map / Install.
   - **More sheet** (`m-sheet-overlay` + `m-sheet`): slide-up bottom sheet with profile header + Logout, dashboard, supplier map, compare, install app, theme toggle, CSV export (**supplier/admin only since v5.7**) and admin settings shortcuts, plus a horizontally scrollable "Saved products" strip.
   - **Mobile home** (`renderHomeMobile`): gradient greeting hero card with live stat tiles (active orders, delivered, revenue/spent), quick-action grid (v5.2 dropped the "Cart" tile so the mobile shell has one cart button, not two), "Saved for later" strip, horizontally scroll-snapping **Trending products carousel** (star-rating sorted) using the reusable `MobileProductCard`, and recent-order rows with status pills.
-  - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with an **Order** button — or **Edit order** when the product is already in the cart — that opens the product details; since v5.2 the card no longer opens the cart) instead of the wide table; distance, supplier and price chips are shown per card. Stock chips are supplier-only (see §13.1).
+  - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with a compact **Order** button — or **Edit order** when the product is already in the cart — that opens the product details; since v5.2 the card no longer opens the cart) instead of the wide table; supplier and price are shown per card and stock chips are supplier-only (see §13.1). **v5.8 layout:** the department chip (`.m-pc-chip`) is bold and larger (0.78rem / 800 weight) so the category reads at a glance, the Order button is shorter (36px) and the buy row (`.m-pc-buy`) carries a new 🗺️ **Map** button next to it — on the next line under the price — which jumps straight to the driving route via `handleOpenMapWithRoute(company.id)`. The desktop results table shows the same emphasis through the bold, slightly larger `.category-cell`.
+  - **Full-bleed Find bar (v5.8):** inside the `768px` block the search hero is `padding: 14px 0 10px !important` with the input group as `gap: 0` and square-cornered input/button, and the heading, copy and filter row carry their own `0 12px` padding, so the **search field and its 🔍 button span the whole window width, side to side**, while the rest of the hero keeps its inset. It also removes the old `margin: 0 -12px` that made the hero wider than the viewport on the un-padded mobile `main-content`.
   - **Tap-to-explore affordance (v5.4)**: the product photo inside `MobileProductCard` opens the description, so it must look tappable — `.m-pc-img` scales to 0.97 on press and carries a `.m-pc-view-hint` pill (👁️ View details) that fades in (`mViewHintIn`) while the eye pulses (`mViewPulse`, 1.9 s). The pill is `pointer-events: none` so taps always reach the button, it is `aria-hidden` next to a descriptive `aria-label` on the button, and both animations plus the press transition are disabled under `@media (prefers-reduced-motion: reduce)`. Shared by the trending carousel and the mobile search grid.
   - **Orders** on mobile render stacked order cards with the `OrderTimeline` shipment stepper, customer/supplier line, itemised totals and Confirm/Reorder actions, plus Export on **supplier cards only** since v5.7.
   - **Dashboards** on mobile render 2×2 stat tiles plus compact product/order lists (`renderMobileDashboard(true|false)`).
@@ -809,7 +834,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.3.0` (bumped for the v5.7 UI changes so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.4.0` (bumped for the v5.8 UI + icon changes so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -928,7 +953,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.3.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.4.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -941,6 +966,38 @@ Read this before touching any code. It prevents the most common mistakes.
 - Passwords stored in plaintext — demo only.
 - No backend; all data in localStorage (~5 MB limit; base64 product photos are the main consumer).
 - OSRM + Nominatim are free public servers — rate limits and occasional outages are expected; fallbacks already exist.
+
+---
+
+## 20. Changelog (recent releases)
+
+The app's user-facing labels are unchanged; the Android build carries `versionCode`
+(integer, must increase for every Play upload) and `versionName` in
+[`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
+switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v5.8 — branding, screenshot protection & mobile search polish
+
+- **App icon = `public/logo512.png`.** The Android launcher icons (legacy + round +
+  adaptive foreground, all densities) and the PWA `logo192.png` / `favicon.ico`
+  were regenerated from the logo, so the phone icon, browser tab and store icon
+  all match the in-app logo. See [10.24](#1024-branding-screenshot-protection--search-polish-v58).
+- **Screenshots are blocked in the Android app.** `MainActivity.java` now sets
+  `FLAG_SECURE`, so the OS refuses screenshots/screen recordings of the app and
+  blanks the recents preview. This is native-only — a browser tab cannot block
+  screenshots.
+- **Mobile search results** — the department chip is bold and larger, the **Order**
+  button is compact, and a new 🗺️ **Map** button sits beside it on the next line
+  (`handleOpenMapWithRoute`). The desktop table's category column is bold and
+  slightly larger too.
+- **Full-bleed Find bar** — on phones the search field and its 🔍 button now span
+  the entire window width, side to side.
+- **Housekeeping** — removed unused `escon.pdf`, `sample.jpg`, the CRA `logo.svg`
+  and the unused launcher template vectors; bumped `versionCode` 1 → 2,
+  `versionName` 1.0 → 1.1 and `sw.js` `VERSION` `e-scon-v1.3.0` → `e-scon-v1.4.0`.
+
+Earlier releases (v5.2 – v5.7) are summarised inline throughout §10; nothing in
+this release changed an existing feature or its behaviour.
 
 ---
 

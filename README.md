@@ -2,9 +2,17 @@
 
 A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, cart/checkout with VAT, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
 
-## 📄 Full technical documentation
+## 📚 Documentation
 
-**👉 See [TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md)** — a complete guide covering architecture, data models, all features, third-party integrations, the styling system, responsive design, deployment, and troubleshooting, so anyone can recreate the entire project by reading it.
+| Document | Audience | Contents |
+| --- | --- | --- |
+| [**TECHNICAL_DOCUMENTATION.md**](./TECHNICAL_DOCUMENTATION.md) | Developers | The single source of truth: architecture, data models, features, integrations, styling, responsive design, deployment, troubleshooting |
+| [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) | End users | How to search, order, print proformas, sell, install the app, and troubleshoot |
+| [docs/ANDROID_BUILD.md](./docs/ANDROID_BUILD.md) | Developers | Building the debug APK and signed release AAB with Capacitor, JDK 17 and the Android SDK |
+| [docs/CLOUD_DATABASE.md](./docs/CLOUD_DATABASE.md) | Developers / admins | Supabase setup, how sync works, and the security limitations |
+| [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Developers | Deploying the web app and the Android app |
+| [docs/PRIVACY_POLICY.md](./docs/PRIVACY_POLICY.md) | Legal / Play Store | Privacy policy template for the Play Store |
+| [docs/PLAY_STORE_LISTING.md](./docs/PLAY_STORE_LISTING.md) | Release managers | Store listing copy, assets, Data safety form and release checklist |
 
 ## Quick start
 
@@ -53,6 +61,9 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 📊 Supplier & customer dashboards, order management
 - 📱 **Mobile banking-style app** — a dedicated mobile shell (bottom tab bar, centre cart button, "More" sheet, greeting home, trending-products carousel, card-based search, order cards with a shipment progress stepper) automatically appears on phones; the desktop layout stays untouched
 - 👁️ **Tap-to-explore** — the product photo on the trending carousel and the mobile search grid opens the description, and says so with a pulsing "View details" pill (motion is skipped for reduced-motion users)
+- 🖼️ **App icon = the logo** — the Android launcher icon, the PWA icon and the browser favicon are all generated from `public/logo512.png`, so the phone icon, browser tab and Play Store icon match the in-app logo
+- 📸 **Screenshots are blocked in the Android app** — the app sets Android's secure-window flag, so prices, proformas and account details cannot be screenshotted or screen-recorded (a browser tab cannot block the OS screenshot feature)
+- 🔎 **Mobile search polish** — the Find bar spans the full width of the screen, the department chip on each result card is bold and larger, and a compact 🛒 **Order** button now shares its row with a new 🗺️ **Map** button that opens the driving route; the desktop results table's category column is bold and larger too
 - 🧾 **Readable proforma** — supplier and buyer details always sit side by side (phones and print included), the authorization block does too (supplier name + date beside buyer name + date), and the amount in words sits directly under the totals
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports (suppliers and admins only)

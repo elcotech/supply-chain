@@ -4,6 +4,7 @@
 // without touching code or redeploying.
 import { SystemSettings, DeliveryZone, User } from './types';
 import { safeLocalStorage } from './utils';
+import { cloudPushNow } from './lib/cloudStore';
 
 export const SETTINGS_KEY = 'system_settings';
 
@@ -66,6 +67,7 @@ export const loadSettings = (): SystemSettings => {
 export const saveSettings = (settings: SystemSettings): void => {
   try {
     safeLocalStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    void cloudPushNow(SETTINGS_KEY, settings);
   } catch (error) {
     console.warn('Failed to persist system settings', error);
   }

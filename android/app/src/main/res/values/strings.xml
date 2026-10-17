@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">E-SCON</string>
+    <string name="title_activity_main">E-SCON</string>
+    <string name="package_name">et.escon.supplychain</string>
+    <string name="custom_url_scheme">et.escon.supplychain</string>
+</resources>
