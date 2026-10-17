@@ -168,17 +168,17 @@ An **Android App Bundle** (`.aab`) is what Google Play requires.
 
 ## 7. Versioning
 
-The shipped build is currently **`versionCode 2` / `versionName "1.1"`**
+The shipped build is currently **`versionCode 3` / `versionName "1.2"`**
 (`android/app/build.gradle`). Before each Play Store upload, bump both:
 
 ```gradle
-versionCode 3          // integer, must increase every upload
-versionName "1.2"      // human-readable
+versionCode 4          // integer, must increase every upload
+versionName "1.3"      // human-readable
 ```
 
 Also bump `VERSION` at the top of [`public/sw.js`](../public/sw.js) so installed
 PWA clients purge their cached assets (this does **not** touch user data). Current
-value: `e-scon-v1.4.0`.
+value: `e-scon-v1.5.0`.
 
 ---
 

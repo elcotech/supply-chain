@@ -450,7 +450,7 @@ Checkout computes subtotal + VAT (per-item %) + a **per-line** delivery fee (see
 **Stock visibility:** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price and unit only.
 
 ### 10.6 Company dashboard
-Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and edit their company profile — including picking an exact map location via `MapPicker` (click/drag marker + reverse geocoding).
+Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and — from the **🏢 Manage My Business** button — open the unified **My Business** page that edits the company profile, its exact map location and every product in one place (see [10.25](#1025-supplier-self-service--my-business-page-v59)).
 
 **Header shows the supplier's name (v5.6):** the supplier's own name is bold and centred on **both** dashboards. Desktop renders `<p className="dashboard-supplier-name">{company?.name}</p>` inside `.dashboard-header-supplier`, on its own line under the "Supplier Dashboard" title, replacing the old `Welcome {company?.name}!` paragraph. Mobile puts the same `.dashboard-supplier-name` on the `<h2>` of `.mobile-page-head-supplier`, with "Supplier Dashboard" demoted to the `<p>` subtitle and the old `🏢` prefix dropped from the name. The rules are scoped to the supplier pages so the **customer** dashboard keeps its `Welcome {currentUser.name}!` / `Hi, {name}` greeting and its left alignment, and `word-break: break-word` keeps a long trading name from overflowing on a phone.
 
@@ -627,6 +627,22 @@ A cart belongs to exactly one supplier. A proforma is a legal document issued by
 **Screenshots are blocked in the Android app (v5.8).** `MainActivity.java` sets `WindowManager.LayoutParams.FLAG_SECURE` in `onCreate`, so the OS refuses screenshots and screen recordings of the WebView, blanks the app in the recents thumbnail and hides it from most screen recorders. This is a **native-only** guarantee: a browser/PWA cannot stop the OS or the browser's own tooling from capturing the page. The Android app is therefore the place where prices, invoices and account data stay out of the screenshot gallery. Keep `FLAG_SECURE` — removing it silently re-enables screenshots on every page.
 
 **Find bar and results cards (v5.8).** See §10.4 and §13 for the full-bleed mobile Find bar, the bold/large department chip, the compact Order button and the Map button beside it.
+
+### 10.25 Supplier self-service — My Business page (v5.9)
+
+A supplier can now edit **everything about their own business** from one place: `renderMyBusiness()` in `App.tsx` (router case `my-business`), reachable from the desktop top-nav **My Business** link, the phone **More** sheet entry, and the **🏢 Manage My Business** button on both supplier dashboards. The page is supplier-only (`currentUser.userType === 'company'` + `getCompanyByUserId`).
+
+It has two segments driven by the `myBusinessTab` state (default `'profile'`), rendered with the existing `.auth-tabs` / `.auth-tab` segmented control:
+
+- **🏢 Profile & Location** — embeds [`EditCompany`](../src/components/EditCompany.tsx) with the new `embedded` prop (inline instead of the old modal). The same `handleSaveCompany` writes the company + user to `localStorage` **and** `cloudPush('companies'|'users', …)`. The form now also edits:
+  - **Company logo** — a single base64 image (`Company.logo`), upload / replace / remove, capped at 1.5 MB, shown on the My Business header (`.supplier-logo`) and reusable as the storefront mark.
+  - **Account** — the user's **full name** and an optional **new password** (blank keeps the current one). The password is still stored in `localStorage`, so it remains a demo-grade credential, not a hardened auth secret.
+  - Everything it already had: description, **city / address and exact map location** via `MapPicker`, contact details, and the legal/compliance fields.
+- **📦 Products** — the supplier's own products with view/edit/delete and an **Add Product** button; the list is a table on desktop and `.m-dash-list` rows on phones (mobile parity). Add/Edit reuse the existing `add-material` / `edit-material` pages.
+
+The old standalone "Profile" nav link and the `showEditCompany` modal were removed in favour of this page; `handleEditCompany` no longer exists. `Company.logo` is optional and now also shown in the My Business header when present.
+
+The **add and edit product forms gained a shared `renderMaterialSpecificationsFields()` section** — optional **Model**, **Weight**, **Dimensions**, **Grade**, **Origin** and comma-separated **Certifications** (`material.specifications`), which were already stored and shown on the product-details page but previously had no inputs.
 
 ---
 
@@ -953,7 +969,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.4.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.5.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -996,7 +1012,24 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   and the unused launcher template vectors; bumped `versionCode` 1 → 2,
   `versionName` 1.0 → 1.1 and `sw.js` `VERSION` `e-scon-v1.3.0` → `e-scon-v1.4.0`.
 
-Earlier releases (v5.2 – v5.7) are summarised inline throughout §10; nothing in
+### v5.9 — supplier self-service "My Business"
+
+- **One place for everything a supplier owns.** New `my-business` page
+  (`renderMyBusiness`) with **Profile & Location** and **Products** segments,
+  reachable from the desktop nav, the phone **More** sheet and a **🏢 Manage My
+  Business** button on both supplier dashboards. See
+  [10.25](#1025-supplier-self-service--my-business-page-v59).
+- **Editable account** — full name and an optional new password; the company
+  **logo** can be uploaded, replaced or removed. `EditCompany` gained an
+  `embedded` mode and the old `showEditCompany` modal / `handleEditCompany` were
+  removed.
+- **Complete product forms** — the add/edit product forms now expose the
+  previously-stored weight/dimensions/grade/origin/certifications and model
+  fields via `renderMaterialSpecificationsFields()`.
+- **Housekeeping** — bumped `versionCode` 2 → 3, `versionName` 1.1 → 1.2 and
+  `sw.js` `VERSION` `e-scon-v1.4.0` → `e-scon-v1.5.0`.
+
+Earlier releases (v5.2 – v5.8) are summarised inline throughout §10; nothing in
 this release changed an existing feature or its behaviour.
 
 ---

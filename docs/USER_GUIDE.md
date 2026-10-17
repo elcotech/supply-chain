@@ -163,11 +163,16 @@ The **Supplier Dashboard** leads with your company name and shows:
 - Your products table with **In Stock**, **Stock Status** and **Stock Value**
   columns.
 - An **Add Product** button and view/edit/delete on every product.
+- A **🏢 Manage My Business** button that opens the full self-service page
+  (profile, location and products) described below.
 
 ### Adding or editing a product
 
 - Fill in name, description, brand, category, department, unit, price, quantity
   and compliance fields (TIN, VAT, business license) where relevant.
+- **🧾 Specifications** — optional **Model**, **Weight**, **Dimensions**,
+  **Grade**, **Origin** and **Certifications** (comma-separated). They appear on
+  the product-details page next to the photos.
 - **📷 Upload Photos** — attach up to **6 photos** per product. They show as
   thumbnails with an ✕ to remove before saving, and appear in search results,
   your dashboard and the product-details gallery.
@@ -176,10 +181,22 @@ The **Supplier Dashboard** leads with your company name and shows:
   delivery" checkbox and the fee is worked out from the real road distance.
   Leave it unticked and the platform's delivery rules apply instead.
 
-### Company profile
+### My Business — edit everything in one place
 
-Edit your company profile from the dashboard, including **picking your exact map
-location** (click or drag the marker, with reverse geocoding).
+Open **My Business** from the desktop top navigation, the **🏢 My Business**
+entry in the phone's **More** menu, or the **🏢 Manage My Business** button on
+the Supplier Dashboard. It has two tabs:
+
+- **🏢 Profile & Location** — your company **logo** (upload/replace/remove),
+  name, description, **city, address and exact map location** (click or drag the
+  marker, with reverse geocoding), contact details (phone, email, website,
+  working hours), legal & compliance fields (TIN, business license, VAT, trade
+  licence expiry) and your **account** (full name and, optionally, a new
+  password — leave the password blank to keep it).
+- **📦 Products** — the full list of your products with view/edit/delete and an
+  **Add Product** button. The Add/Edit forms include the specifications above.
+
+**Everything a supplier can change about their own business is here.**
 
 ### Orders
 

@@ -235,7 +235,8 @@ function App() {
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState<number | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [showSupplierMap, setShowSupplierMap] = useState(false);
-  const [showEditCompany, setShowEditCompany] = useState(false);
+  // Which segment of the supplier "My Business" page is open.
+  const [myBusinessTab, setMyBusinessTab] = useState<'profile' | 'products'>('profile');
   const [currentPage, setCurrentPage] = useState<string>('splash');
   const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -838,35 +839,7 @@ function App() {
     setCurrentPage('home');
   };
 
-  // ---------- Company edit ----------
-  const handleEditCompany = () => {
-    if (!currentUser || currentUser.userType !== 'company') {
-      showAlert('Only company users can edit their profile', 'danger');
-      return;
-    }
-    const company = getCompanyByUserId(currentUser.id);
-    if (!company) {
-      showAlert('Company profile not found', 'danger');
-      return;
-    }
-    setFormData(prev => ({
-      ...prev,
-      companyName: company.name,
-      companyDescription: company.description,
-      companyLocation: company.location,
-      companyCity: company.city,
-      companyPhone: currentUser.phone,
-      companyEmail: currentUser.email,
-      companyWebsite: company.website || '',
-      companyWorkingHours: company.workingHours || '',
-      companyTinNumber: company.tinNumber,
-      companyBusinessLicense: company.businessLicense,
-      companyVatNumber: company.vatNumber,
-      companyTradeLicenseExpiry: company.tradeLicenseExpiry,
-    }));
-    setShowEditCompany(true);
-  };
-
+  // ---------- Company edit (suppliers manage this from the My Business page) ----------
   const handleSaveCompany = (updatedCompany: Company, updatedUser: User) => {
     setCompanies(prev => prev.map(c => c.id === updatedCompany.id ? updatedCompany : c));
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
@@ -879,8 +852,7 @@ function App() {
     safeLocalStorage.setItem('users', JSON.stringify(nextUsers));
     cloudPush('companies', nextCompanies);
     cloudPush('users', nextUsers);
-    setShowEditCompany(false);
-    showAlert('Company profile updated successfully! ✅', 'success');
+    showAlert('Business profile updated successfully! ✅', 'success');
   };
 
   // ---------- System settings (admin) ----------
@@ -1828,6 +1800,25 @@ function App() {
     </div>
   );
 
+  // Optional technical specifications shared by the add/edit product forms
+  const renderMaterialSpecificationsFields = () => (
+    <div className="form-section">
+      <h3>🧾 Specifications <small className="form-hint">(optional — shown on the product details page)</small></h3>
+      <div className="form-row">
+        <div className="form-group"><label>🏷️ Model</label><input type="text" className="form-input" name="materialModel" value={formData.materialModel} onChange={handleInputChange} /></div>
+        <div className="form-group"><label>⚖️ Weight</label><input type="text" className="form-input" name="materialWeight" value={formData.materialWeight} onChange={handleInputChange} placeholder="e.g. 25 kg" /></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>📐 Dimensions</label><input type="text" className="form-input" name="materialDimensions" value={formData.materialDimensions} onChange={handleInputChange} placeholder="e.g. 120 × 60 x 40 cm" /></div>
+        <div className="form-group"><label>💎 Grade</label><input type="text" className="form-input" name="materialGrade" value={formData.materialGrade} onChange={handleInputChange} placeholder="e.g. Grade A" /></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>🌍 Origin</label><input type="text" className="form-input" name="materialOrigin" value={formData.materialOrigin} onChange={handleInputChange} placeholder="e.g. Ethiopia" /></div>
+        <div className="form-group"><label>📜 Certifications <small className="form-hint">(comma separated)</small></label><input type="text" className="form-input" name="materialCertifications" value={formData.materialCertifications} onChange={handleInputChange} placeholder="e.g. ISO 9001, CE" /></div>
+      </div>
+    </div>
+  );
+
   // ---------- Render helpers ----------
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
     <div className="table-responsive-wrapper"><div className="table-scroll-container" style={{ minWidth }}>{children}</div></div>
@@ -1916,7 +1907,7 @@ function App() {
           <>
             <button className={'nav-link ' + (currentPage === 'company-dashboard' ? 'active' : '')} onClick={() => navigateTo('company-dashboard')}>Dashboard</button>
             <button className={'nav-link ' + (currentPage === 'add-material' ? 'active' : '')} onClick={() => navigateTo('add-material')}>+ Add</button>
-            <button className={'nav-link ' + (currentPage === 'edit-company' ? 'active' : '')} onClick={handleEditCompany}>Profile</button>
+            <button className={'nav-link ' + (currentPage === 'my-business' ? 'active' : '')} onClick={() => navigateTo('my-business')}>My Business</button>
           </>
         ) : (
           <button className={'nav-link ' + (currentPage === 'customer-dashboard' ? 'active' : '')} onClick={() => navigateTo('customer-dashboard')}>Dashboard</button>
@@ -2271,7 +2262,108 @@ function App() {
             </tbody></table>
           </ScrollableTable>
         </div>
-        <button className="btn btn-secondary" onClick={handleEditCompany}>✏️ Edit Company Profile</button>
+        <button className="btn btn-primary" onClick={() => navigateTo('my-business')}>🏢 Manage My Business</button>
+      </main>
+    );
+  };
+
+  // ---------- Supplier: unified "My Business" (profile, location & products) ----------
+  const renderMyBusiness = () => {
+    if (!currentUser || currentUser.userType !== 'company') {
+      return <main className="main-content"><div className="alert alert-danger">⚠️ Only suppliers can manage a business profile.</div></main>;
+    }
+    const company = getCompanyByUserId(currentUser.id);
+    if (!company) {
+      return <main className="main-content"><div className="alert alert-danger">⚠️ Company profile not found.</div></main>;
+    }
+    const companyMaterials = materials.filter(m => m.companyId === company.id);
+
+    return (
+      <main className="main-content my-business-page">
+        <div className="dashboard-header dashboard-header-supplier">
+          <div className="dashboard-title">
+            {company.logo
+              ? <img src={company.logo} alt={company.name + ' logo'} className="supplier-logo" />
+              : <span className="title-icon">🏢</span>}
+            <h1>My Business</h1>
+          </div>
+          <p className="dashboard-supplier-name">{company.name}{company.city ? ' · ' + company.city : ''}</p>
+        </div>
+
+        <div className="auth-tabs my-business-tabs">
+          <button
+            className={'auth-tab ' + (myBusinessTab === 'profile' ? 'active' : '')}
+            onClick={() => setMyBusinessTab('profile')}
+          >
+            🏢 Profile &amp; Location
+          </button>
+          <button
+            className={'auth-tab ' + (myBusinessTab === 'products' ? 'active' : '')}
+            onClick={() => setMyBusinessTab('products')}
+          >
+            📦 Products ({companyMaterials.length})
+          </button>
+        </div>
+
+        {myBusinessTab === 'profile' ? (
+          <EditCompany
+            company={company}
+            user={currentUser}
+            onSave={handleSaveCompany}
+            onClose={() => navigateTo('company-dashboard')}
+            embedded
+          />
+        ) : (
+          <div className="card glass">
+            <div className="card-header">
+              <h3>📦 My products</h3>
+              <button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button>
+            </div>
+            {companyMaterials.length === 0 ? (
+              <div className="no-results glass"><p>No products yet — add your first one.</p></div>
+            ) : isMobile ? (
+              <div className="m-dash-list">
+                {companyMaterials.map(m => (
+                  <div key={m.id} className="m-dash-row">
+                    {renderProductImage(m.images, m.category, 'sm')}
+                    <div className="m-dash-row-info">
+                      <strong>{m.name}</strong>
+                      <small>{m.category} · {m.quantity} {m.unit} · {formatCurrency(m.price)}</small>
+                    </div>
+                    <button className="btn-icon edit" title="Edit product" onClick={() => handleEditMaterial(m)}>✏️</button>
+                    <button className="btn-icon danger" title="Delete product" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ScrollableTable minWidth="820px">
+                <table className="data-table">
+                  <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>In Stock</th><th>Rating</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {companyMaterials.map(m => (
+                      <tr key={m.id}>
+                        <td className="product-cell">
+                          {renderProductImage(m.images, m.category, 'sm')}
+                          <div className="product-cell-info"><strong>{m.name}</strong>{m.brand && <small>{m.brand}</small>}</div>
+                        </td>
+                        <td className="category-cell">{m.category}</td>
+                        <td className="price-cell">{formatCurrency(m.price)}</td>
+                        <td>{m.unit}</td>
+                        <td className="stock-cell"><strong>{m.quantity}</strong> {m.unit}</td>
+                        <td>⭐ {m.rating || 'N/A'}</td>
+                        <td>
+                          <button className="btn-icon" title="View details" onClick={() => setSelectedMaterial(m)}>👁️</button>
+                          <button className="btn-icon edit" title="Edit product" onClick={() => handleEditMaterial(m)}>✏️</button>
+                          <button className="btn-icon danger" title="Delete product" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ScrollableTable>
+            )}
+          </div>
+        )}
       </main>
     );
   };
@@ -2321,6 +2413,7 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderMaterialSpecificationsFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
@@ -2336,6 +2429,7 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderMaterialSpecificationsFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>Cancel</button></div>
@@ -2875,6 +2969,14 @@ function App() {
               sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : 'Customer'}
               onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard'); }}
             />
+            {isCompany && (
+              <Action
+                icon="🏢"
+                label="My Business"
+                sub="Profile, location & products"
+                onClick={() => { setMobileMenuOpen(false); navigateTo('my-business'); }}
+              />
+            )}
             <Action icon="🗺️" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
             <Action icon="💳" label="E-SCON Wallet" sub={currentUser ? 'Balance ' + formatCurrency(walletBalance(currentUser.id)) : 'Top up & pay with wallet'} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
             <Action icon="🔔" label="Notifications" sub={unreadNotifications() > 0 ? unreadNotifications() + ' unread' : 'All caught up'} onClick={() => { setMobileMenuOpen(false); setShowNotifications(true); }} />
@@ -3301,7 +3403,7 @@ function App() {
               </div>
             )}
           </div>
-          <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleEditCompany}>✏️ Edit Company Profile</button>
+          <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => navigateTo('my-business')}>🏢 Manage My Business</button>
           <div className="m-section">
             <div className="m-section-head">
               <h3>📦 Recent orders</h3>
@@ -3385,18 +3487,12 @@ function App() {
   const renderCurrentPage = () => {
     if (showSplash) return renderSplash();
     if (showSupplierMap) return renderSupplierMap();
-    if (showEditCompany) {
-      const company = currentUser ? getCompanyByUserId(currentUser.id) : null;
-      const user = currentUser;
-      if (company && user) {
-        return <EditCompany company={company} user={user} onSave={handleSaveCompany} onClose={() => setShowEditCompany(false)} />;
-      }
-    }
     switch (currentPage) {
       case 'home': return renderHome();
       case 'login': return renderLogin();
       case 'register': return renderRegister();
       case 'company-dashboard': return renderCompanyDashboard();
+      case 'my-business': return renderMyBusiness();
       case 'customer-dashboard': return renderCustomerDashboard();
       case 'add-material': return renderAddMaterial();
       case 'edit-material': return renderEditMaterial();
