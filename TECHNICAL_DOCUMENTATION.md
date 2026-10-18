@@ -107,6 +107,17 @@ npx tsc --noEmit
 
 New registrations default to password `0909` when left blank.
 
+**Supplier registration pins a map location.** On the **Supplier** tab the register
+form adds a **🗺️ Business Location on Map** control (`showRegisterMapPicker`
+state + `handleRegisterLocationSelect` in `App.tsx`) that opens the shared
+[`MapPicker`](../src/components/MapPicker.tsx). The chosen `registerLat` /
+`registerLng` are written to both the new `User` and `Company`; the reverse-
+geocoded address backfills the address field (only when it is empty) and selects
+the matching city from `ETHIOPIAN_CITIES`. Registration is blocked for suppliers
+until a pin is set (`hasMapLocation` guard in `handleRegister`); customers keep
+the previous random-near-Addis default. The same pin can be changed later from
+**My Business → Profile & Location** (§10.25).
+
 > The **Admin** account is a seeded platform role. Only admins see the **⚙️ Settings** page where the delivery-fee model, delivery zones, free-delivery threshold and minimum-order rule are configured (see §10.16). It is created automatically on first load if missing.
 
 ---
@@ -1028,6 +1039,9 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   fields via `renderMaterialSpecificationsFields()`.
 - **Housekeeping** — bumped `versionCode` 2 → 3, `versionName` 1.1 → 1.2 and
   `sw.js` `VERSION` `e-scon-v1.4.0` → `e-scon-v1.5.0`.
+- **Location at sign-up** — suppliers now pin their business on the map during
+  registration (required), with the same `MapPicker` they already use in **My
+  Business**.
 
 Earlier releases (v5.2 – v5.8) are summarised inline throughout §10; nothing in
 this release changed an existing feature or its behaviour.

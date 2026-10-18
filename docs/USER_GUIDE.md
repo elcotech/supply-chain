@@ -28,6 +28,11 @@ You can use E-SCON in a normal browser, or install it as an app on your phone
 1. Open the app. After a short splash screen you land on the **Home** page.
 2. Tap **Login** (or **Register** to create an account).
 3. Choose your account type on the register page: **Customer** or **Supplier**.
+4. **Suppliers:** after filling in the company details, tap **🗺️ Set Location on
+   Map** and click your business on the map to drop the pin (it can also locate
+   your device). The pin is **required** for suppliers — it is how buyers see your
+   distance and get a delivery route. You can move the pin again later from
+   **My Business → Profile & Location**.
 
 ### Demo accounts (sample data)
 

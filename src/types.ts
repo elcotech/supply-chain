@@ -143,6 +143,8 @@ export interface FormData {
   registerPhone: string;
   registerAddress: string;
   registerCity: string;
+  registerLat: number;
+  registerLng: number;
   registerCompanyName: string;
   registerUserType: string;
   tinNumber: string;

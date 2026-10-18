@@ -17,6 +17,7 @@ import {
 import { loadSettings, saveSettings, refreshSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import { pullCloudToCache, cloudPush } from './lib/cloudStore';
 import EditCompany from './components/EditCompany';
+import MapPicker from './components/MapPicker';
 import DateTime from './components/DateTime';
 import ProformaInvoice from './components/ProformaInvoice';
 import PublicProforma from './components/PublicProforma';
@@ -285,6 +286,7 @@ function App() {
   const [showWallet, setShowWallet] = useState(false);
   const [showDataCenter, setShowDataCenter] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
+  const [showRegisterMapPicker, setShowRegisterMapPicker] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState(10000);
   const [topUpMethod, setTopUpMethod] = useState('Telebirr');
   const [reviewDraft, setReviewDraft] = useState<{ rating: number; comment: string }>({ rating: 5, comment: '' });
@@ -358,7 +360,7 @@ function App() {
   const [formData, setFormData] = useState<FormData>({
     loginEmail: '', loginPassword: '', selectedUser: '',
     registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '',
-    registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', registerUserType: 'customer',
+    registerAddress: '', registerCity: 'Addis Ababa', registerLat: 0, registerLng: 0, registerCompanyName: '', registerUserType: 'customer',
     tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false,
     materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '',
     materialMinOrder: '', materialDescription: '', searchQuery: '', searchCategory: 'all',
@@ -798,13 +800,19 @@ function App() {
 
   const handleRegister = (e: React.FormEvent): void => {
     e.preventDefault();
-    const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered } = formData;
+    const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered, registerLat, registerLng } = formData;
     if (users.find(u => u.email === registerEmail)) { showAlert('User with this email already exists', 'danger'); return; }
+    // Suppliers must pin their business on the map so buyers can find and route
+    // to them; customers keep the old "near Addis" default when they skip it.
+    const hasMapLocation = registerLat !== 0 || registerLng !== 0;
+    if (registerUserType === 'company' && !hasMapLocation) { showAlert('📍 Please set your business location on the map before registering.', 'danger'); return; }
+    const lat = hasMapLocation ? registerLat : 9.0320 + (Math.random() * 0.05 - 0.025);
+    const lng = hasMapLocation ? registerLng : 38.7469 + (Math.random() * 0.05 - 0.025);
     const newUser: User = {
       id: 'user' + (users.length + 1), name: registerFullName, email: registerEmail, password: registerPassword || '0909',
       phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as 'customer' | 'company',
       companyName: registerUserType === 'company' ? registerCompanyName : '',
-      lat: 9.0320 + (Math.random() * 0.05 - 0.025), lng: 38.7469 + (Math.random() * 0.05 - 0.025),
+      lat, lng,
       registered: new Date().toISOString().split('T')[0], loginAttempts: 0, lockUntil: 0,
       tinNumber: registerUserType === 'company' ? tinNumber : '',
       businessLicense: registerUserType === 'company' ? businessLicense : '',
@@ -825,7 +833,26 @@ function App() {
     }
     showAlert('Registration successful! Please login. ✅', 'success');
     setCurrentPage('login');
-    setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false }));
+    setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerLat: 0, registerLng: 0, registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false }));
+  };
+
+  const handleRegisterLocationSelect = (lat: number, lng: number, address: string): void => {
+    // Match the reverse-geocoded address to one of our known cities so the
+    // dropdown stays in sync with the pin; keep a typed address if there is one.
+    const matchedCity = ETHIOPIAN_CITIES.find(c => address.toLowerCase().includes(c.toLowerCase()));
+    setFormData(prev => {
+      const parts = address.split(',').map(p => p.trim()).filter(Boolean);
+      const street = parts.length > 1 ? address.split(',').slice(0, 2).join(',') : (parts[0] || prev.registerAddress);
+      return {
+        ...prev,
+        registerLat: lat,
+        registerLng: lng,
+        registerAddress: prev.registerAddress.trim() ? prev.registerAddress : street,
+        registerCity: matchedCity || prev.registerCity
+      };
+    });
+    setShowRegisterMapPicker(false);
+    showAlert('📍 Business location pinned on the map', 'success');
   };
 
   const handleLogout = (): void => {
@@ -2181,6 +2208,9 @@ function App() {
               <div className="form-row"><div className="form-group"><label className="form-label">🔒 Password *</label><input type="password" className="form-input" name="registerPassword" value={formData.registerPassword} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">📞 Phone *</label><input type="tel" className="form-input" name="registerPhone" value={formData.registerPhone} onChange={handleInputChange} required /></div></div>
               <div className="form-group"><label className="form-label">📍 Address *</label><input type="text" className="form-input" name="registerAddress" value={formData.registerAddress} onChange={handleInputChange} required /></div>
               <div className="form-group"><label className="form-label">🏙️ City *</label><select className="form-select" name="registerCity" value={formData.registerCity} onChange={handleInputChange} required><option value="">Select</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              {formData.registerUserType === 'company' && (
+                <div className="form-group"><label className="form-label">🗺️ Business Location on Map *</label><button type="button" className="btn-secondary" onClick={() => setShowRegisterMapPicker(true)}>🗺️ Set Location on Map</button><div className="location-preview"><small>{(formData.registerLat !== 0 || formData.registerLng !== 0) ? `📍 Lat: ${formData.registerLat.toFixed(6)}, Lng: ${formData.registerLng.toFixed(6)}` : '📍 No location pinned yet — buyers use this point to find and route to you.'}</small></div></div>
+              )}
               <div className="form-group"><label className="checkbox-label"><input type="checkbox" required /> ✅ I agree to Ethiopian Trade Regulations</label></div>
               <button type="submit" className="btn-submit">📝 Create Account</button>
             </form>
@@ -3535,6 +3565,16 @@ function App() {
 
       {/* Install guide modal — always reachable via ?install link behaviour */}
       {showInstallGuide && <InstallGuide onClose={() => setShowInstallGuide(false)} />}
+
+      {/* Map picker used while a supplier registers their business location */}
+      {showRegisterMapPicker && (
+        <MapPicker
+          initialLat={formData.registerLat || 9.0320}
+          initialLng={formData.registerLng || 38.7469}
+          onLocationSelect={handleRegisterLocationSelect}
+          onClose={() => setShowRegisterMapPicker(false)}
+        />
+      )}
 
       {/* Public proforma opened by scanning a QR code (#escon=...) */}
       {publicProformaData && (
