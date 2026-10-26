@@ -82,13 +82,14 @@ The native app embeds whatever is in `build/`, so **always rebuild the web app
 before syncing**.
 
 ```powershell
-npm run build              # → build/  (must include .env.local for the cloud config)
+npm run build              # → build/
 npx cap sync android       # copy build/ into the Android project
 ```
 
 > The Supabase URL/key are compiled into the JS bundle at `npm run build` time
-> from `.env.local`. If the cloud is not configured, the app falls back to
-> local-only storage (see [CLOUD_DATABASE.md](./CLOUD_DATABASE.md)).
+> from `.env.local` when present. The v6.0 build is local-only for business data;
+> only `system_settings` still uses the cloud module (see
+> [CLOUD_DATABASE.md](./CLOUD_DATABASE.md)).
 
 ---
 
@@ -168,17 +169,17 @@ An **Android App Bundle** (`.aab`) is what Google Play requires.
 
 ## 7. Versioning
 
-The shipped build is currently **`versionCode 3` / `versionName "1.2"`**
+The shipped build is currently **`versionCode 4` / `versionName "1.3"`**
 (`android/app/build.gradle`). Before each Play Store upload, bump both:
 
 ```gradle
-versionCode 4          // integer, must increase every upload
-versionName "1.3"      // human-readable
+versionCode 5          // integer, must increase every upload
+versionName "1.4"      // human-readable
 ```
 
 Also bump `VERSION` at the top of [`public/sw.js`](../public/sw.js) so installed
 PWA clients purge their cached assets (this does **not** touch user data). Current
-value: `e-scon-v1.5.0`.
+value: `e-scon-v1.6.0`.
 
 ---
 
@@ -201,7 +202,7 @@ Only do this once; reuse the same keystore forever.
 
 ## 9. Release checklist
 
-- [ ] `npm run build` succeeds and `.env.local` has the cloud config.
+- [ ] `npm run build` succeeds (`.env.local` is optional in v6.0; business data is local-only).
 - [ ] `npx cap sync android` run.
 - [ ] `versionCode` / `versionName` bumped.
 - [ ] `public/sw.js` `VERSION` bumped.
@@ -212,7 +213,7 @@ Only do this once; reuse the same keystore forever.
       [PLAY_STORE_LISTING.md](./PLAY_STORE_LISTING.md) and
       [PRIVACY_POLICY.md](./PRIVACY_POLICY.md)).
 - [ ] Test the uploaded bundle via an internal-testing track before production
-      (including that screenshots are blocked — §11).
+      (including that screenshots work — §11).
 
 ---
 
@@ -254,30 +255,21 @@ APK/AAB.
 
 ---
 
-## 11. Screenshot protection
+## 11. Screenshots
 
-The Android app blocks screenshots and screen recordings **at the OS level**.
+Screenshots and screen recordings are **allowed** in the v6.0 Android app.
 [`MainActivity.java`](../android/app/src/main/java/et/escon/supplychain/MainActivity.java)
-sets the window flag in `onCreate`:
-
-```java
-getWindow().setFlags(
-    WindowManager.LayoutParams.FLAG_SECURE,
-    WindowManager.LayoutParams.FLAG_SECURE
-);
-```
-
-Effects: the system screenshot shortcut and screenshot apps capture nothing, the
-recent-apps preview is blanked, and most screen recorders show a black frame. It
-covers **every page** of the app (catalogue, prices, proforma, wallet).
+does **not** set `WindowManager.LayoutParams.FLAG_SECURE`, so the standard
+Android shortcuts work on every page (catalogue, prices, proforma, wallet) and
+the recents preview is not blanked.
 
 Notes:
 
-- This is an **Android-only** protection. A browser tab / installed PWA cannot
-  block OS screenshots — install the Android build for that guarantee.
-- Do **not** remove the flag unless you deliberately want screenshots allowed
-  again; there is no in-app switch for it.
-- It has no effect on printing/PDF export of the proforma (that is the app's own
+- The same is true in a browser tab / installed PWA: capture works normally.
+- Store screenshots can be taken directly from a debug or release install.
+- If a future release needs to block captures again, re-add `FLAG_SECURE` in
+  `onCreate` and update this section; there is currently no in-app switch.
+- Printing/PDF export of the proforma is unaffected (it is the app's own
   rendering pipeline, not a screen capture).
 
 ---

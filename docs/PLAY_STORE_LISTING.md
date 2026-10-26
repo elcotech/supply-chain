@@ -79,10 +79,9 @@ Prepare and upload in the Play Console:
 | Phone screenshots | 2–8 images, min 320 px, aspect ratio 16:9 or 9:16 |
 | (Optional) 7-inch / 10-inch tablet screenshots | as required by the Console |
 
-> In-app screenshots are **blocked by the Android build** (`FLAG_SECURE`), so
-> store screenshots must be taken from the web build or with a temporary
-> debug build — the release APK/AAB will not let you capture the screen. See
-> [ANDROID_BUILD.md §11](./ANDROID_BUILD.md#11-screenshot-protection).
+> In-app screenshots are **allowed** in the v6.0 Android build. Capture the
+> six suggested shots directly from a debug or release install. See
+> [ANDROID_BUILD.md §11](./ANDROID_BUILD.md#11-screenshots).
 
 Suggested screenshots:
 
@@ -144,7 +143,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current shipped build: **3 / "1.2"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **4 / "1.3"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console

@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 5.7 (No customer export + "Back to To Purchase" from the proforma)
-> **Previous:** 5.6 (Single-supplier cart + three cart order actions + QR pinned top-right)
+> **Version:** 6.0 (VAT-inclusive pricing, clearer search results and Android screenshots enabled)
+> **Previous:** 5.9 (Supplier self-service "My Business" - not part of the current v6.0 build)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -20,7 +20,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56) and [10.24 Branding, screenshots & search polish](#1024-branding-screenshot-protection--search-polish-v58)
+10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56) and [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -41,7 +41,7 @@
 - Product catalogue with **live search & filtering** (department, **supplier**, city, max price, sorting).
 - **GIS supplier mapping** built on Leaflet, with **driving routes**, **distance**, and **transport cost** calculations.
 - **Company dashboards** for suppliers to manage products & orders, and **customer dashboards** for order history.
-- **Cart & checkout** flow with VAT (15%) and **per-line** delivery-fee computation (buyer's with/without-delivery choice, supplier-set per-km rate, platform fallback).
+- **Cart & checkout** flow with **VAT-inclusive prices** (15% portion extracted, never added twice) and **per-line** delivery-fee computation (buyer's with/without-delivery choice, supplier-set per-km rate, platform fallback).
 - **Proforma invoices** — **one proforma for the whole cart** (any number of items and suppliers), scannable QR fixed in the header, print-ready.
 - **Compliance** data capture (TIN, business license, VAT).
 - CSV **export** and **printable reports** — **suppliers and admins only**; customers have no export surface at all (§10.5).
@@ -107,16 +107,13 @@ npx tsc --noEmit
 
 New registrations default to password `0909` when left blank.
 
-**Supplier registration pins a map location.** On the **Supplier** tab the register
-form adds a **🗺️ Business Location on Map** control (`showRegisterMapPicker`
-state + `handleRegisterLocationSelect` in `App.tsx`) that opens the shared
-[`MapPicker`](../src/components/MapPicker.tsx). The chosen `registerLat` /
-`registerLng` are written to both the new `User` and `Company`; the reverse-
-geocoded address backfills the address field (only when it is empty) and selects
-the matching city from `ETHIOPIAN_CITIES`. Registration is blocked for suppliers
-until a pin is set (`hasMapLocation` guard in `handleRegister`); customers keep
-the previous random-near-Addis default. The same pin can be changed later from
-**My Business → Profile & Location** (§10.25).
+**Registration location (v6.0).** New suppliers get a random near-Addis
+`lat`/`lng` at registration; there is no map pin step in the current register
+form. The supplier can afterwards set the exact location from **Profile → Edit
+Company Profile**, which embeds the shared
+[`MapPicker`](../src/components/MapPicker.tsx). The form also writes the
+company's address, city and coordinates together, so buyers can route to the
+supplier immediately after the profile is saved.
 
 > The **Admin** account is a seeded platform role. Only admins see the **⚙️ Settings** page where the delivery-fee model, delivery zones, free-delivery threshold and minimum-order rule are configured (see §10.16). It is created automatically on first load if missing.
 
@@ -143,7 +140,7 @@ supply-chain1/
 │   ├── settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
 │   ├── utils.ts            # Helpers: distance, fees, per-line delivery pricing, fees, formatting
 │   ├── lib/
-│   │   ├── cloudStore.ts   # Supabase sync layer (push/pull, local-first)
+│   │   ├── cloudStore.ts   # Supabase sync module (only settings pushes in v6.0)
 │   │   └── supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
 │   ├── hooks/
 │   │   └── useIsMobile.ts  # Reactive isMobile flag from matchMedia("(max-width: 768px)")
@@ -153,7 +150,7 @@ supply-chain1/
 │   └── *.test.ts           # Jest unit tests (fees, formatting, settings, QR payloads)
 ├── android/                # Capacitor Android project (see docs/ANDROID_BUILD.md)
 │   └── app/src/main/
-│       ├── java/et/escon/supplychain/MainActivity.java   # FLAG_SECURE → screenshots blocked
+│       ├── java/et/escon/supplychain/MainActivity.java   # Screenshots allowed (no FLAG_SECURE)
 │       └── res/mipmap-*/   # Launcher icons generated from public/logo512.png
 ├── supabase/               # SQL schema for the optional cloud sync (docs/CLOUD_DATABASE.md)
 ├── docs/                   # User guide, Android build, cloud DB, deployment, Play Store, privacy
@@ -378,6 +375,12 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 
 A backup JSON taken on an older build still validates (`validateBackup`), because it only checks the collection shapes, not individual optional fields.
 
+**Cloud sync status (v6.0):** `settings.ts` still calls `cloudPushNow()` for
+`system_settings`, but `App.tsx` does not call `pullCloudToCache()` or push the
+account/catalogue/order collections. Treat the current build as **local-only for
+business data**; `docs/CLOUD_DATABASE.md` documents the sync module for future
+re-integration.
+
 ---
 
 ## 10. Key Features & How They Work
@@ -427,7 +430,7 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 ### 10.5 Cart & checkout
 **One supplier per cart (v5.6):** a proforma is a legal document issued by a single seller, and every distance, delivery rate, VAT line and signature on it assumes one, so a cart may only hold one supplier's goods. `findOtherCartSupplier` (the pure, unit-tested rule in `utils.ts`, wrapped by `otherSupplierInCart` in `App.tsx`) refuses an add from a second supplier with a warning naming both suppliers, and **leaves the cart exactly as it was** — it is never cleared or replaced on the buyer's behalf. The same rule is re-checked inside `addToCartLogic`'s functional `setCart` update against `prev` (the real cart at the moment of the write), so a cart persisted by an older build cannot smuggle in a second supplier. Re-adding a product that is already in the cart is a quantity change, not a new supplier, so it skips the check. See [10.23](#1023-single-supplier-cart-v56).
 
-Checkout computes subtotal + VAT (per-item %) + a **per-line** delivery fee (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)) and produces a `CartReport` that groups items by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item, resets the cart, and shows the Orders page. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
+Supplier prices are **VAT-inclusive** (`Material.taxIncluded`, default 15%), so checkout never adds VAT on top. `priceCartItems` sums the gross line totals into `subtotal`, calls `includedVat(lineTotal, vatPercentage)` only to report the VAT already contained in that subtotal, and sets `total = subtotal + transportCost`. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item with the same contained-VAT figure and `totalAmount = materialTotal + transportCost`, resets the cart, and shows the Orders page. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
 
 **Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals`, so the figures cannot disagree. The bottom of the modal now holds only `Clear Cart` — placing the order in two places at once was a way to commit to the wrong total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
 
@@ -461,7 +464,7 @@ Checkout computes subtotal + VAT (per-item %) + a **per-line** delivery fee (see
 **Stock visibility:** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price and unit only.
 
 ### 10.6 Company dashboard
-Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and — from the **🏢 Manage My Business** button — open the unified **My Business** page that edits the company profile, its exact map location and every product in one place (see [10.25](#1025-supplier-self-service--my-business-page-v59)).
+Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and open the **Edit Company Profile** modal from the dashboard or the desktop **Profile** nav link. That modal edits the company profile, logo, exact map location and account details; products stay on the dashboard (see [10.25](#1025-company-profile-editing-v60)).
 
 **Header shows the supplier's name (v5.6):** the supplier's own name is bold and centred on **both** dashboards. Desktop renders `<p className="dashboard-supplier-name">{company?.name}</p>` inside `.dashboard-header-supplier`, on its own line under the "Supplier Dashboard" title, replacing the old `Welcome {company?.name}!` paragraph. Mobile puts the same `.dashboard-supplier-name` on the `<h2>` of `.mobile-page-head-supplier`, with "Supplier Dashboard" demoted to the `<p>` subtitle and the old `🏢` prefix dropped from the name. The rules are scoped to the supplier pages so the **customer** dashboard keeps its `Welcome {currentUser.name}!` / `Hi, {name}` greeting and its left alignment, and `word-break: break-word` keeps a long trading name from overflowing on a phone.
 
@@ -474,7 +477,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 ### 10.7 Proforma Invoice (NEW)
 - **File:** `src/components/ProformaInvoice.tsx`.
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
-- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (subtotal, VAT 15%, delivery, grand total), amount in words, terms & conditions (6 clauses), and signature lines.
+- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (**Subtotal (Goods, VAT included)** → **VAT (x% included)** → **Delivery Cost** → **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines.
 - **Layout (v5.4, extended in v5.5):** supplier and buyer blocks stay **side by side** everywhere — desktop, phones (`≤760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be ≤760px). Only the terms block still stacks — it is prose and needs the full width.
 - **Signature grid (changed in v5.2):** `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))`, so each party gets its own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
 - **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v5.2 `.pf-delivery-box` sits above them in that same column and shares the width so all three align.
@@ -533,7 +536,7 @@ All animations are **CSS-only** (no JS animation libraries), using CSS custom pr
 ### 10.15 Auth & security simulation
 Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lockUntil`). Passwords are stored in plaintext (demo only — do **not** use in production).
 
-**Screenshots are blocked in the Android app (v5.8):** `MainActivity.java` sets `WindowManager.LayoutParams.FLAG_SECURE`, so account, price and proforma content cannot be captured — see [10.24](#1024-branding-screenshot-protection--search-polish-v58).
+**Screenshots are allowed in the Android app (v6.0):** `MainActivity.java` no longer sets `WindowManager.LayoutParams.FLAG_SECURE`, so the normal Android screenshot and screen-recording shortcuts work — see [10.24](#1024-branding-screenshots--search-polish-v58v60).
 
 **Sign-in / create-account layout (v5.4):** `renderLogin` and `renderRegister` both render `<main class="main-content"><div class="auth-container"><div class="auth-card glass">`. The `.auth-*` classes had no CSS at all, so the form sat in the top-left and its inputs rendered unstyled. They are now a centered, frosted card (see §12) and the `.form-*` controls are styled for every form in the app. The Customer/Supplier switch on the register page is `.auth-tabs` / `.auth-tab.active`.
 
@@ -635,25 +638,38 @@ A cart belongs to exactly one supplier. A proforma is a legal document issued by
 
 `AndroidManifest.xml` already wires `android:icon="@mipmap/ic_launcher"` and `android:roundIcon="@mipmap/ic_launcher_round"`; the adaptive-icon XMLs live in `mipmap-anydpi-v26/`. Regenerate every size from `public/logo512.png` after a logo change (see [ANDROID_BUILD.md](./docs/ANDROID_BUILD.md#10-icons--branding)).
 
-**Screenshots are blocked in the Android app (v5.8).** `MainActivity.java` sets `WindowManager.LayoutParams.FLAG_SECURE` in `onCreate`, so the OS refuses screenshots and screen recordings of the WebView, blanks the app in the recents thumbnail and hides it from most screen recorders. This is a **native-only** guarantee: a browser/PWA cannot stop the OS or the browser's own tooling from capturing the page. The Android app is therefore the place where prices, invoices and account data stay out of the screenshot gallery. Keep `FLAG_SECURE` — removing it silently re-enables screenshots on every page.
+**Screenshots are allowed in the Android app (v6.0).** `MainActivity.java` no
+longer calls `WindowManager.LayoutParams.FLAG_SECURE`. The standard Android
+screenshot and screen-recording shortcuts work on every page, and the recents
+preview is no longer blanked. Do not re-add `FLAG_SECURE` unless a future release
+deliberately wants to block screenshots again.
 
-**Find bar and results cards (v5.8).** See §10.4 and §13 for the full-bleed mobile Find bar, the bold/large department chip, the compact Order button and the Map button beside it.
+**Find bar and results cards (v6.0).** See §10.4 and §13 for the full-bleed
+mobile Find bar and the compact Order/Map buttons. Search results no longer show
+the department/category: the mobile card drops `.m-pc-chip`, the desktop table
+drops its Category column, and the product name, supplier and price are bold.
 
-### 10.25 Supplier self-service — My Business page (v5.9)
+### 10.25 Company profile editing (v6.0)
 
-A supplier can now edit **everything about their own business** from one place: `renderMyBusiness()` in `App.tsx` (router case `my-business`), reachable from the desktop top-nav **My Business** link, the phone **More** sheet entry, and the **🏢 Manage My Business** button on both supplier dashboards. The page is supplier-only (`currentUser.userType === 'company'` + `getCompanyByUserId`).
+Suppliers edit their business from the **Edit Company Profile** modal
+(`showEditCompany` + `handleEditCompany` + `handleSaveCompany` in `App.tsx`).
+It is reachable from the desktop **Profile** nav link and the
+**Edit Company Profile** button on both supplier dashboards. The modal uses
+[`EditCompany`](../src/components/EditCompany.tsx), which still supports its
+`embedded` prop for other hosts but is rendered as a modal here.
 
-It has two segments driven by the `myBusinessTab` state (default `'profile'`), rendered with the existing `.auth-tabs` / `.auth-tab` segmented control:
+The form edits the company name/description, **company logo** (single base64
+image, upload/replace/remove, capped at 1.5 MB), contact details, **city/address
+and exact map location** via `MapPicker`, legal/compliance fields, and the
+**account** full name plus an optional new password (blank keeps the current
+one). `handleSaveCompany` updates `companies`, `users` and `currentUser` and
+writes the company/user collections back to `localStorage`.
 
-- **🏢 Profile & Location** — embeds [`EditCompany`](../src/components/EditCompany.tsx) with the new `embedded` prop (inline instead of the old modal). The same `handleSaveCompany` writes the company + user to `localStorage` **and** `cloudPush('companies'|'users', …)`. The form now also edits:
-  - **Company logo** — a single base64 image (`Company.logo`), upload / replace / remove, capped at 1.5 MB, shown on the My Business header (`.supplier-logo`) and reusable as the storefront mark.
-  - **Account** — the user's **full name** and an optional **new password** (blank keeps the current one). The password is still stored in `localStorage`, so it remains a demo-grade credential, not a hardened auth secret.
-  - Everything it already had: description, **city / address and exact map location** via `MapPicker`, contact details, and the legal/compliance fields.
-- **📦 Products** — the supplier's own products with view/edit/delete and an **Add Product** button; the list is a table on desktop and `.m-dash-list` rows on phones (mobile parity). Add/Edit reuse the existing `add-material` / `edit-material` pages.
-
-The old standalone "Profile" nav link and the `showEditCompany` modal were removed in favour of this page; `handleEditCompany` no longer exists. `Company.logo` is optional and now also shown in the My Business header when present.
-
-The **add and edit product forms gained a shared `renderMaterialSpecificationsFields()` section** — optional **Model**, **Weight**, **Dimensions**, **Grade**, **Origin** and comma-separated **Certifications** (`material.specifications`), which were already stored and shown on the product-details page but previously had no inputs.
+Products stay on the supplier dashboard: add/edit/delete and the
+`renderMaterialSpecificationsFields()` section (**Model**, **Weight**,
+**Dimensions**, **Grade**, **Origin**, comma-separated **Certifications**) are
+unchanged. The v5.9 `my-business` page, its `myBusinessTab` state and the
+desktop/More-sheet **My Business** links are **not present in the v6.0 build**.
 
 ---
 
@@ -765,7 +781,7 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
   - **Bottom tab bar** (`mobile-tabbar`, fixed, safe-area aware): Home / Search (customers) or Board (companies & admin) / center **FAB** (Cart for customers with badge, Add Product for companies, Login for guests) / Orders (with active-order badge) / More (profile sheet). Guests get Home / Search / FAB-Login / Map / Install.
   - **More sheet** (`m-sheet-overlay` + `m-sheet`): slide-up bottom sheet with profile header + Logout, dashboard, supplier map, compare, install app, theme toggle, CSV export (**supplier/admin only since v5.7**) and admin settings shortcuts, plus a horizontally scrollable "Saved products" strip.
   - **Mobile home** (`renderHomeMobile`): gradient greeting hero card with live stat tiles (active orders, delivered, revenue/spent), quick-action grid (v5.2 dropped the "Cart" tile so the mobile shell has one cart button, not two), "Saved for later" strip, horizontally scroll-snapping **Trending products carousel** (star-rating sorted) using the reusable `MobileProductCard`, and recent-order rows with status pills.
-  - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with a compact **Order** button — or **Edit order** when the product is already in the cart — that opens the product details; since v5.2 the card no longer opens the cart) instead of the wide table; supplier and price are shown per card and stock chips are supplier-only (see §13.1). **v5.8 layout:** the department chip (`.m-pc-chip`) is bold and larger (0.78rem / 800 weight) so the category reads at a glance, the Order button is shorter (36px) and the buy row (`.m-pc-buy`) carries a new 🗺️ **Map** button next to it — on the next line under the price — which jumps straight to the driving route via `handleOpenMapWithRoute(company.id)`. The desktop results table shows the same emphasis through the bold, slightly larger `.category-cell`.
+  - **Search results** on mobile render a card grid (`MobileProductCard` in `list` variant with a compact **Order** button — or **Edit order** when the product is already in the cart — that opens the product details; since v5.2 the card no longer opens the cart) instead of the wide table. Stock chips are supplier-only (see §13.1). **v6.0 layout:** the department chip is removed, and the product name (`.m-pc-name`), supplier (`.m-pc-supplier`) and price (`.m-pc-price`) are bold. The Order button stays short, and the buy row (`.m-pc-buy`) keeps the 🗺️ **Map** button that jumps straight to the driving route via `handleOpenMapWithRoute(company.id)`. The desktop results table drops the Category column and bolds the product name, `.supplier-cell` and `.price-cell`.
   - **Full-bleed Find bar (v5.8):** inside the `768px` block the search hero is `padding: 14px 0 10px !important` with the input group as `gap: 0` and square-cornered input/button, and the heading, copy and filter row carry their own `0 12px` padding, so the **search field and its 🔍 button span the whole window width, side to side**, while the rest of the hero keeps its inset. It also removes the old `margin: 0 -12px` that made the hero wider than the viewport on the un-padded mobile `main-content`.
   - **Tap-to-explore affordance (v5.4)**: the product photo inside `MobileProductCard` opens the description, so it must look tappable — `.m-pc-img` scales to 0.97 on press and carries a `.m-pc-view-hint` pill (👁️ View details) that fades in (`mViewHintIn`) while the eye pulses (`mViewPulse`, 1.9 s). The pill is `pointer-events: none` so taps always reach the button, it is `aria-hidden` next to a descriptive `aria-label` on the button, and both animations plus the press transition are disabled under `@media (prefers-reduced-motion: reduce)`. Shared by the trending carousel and the mobile search grid.
   - **Orders** on mobile render stacked order cards with the `OrderTimeline` shipment stepper, customer/supplier line, itemised totals and Confirm/Reorder actions, plus Export on **supplier cards only** since v5.7.
@@ -861,7 +877,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.4.0` (bumped for the v5.8 UI + icon changes so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.6.0` (bumped for the v5.8 UI + icon changes so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -980,7 +996,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.5.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.6.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1003,12 +1019,33 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 
+### v6.0 — VAT-inclusive totals, clearer search results & screenshots allowed
+
+- **VAT is no longer added twice.** Supplier prices are VAT-inclusive. New
+  `includedVat()` / `includedVatRate()` helpers in `utils.ts` extract the VAT
+  already contained in a gross line total; cart, checkout, orders, the proforma
+  and the public QR proforma now use `total = subtotal + delivery`. Labels say
+  **VAT included**, and the cart CSV columns make the inclusive basis explicit.
+- **Clearer search results.** Mobile product cards drop the department chip;
+  the desktop results table drops the Category column. Product name, supplier
+  and price are bold on both layouts.
+- **Screenshots are allowed on Android.** `MainActivity.java` no longer sets
+  `FLAG_SECURE`; the standard screenshot/screen-recording shortcuts work and
+  store screenshots can be taken from the shipped app.
+- **Current account flow.** The codebase retains the pre-v5.9 account flow:
+  suppliers get a near-Addis default at registration and edit their business
+  through the **Edit Company Profile** modal; the v5.9 **My Business** page,
+  map-at-registration step and automatic entity cloud sync are not wired in this
+  build. `settings.ts` still syncs `system_settings` when Supabase is configured.
+- **Housekeeping** — bumped `versionCode` 3 → 4, `versionName` 1.2 → 1.3 and
+  `sw.js` `VERSION` `e-scon-v1.5.0` → `e-scon-v1.6.0`.
+
 ### v5.8 — branding, screenshot protection & mobile search polish
 
 - **App icon = `public/logo512.png`.** The Android launcher icons (legacy + round +
   adaptive foreground, all densities) and the PWA `logo192.png` / `favicon.ico`
   were regenerated from the logo, so the phone icon, browser tab and store icon
-  all match the in-app logo. See [10.24](#1024-branding-screenshot-protection--search-polish-v58).
+  all match the in-app logo. See [10.24](#1024-branding-screenshots--search-polish-v58v60).
 - **Screenshots are blocked in the Android app.** `MainActivity.java` now sets
   `FLAG_SECURE`, so the OS refuses screenshots/screen recordings of the app and
   blanks the recents preview. This is native-only — a browser tab cannot block
@@ -1029,7 +1066,7 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   (`renderMyBusiness`) with **Profile & Location** and **Products** segments,
   reachable from the desktop nav, the phone **More** sheet and a **🏢 Manage My
   Business** button on both supplier dashboards. See
-  [10.25](#1025-supplier-self-service--my-business-page-v59).
+  [10.25](#1025-company-profile-editing-v60).
 - **Editable account** — full name and an optional new password; the company
   **logo** can be uploaded, replaced or removed. `EditCompany` gained an
   `embedded` mode and the old `showEditCompany` modal / `handleEditCompany` were
@@ -1042,6 +1079,9 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 - **Location at sign-up** — suppliers now pin their business on the map during
   registration (required), with the same `MapPicker` they already use in **My
   Business**.
+- **Not present in v6.0:** this release's My Business page, map-at-registration
+  step and entity cloud sync were reverted in the current working tree. Keep this
+  entry as history; v6.0 documents the account flow that actually ships.
 
 Earlier releases (v5.2 – v5.8) are summarised inline throughout §10; nothing in
 this release changed an existing feature or its behaviour.

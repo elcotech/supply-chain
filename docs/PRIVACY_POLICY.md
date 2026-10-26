@@ -53,8 +53,8 @@ include the coordinates needed to render a map or route. See §5.
 - To let suppliers list products, manage stock and orders and set delivery
   rates.
 - To calculate distances and delivery fees and to display maps and routes.
-- To keep a shared view of the catalogue, orders and settings across devices
-  (when cloud sync is enabled).
+- To keep platform settings consistent across devices when cloud sync is enabled
+  (business data is stored locally in the current build).
 
 ---
 
@@ -63,11 +63,11 @@ include the coordinates needed to render a map or route. See §5.
 - **On your device:** account, product, cart, order and settings data are stored
   in your browser's / app's local storage (`localStorage`). Passwords are stored
   in plain text **on your device only** in the current demo version.
-- **In the cloud (optional):** when the operator configures a Supabase project,
-  the shared collections (users, companies, products, orders, notifications,
-  wallets, wallet transactions, reviews and system settings) plus your cart and
-  favourites are mirrored to that database so your data follows your account
-  across devices. The database is hosted by **Supabase** on the operator's
+- **In the cloud (optional):** in the current build, only `system_settings` is
+  sent to Supabase when the operator configures a project; account, catalogue,
+  cart and order data stay in local storage. Older builds may have mirrored more
+  collections, so the operator may still hold historical rows. The database is
+  hosted by **Supabase** on the operator's
   project.
 
 We do not sell your personal information.
@@ -112,10 +112,10 @@ coordinates for a route). We do not control their practices.
   anonymous key with permissive access rules suitable for a demo or closed
   pilot — see the security note in
   [CLOUD_DATABASE.md](./CLOUD_DATABASE.md) before using real customer data.
-- The **Android app blocks screenshots and screen recordings** (the Android
-  `FLAG_SECURE` window flag), so your prices, proformas and account details
-  cannot be captured from the app screen without permission. The web version in
-  a browser cannot block the operating system's screenshot feature.
+- The **Android app allows screenshots and screen recordings** in v6.0 (it no
+  longer sets the Android `FLAG_SECURE` window flag). You can capture prices,
+  proformas and account screens; treat those images as sensitive business
+  documents and avoid sharing them publicly.
 
 ---
 

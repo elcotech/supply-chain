@@ -12,12 +12,11 @@ import {
   geocodeAddress, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
-  deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier
+  deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
+  includedVat, includedVatRate
 } from './utils';
-import { loadSettings, saveSettings, refreshSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
-import { pullCloudToCache, cloudPush } from './lib/cloudStore';
+import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import EditCompany from './components/EditCompany';
-import MapPicker from './components/MapPicker';
 import DateTime from './components/DateTime';
 import ProformaInvoice from './components/ProformaInvoice';
 import PublicProforma from './components/PublicProforma';
@@ -236,8 +235,7 @@ function App() {
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState<number | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [showSupplierMap, setShowSupplierMap] = useState(false);
-  // Which segment of the supplier "My Business" page is open.
-  const [myBusinessTab, setMyBusinessTab] = useState<'profile' | 'products'>('profile');
+  const [showEditCompany, setShowEditCompany] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
   const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -286,7 +284,6 @@ function App() {
   const [showWallet, setShowWallet] = useState(false);
   const [showDataCenter, setShowDataCenter] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
-  const [showRegisterMapPicker, setShowRegisterMapPicker] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState(10000);
   const [topUpMethod, setTopUpMethod] = useState('Telebirr');
   const [reviewDraft, setReviewDraft] = useState<{ rating: number; comment: string }>({ rating: 5, comment: '' });
@@ -585,40 +582,23 @@ function App() {
 
   useEffect(() => {
     if (!isInitialized) {
+      const savedUsers = safeLocalStorage.getItem('users');
+      const savedCompanies = safeLocalStorage.getItem('companies');
+      const savedMaterials = safeLocalStorage.getItem('materials');
+      const savedOrders = safeLocalStorage.getItem('orders');
+      const savedCurrentUser = safeLocalStorage.getItem('currentUser');
+
+      let baseCompanies: Company[] = sampleCompanies;
+      if (savedCompanies) {
+        const parsed = JSON.parse(savedCompanies);
+        const merged = sampleCompanies.map(sampleComp => {
+          const existing = parsed.find((c: Company) => c.id === sampleComp.id);
+          return existing || sampleComp;
+        });
+        baseCompanies = merged;
+      }
+
       const init = async () => {
-        // Hydrate the local cache from the shared Supabase database BEFORE any
-        // state is read, so every device starts from the same source of truth.
-        // No-op (and no network call) when the cloud is not configured.
-        const pulled = await pullCloudToCache();
-        if (pulled) {
-          refreshSettings();
-          setSystemSettings(loadSettings());
-          const readJson = <T,>(key: string, fallback: T): T => {
-            const raw = safeLocalStorage.getItem(key);
-            return raw ? (JSON.parse(raw) as T) : fallback;
-          };
-          setNotifications(readJson('notifications', [] as AppNotification[]));
-          setWallets(readJson('wallets', {} as Record<string, number>));
-          setTransactions(readJson('wallet_transactions', [] as WalletTx[]));
-          setReviews(readJson('reviews', [] as ProductReview[]));
-        }
-
-        const savedUsers = safeLocalStorage.getItem('users');
-        const savedCompanies = safeLocalStorage.getItem('companies');
-        const savedMaterials = safeLocalStorage.getItem('materials');
-        const savedOrders = safeLocalStorage.getItem('orders');
-        const savedCurrentUser = safeLocalStorage.getItem('currentUser');
-
-        let baseCompanies: Company[] = sampleCompanies;
-        if (savedCompanies) {
-          const parsed = JSON.parse(savedCompanies);
-          const merged = sampleCompanies.map(sampleComp => {
-            const existing = parsed.find((c: Company) => c.id === sampleComp.id);
-            return existing || sampleComp;
-          });
-          baseCompanies = merged;
-        }
-
         const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
         setCompanies(enrichedCompanies);
         if (savedUsers) {
@@ -633,15 +613,13 @@ function App() {
           const seededUsers = [...sampleUsers, ADMIN_USER];
           setUsers(seededUsers);
           safeLocalStorage.setItem('users', JSON.stringify(seededUsers));
-          cloudPush('users', seededUsers);
         }
         if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
-        else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); cloudPush('materials', sampleMaterials); }
+        else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
         if (savedOrders) setOrders(JSON.parse(savedOrders));
-        else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); cloudPush('orders', sampleOrders); }
+        else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); }
         if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
         safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
-        cloudPush('companies', enrichedCompanies);
         setIsInitialized(true);
         showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
       };
@@ -654,23 +632,22 @@ function App() {
     if (isInitialized && materials.length === 0 && sampleMaterials.length > 0) {
       setMaterials(sampleMaterials);
       safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
-      cloudPush('materials', sampleMaterials);
       showAlert('Product data reloaded', 'success');
     }
   }, [isInitialized, materials, showAlert]);
 
-  // Persistence (localStorage cache + shared cloud database)
+  // Persistence
   useEffect(() => {
-    if (isInitialized && users.length) { safeLocalStorage.setItem('users', JSON.stringify(users)); cloudPush('users', users); }
+    if (isInitialized && users.length) safeLocalStorage.setItem('users', JSON.stringify(users));
   }, [users, isInitialized]);
   useEffect(() => {
-    if (isInitialized && companies.length) { safeLocalStorage.setItem('companies', JSON.stringify(companies)); cloudPush('companies', companies); }
+    if (isInitialized && companies.length) safeLocalStorage.setItem('companies', JSON.stringify(companies));
   }, [companies, isInitialized]);
   useEffect(() => {
-    if (isInitialized && materials.length) { safeLocalStorage.setItem('materials', JSON.stringify(materials)); cloudPush('materials', materials); }
+    if (isInitialized && materials.length) safeLocalStorage.setItem('materials', JSON.stringify(materials));
   }, [materials, isInitialized]);
   useEffect(() => {
-    if (isInitialized) { safeLocalStorage.setItem('orders', JSON.stringify(orders)); cloudPush('orders', orders); }
+    if (isInitialized) safeLocalStorage.setItem('orders', JSON.stringify(orders));
   }, [orders, isInitialized]);
   useEffect(() => {
     if (currentUser && isInitialized) safeLocalStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -687,7 +664,6 @@ function App() {
   useEffect(() => {
     if (currentUser && isInitialized) {
       safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
-      cloudPush(`cart_${currentUser.id}`, cart);
     }
   }, [cart, currentUser, isInitialized]);
 
@@ -701,22 +677,21 @@ function App() {
   useEffect(() => {
     if (currentUser && isInitialized) {
       safeLocalStorage.setItem(`favs_${currentUser.id}`, JSON.stringify(favorites));
-      cloudPush(`favs_${currentUser.id}`, favorites);
     }
   }, [favorites, currentUser, isInitialized]);
 
   // ---------- Notifications / wallet / reviews persistence ----------
   useEffect(() => {
-    if (isInitialized) { safeLocalStorage.setItem('notifications', JSON.stringify(notifications)); cloudPush('notifications', notifications); }
+    if (isInitialized) safeLocalStorage.setItem('notifications', JSON.stringify(notifications));
   }, [notifications, isInitialized]);
   useEffect(() => {
-    if (isInitialized) { safeLocalStorage.setItem('wallets', JSON.stringify(wallets)); cloudPush('wallets', wallets); }
+    if (isInitialized) safeLocalStorage.setItem('wallets', JSON.stringify(wallets));
   }, [wallets, isInitialized]);
   useEffect(() => {
-    if (isInitialized) { safeLocalStorage.setItem('wallet_transactions', JSON.stringify(transactions)); cloudPush('wallet_transactions', transactions); }
+    if (isInitialized) safeLocalStorage.setItem('wallet_transactions', JSON.stringify(transactions));
   }, [transactions, isInitialized]);
   useEffect(() => {
-    if (isInitialized) { safeLocalStorage.setItem('reviews', JSON.stringify(reviews)); cloudPush('reviews', reviews); }
+    if (isInitialized) safeLocalStorage.setItem('reviews', JSON.stringify(reviews));
   }, [reviews, isInitialized]);
 
   // Grant every registered account its welcome wallet balance exactly once.
@@ -800,19 +775,13 @@ function App() {
 
   const handleRegister = (e: React.FormEvent): void => {
     e.preventDefault();
-    const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered, registerLat, registerLng } = formData;
+    const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered } = formData;
     if (users.find(u => u.email === registerEmail)) { showAlert('User with this email already exists', 'danger'); return; }
-    // Suppliers must pin their business on the map so buyers can find and route
-    // to them; customers keep the old "near Addis" default when they skip it.
-    const hasMapLocation = registerLat !== 0 || registerLng !== 0;
-    if (registerUserType === 'company' && !hasMapLocation) { showAlert('📍 Please set your business location on the map before registering.', 'danger'); return; }
-    const lat = hasMapLocation ? registerLat : 9.0320 + (Math.random() * 0.05 - 0.025);
-    const lng = hasMapLocation ? registerLng : 38.7469 + (Math.random() * 0.05 - 0.025);
     const newUser: User = {
       id: 'user' + (users.length + 1), name: registerFullName, email: registerEmail, password: registerPassword || '0909',
       phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as 'customer' | 'company',
       companyName: registerUserType === 'company' ? registerCompanyName : '',
-      lat, lng,
+      lat: 9.0320 + (Math.random() * 0.05 - 0.025), lng: 38.7469 + (Math.random() * 0.05 - 0.025),
       registered: new Date().toISOString().split('T')[0], loginAttempts: 0, lockUntil: 0,
       tinNumber: registerUserType === 'company' ? tinNumber : '',
       businessLicense: registerUserType === 'company' ? businessLicense : '',
@@ -833,26 +802,7 @@ function App() {
     }
     showAlert('Registration successful! Please login. ✅', 'success');
     setCurrentPage('login');
-    setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerLat: 0, registerLng: 0, registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false }));
-  };
-
-  const handleRegisterLocationSelect = (lat: number, lng: number, address: string): void => {
-    // Match the reverse-geocoded address to one of our known cities so the
-    // dropdown stays in sync with the pin; keep a typed address if there is one.
-    const matchedCity = ETHIOPIAN_CITIES.find(c => address.toLowerCase().includes(c.toLowerCase()));
-    setFormData(prev => {
-      const parts = address.split(',').map(p => p.trim()).filter(Boolean);
-      const street = parts.length > 1 ? address.split(',').slice(0, 2).join(',') : (parts[0] || prev.registerAddress);
-      return {
-        ...prev,
-        registerLat: lat,
-        registerLng: lng,
-        registerAddress: prev.registerAddress.trim() ? prev.registerAddress : street,
-        registerCity: matchedCity || prev.registerCity
-      };
-    });
-    setShowRegisterMapPicker(false);
-    showAlert('📍 Business location pinned on the map', 'success');
+    setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false }));
   };
 
   const handleLogout = (): void => {
@@ -866,20 +816,45 @@ function App() {
     setCurrentPage('home');
   };
 
-  // ---------- Company edit (suppliers manage this from the My Business page) ----------
+  // ---------- Company edit ----------
+  const handleEditCompany = () => {
+    if (!currentUser || currentUser.userType !== 'company') {
+      showAlert('Only company users can edit their profile', 'danger');
+      return;
+    }
+    const company = getCompanyByUserId(currentUser.id);
+    if (!company) {
+      showAlert('Company profile not found', 'danger');
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      companyName: company.name,
+      companyDescription: company.description,
+      companyLocation: company.location,
+      companyCity: company.city,
+      companyPhone: currentUser.phone,
+      companyEmail: currentUser.email,
+      companyWebsite: company.website || '',
+      companyWorkingHours: company.workingHours || '',
+      companyTinNumber: company.tinNumber,
+      companyBusinessLicense: company.businessLicense,
+      companyVatNumber: company.vatNumber,
+      companyTradeLicenseExpiry: company.tradeLicenseExpiry,
+    }));
+    setShowEditCompany(true);
+  };
+
   const handleSaveCompany = (updatedCompany: Company, updatedUser: User) => {
     setCompanies(prev => prev.map(c => c.id === updatedCompany.id ? updatedCompany : c));
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
     if (currentUser && currentUser.id === updatedUser.id) {
       setCurrentUser(updatedUser);
     }
-    const nextCompanies = companies.map(c => c.id === updatedCompany.id ? updatedCompany : c);
-    const nextUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
-    safeLocalStorage.setItem('companies', JSON.stringify(nextCompanies));
-    safeLocalStorage.setItem('users', JSON.stringify(nextUsers));
-    cloudPush('companies', nextCompanies);
-    cloudPush('users', nextUsers);
-    showAlert('Business profile updated successfully! ✅', 'success');
+    safeLocalStorage.setItem('companies', JSON.stringify(companies.map(c => c.id === updatedCompany.id ? updatedCompany : c)));
+    safeLocalStorage.setItem('users', JSON.stringify(users.map(u => u.id === updatedUser.id ? updatedUser : u)));
+    setShowEditCompany(false);
+    showAlert('Company profile updated successfully! ✅', 'success');
   };
 
   // ---------- System settings (admin) ----------
@@ -1255,7 +1230,9 @@ function App() {
         const sellingPrice = item.basePrice * (1 + item.profitMargin);
         const itemTotal = sellingPrice * item.quantity;
         subtotal += itemTotal;
-        vatAmount += itemTotal * (item.vatPercentage / 100);
+        // Supplier prices already include VAT, so only extract the portion that
+        // is inside the gross line total - never add VAT on top of it again.
+        vatAmount += includedVat(itemTotal, item.vatPercentage);
         const dist = await calculateDistance(
           supplierCompany.lat, supplierCompany.lng,
           currentUser.lat || 9.0320, currentUser.lng || 38.7469
@@ -1300,7 +1277,8 @@ function App() {
       });
       transportCost = deliveryFeeOverride;
     }
-    const total = subtotal + vatAmount + transportCost;
+    // `subtotal` is VAT-inclusive, so VAT must not be added a second time.
+    const total = subtotal + transportCost;
     const multiple = suppliers.length > 1;
     const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
     const minOrderCheck = checkMinOrder(settings, subtotal);
@@ -1428,7 +1406,7 @@ function App() {
       return {
         ...prev,
         transportCost: fee,
-        total: Math.round((prev.subtotal + prev.vatAmount + fee) * 100) / 100,
+        total: Math.round((prev.subtotal + fee) * 100) / 100,
         suppliers,
         freeDeliveryApplied: fee === 0 && prev.minOrderEnabled,
       };
@@ -1476,7 +1454,8 @@ function App() {
       if (!supplierCompany) continue;
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const materialTotal = sellingPrice * item.quantity;
-      const vatAmountItem = materialTotal * (item.vatPercentage / 100);
+      // The line total is VAT-inclusive: store the contained VAT, do not add it.
+      const vatAmountItem = includedVat(materialTotal, item.vatPercentage);
       // Delivery must match what the buyer approved on the proforma: the same
       // per-line checkbox, the supplier's per-km rate over the real distance, or
       // the platform fallback when that supplier publishes no rate.
@@ -1487,7 +1466,7 @@ function App() {
       const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
         item, supplierCompany, distanceKm, totals.subtotal, currentUser!, systemSettings
       );
-      const totalAmount = materialTotal + vatAmountItem + transportCostItem;
+      const totalAmount = materialTotal + transportCostItem;
       const newOrder: Order = {
         id: 'order' + (orders.length + 1) + '_' + Date.now() + '_' + item.materialId,
         customerId: currentUser!.id,
@@ -1529,8 +1508,8 @@ function App() {
         const ids = new Set(createdOrders.map(o => o.id));
         const scaled = createdOrders.map(o => {
           const newTrans = Math.round(o.transportCost * scale * 100) / 100;
-          const materialVat = o.unitPrice * o.quantity + o.vatAmount;
-          return { ...o, transportCost: newTrans, totalAmount: Math.round((materialVat + newTrans) * 100) / 100 };
+          const materialTotal = o.unitPrice * o.quantity;
+          return { ...o, transportCost: newTrans, totalAmount: Math.round((materialTotal + newTrans) * 100) / 100 };
         });
         return [...prev.filter(o => !ids.has(o.id)), ...scaled];
       });
@@ -1827,25 +1806,6 @@ function App() {
     </div>
   );
 
-  // Optional technical specifications shared by the add/edit product forms
-  const renderMaterialSpecificationsFields = () => (
-    <div className="form-section">
-      <h3>🧾 Specifications <small className="form-hint">(optional — shown on the product details page)</small></h3>
-      <div className="form-row">
-        <div className="form-group"><label>🏷️ Model</label><input type="text" className="form-input" name="materialModel" value={formData.materialModel} onChange={handleInputChange} /></div>
-        <div className="form-group"><label>⚖️ Weight</label><input type="text" className="form-input" name="materialWeight" value={formData.materialWeight} onChange={handleInputChange} placeholder="e.g. 25 kg" /></div>
-      </div>
-      <div className="form-row">
-        <div className="form-group"><label>📐 Dimensions</label><input type="text" className="form-input" name="materialDimensions" value={formData.materialDimensions} onChange={handleInputChange} placeholder="e.g. 120 × 60 x 40 cm" /></div>
-        <div className="form-group"><label>💎 Grade</label><input type="text" className="form-input" name="materialGrade" value={formData.materialGrade} onChange={handleInputChange} placeholder="e.g. Grade A" /></div>
-      </div>
-      <div className="form-row">
-        <div className="form-group"><label>🌍 Origin</label><input type="text" className="form-input" name="materialOrigin" value={formData.materialOrigin} onChange={handleInputChange} placeholder="e.g. Ethiopia" /></div>
-        <div className="form-group"><label>📜 Certifications <small className="form-hint">(comma separated)</small></label><input type="text" className="form-input" name="materialCertifications" value={formData.materialCertifications} onChange={handleInputChange} placeholder="e.g. ISO 9001, CE" /></div>
-      </div>
-    </div>
-  );
-
   // ---------- Render helpers ----------
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
     <div className="table-responsive-wrapper"><div className="table-scroll-container" style={{ minWidth }}>{children}</div></div>
@@ -1934,7 +1894,7 @@ function App() {
           <>
             <button className={'nav-link ' + (currentPage === 'company-dashboard' ? 'active' : '')} onClick={() => navigateTo('company-dashboard')}>Dashboard</button>
             <button className={'nav-link ' + (currentPage === 'add-material' ? 'active' : '')} onClick={() => navigateTo('add-material')}>+ Add</button>
-            <button className={'nav-link ' + (currentPage === 'my-business' ? 'active' : '')} onClick={() => navigateTo('my-business')}>My Business</button>
+            <button className={'nav-link ' + (currentPage === 'edit-company' ? 'active' : '')} onClick={handleEditCompany}>Profile</button>
           </>
         ) : (
           <button className={'nav-link ' + (currentPage === 'customer-dashboard' ? 'active' : '')} onClick={() => navigateTo('customer-dashboard')}>Dashboard</button>
@@ -2043,8 +2003,8 @@ function App() {
                   {platformDeliveryHint(supplierGroups) && (
                     <div className="min-order-notice warn">{platformDeliveryHint(supplierGroups)}</div>
                   )}
-                  <div className="summary-row"><span>Subtotal (Before Tax & Delivery):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
-                  <div className="summary-row"><span>VAT ({Math.round(cartDetails.vatAmount / Math.max(cartDetails.subtotal, 0.01) * 100)}%):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
+                  <div className="summary-row"><span>Subtotal (VAT included):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
+                  <div className="summary-row"><span>VAT ({includedVatRate(cartDetails.subtotal, cartDetails.vatAmount)}% included):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
                   <div className="summary-row">
                     <span>Delivery Fee{multipleSuppliers ? ` (${supplierGroups.length} suppliers)` : ''}:</span>
                     <span className="delivery-fee-edit">
@@ -2208,9 +2168,6 @@ function App() {
               <div className="form-row"><div className="form-group"><label className="form-label">🔒 Password *</label><input type="password" className="form-input" name="registerPassword" value={formData.registerPassword} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">📞 Phone *</label><input type="tel" className="form-input" name="registerPhone" value={formData.registerPhone} onChange={handleInputChange} required /></div></div>
               <div className="form-group"><label className="form-label">📍 Address *</label><input type="text" className="form-input" name="registerAddress" value={formData.registerAddress} onChange={handleInputChange} required /></div>
               <div className="form-group"><label className="form-label">🏙️ City *</label><select className="form-select" name="registerCity" value={formData.registerCity} onChange={handleInputChange} required><option value="">Select</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-              {formData.registerUserType === 'company' && (
-                <div className="form-group"><label className="form-label">🗺️ Business Location on Map *</label><button type="button" className="btn-secondary" onClick={() => setShowRegisterMapPicker(true)}>🗺️ Set Location on Map</button><div className="location-preview"><small>{(formData.registerLat !== 0 || formData.registerLng !== 0) ? `📍 Lat: ${formData.registerLat.toFixed(6)}, Lng: ${formData.registerLng.toFixed(6)}` : '📍 No location pinned yet — buyers use this point to find and route to you.'}</small></div></div>
-              )}
               <div className="form-group"><label className="checkbox-label"><input type="checkbox" required /> ✅ I agree to Ethiopian Trade Regulations</label></div>
               <button type="submit" className="btn-submit">📝 Create Account</button>
             </form>
@@ -2292,108 +2249,7 @@ function App() {
             </tbody></table>
           </ScrollableTable>
         </div>
-        <button className="btn btn-primary" onClick={() => navigateTo('my-business')}>🏢 Manage My Business</button>
-      </main>
-    );
-  };
-
-  // ---------- Supplier: unified "My Business" (profile, location & products) ----------
-  const renderMyBusiness = () => {
-    if (!currentUser || currentUser.userType !== 'company') {
-      return <main className="main-content"><div className="alert alert-danger">⚠️ Only suppliers can manage a business profile.</div></main>;
-    }
-    const company = getCompanyByUserId(currentUser.id);
-    if (!company) {
-      return <main className="main-content"><div className="alert alert-danger">⚠️ Company profile not found.</div></main>;
-    }
-    const companyMaterials = materials.filter(m => m.companyId === company.id);
-
-    return (
-      <main className="main-content my-business-page">
-        <div className="dashboard-header dashboard-header-supplier">
-          <div className="dashboard-title">
-            {company.logo
-              ? <img src={company.logo} alt={company.name + ' logo'} className="supplier-logo" />
-              : <span className="title-icon">🏢</span>}
-            <h1>My Business</h1>
-          </div>
-          <p className="dashboard-supplier-name">{company.name}{company.city ? ' · ' + company.city : ''}</p>
-        </div>
-
-        <div className="auth-tabs my-business-tabs">
-          <button
-            className={'auth-tab ' + (myBusinessTab === 'profile' ? 'active' : '')}
-            onClick={() => setMyBusinessTab('profile')}
-          >
-            🏢 Profile &amp; Location
-          </button>
-          <button
-            className={'auth-tab ' + (myBusinessTab === 'products' ? 'active' : '')}
-            onClick={() => setMyBusinessTab('products')}
-          >
-            📦 Products ({companyMaterials.length})
-          </button>
-        </div>
-
-        {myBusinessTab === 'profile' ? (
-          <EditCompany
-            company={company}
-            user={currentUser}
-            onSave={handleSaveCompany}
-            onClose={() => navigateTo('company-dashboard')}
-            embedded
-          />
-        ) : (
-          <div className="card glass">
-            <div className="card-header">
-              <h3>📦 My products</h3>
-              <button className="btn btn-primary" onClick={() => navigateTo('add-material')}>➕ Add Product</button>
-            </div>
-            {companyMaterials.length === 0 ? (
-              <div className="no-results glass"><p>No products yet — add your first one.</p></div>
-            ) : isMobile ? (
-              <div className="m-dash-list">
-                {companyMaterials.map(m => (
-                  <div key={m.id} className="m-dash-row">
-                    {renderProductImage(m.images, m.category, 'sm')}
-                    <div className="m-dash-row-info">
-                      <strong>{m.name}</strong>
-                      <small>{m.category} · {m.quantity} {m.unit} · {formatCurrency(m.price)}</small>
-                    </div>
-                    <button className="btn-icon edit" title="Edit product" onClick={() => handleEditMaterial(m)}>✏️</button>
-                    <button className="btn-icon danger" title="Delete product" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <ScrollableTable minWidth="820px">
-                <table className="data-table">
-                  <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>In Stock</th><th>Rating</th><th>Actions</th></tr></thead>
-                  <tbody>
-                    {companyMaterials.map(m => (
-                      <tr key={m.id}>
-                        <td className="product-cell">
-                          {renderProductImage(m.images, m.category, 'sm')}
-                          <div className="product-cell-info"><strong>{m.name}</strong>{m.brand && <small>{m.brand}</small>}</div>
-                        </td>
-                        <td className="category-cell">{m.category}</td>
-                        <td className="price-cell">{formatCurrency(m.price)}</td>
-                        <td>{m.unit}</td>
-                        <td className="stock-cell"><strong>{m.quantity}</strong> {m.unit}</td>
-                        <td>⭐ {m.rating || 'N/A'}</td>
-                        <td>
-                          <button className="btn-icon" title="View details" onClick={() => setSelectedMaterial(m)}>👁️</button>
-                          <button className="btn-icon edit" title="Edit product" onClick={() => handleEditMaterial(m)}>✏️</button>
-                          <button className="btn-icon danger" title="Delete product" onClick={() => handleDeleteMaterial(m.id)}>🗑️</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </ScrollableTable>
-            )}
-          </div>
-        )}
+        <button className="btn btn-secondary" onClick={handleEditCompany}>✏️ Edit Company Profile</button>
       </main>
     );
   };
@@ -2443,7 +2299,6 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
-        {renderMaterialSpecificationsFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
@@ -2459,7 +2314,6 @@ function App() {
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
-        {renderMaterialSpecificationsFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>Cancel</button></div>
@@ -2553,9 +2407,9 @@ function App() {
               })}
             </div>
           ) : (
-            <ScrollableTable minWidth="1100px">
+            <ScrollableTable minWidth="1000px">
               <table className="data-table">
-                <thead><tr><th className="th-sticky">Product</th><th>Category</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th>{canSeeStock && <th>Stock</th>}<th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
+                <thead><tr><th className="th-sticky">Product</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th>{canSeeStock && <th>Stock</th>}<th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
                 <tbody>
                   {(displayMaterials as SearchResult[]).map(item => {
                     const company = getCompanyById(item.companyId);
@@ -2575,8 +2429,7 @@ function App() {
                           {renderProductImage(item.images, item.category, 'sm')}
                           <div className="product-cell-info"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</div>
                         </td>
-                        <td className="category-cell">{item.category}</td>
-                        <td>{company?.name || 'Unknown'}</td>
+                        <td className="supplier-cell">{company?.name || 'Unknown'}</td>
                         <td>{company?.city || 'N/A'}</td>
                         <td className="price-cell">{formatCurrency(item.price)}</td>
                         <td>{item.unit}</td>
@@ -2999,14 +2852,6 @@ function App() {
               sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : 'Customer'}
               onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard'); }}
             />
-            {isCompany && (
-              <Action
-                icon="🏢"
-                label="My Business"
-                sub="Profile, location & products"
-                onClick={() => { setMobileMenuOpen(false); navigateTo('my-business'); }}
-              />
-            )}
             <Action icon="🗺️" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
             <Action icon="💳" label="E-SCON Wallet" sub={currentUser ? 'Balance ' + formatCurrency(walletBalance(currentUser.id)) : 'Top up & pay with wallet'} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
             <Action icon="🔔" label="Notifications" sub={unreadNotifications() > 0 ? unreadNotifications() + ' unread' : 'All caught up'} onClick={() => { setMobileMenuOpen(false); setShowNotifications(true); }} />
@@ -3069,10 +2914,7 @@ function App() {
         )}
         <div className="m-pc-body">
           <button className="m-pc-name" onClick={onOpen}>{material.name}</button>
-          <div className="m-pc-meta">
-            <span className="m-pc-chip">{material.category}</span>
-            {material.brand && <span className="m-pc-brand">{material.brand}</span>}
-          </div>
+          {material.brand && <div className="m-pc-brand">{material.brand}</div>}
           <div className="m-pc-supplier">{company?.name || 'Unknown'}{company?.city ? ' · ' + company.city : ''}</div>
           {distanceKm != null && <div className="m-pc-distance">🚗 {distanceKm.toFixed(1)} km</div>}
           <div className="m-pc-price-row">
@@ -3086,19 +2928,9 @@ function App() {
               {/* Tapping the card opens the product details, where the +/- stepper
                   and the with/without-delivery checkbox appear only at the moment
                   the customer is ready to order. The cart is opened from the
-                  bottom tab bar, so this is not a second cart button. The small
-                  Map button on the same row jumps straight to the driving route. */}
+                  bottom tab bar, so this is not a second cart button. */}
               <button className="m-pc-add-btn" onClick={onOpen}>
                 {isInCart ? '🛒 Edit order' : '🛒 Order'}
-              </button>
-              <button
-                className="m-pc-map-btn"
-                onClick={() => company && handleOpenMapWithRoute(company.id)}
-                disabled={!company}
-                aria-label={company ? 'Show route to ' + company.name : 'Supplier location unavailable'}
-                title="View route on map"
-              >
-                🗺️
               </button>
             </div>
           )}
@@ -3433,7 +3265,7 @@ function App() {
               </div>
             )}
           </div>
-          <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => navigateTo('my-business')}>🏢 Manage My Business</button>
+          <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleEditCompany}>✏️ Edit Company Profile</button>
           <div className="m-section">
             <div className="m-section-head">
               <h3>📦 Recent orders</h3>
@@ -3517,12 +3349,18 @@ function App() {
   const renderCurrentPage = () => {
     if (showSplash) return renderSplash();
     if (showSupplierMap) return renderSupplierMap();
+    if (showEditCompany) {
+      const company = currentUser ? getCompanyByUserId(currentUser.id) : null;
+      const user = currentUser;
+      if (company && user) {
+        return <EditCompany company={company} user={user} onSave={handleSaveCompany} onClose={() => setShowEditCompany(false)} />;
+      }
+    }
     switch (currentPage) {
       case 'home': return renderHome();
       case 'login': return renderLogin();
       case 'register': return renderRegister();
       case 'company-dashboard': return renderCompanyDashboard();
-      case 'my-business': return renderMyBusiness();
       case 'customer-dashboard': return renderCustomerDashboard();
       case 'add-material': return renderAddMaterial();
       case 'edit-material': return renderEditMaterial();
@@ -3565,16 +3403,6 @@ function App() {
 
       {/* Install guide modal — always reachable via ?install link behaviour */}
       {showInstallGuide && <InstallGuide onClose={() => setShowInstallGuide(false)} />}
-
-      {/* Map picker used while a supplier registers their business location */}
-      {showRegisterMapPicker && (
-        <MapPicker
-          initialLat={formData.registerLat || 9.0320}
-          initialLng={formData.registerLng || 38.7469}
-          onLocationSelect={handleRegisterLocationSelect}
-          onClose={() => setShowRegisterMapPicker(false)}
-        />
-      )}
 
       {/* Public proforma opened by scanning a QR code (#escon=...) */}
       {publicProformaData && (

@@ -1,11 +1,14 @@
 # E-SCON — Cloud Database (Supabase)
 
 E-SCON keeps its data in the browser's `localStorage` so it works offline and
-starts instantly. When **Supabase** credentials are configured, the app also
-mirrors every shared key into a cloud table so all devices see the same data.
+starts instantly. The Supabase module can mirror shared keys into a cloud table,
+but **in the v6.0 build only `system_settings` is pushed**; accounts, products,
+orders, carts and favourites remain local. Older builds may have synced more
+collections, so existing cloud rows should be treated as historical.
 
-This document covers how the sync works, how to set it up, and the security
-limitations to be aware of.
+This document covers the sync module, how to set it up, and the security
+limitations to be aware of. It is reference material for re-enabling full sync,
+not a description of what the current app uploads.
 
 ---
 
@@ -18,22 +21,24 @@ The sync layer lives in two small files:
   are set. Exposes `isCloudEnabled`.
 - [`src/lib/cloudStore.ts`](../src/lib/cloudStore.ts) — the mirror logic.
 
-**Startup:** `pullCloudToCache()` downloads every row and writes it into
-`localStorage` **before** the app reads its state.
+**Startup (module capability):** `pullCloudToCache()` downloads every row and
+writes it into `localStorage`. The current `App.tsx` does **not** call it, so no
+business collection is pulled at startup.
 
 **On change:** `cloudPush(key, value)` queues an upload, coalesced per key and
-flushed ~800 ms later (a single action often updates several keys, e.g. wallets +
-transactions). `cloudPushNow()` forces an immediate flush for one-off writes like
-`system_settings`.
+flushed ~800 ms later. `cloudPushNow()` forces an immediate flush for one-off
+writes; `settings.ts` uses it for `system_settings` in v6.0.
 
 - With **no credentials**, `isCloudEnabled` is `false`, every function is a
   no-op, and the app behaves exactly as before (local-only, no network calls).
 
-### Which keys are synced
+### Which keys the module can sync
 
-| Synced (whole collection) | Synced (per user) | Stays on device only |
+| Supported (whole collection) | Supported (per user) | Stays on device only |
 | --- | --- | --- |
 | `users`, `companies`, `materials`, `orders`, `notifications`, `wallets`, `wallet_transactions`, `reviews`, `system_settings` | `cart_<userId>`, `favs_<userId>` | `currentUser`, `pwa_install_dismissed` |
+
+**Actually pushed in v6.0:** `system_settings` only.
 
 The full list is in `cloudStore.ts` (`SHARED_KEYS`, `SHARED_PREFIXES`,
 `LOCAL_ONLY`).
@@ -129,7 +134,7 @@ are mostly swapping the storage calls for authenticated queries.
 ## 4. Operating notes
 
 - **Reset the database:** `delete from public.escon_kv;` (or delete individual
-  rows). Clients re-upload their local copy on the next change.
+  rows). In v6.0, clients re-upload only `system_settings` on the next change.
 - **Free-tier limits:** watch the Supabase project's database size and request
   volume; a large product catalogue with many base64 photos inflates the
   `materials` row quickly.

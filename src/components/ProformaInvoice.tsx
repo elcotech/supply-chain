@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CartItem, CartReport, User, Company, ProformaShareData, DeliveryMode } from '../types';
 import {
   formatCurrency, generateProformaQrDataUrl, checkMinOrder,
-  buildProformaShareData,
+  buildProformaShareData, includedVatRate,
 } from '../utils';
 import { loadSettings } from '../settings';
 
@@ -172,10 +172,10 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   const minOrderCheck = checkMinOrder(settings, report.subtotal);
 
   // ------------------------------------------------------------------ finance
-  const vatPercent = report.subtotal > 0
-    ? Math.round((report.vatAmount / report.subtotal) * 100)
-    : 0;
-  const totalBeforeVat = report.subtotal + report.transportCost;
+  // Prices already include VAT: report.vatAmount is the portion inside the gross
+  // subtotal, never an extra charge. The grand total is goods (VAT inclusive)
+  // plus delivery only.
+  const vatPercent = includedVatRate(report.subtotal, report.vatAmount);
   const words = amountToWords(report.total);
 
   const handlePrint = () => {
@@ -452,25 +452,25 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             )}
             <div className="pf-summary">
               <div className="pf-sum-row">
-                <span>Subtotal (Goods)</span>
+                <span>Subtotal (Goods, VAT included)</span>
                 <span>{formatCurrency(report.subtotal)}</span>
+              </div>
+              <div className="pf-sum-row pf-vat-row">
+                <span>VAT ({vatPercent}% included)</span>
+                <span>{formatCurrency(report.vatAmount)}</span>
               </div>
               <div className="pf-sum-row">
                 <span>Delivery Cost</span>
                 <span>{formatCurrency(report.transportCost)}</span>
               </div>
-              <div className="pf-sum-row">
-                <span>Total Before VAT</span>
-                <span>{formatCurrency(totalBeforeVat)}</span>
-              </div>
-              <div className="pf-sum-row">
-                <span>VAT ({vatPercent}%)</span>
-                <span>{formatCurrency(report.vatAmount)}</span>
-              </div>
               <div className="pf-sum-row pf-grand">
                 <span>Grand Total</span>
                 <span>{formatCurrency(report.total)}</span>
               </div>
+            </div>
+            <div className="pf-vat-note">
+              Supplier prices already include VAT. The VAT amount above is shown for
+              information and is not added to the grand total again.
             </div>
             {/* The words sit directly under the numeric total. */}
             <div className="pf-words">

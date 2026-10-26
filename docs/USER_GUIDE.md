@@ -28,11 +28,11 @@ You can use E-SCON in a normal browser, or install it as an app on your phone
 1. Open the app. After a short splash screen you land on the **Home** page.
 2. Tap **Login** (or **Register** to create an account).
 3. Choose your account type on the register page: **Customer** or **Supplier**.
-4. **Suppliers:** after filling in the company details, tap **🗺️ Set Location on
-   Map** and click your business on the map to drop the pin (it can also locate
-   your device). The pin is **required** for suppliers — it is how buyers see your
-   distance and get a delivery route. You can move the pin again later from
-   **My Business → Profile & Location**.
+4. **Suppliers:** finish the company details and register. Your business gets a
+   default Addis Ababa location; set the exact pin afterwards from **Profile →
+   Edit Company Profile** (or **Edit Company Profile** on the dashboard) by
+   clicking/dragging the map marker. Buyers use that pin for distance and delivery
+   routing.
 
 ### Demo accounts (sample data)
 
@@ -63,9 +63,10 @@ On the **Search** page:
 - Tap a product row to **open the map with the driving route** to that supplier,
   including the distance in km and estimated driving time. Use **View Route on
   Map** from the product details for the same thing.
-- On a phone, each product card shows the **department in bold**, the price and
-  supplier, then a small **🛒 Order** button with a **🗺️ Map** button beside it —
-  Map jumps straight to the driving route for that supplier.
+- On a phone, each product card shows the **bold product name, supplier and
+  price**, then a small **🛒 Order** button with a **🗺️ Map** button beside it —
+  Map jumps straight to the driving route for that supplier. The department is
+  not shown on search results (use the Department filter to narrow the list).
 - The search box itself spans the **full width of the screen**, so there is more
   room to type.
 - Use the 🎯 **Locate Me** button on any map to centre it on your real position.
@@ -111,7 +112,7 @@ In the cart you can:
 - Tick or untick **"With delivery"** per line.
 - Toggle a manual delivery-fee override where offered.
 
-The totals update automatically (subtotal, VAT, per-line delivery, grand total).
+The totals update automatically (VAT-inclusive subtotal, the included VAT, per-line delivery and grand total).
 
 ### Three order actions, in order
 
@@ -133,7 +134,7 @@ The button at the bottom of the cart is **Clear Cart** only.
 ### The proforma invoice
 
 The **proforma is your order document**. It contains your details and the
-supplier's, the item table, a delivery breakdown, VAT (15%), the grand total,
+supplier's, the item table, a delivery breakdown, the VAT **included** in the goods subtotal, delivery cost and the grand total,
 the amount in words and the terms & conditions. It carries a **QR code** in the
 top-right corner.
 
@@ -168,8 +169,8 @@ The **Supplier Dashboard** leads with your company name and shows:
 - Your products table with **In Stock**, **Stock Status** and **Stock Value**
   columns.
 - An **Add Product** button and view/edit/delete on every product.
-- A **🏢 Manage My Business** button that opens the full self-service page
-  (profile, location and products) described below.
+- An **Edit Company Profile** button that opens the business profile, location
+  and account form described below.
 
 ### Adding or editing a product
 
@@ -186,22 +187,23 @@ The **Supplier Dashboard** leads with your company name and shows:
   delivery" checkbox and the fee is worked out from the real road distance.
   Leave it unticked and the platform's delivery rules apply instead.
 
-### My Business — edit everything in one place
+### Company profile
 
-Open **My Business** from the desktop top navigation, the **🏢 My Business**
-entry in the phone's **More** menu, or the **🏢 Manage My Business** button on
-the Supplier Dashboard. It has two tabs:
+Open **Profile** in the desktop top navigation, or tap **Edit Company Profile**
+on the Supplier Dashboard (also available in the phone's **More** menu). One form
+edits:
 
-- **🏢 Profile & Location** — your company **logo** (upload/replace/remove),
-  name, description, **city, address and exact map location** (click or drag the
-  marker, with reverse geocoding), contact details (phone, email, website,
-  working hours), legal & compliance fields (TIN, business license, VAT, trade
-  licence expiry) and your **account** (full name and, optionally, a new
-  password — leave the password blank to keep it).
-- **📦 Products** — the full list of your products with view/edit/delete and an
-  **Add Product** button. The Add/Edit forms include the specifications above.
+- your company **logo** (upload/replace/remove), name and description;
+- **city, address and exact map location** (click or drag the marker, with
+  reverse geocoding);
+- contact details (phone, email, website, working hours);
+- legal & compliance fields (TIN, business license, VAT, trade licence expiry);
+- your **account** — full name and, optionally, a new password (leave the
+  password blank to keep the current one).
 
-**Everything a supplier can change about their own business is here.**
+Products are managed separately from the dashboard. Use **Add Product** or the
+view/edit/delete actions on your product table; the Add/Edit forms include the
+specifications above.
 
 ### Orders
 
@@ -246,10 +248,10 @@ opens a **device-specific Install Guide** with step-by-step instructions.
 
 Installing is optional — the app works the same in a normal browser tab.
 
-> **Your privacy on screen:** the **Android app blocks screenshots and screen
-> recordings**, so prices, proformas and account details cannot be captured
-> without permission. (A browser tab or the web version cannot block the
-> operating system's screenshot feature.)
+> **Screenshots on Android:** the Android app allows the normal system
+> screenshot and screen-recording shortcuts, so you can capture prices,
+> proformas or account screens when you need them. Treat those captures as
+> sensitive business documents.
 
 > When a new version is released, the app refreshes its own files automatically
 > the next time you open it. **Your account, products, orders and favourites are

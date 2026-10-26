@@ -11,6 +11,8 @@ import {
   buildProformaShareData,
   findOtherCartSupplier,
   cartHasOtherSupplier,
+  includedVat,
+  includedVatRate,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -359,5 +361,25 @@ describe('buildProformaShareData (multi-item cart)', () => {
     const items = Array.from({ length: MAX_QR_LINE_ITEMS + 2 }, (_, i) => line('Item ' + i, 1));
     const data = buildProformaShareData({ ...base, suppliers: [], items, deliveryLines: [] });
     expect(decodeProformaPayload(encodeProformaPayload(data))).toEqual(data);
+  });
+});
+describe('includedVat (supplier prices already include VAT)', () => {
+  it('extracts the VAT portion instead of adding tax on top', () => {
+    expect(includedVat(115, 15)).toBe(15);
+    expect(includedVat(230, 15)).toBe(30);
+  });
+
+  it('rounds to two decimals and handles safe inputs', () => {
+    expect(includedVat(100, 15)).toBe(13.04);
+    expect(includedVat(0, 15)).toBe(0);
+    expect(includedVat(-50, 15)).toBe(0);
+    expect(includedVat(NaN, 15)).toBe(0);
+    expect(includedVat(100, 0)).toBe(0);
+  });
+
+  it('recovers the inclusive VAT rate for display', () => {
+    expect(includedVatRate(115, 15)).toBe(15);
+    expect(includedVatRate(230, 30)).toBe(15);
+    expect(includedVatRate(0, 0)).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 # E-SCON — Ethio-Supply Chain Optimization Network
 
-A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, cart/checkout with VAT, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
+A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, VAT-inclusive cart/checkout, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
 
 ## 📚 Documentation
 
@@ -9,7 +9,7 @@ A single-page React + TypeScript platform connecting Ethiopian suppliers and cus
 | [**TECHNICAL_DOCUMENTATION.md**](./TECHNICAL_DOCUMENTATION.md) | Developers | The single source of truth: architecture, data models, features, integrations, styling, responsive design, deployment, troubleshooting |
 | [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) | End users | How to search, order, print proformas, sell, install the app, and troubleshoot |
 | [docs/ANDROID_BUILD.md](./docs/ANDROID_BUILD.md) | Developers | Building the debug APK and signed release AAB with Capacitor, JDK 17 and the Android SDK |
-| [docs/CLOUD_DATABASE.md](./docs/CLOUD_DATABASE.md) | Developers / admins | Supabase setup, how sync works, and the security limitations |
+| [docs/CLOUD_DATABASE.md](./docs/CLOUD_DATABASE.md) | Developers / admins | Supabase setup, the sync module, current settings-only usage, and security limitations |
 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Developers | Deploying the web app and the Android app |
 | [docs/PRIVACY_POLICY.md](./docs/PRIVACY_POLICY.md) | Legal / Play Store | Privacy policy template for the Play Store |
 | [docs/PLAY_STORE_LISTING.md](./docs/PLAY_STORE_LISTING.md) | Release managers | Store listing copy, assets, Data safety form and release checklist |
@@ -42,7 +42,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 📷 **Product photos** (up to 6 per product, base64 stored locally)
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
 - 🛒 **One supplier per cart** — a proforma is a legal document issued by a single seller, so a cart can only hold one supplier's goods. Adding from a second supplier is refused with a warning that names both suppliers and leaves your cart untouched; clear the cart or remove the other supplier's lines first
-- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), VAT, configurable delivery fees & minimum order, checkout → orders
+- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), **VAT-inclusive prices** (the included VAT is shown, never added twice), configurable delivery fees & minimum order, checkout → orders
 - ➕ **Order from the product view** — the `+ / −` quantity control appears only in the product details (steps of 1, live total, **any quantity** — no per-product minimum); results rows, product cards and the compare view just open the product
 - 🔒 **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 🗺️ **Automatic supplier routing** — the map always draws the route from the customer's real GPS position to the selected supplier, and re-draws it the moment GPS locks in; selecting another supplier (marker, list or re-opening) replaces the previous route instead of leaving it on screen
@@ -62,8 +62,8 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 📱 **Mobile banking-style app** — a dedicated mobile shell (bottom tab bar, centre cart button, "More" sheet, greeting home, trending-products carousel, card-based search, order cards with a shipment progress stepper) automatically appears on phones; the desktop layout stays untouched
 - 👁️ **Tap-to-explore** — the product photo on the trending carousel and the mobile search grid opens the description, and says so with a pulsing "View details" pill (motion is skipped for reduced-motion users)
 - 🖼️ **App icon = the logo** — the Android launcher icon, the PWA icon and the browser favicon are all generated from `public/logo512.png`, so the phone icon, browser tab and Play Store icon match the in-app logo
-- 📸 **Screenshots are blocked in the Android app** — the app sets Android's secure-window flag, so prices, proformas and account details cannot be screenshotted or screen-recorded (a browser tab cannot block the OS screenshot feature)
-- 🔎 **Mobile search polish** — the Find bar spans the full width of the screen, the department chip on each result card is bold and larger, and a compact 🛒 **Order** button now shares its row with a new 🗺️ **Map** button that opens the driving route; the desktop results table's category column is bold and larger too
+- 📸 **Screenshots are allowed in the Android app** — the Android screenshot and screen-recording shortcuts work normally, and store screenshots can be captured from the shipped build
+- 🔎 **Clearer search results (v6.0)** — the Find bar spans the full width of the screen; product name, supplier and price are bold on both the mobile card and desktop table, and the department/category is no longer shown on search results; each card keeps the compact 🛒 **Order** button and the 🗺️ **Map** route button
 - 🧾 **Readable proforma** — supplier and buyer details always sit side by side (phones and print included), the authorization block does too (supplier name + date beside buyer name + date), and the amount in words sits directly under the totals
 - ✅ TIN / VAT / business-license compliance fields
 - 📥 CSV exports & printable reports (suppliers and admins only)

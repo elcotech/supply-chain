@@ -93,8 +93,8 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
 
           <div className="public-proforma-summary">
             <div><span>Items:</span><strong>{data.i.length} line item{data.i.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</strong></div>
-            <div><span>Subtotal:</span><strong>{formatCurrency(data.sub)}</strong></div>
-            <div><span>VAT:</span><strong>{formatCurrency(data.vat)}</strong></div>
+            <div><span>Subtotal (VAT included):</span><strong>{formatCurrency(data.sub)}</strong></div>
+            <div><span>VAT (included):</span><strong>{formatCurrency(data.vat)}</strong></div>
             <div><span>Delivery Fee:</span><strong>{formatCurrency(data.del)}</strong></div>
             <div className="p-pf-grand"><span>GRAND TOTAL:</span><strong>{formatCurrency(data.tot)}</strong></div>
             <div className="p-pf-currency">All amounts in ETB – Ethiopian Birr</div>

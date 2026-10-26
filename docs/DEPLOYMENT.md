@@ -15,9 +15,9 @@ npx tsc --noEmit         # typecheck without building
 
 `build/` is a plain static folder — no server runtime is required.
 
-> If cloud sync is wanted, ensure `.env.local` exists **before** `npm run build`
-> so the Supabase values are compiled in (see
-> [CLOUD_DATABASE.md](./CLOUD_DATABASE.md)).
+> `.env.local` is optional in v6.0; when present, the Supabase values are
+> compiled in and only `system_settings` uses them. Business data stays in
+> `localStorage` (see [CLOUD_DATABASE.md](./CLOUD_DATABASE.md)).
 
 ---
 
@@ -44,7 +44,7 @@ path-based request, configure a single-page-app fallback to `index.html`.
 `public/sw.js` is a **custom** service worker. To push a new version to every
 installed user without touching their data:
 
-1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v1.5.0`).
+1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v1.6.0`).
 2. Deploy the new `build/`.
 
 On `activate` the worker deletes old cache buckets, and `skipWaiting()` /
@@ -90,7 +90,7 @@ For a quick internal install, build a debug APK and use `adb install`
 - [ ] `npx tsc --noEmit` clean.
 - [ ] `CI=true npm test -- --watchAll=false` passing.
 - [ ] `npm run build` succeeds.
-- [ ] `.env.local` contains the intended cloud config (and is not committed).
+- [ ] `.env.local` is either absent or contains the intended optional settings config (never committed).
 - [ ] `public/sw.js` `VERSION` bumped.
 - [ ] Android `versionCode` / `versionName` bumped (for Play uploads).
 - [ ] Web `build/` deployed over HTTPS.
