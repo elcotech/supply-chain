@@ -452,6 +452,10 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             )}
             <div className="pf-summary">
               <div className="pf-sum-row">
+                <span>Amount Before VAT</span>
+                <span>{formatCurrency(report.subtotal - report.vatAmount)}</span>
+              </div>
+              <div className="pf-sum-row">
                 <span>Subtotal (Goods, VAT included)</span>
                 <span>{formatCurrency(report.subtotal)}</span>
               </div>
@@ -469,8 +473,9 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               </div>
             </div>
             <div className="pf-vat-note">
-              Supplier prices already include VAT. The VAT amount above is shown for
-              information and is not added to the grand total again.
+              Amount Before VAT is the goods subtotal excluding the VAT already
+              contained in supplier prices. The VAT amount is shown for information
+              and is not added to the grand total again.
             </div>
             {/* The words sit directly under the numeric total. */}
             <div className="pf-words">

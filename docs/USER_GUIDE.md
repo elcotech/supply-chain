@@ -134,8 +134,9 @@ The button at the bottom of the cart is **Clear Cart** only.
 ### The proforma invoice
 
 The **proforma is your order document**. It contains your details and the
-supplier's, the item table, a delivery breakdown, the VAT **included** in the goods subtotal, delivery cost and the grand total,
-the amount in words and the terms & conditions. It carries a **QR code** in the
+supplier's, the item table, a delivery breakdown, the **Amount Before VAT**, the
+VAT **included** in the goods subtotal, delivery cost and the grand total, the
+amount in words and the terms & conditions. It carries a **QR code** in the
 top-right corner.
 
 Scanning the QR (or opening its link) shows a **mobile-friendly view** of the
@@ -174,6 +175,9 @@ The **Supplier Dashboard** leads with your company name and shows:
 
 ### Adding or editing a product
 
+- When the operator has configured cloud sync, adding, editing or deleting a
+  product takes effect on **every device** (usually within seconds, without a
+  reload). The same applies to your company profile and orders.
 - Fill in name, description, brand, category, department, unit, price, quantity
   and compliance fields (TIN, VAT, business license) where relevant.
 - **🧾 Specifications** — optional **Model**, **Weight**, **Dimensions**,

@@ -40,3 +40,22 @@ create policy "escon_kv anon update" on public.escon_kv for update using (true) 
 
 drop policy if exists "escon_kv anon delete" on public.escon_kv;
 create policy "escon_kv anon delete" on public.escon_kv for delete using (true);
+
+-- ---------------------------------------------------------------------------
+-- REALTIME
+--
+-- Publish this table so edits reach other devices immediately. The app also
+-- polls `updated_at` as a fallback, so it still converges if this statement has
+-- not been run yet, just with a few seconds' delay.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'escon_kv'
+  ) then
+    alter publication supabase_realtime add table public.escon_kv;
+  end if;
+end $$;

@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.0 (VAT-inclusive pricing, clearer search results and Android screenshots enabled)
-> **Previous:** 5.9 (Supplier self-service "My Business" - not part of the current v6.0 build)
+> **Version:** 6.1 (global cloud sync for products and all shared data, Amount Before VAT on the proforma)
+> **Previous:** 6.0 (VAT-inclusive pricing, clearer search results and Android screenshots enabled)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -375,11 +375,13 @@ Storage keys (managed via the `safeLocalStorage` wrapper in `utils.ts`):
 
 A backup JSON taken on an older build still validates (`validateBackup`), because it only checks the collection shapes, not individual optional fields.
 
-**Cloud sync status (v6.0):** `settings.ts` still calls `cloudPushNow()` for
-`system_settings`, but `App.tsx` does not call `pullCloudToCache()` or push the
-account/catalogue/order collections. Treat the current build as **local-only for
-business data**; `docs/CLOUD_DATABASE.md` documents the sync module for future
-re-integration.
+**Cloud sync status (v6.1):** every shared collection is synced when Supabase is
+configured. Startup calls `pullCloudToCache()` before reading state; each shared
+persistence effect calls `cloudPush()`; `subscribeToCloud()` applies Realtime
+rows immediately; and `fetchCloudChanges()` polls newer rows every 10 seconds as
+a fallback. A one-time `escon_cloud_merge_v2` merge protects products created
+while older builds were local-only. With no credentials, the whole layer is a
+no-op and the app remains local-only. See `docs/CLOUD_DATABASE.md`.
 
 ---
 
@@ -477,7 +479,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 ### 10.7 Proforma Invoice (NEW)
 - **File:** `src/components/ProformaInvoice.tsx`.
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
-- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (**Subtotal (Goods, VAT included)** → **VAT (x% included)** → **Delivery Cost** → **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines.
+- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (**Amount Before VAT** → **Subtotal (Goods, VAT included)** → **VAT (x% included)** → **Delivery Cost** → **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines. The QR “public proforma” shows the same Before VAT line.
 - **Layout (v5.4, extended in v5.5):** supplier and buyer blocks stay **side by side** everywhere — desktop, phones (`≤760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be ≤760px). Only the terms block still stacks — it is prose and needs the full width.
 - **Signature grid (changed in v5.2):** `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))`, so each party gets its own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
 - **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v5.2 `.pf-delivery-box` sits above them in that same column and shares the width so all three align.
@@ -669,7 +671,7 @@ Products stay on the supplier dashboard: add/edit/delete and the
 `renderMaterialSpecificationsFields()` section (**Model**, **Weight**,
 **Dimensions**, **Grade**, **Origin**, comma-separated **Certifications**) are
 unchanged. The v5.9 `my-business` page, its `myBusinessTab` state and the
-desktop/More-sheet **My Business** links are **not present in the v6.0 build**.
+desktop/More-sheet **My Business** links are **not present in the v6.1 build**.
 
 ---
 
@@ -1007,7 +1009,7 @@ Read this before touching any code. It prevents the most common mistakes.
 
 ### 19.4 Known limitations (do not "fix" without discussion)
 - Passwords stored in plaintext — demo only.
-- No backend; all data in localStorage (~5 MB limit; base64 product photos are the main consumer).
+- No custom backend; localStorage is the offline cache (~5 MB limit; base64 product photos are the main consumer). Supabase mirrors shared data when configured.
 - OSRM + Nominatim are free public servers — rate limits and occasional outages are expected; fallbacks already exist.
 
 ---
@@ -1018,6 +1020,25 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.1 — global cloud sync & Amount Before VAT
+
+- **Products are global.** Adding, editing or deleting a product now pushes the
+  `materials` collection to Supabase. Startup pulls the cloud copy first, a
+  Realtime subscription applies remote edits instantly, and a 10-second polling
+  fallback covers projects where the Realtime publication is not enabled.
+- **All shared data travels.** Users, companies, orders, notifications, wallets,
+  wallet transactions, reviews, settings and per-user carts/favourites are
+  mirrored the same way. With no Supabase credentials the app stays local-only.
+- **Safe upgrade merge.** The first v6.1 start merges local business data with
+  the cloud copy (local wins on the same ID) so items added while v6.0 was
+  local-only are not overwritten. New users, companies and products get
+  collision-resistant IDs instead of sequential ones.
+- **Amount Before VAT on the proforma.** The printed/on-screen proforma and the
+  QR “public proforma” now show the goods amount before VAT, followed by the
+  VAT-included subtotal, the included VAT and the grand total.
+- **Housekeeping** — bumped `versionCode` 4 → 5, `versionName` 1.3 → 1.4 and
+  `sw.js` `VERSION` `e-scon-v1.6.0` → `e-scon-v1.7.0`.
 
 ### v6.0 — VAT-inclusive totals, clearer search results & screenshots allowed
 
@@ -1035,8 +1056,9 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 - **Current account flow.** The codebase retains the pre-v5.9 account flow:
   suppliers get a near-Addis default at registration and edit their business
   through the **Edit Company Profile** modal; the v5.9 **My Business** page,
-  map-at-registration step and automatic entity cloud sync are not wired in this
-  build. `settings.ts` still syncs `system_settings` when Supabase is configured.
+  map-at-registration step and automatic entity cloud sync were not wired in v6.0
+  (the sync layer was re-enabled in v6.1). `settings.ts` still syncs
+  `system_settings` when Supabase is configured.
 - **Housekeeping** — bumped `versionCode` 3 → 4, `versionName` 1.2 → 1.3 and
   `sw.js` `VERSION` `e-scon-v1.5.0` → `e-scon-v1.6.0`.
 

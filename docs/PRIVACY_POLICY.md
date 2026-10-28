@@ -53,8 +53,9 @@ include the coordinates needed to render a map or route. See §5.
 - To let suppliers list products, manage stock and orders and set delivery
   rates.
 - To calculate distances and delivery fees and to display maps and routes.
-- To keep platform settings consistent across devices when cloud sync is enabled
-  (business data is stored locally in the current build).
+- To keep accounts, products, orders, carts, wallet balances, reviews and
+  platform settings consistent across devices when the operator enables cloud
+  sync.
 
 ---
 
@@ -63,12 +64,13 @@ include the coordinates needed to render a map or route. See §5.
 - **On your device:** account, product, cart, order and settings data are stored
   in your browser's / app's local storage (`localStorage`). Passwords are stored
   in plain text **on your device only** in the current demo version.
-- **In the cloud (optional):** in the current build, only `system_settings` is
-  sent to Supabase when the operator configures a project; account, catalogue,
-  cart and order data stay in local storage. Older builds may have mirrored more
-  collections, so the operator may still hold historical rows. The database is
-  hosted by **Supabase** on the operator's
-  project.
+- **In the cloud (optional):** when the operator configures Supabase, shared
+  data — accounts (including the demo plaintext password field), companies,
+  products, orders, notifications, wallet balances, transactions, reviews,
+  platform settings and each user's cart/favourites — is mirrored to a Supabase
+  table so every device sees the same data. The database is hosted by
+  **Supabase** on the operator's project. With no Supabase configuration, all of
+  this data stays on the device only.
 
 We do not sell your personal information.
 

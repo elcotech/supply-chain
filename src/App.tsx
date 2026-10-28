@@ -16,6 +16,7 @@ import {
   includedVat, includedVatRate
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
+import { cloudPush, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
 import EditCompany from './components/EditCompany';
 import DateTime from './components/DateTime';
 import ProformaInvoice from './components/ProformaInvoice';
@@ -51,6 +52,57 @@ function LiveClock() {
 // Demo wallet welcome balance given to every account for the in-app wallet.
 const WELCOME_BONUS = 25000;
 const LOW_STOCK_THRESHOLD = 10;
+
+// One-time upgrade flag: older releases kept business data on-device, so the
+// first cloud-enabled start merges the local copy with whatever is in Supabase
+// before the cloud becomes authoritative. Local items win on duplicate IDs, so
+// products added just before upgrading are never lost.
+const CLOUD_MERGE_KEY = 'escon_cloud_merge_v2';
+const MIGRATED_COLLECTIONS = [
+  'users', 'companies', 'materials', 'orders', 'notifications',
+  'wallets', 'wallet_transactions', 'reviews', 'system_settings',
+];
+
+const mergeById = <T extends { id: string }>(local: T[], cloud: T[]): T[] => {
+  if (!Array.isArray(local)) return Array.isArray(cloud) ? cloud : [];
+  if (!Array.isArray(cloud)) return local;
+  const localIds = new Set(local.map(item => item && item.id));
+  return [...local, ...cloud.filter(item => item && item.id && !localIds.has(item.id))];
+};
+
+const snapshotLegacyLocal = (): Array<[string, string]> => {
+  const snapshot: Array<[string, string]> = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const shared = MIGRATED_COLLECTIONS.indexOf(key) >= 0 ||
+        key.startsWith('cart_') || key.startsWith('favs_');
+      if (!shared) continue;
+      const raw = localStorage.getItem(key);
+      if (raw !== null) snapshot.push([key, raw]);
+    }
+  } catch {
+    /* storage unavailable — nothing to merge */
+  }
+  return snapshot;
+};
+
+// Key-order-independent JSON so a row echoed back by Realtime compares equal to
+// the copy already in localStorage (Postgres jsonb does not preserve key order).
+const canonicalJson = (value: unknown): string => {
+  const normalise = (input: any): any => {
+    if (Array.isArray(input)) return input.map(normalise);
+    if (input && typeof input === 'object') {
+      return Object.keys(input).sort().reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = normalise(input[key]);
+        return acc;
+      }, {});
+    }
+    return input;
+  };
+  try { return JSON.stringify(normalise(value)); } catch { return ''; }
+};
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
@@ -290,6 +342,10 @@ function App() {
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'cod' | 'wallet'>('bank');
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  // The realtime listener is installed once; this ref lets it check which
+  // per-user cart/favourites row belongs to the signed-in account.
+  const currentUserRef = useRef<User | null>(null);
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
 
   // ---------- Role visibility ----------
   // Stock levels are internal supplier data: only signed-in suppliers (company
@@ -431,6 +487,68 @@ function App() {
     setCurrentPage(page);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Apply one cloud row to the React state. Echoes of our own pushes are ignored
+  // by comparing with the local copy first, so devices cannot ping-pong writes.
+  const applyCloudRow = useCallback((key: string, data: unknown): void => {
+    const uid = currentUserRef.current?.id || '';
+    if (key.startsWith('cart_') && key !== `cart_${uid}`) return;
+    if (key.startsWith('favs_') && key !== `favs_${uid}`) return;
+
+    const localRaw = safeLocalStorage.getItem(key);
+    if (localRaw !== null) {
+      try {
+        if (canonicalJson(JSON.parse(localRaw)) === canonicalJson(data)) return;
+      } catch {
+        /* corrupt local value — let the cloud copy replace it */
+      }
+    }
+    try {
+      safeLocalStorage.setItem(key, JSON.stringify(data));
+    } catch {
+      return; // storage quota — keep the in-memory state as it is
+    }
+
+    const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value as T[] : []);
+    switch (key) {
+      case 'users': {
+        const list = asArray<User>(data);
+        setUsers(list);
+        setCurrentUser(prev => prev ? (list.find(u => u.id === prev.id) || prev) : prev);
+        break;
+      }
+      case 'companies':
+        setCompanies(asArray<Company>(data));
+        break;
+      case 'materials': {
+        const list = asArray<Material>(data);
+        setMaterials(list);
+        setEditingMaterial(prev => prev ? (list.find(m => m.id === prev.id) || prev) : prev);
+        break;
+      }
+      case 'orders':
+        setOrders(asArray<Order>(data));
+        break;
+      case 'notifications':
+        setNotifications(asArray<AppNotification>(data));
+        break;
+      case 'wallets':
+        setWallets(data && typeof data === 'object' ? data as Record<string, number> : {});
+        break;
+      case 'wallet_transactions':
+        setTransactions(asArray<WalletTx>(data));
+        break;
+      case 'reviews':
+        setReviews(asArray<ProductReview>(data));
+        break;
+      case 'system_settings':
+        setSystemSettings(data as SystemSettings);
+        break;
+      default:
+        if (uid && key === `cart_${uid}`) setCart(asArray<CartItem>(data));
+        if (uid && key === `favs_${uid}`) setFavorites(asArray<string>(data));
+    }
   }, []);
 
   // ---------- v6 core helpers: notifications, wallet, reviews ----------
@@ -581,7 +699,49 @@ function App() {
   }, [showSplash, navigateTo]);
 
   useEffect(() => {
-    if (!isInitialized) {
+    if (isInitialized) return;
+    let cancelled = false;
+    const init = async () => {
+      // First run of this version: remember local-only data so it can be merged
+      // with the cloud instead of being overwritten by an old cloud copy. Do
+      // not mark the merge as done when cloud sync is off or the pull failed —
+      // otherwise enabling it later would skip this protection.
+      const alreadyMerged = Boolean(safeLocalStorage.getItem(CLOUD_MERGE_KEY));
+      const legacyLocal = alreadyMerged ? [] : snapshotLegacyLocal();
+      // Pull shared data from the cloud BEFORE reading the local cache, so a
+      // fresh device (or a device that has been offline) starts from the latest
+      // catalogue/accounts instead of its own stale copy.
+      const pulled = await pullCloudToCache();
+      if (cancelled) return;
+      if (pulled && !alreadyMerged) {
+        if (legacyLocal.length > 0) {
+          legacyLocal.forEach(([key, raw]) => {
+            // system_settings was already synced by v6.0, so the cloud copy wins.
+            if (key === 'system_settings') return;
+            try {
+              const localValue = JSON.parse(raw);
+              const cloudRaw = safeLocalStorage.getItem(key);
+              let cloudValue: any = null;
+              if (cloudRaw) {
+                try { cloudValue = JSON.parse(cloudRaw); } catch { cloudValue = null; }
+              }
+              let merged: any;
+              if (key === 'wallets') {
+                merged = { ...(cloudValue || {}), ...(localValue || {}) };
+              } else if (key.startsWith('favs_')) {
+                merged = Array.from(new Set([...(localValue || []), ...(cloudValue || [])]));
+              } else {
+                merged = mergeById(localValue || [], cloudValue || []);
+              }
+              safeLocalStorage.setItem(key, JSON.stringify(merged));
+            } catch {
+              /* unreadable local value — leave the cloud copy in place */
+            }
+          });
+        }
+        safeLocalStorage.setItem(CLOUD_MERGE_KEY, '1');
+      }
+
       const savedUsers = safeLocalStorage.getItem('users');
       const savedCompanies = safeLocalStorage.getItem('companies');
       const savedMaterials = safeLocalStorage.getItem('materials');
@@ -598,56 +758,74 @@ function App() {
         baseCompanies = merged;
       }
 
-      const init = async () => {
-        const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
-        setCompanies(enrichedCompanies);
-        if (savedUsers) {
-          const parsedUsers = JSON.parse(savedUsers) as User[];
-          // Guarantee the platform administrator always exists, even for
-          // installations that predate the admin role.
-          if (!parsedUsers.some(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
-            parsedUsers.push(ADMIN_USER);
-          }
-          setUsers(parsedUsers);
-        } else {
-          const seededUsers = [...sampleUsers, ADMIN_USER];
-          setUsers(seededUsers);
-          safeLocalStorage.setItem('users', JSON.stringify(seededUsers));
+      const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
+      if (cancelled) return;
+      setCompanies(enrichedCompanies);
+      if (savedUsers) {
+        const parsedUsers = JSON.parse(savedUsers) as User[];
+        // Guarantee the platform administrator always exists, even for
+        // installations that predate the admin role.
+        if (!parsedUsers.some(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
+          parsedUsers.push(ADMIN_USER);
         }
-        if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
-        else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
-        if (savedOrders) setOrders(JSON.parse(savedOrders));
-        else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); }
-        if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
-        safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
-        setIsInitialized(true);
-        showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
-      };
-      init();
-    }
+        setUsers(parsedUsers);
+      } else {
+        const seededUsers = [...sampleUsers, ADMIN_USER];
+        setUsers(seededUsers);
+        safeLocalStorage.setItem('users', JSON.stringify(seededUsers));
+      }
+      if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
+      else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
+      if (savedOrders) setOrders(JSON.parse(savedOrders));
+      else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); }
+      if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
+
+      // These were initialised before the cloud pull ran; reload them now so a
+      // fresh device sees the shared wallet balances, notifications, reviews
+      // and platform settings as well.
+      const savedNotifications = safeLocalStorage.getItem('notifications');
+      if (savedNotifications) setNotifications(JSON.parse(savedNotifications));
+      const savedWallets = safeLocalStorage.getItem('wallets');
+      if (savedWallets) setWallets(JSON.parse(savedWallets));
+      const savedTransactions = safeLocalStorage.getItem('wallet_transactions');
+      if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
+      const savedReviews = safeLocalStorage.getItem('reviews');
+      if (savedReviews) setReviews(JSON.parse(savedReviews));
+      setSystemSettings(loadSettings());
+
+      safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
+      setIsInitialized(true);
+      showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
+    };
+    init();
+    return () => { cancelled = true; };
   }, [isInitialized, geocodeAllCompanies, showAlert]);
 
-  // Reload materials if empty
+  // Persistence — every shared collection is written locally and mirrored to
+  // Supabase so adding/editing a product on one device reaches the others.
   useEffect(() => {
-    if (isInitialized && materials.length === 0 && sampleMaterials.length > 0) {
-      setMaterials(sampleMaterials);
-      safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials));
-      showAlert('Product data reloaded', 'success');
+    if (isInitialized && users.length) {
+      safeLocalStorage.setItem('users', JSON.stringify(users));
+      cloudPush('users', users);
     }
-  }, [isInitialized, materials, showAlert]);
-
-  // Persistence
-  useEffect(() => {
-    if (isInitialized && users.length) safeLocalStorage.setItem('users', JSON.stringify(users));
   }, [users, isInitialized]);
   useEffect(() => {
-    if (isInitialized && companies.length) safeLocalStorage.setItem('companies', JSON.stringify(companies));
+    if (isInitialized && companies.length) {
+      safeLocalStorage.setItem('companies', JSON.stringify(companies));
+      cloudPush('companies', companies);
+    }
   }, [companies, isInitialized]);
   useEffect(() => {
-    if (isInitialized && materials.length) safeLocalStorage.setItem('materials', JSON.stringify(materials));
+    if (isInitialized) {
+      safeLocalStorage.setItem('materials', JSON.stringify(materials));
+      cloudPush('materials', materials);
+    }
   }, [materials, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('orders', JSON.stringify(orders));
+    if (isInitialized) {
+      safeLocalStorage.setItem('orders', JSON.stringify(orders));
+      cloudPush('orders', orders);
+    }
   }, [orders, isInitialized]);
   useEffect(() => {
     if (currentUser && isInitialized) safeLocalStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -664,6 +842,7 @@ function App() {
   useEffect(() => {
     if (currentUser && isInitialized) {
       safeLocalStorage.setItem(`cart_${currentUser.id}`, JSON.stringify(cart));
+      cloudPush(`cart_${currentUser.id}`, cart);
     }
   }, [cart, currentUser, isInitialized]);
 
@@ -677,21 +856,34 @@ function App() {
   useEffect(() => {
     if (currentUser && isInitialized) {
       safeLocalStorage.setItem(`favs_${currentUser.id}`, JSON.stringify(favorites));
+      cloudPush(`favs_${currentUser.id}`, favorites);
     }
   }, [favorites, currentUser, isInitialized]);
 
   // ---------- Notifications / wallet / reviews persistence ----------
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('notifications', JSON.stringify(notifications));
+    if (isInitialized) {
+      safeLocalStorage.setItem('notifications', JSON.stringify(notifications));
+      cloudPush('notifications', notifications);
+    }
   }, [notifications, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('wallets', JSON.stringify(wallets));
+    if (isInitialized) {
+      safeLocalStorage.setItem('wallets', JSON.stringify(wallets));
+      cloudPush('wallets', wallets);
+    }
   }, [wallets, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+    if (isInitialized) {
+      safeLocalStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+      cloudPush('wallet_transactions', transactions);
+    }
   }, [transactions, isInitialized]);
   useEffect(() => {
-    if (isInitialized) safeLocalStorage.setItem('reviews', JSON.stringify(reviews));
+    if (isInitialized) {
+      safeLocalStorage.setItem('reviews', JSON.stringify(reviews));
+      cloudPush('reviews', reviews);
+    }
   }, [reviews, isInitialized]);
 
   // Grant every registered account its welcome wallet balance exactly once.
@@ -716,6 +908,37 @@ function App() {
       ];
     });
   }, [isInitialized, users]);
+
+  // ---------- Live cloud updates ----------
+  // Realtime gives near-instant cross-device updates; the polling fallback
+  // (every 10 s while visible) covers projects where the Realtime publication
+  // has not been enabled yet, so a product added on one device still appears on
+  // every other device without a manual reload.
+  useEffect(() => {
+    if (!isInitialized) return;
+    const unsubscribe = subscribeToCloud(applyCloudRow);
+    let stopped = false;
+
+    const poll = async () => {
+      if (stopped) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      const rows = await fetchCloudChanges();
+      if (stopped) return;
+      rows.forEach(row => applyCloudRow(row.key, row.data));
+    };
+
+    const timer = window.setInterval(() => { void poll(); }, 10000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void poll(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    void poll();
+
+    return () => {
+      stopped = true;
+      unsubscribe();
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isInitialized, applyCloudRow]);
 
   // ---------- Distance for selected material ----------
   const [distanceToSelected, setDistanceToSelected] = useState<number | null>(null);
@@ -778,7 +1001,7 @@ function App() {
     const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered } = formData;
     if (users.find(u => u.email === registerEmail)) { showAlert('User with this email already exists', 'danger'); return; }
     const newUser: User = {
-      id: 'user' + (users.length + 1), name: registerFullName, email: registerEmail, password: registerPassword || '0909',
+      id: genId('user'), name: registerFullName, email: registerEmail, password: registerPassword || '0909',
       phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as 'customer' | 'company',
       companyName: registerUserType === 'company' ? registerCompanyName : '',
       lat: 9.0320 + (Math.random() * 0.05 - 0.025), lng: 38.7469 + (Math.random() * 0.05 - 0.025),
@@ -791,7 +1014,7 @@ function App() {
     setUsers(prev => [...prev, newUser]);
     if (registerUserType === 'company') {
       const newCompany: Company = {
-        id: 'comp' + (companies.length + 1), userId: newUser.id, name: registerCompanyName, description: '',
+        id: genId('comp'), userId: newUser.id, name: registerCompanyName, description: '',
         location: registerAddress, city: registerCity, lat: newUser.lat || 9.0320, lng: newUser.lng || 38.7469,
         rating: 0, totalOrders: 0, established: new Date().getFullYear().toString(), tinNumber, businessLicense,
         vatNumber: vatRegistered ? vatNumber : '',
@@ -892,7 +1115,7 @@ function App() {
       weightPerUnit: 0.001
     };
     const newMaterial: Material = {
-      id: 'mat' + (materials.length + 1), companyId: company.id, name: materialName, category: materialCategory,
+      id: genId('mat'), companyId: company.id, name: materialName, category: materialCategory,
       basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,      minOrder: parseInt(materialMinOrder) || 1, description: materialDescription, transportCost: 15, rating: 0,
       brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: materialImages,
       delivery: buildMaterialDelivery(formData),

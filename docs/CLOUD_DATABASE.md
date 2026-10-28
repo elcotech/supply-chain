@@ -1,14 +1,18 @@
 # E-SCON — Cloud Database (Supabase)
 
 E-SCON keeps its data in the browser's `localStorage` so it works offline and
-starts instantly. The Supabase module can mirror shared keys into a cloud table,
-but **in the v6.0 build only `system_settings` is pushed**; accounts, products,
-orders, carts and favourites remain local. Older builds may have synced more
-collections, so existing cloud rows should be treated as historical.
+starts instantly. When Supabase credentials are configured, the cloud module
+mirrors **all shared business data** into a cloud table: accounts, companies,
+products, orders, notifications, wallets, transactions, reviews, platform
+settings and each user's cart/favourites.
+
+Adding or editing a product on one device therefore reaches every other device,
+without a manual reload. The app listens for Realtime changes and also polls as
+a fallback, so it still converges if the Realtime publication has not been
+enabled.
 
 This document covers the sync module, how to set it up, and the security
-limitations to be aware of. It is reference material for re-enabling full sync,
-not a description of what the current app uploads.
+limitations to be aware of.
 
 ---
 
@@ -21,24 +25,31 @@ The sync layer lives in two small files:
   are set. Exposes `isCloudEnabled`.
 - [`src/lib/cloudStore.ts`](../src/lib/cloudStore.ts) — the mirror logic.
 
-**Startup (module capability):** `pullCloudToCache()` downloads every row and
-writes it into `localStorage`. The current `App.tsx` does **not** call it, so no
-business collection is pulled at startup.
+**Startup:** `App.tsx` calls `pullCloudToCache()` **before** reading the local
+cache, so a new device (or one that has been offline) starts from the latest
+cloud catalogue/accounts. The first run of v6.1 also performs a one-time merge:
+local business data is combined with the cloud copy (local items win on the same
+ID) so products added while older builds were local-only are not lost.
 
 **On change:** `cloudPush(key, value)` queues an upload, coalesced per key and
-flushed ~800 ms later. `cloudPushNow()` forces an immediate flush for one-off
-writes; `settings.ts` uses it for `system_settings` in v6.0.
+flushed ~800 ms later. `cloudPushNow()` forces an immediate flush; `settings.ts`
+uses it for `system_settings`. Every shared persistence effect in `App.tsx`
+pushes its collection after writing it locally.
+
+**Live updates:** `subscribeToCloud()` listens to `postgres_changes` on
+`escon_kv` and applies remote rows to React state immediately.
+`fetchCloudChanges()` runs every 10 seconds while the page is visible and asks
+only for rows with a newer `updated_at`, as a fallback when Realtime is not
+enabled (or the socket is unavailable).
 
 - With **no credentials**, `isCloudEnabled` is `false`, every function is a
   no-op, and the app behaves exactly as before (local-only, no network calls).
 
-### Which keys the module can sync
+### Which keys sync
 
-| Supported (whole collection) | Supported (per user) | Stays on device only |
+| Shared (whole collection) | Shared (per user) | Stays on device only |
 | --- | --- | --- |
-| `users`, `companies`, `materials`, `orders`, `notifications`, `wallets`, `wallet_transactions`, `reviews`, `system_settings` | `cart_<userId>`, `favs_<userId>` | `currentUser`, `pwa_install_dismissed` |
-
-**Actually pushed in v6.0:** `system_settings` only.
+| `users`, `companies`, `materials`, `orders`, `notifications`, `wallets`, `wallet_transactions`, `reviews`, `system_settings` | `cart_<userId>`, `favs_<userId>` | `currentUser`, `pwa_install_dismissed`, `escon_cloud_merge_v2` |
 
 The full list is in `cloudStore.ts` (`SHARED_KEYS`, `SHARED_PREFIXES`,
 `LOCAL_ONLY`).
@@ -57,12 +68,16 @@ keys and avoids a fragile migration of every data shape.
 
 ### Conflict model
 
-Sync is **whole-collection, last-writer-wins**. There is **no realtime
-subscription** and no per-record merge: a device that pushes a collection
-replaces the cloud copy of that collection. Two devices editing the same
-collection at the same time can overwrite each other. For small teams this is
-usually fine; for real concurrency you would move to per-record tables + Supabase
-Realtime.
+Sync is **whole-collection, last-writer-wins** per key. There is no per-record
+merge on normal saves: a device that pushes a collection replaces the cloud copy
+of that collection, and every other device applies it. The one-time v6.1 upgrade
+merge is the exception described above. Two devices editing the *same*
+collection at the exact same moment can still overwrite each other; for real
+high-concurrency editing you would move to per-record tables.
+
+> Realtime is enabled by the `alter publication supabase_realtime …` statement at
+> the end of [`supabase/schema.sql`](../supabase/schema.sql). If that statement
+> has not been run, the 10-second polling fallback still keeps devices in sync.
 
 ---
 
@@ -134,7 +149,8 @@ are mostly swapping the storage calls for authenticated queries.
 ## 4. Operating notes
 
 - **Reset the database:** `delete from public.escon_kv;` (or delete individual
-  rows). In v6.0, clients re-upload only `system_settings` on the next change.
+  rows). Clients re-upload their current in-memory collections on the next
+  change.
 - **Free-tier limits:** watch the Supabase project's database size and request
   volume; a large product catalogue with many base64 photos inflates the
   `materials` row quickly.

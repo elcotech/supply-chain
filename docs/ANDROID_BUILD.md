@@ -87,9 +87,10 @@ npx cap sync android       # copy build/ into the Android project
 ```
 
 > The Supabase URL/key are compiled into the JS bundle at `npm run build` time
-> from `.env.local` when present. The v6.0 build is local-only for business data;
-> only `system_settings` still uses the cloud module (see
-> [CLOUD_DATABASE.md](./CLOUD_DATABASE.md)).
+> from `.env.local` when present. The v6.1 build syncs **all shared business
+> data** (products, accounts, orders, wallets, carts, settings) through the cloud
+> module when those values are present; without them it stays local-only. See
+> [CLOUD_DATABASE.md](./CLOUD_DATABASE.md).
 
 ---
 
@@ -169,17 +170,17 @@ An **Android App Bundle** (`.aab`) is what Google Play requires.
 
 ## 7. Versioning
 
-The shipped build is currently **`versionCode 4` / `versionName "1.3"`**
+The shipped build is currently **`versionCode 5` / `versionName "1.4"`**
 (`android/app/build.gradle`). Before each Play Store upload, bump both:
 
 ```gradle
-versionCode 5          // integer, must increase every upload
-versionName "1.4"      // human-readable
+versionCode 6          // integer, must increase every upload
+versionName "1.5"      // human-readable
 ```
 
 Also bump `VERSION` at the top of [`public/sw.js`](../public/sw.js) so installed
 PWA clients purge their cached assets (this does **not** touch user data). Current
-value: `e-scon-v1.6.0`.
+value: `e-scon-v1.7.0`.
 
 ---
 
@@ -202,7 +203,7 @@ Only do this once; reuse the same keystore forever.
 
 ## 9. Release checklist
 
-- [ ] `npm run build` succeeds (`.env.local` is optional in v6.0; business data is local-only).
+- [ ] `npm run build` succeeds (`.env.local` is optional; without it the app stays local-only).
 - [ ] `npx cap sync android` run.
 - [ ] `versionCode` / `versionName` bumped.
 - [ ] `public/sw.js` `VERSION` bumped.

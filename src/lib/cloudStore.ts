@@ -15,8 +15,25 @@ import { supabase, isCloudEnabled } from './supabaseClient';
 
 const TABLE = 'escon_kv';
 
+export interface CloudRow {
+  key: string;
+  data: unknown;
+  updated_at?: string;
+}
+
+// Highest server timestamp seen so far. The polling fallback asks only for rows
+// touched after this point, so a steady app sends a tiny query instead of the
+// whole table (products can carry base64 photos).
+let syncCursor = new Date(0).toISOString();
+
+const trackCursor = (timestamp?: string): void => {
+  if (timestamp && timestamp > syncCursor) syncCursor = timestamp;
+};
+
 // Keys that must stay on the device and never travel to the cloud.
-const LOCAL_ONLY = new Set<string>(['currentUser', 'pwa_install_dismissed']);
+const LOCAL_ONLY = new Set<string>([
+  'currentUser', 'pwa_install_dismissed', 'escon_cloud_merge_v2',
+]);
 
 // Whole-collection keys shared across every user.
 const SHARED_KEYS = new Set<string>([
@@ -42,14 +59,16 @@ export const isSharedKey = (key: string): boolean =>
 export const pullCloudToCache = async (): Promise<boolean> => {
   if (!isCloudEnabled || !supabase) return false;
   try {
-    const { data, error } = await supabase.from(TABLE).select('key,data');
+    const { data, error } = await supabase.from(TABLE).select('key,data,updated_at');
     if (error) {
       console.warn('[cloud] pull failed:', error.message);
       return false;
     }
-    (data || []).forEach((row: { key: string; data: unknown }) => {
+    (data || []).forEach((row: CloudRow) => {
+      if (LOCAL_ONLY.has(row.key)) return;
       try {
         localStorage.setItem(row.key, JSON.stringify(row.data));
+        trackCursor(row.updated_at);
       } catch {
         /* storage quota — ignore, the app falls back to defaults */
       }
@@ -59,6 +78,56 @@ export const pullCloudToCache = async (): Promise<boolean> => {
     console.warn('[cloud] pull error:', err);
     return false;
   }
+};
+
+/**
+ * Fetch only rows changed since the last pull/push. Used by the polling
+ * fallback so devices that cannot use Realtime still converge within a few
+ * seconds. Returns an empty list when cloud sync is disabled or offline.
+ */
+export const fetchCloudChanges = async (): Promise<CloudRow[]> => {
+  if (!isCloudEnabled || !supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('key,data,updated_at')
+      .gt('updated_at', syncCursor);
+    if (error) {
+      console.warn('[cloud] change poll failed:', error.message);
+      return [];
+    }
+    const rows = (data || []) as CloudRow[];
+    rows.forEach(row => trackCursor(row.updated_at));
+    return rows;
+  } catch (err) {
+    console.warn('[cloud] change poll error:', err);
+    return [];
+  }
+};
+
+/**
+ * Subscribe to live `escon_kv` changes. Requires the table to be added to the
+ * `supabase_realtime` publication (see supabase/schema.sql). Returns a cleanup
+ * function; with no credentials this is a safe no-op.
+ */
+export const subscribeToCloud = (onRow: (key: string, data: unknown) => void): (() => void) => {
+  if (!isCloudEnabled || !supabase) return () => undefined;
+  const channel = supabase
+    .channel('escon-kv-sync')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: TABLE },
+      (payload: any) => {
+        const row = payload?.new as CloudRow | undefined;
+        if (!row || typeof row.key !== 'string') return;
+        trackCursor(row.updated_at);
+        onRow(row.key, row.data);
+      }
+    )
+    .subscribe();
+  return () => {
+    void supabase?.removeChannel(channel);
+  };
 };
 
 // Debounced push queue: a single user action can trigger several state updates

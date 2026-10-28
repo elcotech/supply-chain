@@ -40,9 +40,10 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🚗 **Click a product → map opens with the route & distance immediately**
 - 🎯 **Locate Me** button on the maps (with friendly handling of denied/unavailable GPS)
 - 📷 **Product photos** (up to 6 per product, base64 stored locally)
+- 🌍 **Global cloud sync** — with Supabase configured, products added or edited on one device appear on every other device (startup pull, live Realtime updates and a 10-second polling fallback); accounts, companies, orders, wallets, reviews and carts travel too
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
 - 🛒 **One supplier per cart** — a proforma is a legal document issued by a single seller, so a cart can only hold one supplier's goods. Adding from a second supplier is refused with a warning that names both suppliers and leaves your cart untouched; clear the cart or remove the other supplier's lines first
-- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), **VAT-inclusive prices** (the included VAT is shown, never added twice), configurable delivery fees & minimum order, checkout → orders
+- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), **VAT-inclusive prices** (the **Amount Before VAT** and included VAT are shown, never added twice), configurable delivery fees & minimum order, checkout → orders
 - ➕ **Order from the product view** — the `+ / −` quantity control appears only in the product details (steps of 1, live total, **any quantity** — no per-product minimum); results rows, product cards and the compare view just open the product
 - 🔒 **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 🗺️ **Automatic supplier routing** — the map always draws the route from the customer's real GPS position to the selected supplier, and re-draws it the moment GPS locks in; selecting another supplier (marker, list or re-opening) replaces the previous route instead of leaving it on screen
