@@ -43,7 +43,7 @@ FOR CUSTOMERS
 • See each supplier on a map with the driving route, distance and delivery cost.
 • Compare up to four products side by side.
 • Save favourites and reorder past purchases in one tap.
-• Build a cart, choose delivery per item, and check out with VAT and delivery included.
+• Build a cart, choose delivery per item, and check out with VAT and delivery added to the net price.
 • Print or preview a professional proforma invoice — or scan its QR code to open a mobile-friendly view.
 
 FOR SUPPLIERS
@@ -143,7 +143,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current build: **5 / "1.4"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **6 / "1.5"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console

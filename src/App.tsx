@@ -13,7 +13,7 @@ import {
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
-  includedVat, includedVatRate
+  addedVat, addedVatRate
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import { cloudPush, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
@@ -52,6 +52,35 @@ function LiveClock() {
 // Demo wallet welcome balance given to every account for the in-app wallet.
 const WELCOME_BONUS = 25000;
 const LOW_STOCK_THRESHOLD = 10;
+
+// Rebuild a missing supplier profile from the account that owns it. Older
+// builds dropped companies that were not part of the demo seed on startup, and
+// a cloud merge can leave a company user without a matching profile; either way
+// the supplier must be able to open and save their business details.
+const companyFromUser = (user: User): Company => {
+  const registered = user.registered ? new Date(user.registered) : new Date();
+  const established = isNaN(registered.getTime())
+    ? new Date().getFullYear().toString()
+    : registered.getFullYear().toString();
+  return {
+    id: genId('comp'),
+    userId: user.id,
+    name: user.companyName || user.name,
+    description: '',
+    location: user.address || '',
+    city: user.city || 'Addis Ababa',
+    lat: typeof user.lat === 'number' && isFinite(user.lat) ? user.lat : 9.032,
+    lng: typeof user.lng === 'number' && isFinite(user.lng) ? user.lng : 38.7469,
+    rating: 0,
+    totalOrders: 0,
+    established,
+    tinNumber: user.tinNumber || '',
+    businessLicense: user.businessLicense || '',
+    vatNumber: user.vatRegistered ? user.vatNumber || '' : '',
+    tradeLicenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+    complianceStatus: 'compliant',
+  };
+};
 
 // One-time upgrade flag: older releases kept business data on-device, so the
 // first cloud-enabled start merges the local copy with whatever is in Supabase
@@ -748,32 +777,49 @@ function App() {
       const savedOrders = safeLocalStorage.getItem('orders');
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
-      let baseCompanies: Company[] = sampleCompanies;
+      const parsedUsers: User[] = savedUsers ? JSON.parse(savedUsers) : [...sampleUsers];
+      // Guarantee the platform administrator always exists, even for
+      // installations that predate the admin role.
+      if (!parsedUsers.some(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
+        parsedUsers.push(ADMIN_USER);
+      }
+
+      // Keep every saved company, not only the ones that belong to the demo
+      // seed. Previously a registered supplier's profile vanished on the next
+      // start, so "Edit Company Profile" reported "Company profile not found".
+      let baseCompanies: Company[] = [...sampleCompanies];
       if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies);
-        const merged = sampleCompanies.map(sampleComp => {
-          const existing = parsed.find((c: Company) => c.id === sampleComp.id);
-          return existing || sampleComp;
-        });
-        baseCompanies = merged;
+        const parsed = JSON.parse(savedCompanies) as Company[];
+        const sampleIds = new Set(sampleCompanies.map(c => c.id));
+        baseCompanies = [
+          ...sampleCompanies.map(sampleComp => parsed.find(c => c.id === sampleComp.id) || sampleComp),
+          ...parsed.filter(c => !sampleIds.has(c.id)),
+        ];
+      }
+
+      // Self-heal supplier accounts whose company profile is missing (or was
+      // orphaned by an older build / a partial cloud merge).
+      for (const user of parsedUsers) {
+        if (user.userType !== 'company') continue;
+        if (baseCompanies.some(c => c.userId === user.id)) continue;
+        const companyName = (user.companyName || '').trim().toLowerCase();
+        const orphan = companyName
+          ? baseCompanies.find(c =>
+              c.name.trim().toLowerCase() === companyName &&
+              !parsedUsers.some(u => u.id === c.userId))
+          : undefined;
+        if (orphan) {
+          baseCompanies = baseCompanies.map(c => c.id === orphan.id ? { ...c, userId: user.id } : c);
+        } else {
+          baseCompanies.push(companyFromUser(user));
+        }
       }
 
       const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
       if (cancelled) return;
       setCompanies(enrichedCompanies);
-      if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers) as User[];
-        // Guarantee the platform administrator always exists, even for
-        // installations that predate the admin role.
-        if (!parsedUsers.some(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
-          parsedUsers.push(ADMIN_USER);
-        }
-        setUsers(parsedUsers);
-      } else {
-        const seededUsers = [...sampleUsers, ADMIN_USER];
-        setUsers(seededUsers);
-        safeLocalStorage.setItem('users', JSON.stringify(seededUsers));
-      }
+      setUsers(parsedUsers);
+      if (!savedUsers) safeLocalStorage.setItem('users', JSON.stringify(parsedUsers));
       if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
       else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
       if (savedOrders) setOrders(JSON.parse(savedOrders));
@@ -1045,11 +1091,11 @@ function App() {
       showAlert('Only company users can edit their profile', 'danger');
       return;
     }
-    const company = getCompanyByUserId(currentUser.id);
-    if (!company) {
-      showAlert('Company profile not found', 'danger');
-      return;
-    }
+    const existing = getCompanyByUserId(currentUser.id);
+    // Never block a supplier from their own profile: rebuild it from the
+    // account and open the editor immediately.
+    const company = existing || companyFromUser(currentUser);
+    if (!existing) setCompanies(prev => [...prev, company]);
     setFormData(prev => ({
       ...prev,
       companyName: company.name,
@@ -1069,13 +1115,19 @@ function App() {
   };
 
   const handleSaveCompany = (updatedCompany: Company, updatedUser: User) => {
-    setCompanies(prev => prev.map(c => c.id === updatedCompany.id ? updatedCompany : c));
-    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    const nextCompanies = companies.some(c => c.id === updatedCompany.id)
+      ? companies.map(c => c.id === updatedCompany.id ? updatedCompany : c)
+      : [...companies, updatedCompany];
+    const nextUsers = users.some(u => u.id === updatedUser.id)
+      ? users.map(u => u.id === updatedUser.id ? updatedUser : u)
+      : [...users, updatedUser];
+    setCompanies(nextCompanies);
+    setUsers(nextUsers);
     if (currentUser && currentUser.id === updatedUser.id) {
       setCurrentUser(updatedUser);
     }
-    safeLocalStorage.setItem('companies', JSON.stringify(companies.map(c => c.id === updatedCompany.id ? updatedCompany : c)));
-    safeLocalStorage.setItem('users', JSON.stringify(users.map(u => u.id === updatedUser.id ? updatedUser : u)));
+    safeLocalStorage.setItem('companies', JSON.stringify(nextCompanies));
+    safeLocalStorage.setItem('users', JSON.stringify(nextUsers));
     setShowEditCompany(false);
     showAlert('Company profile updated successfully! ✅', 'success');
   };
@@ -1102,8 +1154,9 @@ function App() {
   const handleAddMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!currentUser || currentUser.userType !== 'company') { showAlert('Only company users can add materials', 'danger'); return; }
-    const company = getCompanyByUserId(currentUser.id);
-    if (!company) { showAlert('Company profile not found', 'danger'); return; }
+    const existingCompany = getCompanyByUserId(currentUser.id);
+    const company = existingCompany || companyFromUser(currentUser);
+    if (!existingCompany) setCompanies(prev => [...prev, company]);
     // Delivery terms are read straight off formData by buildMaterialDelivery().
     const { materialName, materialCategory, materialPrice, materialQuantity, materialUnit, materialMinOrder, materialDescription, materialBrand, materialModel, materialWeight, materialDimensions, materialGrade, materialOrigin, materialCertifications, materialImages } = formData;
     const basePrice = parseFloat(materialPrice);
@@ -1119,7 +1172,7 @@ function App() {
       basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,      minOrder: parseInt(materialMinOrder) || 1, description: materialDescription, transportCost: 15, rating: 0,
       brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: materialImages,
       delivery: buildMaterialDelivery(formData),
-      taxIncluded: true, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0],
+      taxIncluded: false, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0],
       priceHistory: [{ date: Date.now(), price: sellingPrice }]
     };
     setMaterials(prev => [...prev, newMaterial]);
@@ -1453,9 +1506,9 @@ function App() {
         const sellingPrice = item.basePrice * (1 + item.profitMargin);
         const itemTotal = sellingPrice * item.quantity;
         subtotal += itemTotal;
-        // Supplier prices already include VAT, so only extract the portion that
-        // is inside the gross line total - never add VAT on top of it again.
-        vatAmount += includedVat(itemTotal, item.vatPercentage);
+        // Supplier prices exclude VAT, so VAT is added on top of the net goods
+        // amount at proforma / purchase time.
+        vatAmount += addedVat(itemTotal, item.vatPercentage);
         const dist = await calculateDistance(
           supplierCompany.lat, supplierCompany.lng,
           currentUser.lat || 9.0320, currentUser.lng || 38.7469
@@ -1500,8 +1553,8 @@ function App() {
       });
       transportCost = deliveryFeeOverride;
     }
-    // `subtotal` is VAT-inclusive, so VAT must not be added a second time.
-    const total = subtotal + transportCost;
+    // `subtotal` is the net goods value; VAT is added on top, then delivery.
+    const total = subtotal + vatAmount + transportCost;
     const multiple = suppliers.length > 1;
     const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
     const minOrderCheck = checkMinOrder(settings, subtotal);
@@ -1677,8 +1730,8 @@ function App() {
       if (!supplierCompany) continue;
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const materialTotal = sellingPrice * item.quantity;
-      // The line total is VAT-inclusive: store the contained VAT, do not add it.
-      const vatAmountItem = includedVat(materialTotal, item.vatPercentage);
+      // The line total is VAT-exclusive: add VAT on top at purchase time.
+      const vatAmountItem = addedVat(materialTotal, item.vatPercentage);
       // Delivery must match what the buyer approved on the proforma: the same
       // per-line checkbox, the supplier's per-km rate over the real distance, or
       // the platform fallback when that supplier publishes no rate.
@@ -1689,7 +1742,7 @@ function App() {
       const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
         item, supplierCompany, distanceKm, totals.subtotal, currentUser!, systemSettings
       );
-      const totalAmount = materialTotal + transportCostItem;
+      const totalAmount = materialTotal + vatAmountItem + transportCostItem;
       const newOrder: Order = {
         id: 'order' + (orders.length + 1) + '_' + Date.now() + '_' + item.materialId,
         customerId: currentUser!.id,
@@ -1732,7 +1785,11 @@ function App() {
         const scaled = createdOrders.map(o => {
           const newTrans = Math.round(o.transportCost * scale * 100) / 100;
           const materialTotal = o.unitPrice * o.quantity;
-          return { ...o, transportCost: newTrans, totalAmount: Math.round((materialTotal + newTrans) * 100) / 100 };
+          return {
+            ...o,
+            transportCost: newTrans,
+            totalAmount: Math.round((materialTotal + (o.vatAmount || 0) + newTrans) * 100) / 100
+          };
         });
         return [...prev.filter(o => !ids.has(o.id)), ...scaled];
       });
@@ -2226,8 +2283,8 @@ function App() {
                   {platformDeliveryHint(supplierGroups) && (
                     <div className="min-order-notice warn">{platformDeliveryHint(supplierGroups)}</div>
                   )}
-                  <div className="summary-row"><span>Subtotal (VAT included):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
-                  <div className="summary-row"><span>VAT ({includedVatRate(cartDetails.subtotal, cartDetails.vatAmount)}% included):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
+                  <div className="summary-row"><span>Subtotal (before VAT):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
+                  <div className="summary-row"><span>VAT ({addedVatRate(cartDetails.subtotal, cartDetails.vatAmount)}% added):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
                   <div className="summary-row">
                     <span>Delivery Fee{multipleSuppliers ? ` (${supplierGroups.length} suppliers)` : ''}:</span>
                     <span className="delivery-fee-edit">

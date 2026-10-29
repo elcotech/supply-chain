@@ -11,8 +11,8 @@ import {
   buildProformaShareData,
   findOtherCartSupplier,
   cartHasOtherSupplier,
-  includedVat,
-  includedVatRate,
+  addedVat,
+  addedVatRate,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -363,23 +363,23 @@ describe('buildProformaShareData (multi-item cart)', () => {
     expect(decodeProformaPayload(encodeProformaPayload(data))).toEqual(data);
   });
 });
-describe('includedVat (supplier prices already include VAT)', () => {
-  it('extracts the VAT portion instead of adding tax on top', () => {
-    expect(includedVat(115, 15)).toBe(15);
-    expect(includedVat(230, 15)).toBe(30);
+describe('addedVat (supplier prices exclude VAT)', () => {
+  it('adds VAT on top of the net goods amount', () => {
+    expect(addedVat(100, 15)).toBe(15);
+    expect(addedVat(230, 15)).toBe(34.5);
   });
 
   it('rounds to two decimals and handles safe inputs', () => {
-    expect(includedVat(100, 15)).toBe(13.04);
-    expect(includedVat(0, 15)).toBe(0);
-    expect(includedVat(-50, 15)).toBe(0);
-    expect(includedVat(NaN, 15)).toBe(0);
-    expect(includedVat(100, 0)).toBe(0);
+    expect(addedVat(100.05, 15)).toBe(15.01);
+    expect(addedVat(0, 15)).toBe(0);
+    expect(addedVat(-50, 15)).toBe(0);
+    expect(addedVat(NaN, 15)).toBe(0);
+    expect(addedVat(100, 0)).toBe(0);
   });
 
-  it('recovers the inclusive VAT rate for display', () => {
-    expect(includedVatRate(115, 15)).toBe(15);
-    expect(includedVatRate(230, 30)).toBe(15);
-    expect(includedVatRate(0, 0)).toBe(0);
+  it('recovers the added VAT rate for display', () => {
+    expect(addedVatRate(100, 15)).toBe(15);
+    expect(addedVatRate(200, 30)).toBe(15);
+    expect(addedVatRate(0, 0)).toBe(0);
   });
 });

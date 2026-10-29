@@ -112,7 +112,7 @@ In the cart you can:
 - Tick or untick **"With delivery"** per line.
 - Toggle a manual delivery-fee override where offered.
 
-The totals update automatically (VAT-inclusive subtotal, the included VAT, per-line delivery and grand total).
+The totals update automatically (subtotal before VAT, 15% VAT added at purchase, per-line delivery and grand total).
 
 ### Three order actions, in order
 
@@ -135,7 +135,7 @@ The button at the bottom of the cart is **Clear Cart** only.
 
 The **proforma is your order document**. It contains your details and the
 supplier's, the item table, a delivery breakdown, the **Amount Before VAT**, the
-VAT **included** in the goods subtotal, delivery cost and the grand total, the
+VAT **added** on top of the goods subtotal, delivery cost and the grand total, the
 amount in words and the terms & conditions. It carries a **QR code** in the
 top-right corner.
 

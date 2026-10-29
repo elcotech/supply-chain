@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CartItem, CartReport, User, Company, ProformaShareData, DeliveryMode } from '../types';
 import {
   formatCurrency, generateProformaQrDataUrl, checkMinOrder,
-  buildProformaShareData, includedVatRate,
+  buildProformaShareData, addedVatRate,
 } from '../utils';
 import { loadSettings } from '../settings';
 
@@ -172,10 +172,9 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   const minOrderCheck = checkMinOrder(settings, report.subtotal);
 
   // ------------------------------------------------------------------ finance
-  // Prices already include VAT: report.vatAmount is the portion inside the gross
-  // subtotal, never an extra charge. The grand total is goods (VAT inclusive)
-  // plus delivery only.
-  const vatPercent = includedVatRate(report.subtotal, report.vatAmount);
+  // Prices exclude VAT: report.subtotal is the net goods value and
+  // report.vatAmount is added on top, followed by delivery.
+  const vatPercent = addedVatRate(report.subtotal, report.vatAmount);
   const words = amountToWords(report.total);
 
   const handlePrint = () => {
@@ -379,8 +378,8 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                     <th className="pf-col-unit">Unit</th>
                     <th className="pf-col-qty">Qty</th>
                     <th className="pf-col-deliv">Delivery</th>
-                    <th className="pf-col-price">Unit Price<br />(ETB)</th>
-                    <th className="pf-col-amount">Amount<br />(ETB)</th>
+                    <th className="pf-col-price">Unit Price<br />(ETB, before VAT)</th>
+                    <th className="pf-col-amount">Amount<br />(ETB, before VAT)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -453,14 +452,10 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             <div className="pf-summary">
               <div className="pf-sum-row">
                 <span>Amount Before VAT</span>
-                <span>{formatCurrency(report.subtotal - report.vatAmount)}</span>
-              </div>
-              <div className="pf-sum-row">
-                <span>Subtotal (Goods, VAT included)</span>
                 <span>{formatCurrency(report.subtotal)}</span>
               </div>
               <div className="pf-sum-row pf-vat-row">
-                <span>VAT ({vatPercent}% included)</span>
+                <span>VAT ({vatPercent}% added)</span>
                 <span>{formatCurrency(report.vatAmount)}</span>
               </div>
               <div className="pf-sum-row">
@@ -473,9 +468,8 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               </div>
             </div>
             <div className="pf-vat-note">
-              Amount Before VAT is the goods subtotal excluding the VAT already
-              contained in supplier prices. The VAT amount is shown for information
-              and is not added to the grand total again.
+              Amount Before VAT is the net goods subtotal. VAT is added to the
+              goods amount at purchase; delivery is not subject to VAT.
             </div>
             {/* The words sit directly under the numeric total. */}
             <div className="pf-words">

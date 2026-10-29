@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.1 (global cloud sync for products and all shared data, Amount Before VAT on the proforma)
-> **Previous:** 6.0 (VAT-inclusive pricing, clearer search results and Android screenshots enabled)
+> **Version:** 6.2 (VAT-exclusive product pricing; 15% VAT added at purchase/proforma)
+> **Previous:** 6.1 (global cloud sync for products and all shared data, Amount Before VAT on the proforma)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -41,7 +41,7 @@
 - Product catalogue with **live search & filtering** (department, **supplier**, city, max price, sorting).
 - **GIS supplier mapping** built on Leaflet, with **driving routes**, **distance**, and **transport cost** calculations.
 - **Company dashboards** for suppliers to manage products & orders, and **customer dashboards** for order history.
-- **Cart & checkout** flow with **VAT-inclusive prices** (15% portion extracted, never added twice) and **per-line** delivery-fee computation (buyer's with/without-delivery choice, supplier-set per-km rate, platform fallback).
+- **Cart & checkout** flow with **VAT-exclusive product prices** (15% VAT added at purchase/proforma, never deducted from supplier prices) and **per-line** delivery-fee computation (buyer's with/without-delivery choice, supplier-set per-km rate, platform fallback).
 - **Proforma invoices** — **one proforma for the whole cart** (any number of items and suppliers), scannable QR fixed in the header, print-ready.
 - **Compliance** data capture (TIN, business license, VAT).
 - CSV **export** and **printable reports** — **suppliers and admins only**; customers have no export surface at all (§10.5).
@@ -432,7 +432,7 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 ### 10.5 Cart & checkout
 **One supplier per cart (v5.6):** a proforma is a legal document issued by a single seller, and every distance, delivery rate, VAT line and signature on it assumes one, so a cart may only hold one supplier's goods. `findOtherCartSupplier` (the pure, unit-tested rule in `utils.ts`, wrapped by `otherSupplierInCart` in `App.tsx`) refuses an add from a second supplier with a warning naming both suppliers, and **leaves the cart exactly as it was** — it is never cleared or replaced on the buyer's behalf. The same rule is re-checked inside `addToCartLogic`'s functional `setCart` update against `prev` (the real cart at the moment of the write), so a cart persisted by an older build cannot smuggle in a second supplier. Re-adding a product that is already in the cart is a quantity change, not a new supplier, so it skips the check. See [10.23](#1023-single-supplier-cart-v56).
 
-Supplier prices are **VAT-inclusive** (`Material.taxIncluded`, default 15%), so checkout never adds VAT on top. `priceCartItems` sums the gross line totals into `subtotal`, calls `includedVat(lineTotal, vatPercentage)` only to report the VAT already contained in that subtotal, and sets `total = subtotal + transportCost`. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item with the same contained-VAT figure and `totalAmount = materialTotal + transportCost`, resets the cart, and shows the Orders page. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
+Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is `false`, default 15%), so VAT is never extracted from the entered price. `priceCartItems` sums the net line totals into `subtotal`, calls `addedVat(lineTotal, vatPercentage)` to compute VAT on top, and sets `total = subtotal + vatAmount + transportCost`. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item with the same added-VAT figure and `totalAmount = materialTotal + vatAmount + transportCost`, resets the cart, and shows the Orders page. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
 
 **Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals`, so the figures cannot disagree. The bottom of the modal now holds only `Clear Cart` — placing the order in two places at once was a way to commit to the wrong total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
 
@@ -479,7 +479,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 ### 10.7 Proforma Invoice (NEW)
 - **File:** `src/components/ProformaInvoice.tsx`.
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
-- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (**Amount Before VAT** → **Subtotal (Goods, VAT included)** → **VAT (x% included)** → **Delivery Cost** → **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines. The QR “public proforma” shows the same Before VAT line.
+- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (**Amount Before VAT** → **VAT (x% added)** → **Delivery Cost** → **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines. The QR “public proforma” shows the same VAT-exclusive breakdown.
 - **Layout (v5.4, extended in v5.5):** supplier and buyer blocks stay **side by side** everywhere — desktop, phones (`≤760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be ≤760px). Only the terms block still stacks — it is prose and needs the full width.
 - **Signature grid (changed in v5.2):** `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))`, so each party gets its own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
 - **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v5.2 `.pf-delivery-box` sits above them in that same column and shares the width so all three align.
@@ -1020,6 +1020,21 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.2 — VAT-exclusive product pricing
+
+- **Supplier prices are net.** New products are saved with `taxIncluded: false`;
+  the price entered by the supplier is the amount before VAT and is never
+  reduced by a VAT extraction.
+- **VAT is added at purchase.** `addedVat()` / `addedVatRate()` in `utils.ts`
+  replace the old inclusive helpers. Cart, checkout, orders, CSV exports, the
+  printed proforma and the QR public proforma use
+  `total = net subtotal + VAT + delivery`.
+- **Clear documents.** The proforma shows **Amount Before VAT**, **VAT (15%
+  added)**, **Delivery Cost** and **Grand Total**; item prices are labelled
+  "before VAT".
+- **Housekeeping** — bumped `versionCode` 5 → 6, `versionName` 1.4 → 1.5 and
+  `sw.js` `VERSION` `e-scon-v1.7.0` → `e-scon-v1.8.0`.
 
 ### v6.1 — global cloud sync & Amount Before VAT
 

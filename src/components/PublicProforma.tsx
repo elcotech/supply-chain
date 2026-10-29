@@ -4,7 +4,7 @@
 // the non-sensitive order summary travels inside the QR itself.
 import React from 'react';
 import { ProformaShareData } from '../types';
-import { formatCurrency } from '../utils';
+import { formatCurrency, addedVatRate } from '../utils';
 
 interface PublicProformaProps {
   data: ProformaShareData;
@@ -13,6 +13,7 @@ interface PublicProformaProps {
 
 const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
   const totalQuantity = data.i.reduce((sum, it) => sum + (Number(it.q) || 0), 0);
+  const vatPercent = addedVatRate(data.sub, data.vat);
 
   return (
     <div className="public-proforma-overlay">
@@ -93,9 +94,8 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
 
           <div className="public-proforma-summary">
             <div><span>Items:</span><strong>{data.i.length} line item{data.i.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</strong></div>
-            <div><span>Amount Before VAT:</span><strong>{formatCurrency(data.sub - data.vat)}</strong></div>
-            <div><span>Subtotal (VAT included):</span><strong>{formatCurrency(data.sub)}</strong></div>
-            <div><span>VAT (included):</span><strong>{formatCurrency(data.vat)}</strong></div>
+            <div><span>Amount Before VAT:</span><strong>{formatCurrency(data.sub)}</strong></div>
+            <div><span>VAT ({vatPercent}% added):</span><strong>{formatCurrency(data.vat)}</strong></div>
             <div><span>Delivery Fee:</span><strong>{formatCurrency(data.del)}</strong></div>
             <div className="p-pf-grand"><span>GRAND TOTAL:</span><strong>{formatCurrency(data.tot)}</strong></div>
             <div className="p-pf-currency">All amounts in ETB – Ethiopian Birr</div>

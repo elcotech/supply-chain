@@ -25,22 +25,21 @@ export const formatCurrency = (amount: number): string => {
 };
 
 /**
- * VAT is already part of every supplier price (`Material.taxIncluded` is true),
- * so `includedVat` returns the VAT portion *inside* a gross amount instead of
- * tax that still has to be added on top. 115.00 at 15% -> 15.00.
+ * Supplier prices are VAT-exclusive (`Material.taxIncluded` is false), so VAT is
+ * added on top of the net goods amount at purchase / proforma time.
+ * 100.00 at 15% -> 15.00.
  */
-export const includedVat = (grossAmount: number, vatPercentage: number): number => {
-  const gross = typeof grossAmount === 'number' && isFinite(grossAmount) ? grossAmount : 0;
+export const addedVat = (netAmount: number, vatPercentage: number): number => {
+  const net = typeof netAmount === 'number' && isFinite(netAmount) ? netAmount : 0;
   const percentage = typeof vatPercentage === 'number' && isFinite(vatPercentage) ? vatPercentage : 0;
-  if (gross <= 0 || percentage <= 0) return 0;
-  return round2(gross - gross / (1 + percentage / 100));
+  if (net <= 0 || percentage <= 0) return 0;
+  return round2(net * percentage / 100);
 };
 
-/** Recover the VAT rate (%) from a gross amount and the VAT portion inside it. */
-export const includedVatRate = (grossAmount: number, vatAmount: number): number => {
-  const gross = typeof grossAmount === 'number' && isFinite(grossAmount) ? grossAmount : 0;
+/** Recover the VAT rate (%) from a net amount and the VAT added on top of it. */
+export const addedVatRate = (netAmount: number, vatAmount: number): number => {
+  const net = typeof netAmount === 'number' && isFinite(netAmount) ? netAmount : 0;
   const vat = typeof vatAmount === 'number' && isFinite(vatAmount) ? vatAmount : 0;
-  const net = gross - vat;
   return net > 0 ? Math.round((vat / net) * 100) : 0;
 };
 
@@ -98,7 +97,7 @@ export interface DeliveryFeeInput {
   customerCity: string | null;
   /** Combined weight for a single supplier's items (tonnes). */
   weightTons: number;
-  /** Cart goods subtotal (VAT-inclusive, before delivery) — used for free-delivery. */
+  /** Cart goods subtotal (VAT-exclusive, before delivery) — used for free-delivery. */
   orderSubtotal: number;
   settings: SystemSettings;
 }
@@ -406,8 +405,8 @@ export const printCartReport = async (reportData: any) => {
                 <th>Item</th>
                 <th>Unit</th>
                 <th>Quantity</th>
-                <th>Unit Price (ETB)</th>
-                <th>Total (ETB)</th>
+                <th>Unit Price (ETB, before VAT)</th>
+                <th>Amount (ETB, before VAT)</th>
               </tr>
             </thead>
             <tbody>
@@ -446,8 +445,8 @@ export const printCartReport = async (reportData: any) => {
               <th>Item</th>
               <th>Unit</th>
               <th>Quantity</th>
-              <th>Unit Price (ETB)</th>
-              <th>Total (ETB)</th>
+              <th>Unit Price (ETB, before VAT)</th>
+              <th>Amount (ETB, before VAT)</th>
             </tr>
           </thead>
           <tbody>
@@ -499,8 +498,8 @@ export const printCartReport = async (reportData: any) => {
         </div>
         ${supplierBlocks}
         <div class="summary">
-          <div class="summary-row"><span>Subtotal (VAT included):</span><strong>${formatCurrency(reportData.subtotal)}</strong></div>
-          <div class="summary-row"><span>VAT (${includedVatRate(reportData.subtotal, reportData.vatAmount)}% included):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
+          <div class="summary-row"><span>Subtotal (before VAT):</span><strong>${formatCurrency(reportData.subtotal)}</strong></div>
+          <div class="summary-row"><span>VAT (${addedVatRate(reportData.subtotal, reportData.vatAmount)}% added):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
           <div class="summary-row"><span>Delivery Fee (${suppliers.length} supplier${suppliers.length === 1 ? '' : 's'}):</span><strong>${formatCurrency(reportData.transportCost)}</strong></div>
           <div class="summary-row total"><span>Total Amount:</span><strong>${formatCurrency(reportData.total)}</strong></div>
         </div>
@@ -525,20 +524,20 @@ export const exportCartToCSV = (cart: any[], totals: any) => {
     'Supplier': item.supplierName,
     'Quantity': item.quantity,
     'Unit': item.unit,
-    'Unit Price (VAT incl.)': item.price,
-    'Line Total (VAT incl.)': item.price * item.quantity,
-    'VAT included': includedVat(item.price * item.quantity, item.vatPercentage || 15),
-    'Total with Delivery': ''
+    'Unit Price (before VAT)': item.price,
+    'Line Total (before VAT)': item.price * item.quantity,
+    'VAT (added)': addedVat(item.price * item.quantity, item.vatPercentage || 15),
+    'Total with VAT and Delivery': ''
   }));
   exportData.push({
     'Material': '--- SUMMARY ---',
     'Supplier': '',
     'Quantity': '',
     'Unit': '',
-    'Unit Price (VAT incl.)': '',
-    'Line Total (VAT incl.)': totals.subtotal,
-    'VAT included': totals.vatAmount,
-    'Total with Delivery': totals.total
+    'Unit Price (before VAT)': '',
+    'Line Total (before VAT)': totals.subtotal,
+    'VAT (added)': totals.vatAmount,
+    'Total with VAT and Delivery': totals.total
   });
   exportToCSV(exportData, 'cart_detailed_report');
 };
@@ -552,10 +551,10 @@ export const exportOrdersToCSV = (orders: any[], materials: any[], companies: an
       'Product': material?.name,
       'Supplier': company?.name,
       'Quantity': order.quantity,
-      'Unit Price (VAT incl.)': order.unitPrice,
+      'Unit Price (before VAT)': order.unitPrice,
       'Transport': order.transportCost,
-      'VAT included': order.vatAmount,
-      'Total (VAT incl. + transport)': order.totalAmount,
+      'VAT (added)': order.vatAmount,
+      'Total (VAT + transport)': order.totalAmount,
       'Status': order.status,
       'Date': order.orderDate
     };

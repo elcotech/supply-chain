@@ -1,6 +1,6 @@
 # E-SCON — Ethio-Supply Chain Optimization Network
 
-A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, VAT-inclusive cart/checkout, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
+A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, VAT-exclusive product pricing with VAT added at checkout, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
 
 ## 📚 Documentation
 
@@ -43,7 +43,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🌍 **Global cloud sync** — with Supabase configured, products added or edited on one device appear on every other device (startup pull, live Realtime updates and a 10-second polling fallback); accounts, companies, orders, wallets, reviews and carts travel too
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
 - 🛒 **One supplier per cart** — a proforma is a legal document issued by a single seller, so a cart can only hold one supplier's goods. Adding from a second supplier is refused with a warning that names both suppliers and leaves your cart untouched; clear the cart or remove the other supplier's lines first
-- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), **VAT-inclusive prices** (the **Amount Before VAT** and included VAT are shown, never added twice), configurable delivery fees & minimum order, checkout → orders
+- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), **VAT-exclusive prices** (the **Amount Before VAT** and 15% VAT are shown, with VAT added once at purchase), configurable delivery fees & minimum order, checkout → orders
 - ➕ **Order from the product view** — the `+ / −` quantity control appears only in the product details (steps of 1, live total, **any quantity** — no per-product minimum); results rows, product cards and the compare view just open the product
 - 🔒 **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 🗺️ **Automatic supplier routing** — the map always draws the route from the customer's real GPS position to the selected supplier, and re-draws it the moment GPS locks in; selecting another supplier (marker, list or re-opening) replaces the previous route instead of leaving it on screen
