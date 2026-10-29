@@ -43,6 +43,19 @@ export const addedVatRate = (netAmount: number, vatAmount: number): number => {
   return net > 0 ? Math.round((vat / net) * 100) : 0;
 };
 
+/**
+ * Grand total of a cart: net goods subtotal + VAT + delivery.
+ * Every surface that shows or rewrites a total (cart summary, the manual
+ * delivery-fee override, the proforma and order creation) goes through this
+ * one helper, so the VAT row on screen and the total can never disagree.
+ */
+export const cartGrandTotal = (subtotal: number, vatAmount: number, delivery: number): number => {
+  const goods = typeof subtotal === 'number' && isFinite(subtotal) ? subtotal : 0;
+  const vat = typeof vatAmount === 'number' && isFinite(vatAmount) ? vatAmount : 0;
+  const fee = typeof delivery === 'number' && isFinite(delivery) ? delivery : 0;
+  return round2(goods + vat + fee);
+};
+
 export const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-ET', { year: 'numeric', month: 'short', day: 'numeric' });
 };

@@ -13,6 +13,7 @@ import {
   cartHasOtherSupplier,
   addedVat,
   addedVatRate,
+  cartGrandTotal,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -381,5 +382,25 @@ describe('addedVat (supplier prices exclude VAT)', () => {
     expect(addedVatRate(100, 15)).toBe(15);
     expect(addedVatRate(200, 30)).toBe(15);
     expect(addedVatRate(0, 0)).toBe(0);
+  });
+});
+
+describe('cartGrandTotal (VAT is always part of the total)', () => {
+  it('adds VAT and delivery on top of the net goods subtotal', () => {
+    expect(cartGrandTotal(1000, 150, 200)).toBe(1350);
+    expect(cartGrandTotal(3000, 450, 700)).toBe(4150);
+  });
+
+  it('keeps VAT in the total when only the delivery fee is rewritten', () => {
+    // The manual delivery-fee override on the cart used to recompute the total
+    // as subtotal + delivery and silently drop the VAT row shown above it.
+    expect(cartGrandTotal(3000, 450, 0)).toBe(3450);
+    expect(cartGrandTotal(3000, 450, 120.5)).toBe(3570.5);
+  });
+
+  it('rounds to two decimals and tolerates unsafe inputs', () => {
+    expect(cartGrandTotal(100.005, 15.004, 0)).toBe(115.01);
+    expect(cartGrandTotal(NaN, 150, 200)).toBe(350);
+    expect(cartGrandTotal(1000, 150, NaN)).toBe(1150);
   });
 });

@@ -44,7 +44,7 @@ path-based request, configure a single-page-app fallback to `index.html`.
 `public/sw.js` is a **custom** service worker. To push a new version to every
 installed user without touching their data:
 
-1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v1.8.0`).
+1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v1.9.0`).
 2. Deploy the new `build/`.
 
 On `activate` the worker deletes old cache buckets, and `skipWaiting()` /

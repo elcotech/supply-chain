@@ -879,7 +879,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.6.0` (bumped for the v5.8 UI + icon changes so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.9.0` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -998,7 +998,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.6.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.9.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1020,6 +1020,32 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.3 — VAT always in the total & supplier profile recovery
+
+- **VAT is part of every total.** Editing the delivery fee on the cart used to
+  recompute `total = subtotal + delivery` and silently drop the VAT that was
+  still displayed on the same screen; the override now keeps
+  `total = subtotal + VAT + delivery`, so the VAT row and the total can never
+  disagree.
+- **No cart line is ever dropped.** `priceCartItems` and `confirmOrder` skipped a
+  line whose supplier profile record was missing, which removed its goods value
+  (and its VAT) from the totals while the line was still shown, and could charge
+  a buyer for an item that produced no order. Both now rebuild the supplier
+  record on the spot — from the owning account under its original id, or a stub —
+  so every line is priced, VAT-charged and ordered. A line whose product was
+  deleted is also ordered now, using the details snapshotted on the cart line.
+- **"Edit Company Profile" always opens.** When the profile record was missing,
+  the page router fell through to the previous page (the failure mode behind the
+  old *Company profile not found* alert). The editor is now rebuilt from the
+  account on the spot, and a cloud row can no longer wipe supplier profiles: an
+  incoming `companies` row is merged with the local copy and re-attached to any
+  company account that has lost its profile, exactly like the startup recovery.
+- **Proforma styling matches the maths.** The VAT summary row was still styled
+  as a greyed, non-additive "information only" line left over from the
+  VAT-inclusive build; it is a normal summary row again.
+- **Housekeeping** — bumped `versionCode` 6 → 7, `versionName` 1.5 → 1.6 and
+  `sw.js` `VERSION` `e-scon-v1.8.0` → `e-scon-v1.9.0`.
 
 ### v6.2 — VAT-exclusive product pricing
 

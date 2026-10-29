@@ -143,7 +143,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current build: **6 / "1.5"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **7 / "1.6"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console

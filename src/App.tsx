@@ -13,7 +13,7 @@ import {
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
-  addedVat, addedVatRate
+  addedVat, addedVatRate, cartGrandTotal
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import { cloudPush, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
@@ -81,6 +81,28 @@ const companyFromUser = (user: User): Company => {
     complianceStatus: 'compliant',
   };
 };
+
+// Last-resort supplier record for a cart line whose profile cannot be rebuilt
+// from an account. The goods value of the line must still be priced, grouped
+// and ordered - it is never dropped just because the profile record is gone.
+const stubCompany = (id: string, name: string): Company => ({
+  id,
+  userId: '',
+  name: name || 'Unknown supplier',
+  description: '',
+  location: '',
+  city: '',
+  lat: 9.032,
+  lng: 38.7469,
+  rating: 0,
+  totalOrders: 0,
+  established: '',
+  tinNumber: '',
+  businessLicense: '',
+  vatNumber: '',
+  tradeLicenseExpiry: '',
+  complianceStatus: 'compliant',
+});
 
 // One-time upgrade flag: older releases kept business data on-device, so the
 // first cloud-enabled start merges the local copy with whatever is in Supabase
@@ -508,6 +530,23 @@ function App() {
     return companies.find(c => c.userId === userId);
   }, [companies]);
 
+  // A cart line must always keep its supplier. Profiles go missing when an older
+  // build dropped them or a cloud row arrives without them; pricing or ordering
+  // must never silently skip such a line, because its goods value would vanish
+  // from the total while still being shown on screen. Rebuild the record from the
+  // owning account under its original id and keep it from then on.
+  const ensureSupplierCompany = useCallback((supplierId: string, supplierName: string): Company => {
+    const existing = companies.find(c => c.id === supplierId);
+    if (existing) return existing;
+    const name = (supplierName || '').trim().toLowerCase();
+    const owner = name
+      ? users.find(u => u.userType === 'company' && (u.companyName || '').trim().toLowerCase() === name)
+      : undefined;
+    const rebuilt = owner ? { ...companyFromUser(owner), id: supplierId } : stubCompany(supplierId, supplierName);
+    setCompanies(prev => prev.some(c => c.id === rebuilt.id) ? prev : [...prev, rebuilt]);
+    return rebuilt;
+  }, [companies, users]);
+
   const getUserById = useCallback((id: string): User | undefined => {
     return users.find(u => u.id === id);
   }, [users]);
@@ -547,9 +586,52 @@ function App() {
         setCurrentUser(prev => prev ? (list.find(u => u.id === prev.id) || prev) : prev);
         break;
       }
-      case 'companies':
-        setCompanies(asArray<Company>(data));
+      case 'companies': {
+        const cloudList = asArray<Company>(data);
+        // A cloud row must never drop a supplier profile this device already
+        // has (an older build or another device can push a list without it),
+        // and every company account must end up with a profile. Merge both
+        // ways, then keep the healed list in the cache so the local copy and
+        // the cloud converge on the same data.
+        const prevLocal: Company[] = (() => {
+          try { return localRaw ? JSON.parse(localRaw) as Company[] : []; } catch { return []; }
+        })();
+        const merged = [...cloudList];
+        const mergedIds = new Set(merged.map(c => c.id));
+        const mergedUserIds = new Set(merged.map(c => c.userId));
+        prevLocal.forEach(c => {
+          if (!mergedIds.has(c.id) && !mergedUserIds.has(c.userId)) merged.push(c);
+        });
+        try {
+          const parsedUsers = JSON.parse(safeLocalStorage.getItem('users') || '[]') as User[];
+          const owned = new Set(merged.map(c => c.userId));
+          parsedUsers.forEach(u => {
+            if (u.userType !== 'company' || owned.has(u.id)) return;
+            // Same recovery as startup: re-attach a name-matching orphan first
+            // so products already pointing at that profile keep their id.
+            const companyName = (u.companyName || '').trim().toLowerCase();
+            const orphan = companyName
+              ? merged.find(c =>
+                  c.name.trim().toLowerCase() === companyName &&
+                  !parsedUsers.some(other => other.id === c.userId))
+              : undefined;
+            if (orphan) {
+              const idx = merged.indexOf(orphan);
+              merged[idx] = { ...orphan, userId: u.id };
+              owned.add(u.id);
+            } else {
+              const rebuilt = companyFromUser(u);
+              merged.push(rebuilt);
+              owned.add(u.id);
+            }
+          });
+        } catch {
+          /* unreadable user list - keep whatever profiles we already have */
+        }
+        setCompanies(merged);
+        safeLocalStorage.setItem('companies', JSON.stringify(merged));
         break;
+      }
       case 'materials': {
         const list = asArray<Material>(data);
         setMaterials(list);
@@ -1501,14 +1583,15 @@ function App() {
     const settings = systemSettings;
     try {
       for (const item of items) {
-        const supplierCompany = getCompanyById(item.supplierId);
-        if (!supplierCompany) continue;
+        // Never skip a line: a missing profile is rebuilt on the spot so the
+        // goods value, its VAT and its delivery are always counted.
+        const supplierCompany = ensureSupplierCompany(item.supplierId, item.supplierName);
         const sellingPrice = item.basePrice * (1 + item.profitMargin);
         const itemTotal = sellingPrice * item.quantity;
         subtotal += itemTotal;
         // Supplier prices exclude VAT, so VAT is added on top of the net goods
         // amount at proforma / purchase time.
-        vatAmount += addedVat(itemTotal, item.vatPercentage);
+        vatAmount += addedVat(itemTotal, item.vatPercentage || 15);
         const dist = await calculateDistance(
           supplierCompany.lat, supplierCompany.lng,
           currentUser.lat || 9.0320, currentUser.lng || 38.7469
@@ -1554,7 +1637,7 @@ function App() {
       transportCost = deliveryFeeOverride;
     }
     // `subtotal` is the net goods value; VAT is added on top, then delivery.
-    const total = subtotal + vatAmount + transportCost;
+    const total = cartGrandTotal(subtotal, vatAmount, transportCost);
     const multiple = suppliers.length > 1;
     const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
     const minOrderCheck = checkMinOrder(settings, subtotal);
@@ -1682,7 +1765,8 @@ function App() {
       return {
         ...prev,
         transportCost: fee,
-        total: Math.round((prev.subtotal + fee) * 100) / 100,
+        // VAT stays in the total: only the delivery component changes here.
+        total: cartGrandTotal(prev.subtotal, prev.vatAmount, fee),
         suppliers,
         freeDeliveryApplied: fee === 0 && prev.minOrderEnabled,
       };
@@ -1724,14 +1808,17 @@ function App() {
     }
     const createdOrders: Order[] = [];
     for (const item of cart) {
+      // The material may have been deleted since the line was added; the order
+      // must still be created, otherwise the buyer is charged for goods that
+      // never reach the supplier.
       const material = getMaterialById(item.materialId);
-      if (!material) continue;
-      const supplierCompany = getCompanyById(item.supplierId);
-      if (!supplierCompany) continue;
+      const materialName = material?.name || item.materialName;
+      const materialUnit = material?.unit || item.unit || 'units';
+      const supplierCompany = ensureSupplierCompany(item.supplierId, item.supplierName);
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const materialTotal = sellingPrice * item.quantity;
       // The line total is VAT-exclusive: add VAT on top at purchase time.
-      const vatAmountItem = addedVat(materialTotal, item.vatPercentage);
+      const vatAmountItem = addedVat(materialTotal, item.vatPercentage || 15);
       // Delivery must match what the buyer approved on the proforma: the same
       // per-line checkbox, the supplier's per-km rate over the real distance, or
       // the platform fallback when that supplier publishes no rate.
@@ -1742,7 +1829,7 @@ function App() {
       const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
         item, supplierCompany, distanceKm, totals.subtotal, currentUser!, systemSettings
       );
-      const totalAmount = materialTotal + vatAmountItem + transportCostItem;
+      const totalAmount = cartGrandTotal(materialTotal, vatAmountItem, transportCostItem);
       const newOrder: Order = {
         id: 'order' + (orders.length + 1) + '_' + Date.now() + '_' + item.materialId,
         customerId: currentUser!.id,
@@ -1768,8 +1855,8 @@ function App() {
       createdOrders.push(newOrder);
       setOrders(prev => [...prev, newOrder]);
       notifyOrderParties(newOrder, `New order ${newOrder.invoiceNumber}`,
-        `${currentUser!.name} ordered ${item.quantity} ${material.unit} of ${material.name} — ETA ${deliveryEta(distanceKm)}.`);
-      const buyerCompany = material.name;
+        `${currentUser!.name} ordered ${item.quantity} ${materialUnit} of ${materialName} — ETA ${deliveryEta(distanceKm)}.`);
+      const buyerCompany = materialName;
       if (paymentMethod === 'wallet') {
         pushNotification(currentUser!.id, 'order', 'Order confirmed on the platform',
           `${buyerCompany} purchased and is already marked paid from your wallet.`);
@@ -1788,7 +1875,7 @@ function App() {
           return {
             ...o,
             transportCost: newTrans,
-            totalAmount: Math.round((materialTotal + (o.vatAmount || 0) + newTrans) * 100) / 100
+            totalAmount: cartGrandTotal(materialTotal, o.vatAmount || 0, newTrans)
           };
         });
         return [...prev.filter(o => !ids.has(o.id)), ...scaled];
@@ -3630,8 +3717,11 @@ function App() {
     if (showSplash) return renderSplash();
     if (showSupplierMap) return renderSupplierMap();
     if (showEditCompany) {
-      const company = currentUser ? getCompanyByUserId(currentUser.id) : null;
       const user = currentUser;
+      // The profile record can be missing (older build dropped it, or a cloud
+      // row arrived without it) - rebuild it here rather than silently falling
+      // back to the previous page, which looked like "profile not found".
+      const company = user ? (getCompanyByUserId(user.id) || companyFromUser(user)) : null;
       if (company && user) {
         return <EditCompany company={company} user={user} onSave={handleSaveCompany} onClose={() => setShowEditCompany(false)} />;
       }

@@ -6535,8 +6535,9 @@ a:focus-visible {
 .m-pc-price { font-size: 1.02rem; font-weight: 900; }
 .m-pc-price .m-pc-unit { font-weight: 500; color: var(--text-light); }
 
-/* VAT is included in supplier prices - the row is informative, not additive. */
-.pf-vat-row { color: var(--text-light); }
+/* Supplier prices exclude VAT: the VAT row is added to the goods subtotal and
+   is part of the grand total, so it is styled like every other summary line. */
+.pf-vat-row { font-weight: 700; }
 .pf-vat-note {
   margin-top: 8px;
   padding: 8px 10px;
