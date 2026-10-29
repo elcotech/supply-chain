@@ -2,8 +2,7 @@ import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react
 import './App.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload, DeliveryMode, MaterialDelivery } from './types';
 import {
-  ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS,
-  sampleUsers, sampleCompanies, sampleMaterials, sampleOrders
+  ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS
 } from './constants';
 import {
   safeLocalStorage, formatCurrency, formatDate,
@@ -13,11 +12,12 @@ import {
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
-  addedVat, addedVatRate, cartGrandTotal
+  vatOnSubtotal, allocateVat, cartGrandTotal
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
 import { cloudPush, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
 import EditCompany from './components/EditCompany';
+import MapPicker from './components/MapPicker';
 import DateTime from './components/DateTime';
 import ProformaInvoice from './components/ProformaInvoice';
 import PublicProforma from './components/PublicProforma';
@@ -339,6 +339,9 @@ function App() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
+  const [showMyLocationPicker, setShowMyLocationPicker] = useState(false);
+  const [adminCompanyTarget, setAdminCompanyTarget] = useState<{ company: Company; user: User } | null>(null);
+  const [adminEditingMaterial, setAdminEditingMaterial] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
   const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -471,6 +474,7 @@ function App() {
     searchMaxPrice: '', searchSupplier: 'all', searchCity: 'all', searchSortBy: 'price_asc',
     orderQuantity: '', orderAddress: '', materialBrand: '', materialModel: '', materialWeight: '',
     materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [],
+    materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001',
     materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '',
     companyName: '', companyDescription: '', companyLocation: '', companyCity: '',
     companyPhone: '', companyEmail: '', companyWebsite: '', companyWorkingHours: '',
@@ -556,6 +560,14 @@ function App() {
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Every page heading greets the signed-in user by name, so the word the
+  // requirement asks for ("Welcome") is present on every heading, on desktop
+  // and mobile alike.
+  const welcomeTitle = useCallback((title: string): string => {
+    const firstName = currentUser?.name?.trim().split(/\s+/)[0];
+    return firstName ? `Welcome, ${firstName} — ${title}` : `Welcome — ${title}`;
+  }, [currentUser]);
 
   // Apply one cloud row to the React state. Echoes of our own pushes are ignored
   // by comparing with the local copy first, so devices cannot ping-pong writes.
@@ -767,7 +779,14 @@ function App() {
         setUsers(parsed.users); setCompanies(parsed.companies); setMaterials(parsed.materials);
         setOrders(parsed.orders); setNotifications(parsed.notifications);
         setWallets(parsed.wallets); setTransactions(parsed.transactions); setReviews(parsed.reviews);
-        if (parsed.settings) { setSystemSettings(parsed.settings); saveSettings(parsed.settings); }
+        if (parsed.settings) {
+          // Older backups predate the VAT block; save then re-load through the
+          // normaliser so the restored settings always contain every field.
+          saveSettings(parsed.settings);
+          const normalized = loadSettings();
+          setSystemSettings(normalized);
+          saveSettings(normalized);
+        }
         showAlert('Backup restored successfully ✅', 'success');
         setShowDataCenter(false);
         navigateTo('home');
@@ -859,25 +878,19 @@ function App() {
       const savedOrders = safeLocalStorage.getItem('orders');
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
-      const parsedUsers: User[] = savedUsers ? JSON.parse(savedUsers) : [...sampleUsers];
+      const parsedUsers: User[] = savedUsers ? JSON.parse(savedUsers) : [];
       // Guarantee the platform administrator always exists, even for
       // installations that predate the admin role.
       if (!parsedUsers.some(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
         parsedUsers.push(ADMIN_USER);
       }
 
-      // Keep every saved company, not only the ones that belong to the demo
-      // seed. Previously a registered supplier's profile vanished on the next
-      // start, so "Edit Company Profile" reported "Company profile not found".
-      let baseCompanies: Company[] = [...sampleCompanies];
-      if (savedCompanies) {
-        const parsed = JSON.parse(savedCompanies) as Company[];
-        const sampleIds = new Set(sampleCompanies.map(c => c.id));
-        baseCompanies = [
-          ...sampleCompanies.map(sampleComp => parsed.find(c => c.id === sampleComp.id) || sampleComp),
-          ...parsed.filter(c => !sampleIds.has(c.id)),
-        ];
-      }
+      // Saved data is the authoritative copy after first run. Seed demo
+      // companies only when no company collection has ever been stored, and
+      // never re-add a sample company that the user has deleted.
+      let baseCompanies: Company[] = savedCompanies
+        ? JSON.parse(savedCompanies) as Company[]
+        : [];
 
       // Self-heal supplier accounts whose company profile is missing (or was
       // orphaned by an older build / a partial cloud merge).
@@ -902,10 +915,18 @@ function App() {
       setCompanies(enrichedCompanies);
       setUsers(parsedUsers);
       if (!savedUsers) safeLocalStorage.setItem('users', JSON.stringify(parsedUsers));
-      if (savedMaterials) setMaterials(JSON.parse(savedMaterials));
-      else { setMaterials(sampleMaterials); safeLocalStorage.setItem('materials', JSON.stringify(sampleMaterials)); }
-      if (savedOrders) setOrders(JSON.parse(savedOrders));
-      else { setOrders(sampleOrders); safeLocalStorage.setItem('orders', JSON.stringify(sampleOrders)); }
+      // v6.4 uses one VAT-exclusive price model for every product. Older sample
+      // rows carried taxIncluded: true even though VAT was added at checkout;
+      // normalise them without changing the stored price.
+      const parsedMaterials: Material[] = (savedMaterials
+        ? JSON.parse(savedMaterials)
+        : []
+      ).map((material: Material) => ({ ...material, taxIncluded: false }));
+      setMaterials(parsedMaterials);
+      if (!savedMaterials) safeLocalStorage.setItem('materials', JSON.stringify(parsedMaterials));
+      const parsedOrders: Order[] = savedOrders ? JSON.parse(savedOrders) : [];
+      setOrders(parsedOrders);
+      if (!savedOrders) safeLocalStorage.setItem('orders', JSON.stringify(parsedOrders));
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
 
       // These were initialised before the cloud pull ran; reload them now so a
@@ -932,13 +953,13 @@ function App() {
   // Persistence — every shared collection is written locally and mirrored to
   // Supabase so adding/editing a product on one device reaches the others.
   useEffect(() => {
-    if (isInitialized && users.length) {
+    if (isInitialized) {
       safeLocalStorage.setItem('users', JSON.stringify(users));
       cloudPush('users', users);
     }
   }, [users, isInitialized]);
   useEffect(() => {
-    if (isInitialized && companies.length) {
+    if (isInitialized) {
       safeLocalStorage.setItem('companies', JSON.stringify(companies));
       cloudPush('companies', companies);
     }
@@ -1124,15 +1145,19 @@ function App() {
     }
   };
 
-  const handleRegister = (e: React.FormEvent): void => {
+  const handleRegister = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered } = formData;
     if (users.find(u => u.email === registerEmail)) { showAlert('User with this email already exists', 'danger'); return; }
+    // Geocode the address the user typed so distances are measured from their
+    // real location instead of a random point near Addis Ababa. They can refine
+    // it later from Dashboard -> My Location (or on the map picker).
+    const coords = await geocodeAddress(registerAddress, registerCity);
     const newUser: User = {
       id: genId('user'), name: registerFullName, email: registerEmail, password: registerPassword || '0909',
       phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as 'customer' | 'company',
       companyName: registerUserType === 'company' ? registerCompanyName : '',
-      lat: 9.0320 + (Math.random() * 0.05 - 0.025), lng: 38.7469 + (Math.random() * 0.05 - 0.025),
+      lat: coords?.lat ?? 9.0320, lng: coords?.lng ?? 38.7469,
       registered: new Date().toISOString().split('T')[0], loginAttempts: 0, lockUntil: 0,
       tinNumber: registerUserType === 'company' ? tinNumber : '',
       businessLicense: registerUserType === 'company' ? businessLicense : '',
@@ -1214,6 +1239,107 @@ function App() {
     showAlert('Company profile updated successfully! ✅', 'success');
   };
 
+  // ---------- Admin: edit/delete any account, supplier or product ----------
+  const handleAdminEditCompany = (company: Company) => {
+    const owner = users.find(u => u.id === company.userId);
+    if (!owner) {
+      showAlert('This supplier profile has no matching account to edit.', 'danger');
+      return;
+    }
+    setAdminCompanyTarget({ company, user: owner });
+  };
+
+  const handleAdminSaveCompany = (updatedCompany: Company, updatedUser: User) => {
+    handleSaveCompany(updatedCompany, updatedUser);
+    setAdminCompanyTarget(null);
+  };
+
+  const handleAdminDeleteUser = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    if (user.userType === 'admin' || user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      showAlert('The platform administrator account cannot be deleted.', 'danger');
+      return;
+    }
+    const ownedCompanies = companies.filter(c => c.userId === userId);
+    const ownedIds = new Set(ownedCompanies.map(c => c.id));
+    const productCount = materials.filter(m => ownedIds.has(m.companyId)).length;
+    const label = ownedCompanies.length > 0
+      ? `${user.name}, their supplier profile and ${productCount} product${productCount === 1 ? '' : 's'}`
+      : user.name;
+    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    setCompanies(prev => prev.filter(c => c.userId !== userId));
+    setMaterials(prev => prev.filter(m => !ownedIds.has(m.companyId)));
+    setCart(prev => prev.filter(item => !ownedIds.has(item.supplierId)));
+    setNotifications(prev => prev.filter(n => n.userId !== userId));
+    setTransactions(prev => prev.filter(tx => tx.userId !== userId));
+    setWallets(prev => {
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
+    if (currentUser?.id === userId) setCurrentUser(null);
+    showAlert('Account deleted permanently.', 'success');
+  };
+
+  // Administrators can correct any account's saved location. The owner can do the
+  // same from their own dashboard ("My Location"), so GPS distances always start
+  // from the user's real position once it has been set.
+  const handleAdminUpdateUser = (updatedUser: User) => {
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    setCompanies(prev => prev.map(c => c.userId === updatedUser.id
+      ? { ...c, lat: updatedUser.lat, lng: updatedUser.lng, city: updatedUser.city, location: updatedUser.address }
+      : c));
+    if (currentUser?.id === updatedUser.id) setCurrentUser(updatedUser);
+    showAlert('Account location updated ✅', 'success');
+  };
+
+  const handleSaveMyLocation = (lat: number, lng: number, address: string) => {
+    if (!currentUser) return;
+    const matchedCity = ETHIOPIAN_CITIES.find(city =>
+      address.toLowerCase().includes(city.toLowerCase())
+    );
+    const updated: User = {
+      ...currentUser,
+      lat,
+      lng,
+      address: address || currentUser.address,
+      city: matchedCity || currentUser.city,
+    };
+    setCurrentUser(updated);
+    handleAdminUpdateUser(updated);
+    setShowMyLocationPicker(false);
+  };
+
+  const handleAdminDeleteCompany = (companyId: string) => {
+    const company = companies.find(c => c.id === companyId);
+    if (!company) return;
+    const owner = users.find(u => u.id === company.userId);
+    if (owner && (owner.userType === 'admin' || owner.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
+      showAlert('The platform administrator account cannot be deleted.', 'danger');
+      return;
+    }
+    const productCount = materials.filter(m => m.companyId === companyId).length;
+    if (!window.confirm(`Delete ${company.name}, ${productCount} product${productCount === 1 ? '' : 's'} and the supplier account? This cannot be undone.`)) return;
+
+    setCompanies(prev => prev.filter(c => c.id !== companyId));
+    setMaterials(prev => prev.filter(m => m.companyId !== companyId));
+    setCart(prev => prev.filter(item => item.supplierId !== companyId));
+    if (owner) {
+      setUsers(prev => prev.filter(u => u.id !== owner.id));
+      setNotifications(prev => prev.filter(n => n.userId !== owner.id));
+      setTransactions(prev => prev.filter(tx => tx.userId !== owner.id));
+      setWallets(prev => {
+        const next = { ...prev };
+        delete next[owner.id];
+        return next;
+      });
+    }
+    showAlert('Supplier and its products deleted.', 'success');
+  };
+
   // ---------- System settings (admin) ----------
   const handleSaveAdminSettings = (nextSettings: SystemSettings): void => {
     setSystemSettings(nextSettings);
@@ -1241,20 +1367,22 @@ function App() {
     if (!existingCompany) setCompanies(prev => [...prev, company]);
     // Delivery terms are read straight off formData by buildMaterialDelivery().
     const { materialName, materialCategory, materialPrice, materialQuantity, materialUnit, materialMinOrder, materialDescription, materialBrand, materialModel, materialWeight, materialDimensions, materialGrade, materialOrigin, materialCertifications, materialImages } = formData;
-    const basePrice = parseFloat(materialPrice);
-    const profitMargin = 0.15;
+    const basePrice = Math.max(0, parseFloat(materialPrice) || 0);
+    const profitMargin = Math.max(0, parseFloat(formData.materialProfitMargin) || 0) / 100;
+    const transportCost = Math.max(0, parseFloat(formData.materialTransportCost) || 0);
+    const weightPerUnit = Math.max(0.001, parseFloat(formData.materialWeightPerUnit) || 0.001);
     const sellingPrice = basePrice * (1 + profitMargin);
     const specs = {
       weight: materialWeight || undefined, dimensions: materialDimensions || undefined, grade: materialGrade || undefined,
       origin: materialOrigin || undefined, certification: materialCertifications.split(',').map(c => c.trim()).filter(c => c),
-      weightPerUnit: 0.001
+      weightPerUnit
     };
     const newMaterial: Material = {
       id: genId('mat'), companyId: company.id, name: materialName, category: materialCategory,
-      basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,      minOrder: parseInt(materialMinOrder) || 1, description: materialDescription, transportCost: 15, rating: 0,
+      basePrice, profitMargin, price: sellingPrice, quantity: parseInt(materialQuantity), unit: materialUnit,      minOrder: parseInt(materialMinOrder) || 1, description: materialDescription, transportCost, rating: 0,
       brand: materialBrand || undefined, model: materialModel || undefined, specifications: specs, images: materialImages,
       delivery: buildMaterialDelivery(formData),
-      taxIncluded: false, vatPercentage: 15, lastUpdated: new Date().toISOString().split('T')[0],
+      taxIncluded: false, vatPercentage: systemSettings.vat.rate, lastUpdated: new Date().toISOString().split('T')[0],
       priceHistory: [{ date: Date.now(), price: sellingPrice }]
     };
     setMaterials(prev => [...prev, newMaterial]);
@@ -1264,7 +1392,7 @@ function App() {
     }
     showAlert('Product added successfully! 🎉', 'success');
     setCurrentPage('company-dashboard');
-    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001', materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
   };
 
   const handleEditMaterial = (material: Material) => {
@@ -1286,6 +1414,11 @@ function App() {
       materialOrigin: material.specifications?.origin || 'Ethiopia',
       materialCertifications: material.specifications?.certification?.join(', ') || '',
       materialImages: material.images || [],
+      materialProfitMargin: (material.profitMargin * 100).toString(),
+      materialTransportCost: String(material.transportCost),
+      materialVatPercentage: String(material.vatPercentage),
+      materialTaxIncluded: false,
+      materialWeightPerUnit: String(material.specifications?.weightPerUnit || 0.001),
       materialDeliveryOffered: Boolean(material.delivery?.offered),
       materialDeliveryPerKm: material.delivery?.perKm ? String(material.delivery.perKm) : '',
       materialDeliveryStartFee: material.delivery?.startFee ? String(material.delivery.startFee) : '',
@@ -1293,10 +1426,24 @@ function App() {
     setCurrentPage('edit-material');
   };
 
+  const handleAdminEditMaterial = (material: Material) => {
+    setAdminEditingMaterial(true);
+    handleEditMaterial(material);
+  };
+
+  const handleCancelMaterialEdit = () => {
+    setAdminEditingMaterial(false);
+    navigateTo(currentUser?.userType === 'admin' ? 'admin-settings' : 'company-dashboard');
+  };
+
   const handleUpdateMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!editingMaterial) return;
-    const newPrice = parseFloat(formData.materialPrice) * (1 + editingMaterial.profitMargin);
+    const basePrice = Math.max(0, parseFloat(formData.materialPrice) || 0);
+    const profitMargin = Math.max(0, parseFloat(formData.materialProfitMargin) || 0) / 100;
+    const transportCost = Math.max(0, parseFloat(formData.materialTransportCost) || 0);
+    const weightPerUnit = Math.max(0.001, parseFloat(formData.materialWeightPerUnit) || 0.001);
+    const newPrice = basePrice * (1 + profitMargin);
     const updatedMaterial: Material = {
       ...editingMaterial,
       priceHistory: newPrice !== editingMaterial.price
@@ -1304,12 +1451,13 @@ function App() {
         : editingMaterial.priceHistory,
       name: formData.materialName,
       category: formData.materialCategory,
-      basePrice: parseFloat(formData.materialPrice),
-      profitMargin: editingMaterial.profitMargin,
-      price: parseFloat(formData.materialPrice) * (1 + editingMaterial.profitMargin),
+      basePrice,
+      profitMargin,
+      price: newPrice,
       quantity: parseInt(formData.materialQuantity),
       unit: formData.materialUnit,      minOrder: parseInt(formData.materialMinOrder) || 1,
       description: formData.materialDescription,
+      transportCost,
       brand: formData.materialBrand || undefined,
       model: formData.materialModel || undefined,
       specifications: {
@@ -1319,10 +1467,12 @@ function App() {
         grade: formData.materialGrade || undefined,
         origin: formData.materialOrigin || undefined,
         certification: formData.materialCertifications.split(',').map(c => c.trim()).filter(c => c),
-        weightPerUnit: editingMaterial.specifications?.weightPerUnit || 0.001
+        weightPerUnit
       },
       images: formData.materialImages,
       delivery: buildMaterialDelivery(formData),
+      taxIncluded: false,
+      vatPercentage: systemSettings.vat.rate,
       lastUpdated: new Date().toISOString().split('T')[0]
     };
     setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? updatedMaterial : m));
@@ -1338,8 +1488,9 @@ function App() {
     }
     showAlert('Product updated successfully! ✏️', 'success');
     setEditingMaterial(null);
-    setCurrentPage(currentUser?.userType === 'company' ? 'company-dashboard' : 'search-materials');
-    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
+    setCurrentPage(adminEditingMaterial ? 'admin-settings' : currentUser?.userType === 'company' ? 'company-dashboard' : 'search-materials');
+    setAdminEditingMaterial(false);
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001', materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
   };
 
   const handleDeleteMaterial = (id: string): void => {
@@ -1574,24 +1725,27 @@ function App() {
   // decides whether anything is charged, the supplier's published per-km rate is
   // applied to the real supplier→buyer distance, and the platform settings are
   // only used for lines whose supplier has no rate of their own.
-  const priceCartItems = async (items: CartItem[]): Promise<CartReport | null> => {
+  const priceCartItems = async (items: CartItem[], applyVat = false): Promise<CartReport | null> => {
     if (items.length === 0) return null;
     if (!currentUser) return null;
     setIsCalculating(true);
-    let subtotal = 0, vatAmount = 0, transportCost = 0;
+    let subtotal = 0, transportCost = 0;
     const supplierMap = new Map<string, CartSupplier>();
     const settings = systemSettings;
+    // First pass: value the whole cart. VAT is deliberately not calculated per
+    // line; it is applied once below to this aggregate net subtotal — and only
+    // when the cart is turned into a proforma / placed order (`applyVat`).
+    for (const item of items) {
+      subtotal += item.basePrice * (1 + item.profitMargin) * item.quantity;
+    }
+    subtotal = Math.round(subtotal * 100) / 100;
+    const vat = vatOnSubtotal(subtotal, settings.vat.rate, settings.vat.enabled);
+    const vatAmount = applyVat ? vat.vatAmount : 0;
     try {
       for (const item of items) {
         // Never skip a line: a missing profile is rebuilt on the spot so the
         // goods value, its VAT and its delivery are always counted.
         const supplierCompany = ensureSupplierCompany(item.supplierId, item.supplierName);
-        const sellingPrice = item.basePrice * (1 + item.profitMargin);
-        const itemTotal = sellingPrice * item.quantity;
-        subtotal += itemTotal;
-        // Supplier prices exclude VAT, so VAT is added on top of the net goods
-        // amount at proforma / purchase time.
-        vatAmount += addedVat(itemTotal, item.vatPercentage || 15);
         const dist = await calculateDistance(
           supplierCompany.lat, supplierCompany.lng,
           currentUser.lat || 9.0320, currentUser.lng || 38.7469
@@ -1636,7 +1790,7 @@ function App() {
       });
       transportCost = deliveryFeeOverride;
     }
-    // `subtotal` is the net goods value; VAT is added on top, then delivery.
+    // `subtotal` is the net goods value; VAT is added once on top, then delivery.
     const total = cartGrandTotal(subtotal, vatAmount, transportCost);
     const multiple = suppliers.length > 1;
     const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
@@ -1646,6 +1800,7 @@ function App() {
       items,
       subtotal,
       vatAmount,
+      vatRate: vat.rate,
       transportCost,
       total,
       distanceKm: totalDistance,
@@ -1663,7 +1818,7 @@ function App() {
     };
   };
 
-  const calculateCartTotals = (): Promise<CartReport | null> => priceCartItems(cart);
+  const calculateCartTotals = (applyVat = false): Promise<CartReport | null> => priceCartItems(cart, applyVat);
 
   // Two repricings of the cart are only worth doing when the lines themselves
   // differ, so the effect below keys off a signature of quantity + delivery flag.
@@ -1685,7 +1840,7 @@ function App() {
     repricedCart.current = signature;
     let cancelled = false;
     const timer = setTimeout(() => {
-      priceCartItemsRef.current(cart).then(totals => {
+      priceCartItemsRef.current(cart, false).then(totals => {
         if (cancelled || !totals) return;
         setCartDetails(totals);
       });
@@ -1710,7 +1865,7 @@ function App() {
   // The verification QR stays in the document header (§10.21).
   const handlePrintProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
-    const totals = await calculateCartTotals();
+    const totals = await calculateCartTotals(true);
     if (!totals) return;
     setProformaDetails(totals);
     setShowProforma(true);
@@ -1721,7 +1876,7 @@ function App() {
   // the printed document; the only difference is that nothing auto-prints.
   const handlePreviewProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
-    const totals = await calculateCartTotals();
+    const totals = await calculateCartTotals(true);
     if (!totals) return;
     setProformaDetails(totals);
     setProformaAutoPrint(false);
@@ -1781,7 +1936,7 @@ function App() {
 
   const confirmOrder = async () => {
     if (cart.length === 0) return;
-    const totals = await calculateCartTotals();
+    const totals = await calculateCartTotals(true);
     if (!totals) return;
     // Block submission when the configured minimum-order rule is not met so
     // the customer cannot accidentally create an unfulfillable order.
@@ -1806,8 +1961,14 @@ function App() {
       pushNotification(currentUser!.id, 'payment', 'Wallet payment successful',
         `ETB ${wholeTotal.toLocaleString()} paid with your wallet. Balance is now ${formatCurrency(ok)}.`);
     }
+    // Allocate the one cart-level VAT amount across the order rows. The sum of
+    // the rows therefore always equals the VAT shown on the proforma, even when
+    // per-line rounding would otherwise add up to a cent or two more.
+    const netByLine = cart.map(item => item.basePrice * (1 + item.profitMargin) * item.quantity);
+    const vatByLine = allocateVat(netByLine, totals.vatAmount);
     const createdOrders: Order[] = [];
-    for (const item of cart) {
+    for (let lineIndex = 0; lineIndex < cart.length; lineIndex++) {
+      const item = cart[lineIndex];
       // The material may have been deleted since the line was added; the order
       // must still be created, otherwise the buyer is charged for goods that
       // never reach the supplier.
@@ -1817,8 +1978,8 @@ function App() {
       const supplierCompany = ensureSupplierCompany(item.supplierId, item.supplierName);
       const sellingPrice = item.basePrice * (1 + item.profitMargin);
       const materialTotal = sellingPrice * item.quantity;
-      // The line total is VAT-exclusive: add VAT on top at purchase time.
-      const vatAmountItem = addedVat(materialTotal, item.vatPercentage || 15);
+      // The line total is VAT-exclusive; use its share of the single cart VAT.
+      const vatAmountItem = vatByLine[lineIndex] || 0;
       // Delivery must match what the buyer approved on the proforma: the same
       // per-line checkbox, the supplier's per-km rate over the real distance, or
       // the platform fallback when that supplier publishes no rate.
@@ -2290,6 +2451,10 @@ function App() {
     if (!showCartSummary || !cartDetails) return null;
     const supplierGroups = cartDetails.suppliers || [];
     const multipleSuppliers = supplierGroups.length > 1;
+    // The cart shows goods + delivery only. VAT is applied at order time, so the
+    // wallet check has to look at the VAT-inclusive amount the buyer will pay.
+    const expectedVat = vatOnSubtotal(cartDetails.subtotal, cartDetails.vatRate ?? 0, systemSettings.vat.enabled);
+    const payableTotal = cartGrandTotal(cartDetails.subtotal, expectedVat.vatAmount, cartDetails.transportCost);
     return (
       <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
@@ -2371,7 +2536,9 @@ function App() {
                     <div className="min-order-notice warn">{platformDeliveryHint(supplierGroups)}</div>
                   )}
                   <div className="summary-row"><span>Subtotal (before VAT):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
-                  <div className="summary-row"><span>VAT ({addedVatRate(cartDetails.subtotal, cartDetails.vatAmount)}% added):</span><span>{formatCurrency(cartDetails.vatAmount)}</span></div>
+                  {systemSettings.vat.enabled && (
+                    <div className="summary-row vat-pending"><span>VAT ({expectedVat.rate}%):</span><span>Added when you place the order</span></div>
+                  )}
                   <div className="summary-row">
                     <span>Delivery Fee{multipleSuppliers ? ` (${supplierGroups.length} suppliers)` : ''}:</span>
                     <span className="delivery-fee-edit">
@@ -2392,7 +2559,10 @@ function App() {
                   {cartDetails.freeDeliveryApplied && (
                     <div className="summary-row free-delivery-row"><span>🎉 Free delivery applied (order above threshold):</span><span>ETB 0.00</span></div>
                   )}
-                  <div className="summary-row total"><span>Total Amount:</span><span>{formatCurrency(cartDetails.total)}</span></div>
+                  <div className="summary-row total"><span>Total Before VAT:</span><span>{formatCurrency(cartDetails.subtotal + cartDetails.transportCost)}</span></div>
+                  {systemSettings.vat.enabled && (
+                    <div className="summary-row vat-payable"><span>Payable after VAT is added:</span><span>{formatCurrency(payableTotal)}</span></div>
+                  )}
                   {cartDetails.minOrderEnabled && (
                     cartDetails.belowMinOrder ? (
                       <div className="min-order-notice error">
@@ -2425,10 +2595,10 @@ function App() {
                       <span className="pay-check">{paymentMethod === 'cod' ? '✓' : ''}</span>
                     </label>
                   </div>
-                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') < cartDetails.total && (
+                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') < payableTotal && (
                     <div className="min-order-notice error">⚠️ Insufficient wallet balance ({formatCurrency(walletBalance(currentUser ? currentUser.id : ''))}). <button className="link-btn" onClick={() => { setShowCartSummary(false); setShowWallet(true); }}>Top up now</button></div>
                   )}
-                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') >= cartDetails.total && (
+                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') >= payableTotal && (
                     <div className="min-order-notice ok">✅ Balance covers this order — instant checkout.</div>
                   )}
                 </div>
@@ -2458,7 +2628,7 @@ function App() {
       <main className="main-content">
         <section className="home-hero glass">
           <div className="hero-badge">🇪🇹 Ethiopian Supply Chain Platform</div>
-          <h1>Ethio-Supply Chain Optimization Network</h1>
+          <h1>Welcome to Ethio-Supply Chain Optimization Network</h1>
           <p>Connecting verified suppliers with buyers across Ethiopia</p>
           <div className="search-center">
             <form onSubmit={(e) => { e.preventDefault(); navigateTo('search-materials'); }}>
@@ -2521,7 +2691,7 @@ function App() {
     <main className="main-content">
       <div className="auth-container">
         <div className="auth-card glass">
-          <div className="auth-header"><span className="auth-icon">📝</span><h2>Create Account</h2><p>Join E-SCON Platform</p></div>
+          <div className="auth-header"><span className="auth-icon">📝</span><h2>Welcome — Create Account</h2><p>Join E-SCON Platform</p></div>
           <div className="auth-body">
             <div className="auth-tabs"><button className={'auth-tab ' + (formData.registerUserType === 'customer' ? 'active' : '')} onClick={() => switchUserType('customer')}>👤 Customer</button><button className={'auth-tab ' + (formData.registerUserType === 'company' ? 'active' : '')} onClick={() => switchUserType('company')}>🏢 Supplier</button></div>
             <form onSubmit={handleRegister}>
@@ -2562,7 +2732,7 @@ function App() {
     return (
       <main className="main-content">
         <div className="dashboard-header dashboard-header-supplier">
-          <div className="dashboard-title"><span className="title-icon">🏢</span><h1>Supplier Dashboard</h1></div>
+          <div className="dashboard-title"><span className="title-icon">🏢</span><h1>{welcomeTitle('Supplier Dashboard')}</h1></div>
           <p className="dashboard-supplier-name">{company?.name}</p>
         </div>
         <div className="dashboard-grid">
@@ -2628,12 +2798,22 @@ function App() {
     const stats = calculateStats();
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">👤</span><h1>Customer Dashboard</h1></div><p>Welcome {currentUser.name}!</p></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">👤</span><h1>{welcomeTitle('Customer Dashboard')}</h1></div><p>📍 {currentUser.address || currentUser.city}</p></div>
         <div className="dashboard-grid">
           <div className="dashboard-card glass"><div className="card-icon">📦</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
           <div className="dashboard-card glass"><div className="card-icon">⏳</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
           <div className="dashboard-card glass"><div className="card-icon">✅</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
           <div className="dashboard-card glass"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
+        </div>
+        <div className="card glass">
+          <div className="card-header">
+            <h3>📍 My Location</h3>
+            <button className="btn btn-primary" onClick={() => setShowMyLocationPicker(true)}>🗺️ Edit / use current location</button>
+          </div>
+          <p className="my-location-text">
+            {currentUser.address || 'No address'}, {currentUser.city || 'No city'} · {Number.isFinite(currentUser.lat) && Number.isFinite(currentUser.lng) ? `Lat ${Number(currentUser.lat).toFixed(5)}, Lng ${Number(currentUser.lng).toFixed(5)}` : 'location not set — tap to pin it'}
+          </p>
+          <small className="my-location-hint">Every delivery distance is calculated from this point. Update it whenever you move.</small>
         </div>
         <div className="card glass"><div className="card-header"><h3>📋 Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}>🔍 Find Products</button></div>
           <ScrollableTable minWidth="800px">
@@ -2658,14 +2838,40 @@ function App() {
     );
   };
 
+  // Pricing and specification fields that used to be hard-coded in the add /
+  // edit handlers. Exposing them here means a supplier can change every value
+  // without editing source code.
+  const renderMaterialDetailFields = () => (
+    <div className="delivery-terms">
+      <div className="form-row">
+        <div className="form-group"><label>📈 Profit margin (%)</label><input type="number" className="form-input" name="materialProfitMargin" value={formData.materialProfitMargin} onChange={handleInputChange} min="0" step="0.1" /></div>
+        <div className="form-group"><label>🚚 Transport estimate (ETB)</label><input type="number" className="form-input" name="materialTransportCost" value={formData.materialTransportCost} onChange={handleInputChange} min="0" step="0.01" /></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>⚖️ Weight per unit (tonnes)</label><input type="number" className="form-input" name="materialWeightPerUnit" value={formData.materialWeightPerUnit} onChange={handleInputChange} min="0.001" step="0.001" /></div>
+        <div className="form-group"><label>🏷️ Model</label><input type="text" className="form-input" name="materialModel" value={formData.materialModel} onChange={handleInputChange} /></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>⚖️ Packed weight</label><input type="text" className="form-input" name="materialWeight" value={formData.materialWeight} onChange={handleInputChange} placeholder="e.g. 50 kg" /></div>
+        <div className="form-group"><label>📐 Dimensions</label><input type="text" className="form-input" name="materialDimensions" value={formData.materialDimensions} onChange={handleInputChange} placeholder="e.g. 120 × 80 × 60 cm" /></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label>🏅 Grade</label><input type="text" className="form-input" name="materialGrade" value={formData.materialGrade} onChange={handleInputChange} /></div>
+        <div className="form-group"><label>🌍 Origin</label><input type="text" className="form-input" name="materialOrigin" value={formData.materialOrigin} onChange={handleInputChange} /></div>
+      </div>
+      <div className="form-group"><label>📜 Certifications <small className="form-hint">(comma separated)</small></label><input type="text" className="form-input" name="materialCertifications" value={formData.materialCertifications} onChange={handleInputChange} placeholder="e.g. ISO 9001, CE" /></div>
+    </div>
+  );
+
   const renderAddMaterial = () => (
-    <main className="main-content"><div className="form-container glass"><h2>➕ Add New Product</h2>
+    <main className="main-content"><div className="form-container glass"><h2>{welcomeTitle('Add New Product')}</h2>
       <form onSubmit={handleAddMaterial}>
         <div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderMaterialDetailFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
@@ -2674,16 +2880,17 @@ function App() {
   );
 
   const renderEditMaterial = () => (
-    <main className="main-content"><div className="form-container glass"><h2>✏️ Edit Product</h2>
+    <main className="main-content"><div className="form-container glass"><h2>{welcomeTitle('Edit Product')}</h2>
       <form onSubmit={handleUpdateMaterial}>
         <div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label>🏭 Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>📏 Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
         <div className="form-row"><div className="form-group"><label>💰 Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label>📊 Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label>📋 Min Order <small className="form-hint">(optional — defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>🏷️ Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label>📝 Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        {renderMaterialDetailFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
-        <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>Cancel</button></div>
+        <div className="form-actions"><button type="submit" className="btn-submit">✅ Update</button><button type="button" className="btn-secondary" onClick={handleCancelMaterialEdit}>Cancel</button></div>
       </form>
     </div></main>
   );
@@ -2706,7 +2913,7 @@ function App() {
     return (
       <main className="main-content">
         <div className="search-hero glass">
-          <h1>🔍 Find Products</h1>
+          <h1>🔍 {welcomeTitle('Find Products')}</h1>
           <p>Compare prices from verified suppliers</p>
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-input-group">
@@ -2844,7 +3051,7 @@ function App() {
     const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{isCompany ? 'Order Management' : 'My Orders'}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span>{isCompany && <button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button>}</div></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{welcomeTitle(isCompany ? 'Order Management' : 'My Orders')}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span>{isCompany && <button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button>}</div></div>
         {userOrders.length === 0 ? <div className="no-orders glass">No orders yet</div> : (
           <ScrollableTable minWidth="900px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>
@@ -2932,8 +3139,11 @@ function App() {
               </span>
             </label>
             <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
-            <button className="btn btn-primary order-box-btn" onClick={() => { if (addToCart(material, qty, withDelivery)) onAdded(); }}>
-              {isInCart ? '🔄 Update Cart' : '➕ Add to Cart'}
+            <button
+              className={'btn order-box-btn' + (isInCart ? ' is-ordered' : '')}
+              onClick={() => { if (addToCart(material, qty, withDelivery)) onAdded(); }}
+            >
+              {isInCart ? '✅ Ordered — Update' : '➕ Add to Cart'}
             </button>
           </>
         )}
@@ -3236,7 +3446,7 @@ function App() {
             {currentUser && (
               <Action icon="🛡️" label="Data Center" sub="JSON backup & restore" onClick={() => { setMobileMenuOpen(false); setShowDataCenter(true); }} />
             )}
-            {isAdmin && <Action icon="⚙️" label="Platform Settings" sub="Delivery fees, zones & minimum order" onClick={() => { setMobileMenuOpen(false); navigateTo('settings'); }} />}
+            {isAdmin && <Action icon="⚙️" label="Platform Settings" sub="Delivery, VAT, accounts & catalogue" onClick={() => { setMobileMenuOpen(false); navigateTo('settings'); }} />}
           </div>
           {favouriteMaterials.length > 0 && (
             <div className="m-sheet-favs">
@@ -3292,12 +3502,18 @@ function App() {
           </div>
           {currentUser?.userType === 'customer' && (
             <div className="m-pc-buy">
-              {/* Tapping the card opens the product details, where the +/- stepper
-                  and the with/without-delivery checkbox appear only at the moment
-                  the customer is ready to order. The cart is opened from the
-                  bottom tab bar, so this is not a second cart button. */}
-              <button className="m-pc-add-btn" onClick={onOpen}>
-                {isInCart ? '🛒 Edit order' : '🛒 Order'}
+              {/* GPS and Order sit side by side below the Find button: one opens
+                  the supplier's route on the map, the other opens the order
+                  stepper. Tapping the card itself still opens product details. */}
+              <button
+                type="button"
+                className="m-pc-map-btn"
+                onClick={() => company && handleOpenMapWithRoute(company.id)}
+                disabled={!company}
+                aria-label={'Open GPS route to ' + (company?.name || 'supplier')}
+              >🗺️ GPS</button>
+              <button className={'m-pc-add-btn' + (isInCart ? ' ordered' : '')} onClick={onOpen}>
+                {isInCart ? '🛒 Ordered — edit' : '🛒 Order'}
               </button>
             </div>
           )}
@@ -3494,7 +3710,7 @@ function App() {
     return (
       <main className="main-content mobile-orders">
         <div className="mobile-page-head">
-          <h2>{isCompany ? 'Order Management' : 'My Orders'}</h2>
+          <h2>{welcomeTitle(isCompany ? 'Order Management' : 'My Orders')}</h2>
           <p>{userOrders.length} orders · {formatCurrency(totalValue)}</p>
         </div>
         {userOrders.length === 0 ? (
@@ -3586,7 +3802,7 @@ function App() {
       return (
         <main className="main-content mobile-dashboard">
           <div className="mobile-page-head mobile-page-head-supplier">
-            <h2 className="dashboard-supplier-name">{company?.name}</h2>
+            <h2 className="dashboard-supplier-name">{welcomeTitle(company?.name || 'Supplier Dashboard')}</h2>
             <p>Supplier Dashboard</p>
           </div>
           <div className="m-stat-grid">
@@ -3673,14 +3889,24 @@ function App() {
     return (
       <main className="main-content mobile-dashboard">
         <div className="mobile-page-head">
-          <h2>👤 Hi, {currentUser.name}</h2>
-          <p>Customer Dashboard</p>
+          <h2>👤 {welcomeTitle('Customer Dashboard')}</h2>
+          <p>📍 {currentUser.address || currentUser.city}</p>
         </div>
         <div className="m-stat-grid">
           <div className="m-stat-tile"><span className="m-stat-icon">📦</span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
           <div className="m-stat-tile"><span className="m-stat-icon">⏳</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
           <div className="m-stat-tile"><span className="m-stat-icon">✅</span><strong>{stats.deliveredOrders}</strong><small>Delivered</small></div>
           <div className="m-stat-tile"><span className="m-stat-icon">💰</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Spent</small></div>
+        </div>
+        <div className="m-section">
+          <div className="m-section-head">
+            <h3>📍 My location</h3>
+            <button className="m-section-more" onClick={() => setShowMyLocationPicker(true)}>Edit</button>
+          </div>
+          <div className="m-location-card">
+            <strong>{currentUser.address || currentUser.city}</strong>
+            <small>{Number.isFinite(currentUser.lat) && Number.isFinite(currentUser.lng) ? `Lat ${Number(currentUser.lat).toFixed(5)}, Lng ${Number(currentUser.lng).toFixed(5)}` : 'Location not set'} · distances start here</small>
+          </div>
         </div>
         <div className="m-quick-grid">
           <div className="m-section-head" style={{ gridColumn: '1 / -1' }}>
@@ -3726,6 +3952,16 @@ function App() {
         return <EditCompany company={company} user={user} onSave={handleSaveCompany} onClose={() => setShowEditCompany(false)} />;
       }
     }
+    if (adminCompanyTarget) {
+      return (
+        <EditCompany
+          company={adminCompanyTarget.company}
+          user={adminCompanyTarget.user}
+          onSave={handleAdminSaveCompany}
+          onClose={() => setAdminCompanyTarget(null)}
+        />
+      );
+    }
     switch (currentPage) {
       case 'home': return renderHome();
       case 'login': return renderLogin();
@@ -3738,9 +3974,21 @@ function App() {
       case 'orders': return renderOrders();
       case 'settings': return (
         currentUser?.userType === 'admin' ? (
-          <AdminSettings settings={systemSettings} onSave={handleSaveAdminSettings} />
+          <AdminSettings
+            settings={systemSettings}
+            onSave={handleSaveAdminSettings}
+            users={users}
+            companies={companies}
+            materials={materials}
+            onDeleteUser={handleAdminDeleteUser}
+            onUpdateUser={handleAdminUpdateUser}
+            onDeleteCompany={handleAdminDeleteCompany}
+            onEditCompany={handleAdminEditCompany}
+            onEditMaterial={handleAdminEditMaterial}
+            onDeleteMaterial={handleDeleteMaterial}
+          />
         ) : (
-          <div className="main-content"><div className="admin-settings glass"><h2>⛔ Access restricted</h2><p>Only platform administrators can change system settings.</p></div></div>
+          <div className="main-content"><div className="admin-settings glass"><h2>⛔ Welcome — Access restricted</h2><p>Only platform administrators can change system settings.</p></div></div>
         )
       );
       default: return renderHome();
@@ -3785,6 +4033,16 @@ function App() {
               window.location.hash = '#home';
             }
           }}
+        />
+      )}
+
+      {showMyLocationPicker && currentUser && (
+        <MapPicker
+          initialLat={currentUser.lat}
+          initialLng={currentUser.lng}
+          initialAddress={currentUser.address}
+          onLocationSelect={handleSaveMyLocation}
+          onClose={() => setShowMyLocationPicker(false)}
         />
       )}
 

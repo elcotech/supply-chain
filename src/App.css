@@ -1397,11 +1397,23 @@ body {
   margin-top: 12px;
   padding: 12px;
   background: var(--surface-alt, rgba(120, 120, 120, 0.08));
+  border: 2px solid var(--accent);
   border-radius: 10px;
+  font-weight: 700;
 }
 .cart-summary h3 {
   margin: 0 0 8px;
   font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+.cart-summary .vat-pending {
+  font-weight: 500;
+  color: var(--text-light);
+}
+.cart-summary .vat-payable {
+  color: var(--accent);
+  font-weight: 800;
 }
 .summary-row {
   display: flex;
@@ -1410,8 +1422,9 @@ body {
   font-size: 0.85rem;
 }
 .summary-row.total {
-  font-weight: 700;
-  border-top: 2px solid var(--border);
+  font-weight: 800;
+  color: var(--accent);
+  border-top: 2px solid var(--accent);
   margin-top: 6px;
   padding-top: 8px;
   font-size: 0.95rem;
@@ -4858,27 +4871,36 @@ a:focus-visible {
     padding: 0 14px;
     border: none;
     border-radius: 18px;
-    background: linear-gradient(135deg, var(--secondary), var(--secondary-light));
-    color: #fff;
+    background: linear-gradient(135deg, var(--warning), #f7dc6f);
+    color: #172033;
     font-weight: 800;
     font-size: 0.75rem;
     cursor: pointer;
+    box-shadow: 0 2px 8px rgba(241, 196, 15, 0.35);
+  }
+  .m-pc-add-btn.ordered {
+    background: linear-gradient(135deg, var(--accent), #27ae60);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(46, 204, 113, 0.35);
   }
   .m-pc-add-btn:disabled { opacity: 0.45; cursor: not-allowed; }
   .m-pc-map-btn {
     flex: 0 0 auto;
-    width: 44px;
     min-height: 36px;
+    padding: 0 10px;
     border: 1px solid rgba(52, 152, 219, 0.35);
     background: rgba(52, 152, 219, 0.12);
     color: var(--info);
     border-radius: 18px;
-    font-size: 0.85rem;
+    font-size: 0.72rem;
+    font-weight: 700;
     line-height: 1;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 3px;
+    white-space: nowrap;
     transition: transform 0.12s ease;
   }
   .m-pc-map-btn:active { transform: scale(0.95); }
@@ -5724,7 +5746,32 @@ a:focus-visible {
 
 /* ------------------------- Print (A4) ------------------------- */
 @media print {
-  .pf-document { font-size: 0.72rem; color: #173b63; }
+  @page { size: A4 portrait; margin: 6mm; }
+  /* ProformaInvoice.tsx measures the document before printing and lowers this
+     variable until the whole document fits one A4 page. */
+  .pf-document {
+    font-size: 0.72rem;
+    color: #173b63;
+    zoom: var(--pf-print-zoom, 1);
+    transform-origin: top left;
+  }
+  .pf-header,
+  .pf-parties,
+  .pf-items,
+  .pf-summary-wrap,
+  .pf-terms,
+  .pf-signatures,
+  .pf-footer,
+  .pf-box,
+  .pf-delivery-box,
+  .pf-summary,
+  .pf-words,
+  .pf-term-item,
+  .pf-sig-box,
+  .pf-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
   /* The print page box is narrower than the desktop app, which would trigger the
      phone layout — re-assert the 3-column GRID (never flex) so the QR always
      prints at the top right, opposite the logo, and cannot wrap under the
@@ -5850,7 +5897,20 @@ a:focus-visible {
 .order-box-hint { font-size: 0.8rem; color: var(--text-light); }
 .order-box-total { margin-top: 10px; font-size: 0.9rem; color: var(--text-light); }
 .order-box-total strong { color: var(--text); font-size: 1.05rem; }
-.order-box-btn { width: 100%; margin-top: 10px; min-height: 44px; }
+.order-box-btn {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 44px;
+  background: linear-gradient(135deg, var(--warning), #f7dc6f);
+  color: #172033;
+  border: none;
+  font-weight: 800;
+}
+.order-box-btn:hover { filter: brightness(1.04); }
+.order-box-btn.is-ordered {
+  background: linear-gradient(135deg, var(--accent), #27ae60);
+  color: #fff;
+}
 /* With / without delivery cost, chosen while filling in the quantity. */
 .order-box-delivery {
   display: flex;
@@ -6546,4 +6606,79 @@ a:focus-visible {
   color: var(--text-light);
   font-size: 0.72rem;
   line-height: 1.45;
+}
+
+/* =====================================================================
+   v6.4 - editable seed data, admin data manager & aggregate VAT
+   ===================================================================== */
+.admin-data-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.admin-data-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(127, 127, 127, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.admin-location-edit {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(127, 127, 127, 0.28);
+}
+.admin-location-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.my-location-text { margin: 0 0 4px; font-weight: 600; }
+.my-location-hint { color: var(--text-light); }
+.m-location-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid rgba(46, 204, 113, 0.35);
+  border-radius: 12px;
+  background: rgba(46, 204, 113, 0.08);
+}
+.m-location-card strong { font-size: 0.85rem; }
+.m-location-card small { color: var(--text-light); font-size: 0.68rem; }
+.admin-data-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-data-main strong {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.admin-data-main small {
+  color: var(--text-light);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+.admin-data-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.admin-data-protected {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

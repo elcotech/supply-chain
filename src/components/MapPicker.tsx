@@ -21,14 +21,15 @@ interface MapPickerProps {
   onLocationSelect: (lat: number, lng: number, address: string) => void;
   initialLat?: number;
   initialLng?: number;
+  initialAddress?: string;
   onClose: () => void;
 }
 
-const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, initialLng, onClose }) => {
+const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, initialLng, initialAddress, onClose }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
-  const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [selectedAddress, setSelectedAddress] = useState<string>(initialAddress || '');
   const [locateStatus, setLocateStatus] = useState<'idle' | 'locating' | 'granted' | 'denied' | 'unavailable' | 'timeout' | 'unsupported'>('idle');
   const locateTimeoutRef = useRef<number | null>(null);
 

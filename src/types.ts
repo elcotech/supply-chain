@@ -173,6 +173,11 @@ export interface FormData {
   materialGrade: string;
   materialOrigin: string;
   materialCertifications: string;
+  materialProfitMargin: string;
+  materialTransportCost: string;
+  materialVatPercentage: string;
+  materialTaxIncluded: boolean;
+  materialWeightPerUnit: string;
   materialImages: string[];
   materialDeliveryOffered: boolean;
   materialDeliveryPerKm: string;
@@ -244,6 +249,8 @@ export interface CartReport {
   items: CartItem[];
   subtotal: number;
   vatAmount: number;
+  /** VAT rate (%) applied once to the aggregate goods subtotal. */
+  vatRate?: number;
   transportCost: number;
   total: number;
   distanceKm: number;
@@ -296,11 +303,19 @@ export interface MinOrderSettings {
   amount: number;
 }
 
+export interface VatSettings {
+  /** Whether VAT is charged on the goods subtotal. */
+  enabled: boolean;
+  /** VAT rate (%) applied once to the whole net goods subtotal. */
+  rate: number;
+}
+
 export interface SystemSettings {
   version: number;
   currency: 'ETB';
   delivery: DeliverySettings;
   minOrder: MinOrderSettings;
+  vat: VatSettings;
 }
 
 /**

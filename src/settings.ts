@@ -9,7 +9,7 @@ import { cloudPushNow } from './lib/cloudStore';
 export const SETTINGS_KEY = 'system_settings';
 
 export const DEFAULT_SETTINGS: SystemSettings = {
-  version: 1,
+  version: 2,
   currency: 'ETB',
   delivery: {
     mode: 'distance-based',
@@ -28,6 +28,10 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   minOrder: {
     enabled: false,
     amount: 5000,
+  },
+  vat: {
+    enabled: true,
+    rate: 15,
   },
 };
 
@@ -56,6 +60,10 @@ export const loadSettings = (): SystemSettings => {
       minOrder: {
         enabled: Boolean(parsed.minOrder?.enabled),
         amount: numberOr(parsed.minOrder?.amount, DEFAULT_SETTINGS.minOrder.amount),
+      },
+      vat: {
+        enabled: parsed.vat?.enabled !== false,
+        rate: Math.min(100, numberOr(parsed.vat?.rate, DEFAULT_SETTINGS.vat.rate)),
       },
     };
   } catch (error) {

@@ -10,6 +10,17 @@ describe('system settings persistence', () => {
   it('returns defaults when nothing is stored', () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings().currency).toBe('ETB');
+    expect(loadSettings().vat).toEqual({ enabled: true, rate: 15 });
+  });
+
+  it('keeps a legacy settings object working by adding VAT defaults', () => {
+    localStorage.setItem('system_settings', JSON.stringify({
+      version: 1,
+      currency: 'ETB',
+      delivery: DEFAULT_SETTINGS.delivery,
+      minOrder: DEFAULT_SETTINGS.minOrder,
+    }));
+    expect(loadSettings().vat).toEqual({ enabled: true, rate: 15 });
   });
 
   it('round-trips a full custom configuration', () => {
@@ -27,6 +38,7 @@ describe('system settings persistence', () => {
         ],
       },
       minOrder: { enabled: true, amount: 2500 },
+      vat: { enabled: true, rate: 15 },
     };
     saveSettings(custom);
     const loaded = loadSettings();
@@ -36,6 +48,7 @@ describe('system settings persistence', () => {
     expect(loaded.delivery.zones).toHaveLength(1);
     expect(loaded.minOrder.enabled).toBe(true);
     expect(loaded.minOrder.amount).toBe(2500);
+    expect(loaded.vat.rate).toBe(15);
   });
 
   it('repairs corrupted stored JSON', () => {

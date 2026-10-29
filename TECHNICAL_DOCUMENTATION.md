@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.2 (VAT-exclusive product pricing; 15% VAT added at purchase/proforma)
-> **Previous:** 6.1 (global cloud sync for products and all shared data, Amount Before VAT on the proforma)
+> **Version:** 6.5 (Supabase seed, VAT added at order, one-page proforma, editable locations, GPS ordering)
+> **Previous:** 6.4 (admin data manager, VAT calculated once on the whole cart)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -20,7 +20,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56) and [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60)
+10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -41,7 +41,8 @@
 - Product catalogue with **live search & filtering** (department, **supplier**, city, max price, sorting).
 - **GIS supplier mapping** built on Leaflet, with **driving routes**, **distance**, and **transport cost** calculations.
 - **Company dashboards** for suppliers to manage products & orders, and **customer dashboards** for order history.
-- **Cart & checkout** flow with **VAT-exclusive product prices** (15% VAT added at purchase/proforma, never deducted from supplier prices) and **per-line** delivery-fee computation (buyer's with/without-delivery choice, supplier-set per-km rate, platform fallback).
+- **Cart & checkout** flow with **VAT-exclusive product prices**. VAT is **not** added when a product enters the cart: the cart shows goods + delivery and states that VAT is added when the order is placed. `confirmOrder` and both proforma actions price the cart with `calculateCartTotals(true)`, applying **one aggregate VAT** to the whole net goods subtotal (admin-configurable rate, never deducted from supplier prices, never rounded per line), plus **per-line** delivery-fee computation (buyer's with/without-delivery choice, supplier-set per-km rate, platform fallback).
+- **Editable data** - no business records are hard-coded in `src/constants.ts`. A fresh install starts with the admin account only; demo accounts, suppliers, materials and orders are loaded with [`supabase/seed.sql`](../supabase/seed.sql) (an idempotent upsert). Every saved record, including an empty collection, is respected after refresh. Admins can edit/delete accounts, suppliers and every product field from **Settings**, including any account's saved location.
 - **Proforma invoices** — **one proforma for the whole cart** (any number of items and suppliers), scannable QR fixed in the header, print-ready.
 - **Compliance** data capture (TIN, business license, VAT).
 - CSV **export** and **printable reports** — **suppliers and admins only**; customers have no export surface at all (§10.5).
@@ -107,15 +108,25 @@ npx tsc --noEmit
 
 New registrations default to password `0909` when left blank.
 
-**Registration location (v6.0).** New suppliers get a random near-Addis
-`lat`/`lng` at registration; there is no map pin step in the current register
-form. The supplier can afterwards set the exact location from **Profile → Edit
-Company Profile**, which embeds the shared
-[`MapPicker`](../src/components/MapPicker.tsx). The form also writes the
-company's address, city and coordinates together, so buyers can route to the
-supplier immediately after the profile is saved.
+**Seed data (v6.5).** The demo dataset now lives in
+[`supabase/seed.sql`](../supabase/seed.sql), not in `src/constants.ts`. Run
+[`supabase/schema.sql`](../supabase/schema.sql) once, then paste
+`seed.sql` into the Supabase SQL editor. It upserts the `escon_kv` rows for
+`users`, `companies`, `materials`, `orders`, `notifications`, `wallets`,
+`wallet_transactions`, `reviews` and `system_settings`, so re-running it does not
+duplicate records. On devices with no cloud configuration the app starts empty
+except for the admin account.
 
-> The **Admin** account is a seeded platform role. Only admins see the **⚙️ Settings** page where the delivery-fee model, delivery zones, free-delivery threshold and minimum-order rule are configured (see §10.16). It is created automatically on first load if missing.
+**Registration and editable locations (v6.5).** Registration geocodes the typed
+address/city with Nominatim and stores the real `lat`/`lng` (falling back to
+central Addis Ababa only if geocoding fails). Customers can correct the pin at
+any time from **Dashboard → My Location**, which uses the shared
+[`MapPicker`](../src/components/MapPicker.tsx) and saves the address, city and
+coordinates back to their account. Suppliers edit the same pin from **Profile →
+Edit Company Profile**. Admins can correct any account from **Settings → Data
+Manager → Location**. Delivery distances always use this saved pin.
+
+> The **Admin** account is a seeded platform role. Only admins see the **⚙️ Settings** page where the delivery-fee model, delivery zones, free-delivery threshold, minimum-order rule and VAT rate are configured, and where accounts, suppliers and products can be managed (see §10.16). It is created automatically on first load if missing and cannot be deleted from the data manager.
 
 ---
 
@@ -186,7 +197,7 @@ supply-chain1/
 
 1. `App` mounts → `showSplash = true` → splash screen for **3 seconds**, then `currentPage = 'home'`.
 2. An initialization `useEffect` reads `localStorage` (`users`, `companies`, `materials`, `orders`, `currentUser`).
-3. Sample data is used when nothing is stored, and geocoding of supplier addresses runs once via Nominatim.
+3. Sample data is used **only when a collection has never been stored** (first run). Once a key exists, even as `[]`, the saved collection is authoritative - deleted sample rows are never re-added - and geocoding of supplier addresses runs once via Nominatim.
 4. Every mutation of state arrays is persisted back to `localStorage` via dedicated `useEffect`s.
 
 **Data flow example (search)**
@@ -199,8 +210,8 @@ supply-chain1/
 
 **Data flow example (proforma)**
 
-1. Cart → `1 To Purchase` / `2 To Proforma` / `3 To Preview` → `confirmOrder()` / `handlePrintProforma()` / `handlePreviewProforma()`. All three price the same cart; only the destination differs.
-2. `priceCartItems(cart)` builds the **whole-cart** `CartReport`: subtotal, per-item VAT, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox → supplier's `startFee + perKm × km` → platform fallback), grouped by supplier with distance, mode and fee each. A cart holds one supplier (§10.23), so the report normally has a single group.
+1. Cart → `1 To Purchase` / `2 To Proforma` / `3 To Preview` → `confirmOrder()` / `handlePrintProforma()` / `handlePreviewProforma()`. All three price the same cart with VAT (`true`); only the destination differs.
+2. `priceCartItems(cart, applyVat)` builds the **whole-cart** `CartReport`: net subtotal, **one aggregate VAT** (`vatOnSubtotal`) only when `applyVat` is true, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox → supplier's `startFee + perKm × km` → platform fallback), grouped by supplier with distance, mode and fee each. A cart holds one supplier (§10.23), so the report normally has a single group.
 3. The report is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched) and `showProforma` is set. `To Preview` also clears `proformaAutoPrint`; `To Proforma` sets it, which makes `ProformaInvoice` fire `window.print()` once the modal has painted.
 4. `ProformaInvoice` renders from `proformaDetails` — every item, the supplier, the delivery breakdown and the supplier's signature block beside the buyer's.
 5. `buildProformaShareData` + `generateProformaQrDataUrl` encode the compact summary into the QR, which is a fixed top-right cell of the **document header** grid regardless of item count; the payload is capped at `MAX_QR_LINE_ITEMS` with the true count in `tc`, and `PublicProforma` renders it on scan.
@@ -281,8 +292,11 @@ alter a cart the buyer already priced.
 //                          distanceBaseFee, distancePerKmPerTon,
 //                          freeDeliveryThreshold, zones: DeliveryZone[] }
 // MinOrderSettings       { enabled, amount }
+// VatSettings            { enabled, rate }            // rate = percent, applied once
 // SystemSettings         { version, currency: 'ETB',
-//                          delivery: DeliverySettings, minOrder: MinOrderSettings }
+//                          delivery: DeliverySettings, minOrder: MinOrderSettings,
+//                          vat: VatSettings }
+// CartReport             also carries vatRate for the single cart-level VAT row.
 
 // Compact NON-SENSITIVE proforma summary embedded in the QR code.
 // ProformaShareData      { v, n (proforma no), d (date), b (buyer name),
@@ -432,9 +446,9 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 ### 10.5 Cart & checkout
 **One supplier per cart (v5.6):** a proforma is a legal document issued by a single seller, and every distance, delivery rate, VAT line and signature on it assumes one, so a cart may only hold one supplier's goods. `findOtherCartSupplier` (the pure, unit-tested rule in `utils.ts`, wrapped by `otherSupplierInCart` in `App.tsx`) refuses an add from a second supplier with a warning naming both suppliers, and **leaves the cart exactly as it was** — it is never cleared or replaced on the buyer's behalf. The same rule is re-checked inside `addToCartLogic`'s functional `setCart` update against `prev` (the real cart at the moment of the write), so a cart persisted by an older build cannot smuggle in a second supplier. Re-adding a product that is already in the cart is a quantity change, not a new supplier, so it skips the check. See [10.23](#1023-single-supplier-cart-v56).
 
-Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is `false`, default 15%), so VAT is never extracted from the entered price. `priceCartItems` sums the net line totals into `subtotal`, calls `addedVat(lineTotal, vatPercentage)` to compute VAT on top, and sets `total = subtotal + vatAmount + transportCost`. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item with the same added-VAT figure and `totalAmount = materialTotal + vatAmount + transportCost`, resets the cart, and shows the Orders page. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
+Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`; older sample rows are normalised on load), so VAT is never extracted from the entered price. `priceCartItems` sums the net line totals into `subtotal`. With `applyVat` false (cart, re-price, back-to-purchase, delivery-fee reset) `vatAmount` is `0`; with `applyVat` true (both proforma actions and `confirmOrder`) it calls **`vatOnSubtotal(subtotal, settings.vat.rate, settings.vat.enabled)` once** for the whole cart and sets `total = subtotal + vatAmount + transportCost`. VAT is therefore never rounded per line. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item; `allocateVat` splits the single cart VAT across those rows by their net value (last row absorbs the rounding remainder), so the orders always sum to the proforma total. The cart shows a pending-VAT note and a VAT-inclusive payable figure (used for the wallet check); the proforma shows the VAT amount. The cart then resets and the Orders page opens. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
 
-**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals`, so the figures cannot disagree. The bottom of the modal now holds only `Clear Cart` — placing the order in two places at once was a way to commit to the wrong total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
+**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals(true)`, so the figures cannot disagree (the cart modal itself prices with `calculateCartTotals(false)`). The bottom of the modal now holds only `Clear Cart` — placing the order in two places at once was a way to commit to the wrong total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
 
 **Back to "To Purchase" (v5.7):** the proforma is a **full-screen overlay**, and its old `← Back to Cart` button only called `setShowProforma(false)` — which left the buyer on whatever page was behind it with no cart open. Anyone who opened "To Proforma" to check a figure and then wanted to order had to hunt for the 🛒 icon again, and a buyer who had just reviewed a delivery total had no obvious way to commit to it. The proforma's second button is now **🛒 Back to To Purchase** and takes the optional `onBackToPurchase` prop, wired in `App.tsx` to `handleBackToPurchase()`:
 - It clears `showProforma` **and** `proformaAutoPrint` — a later "To Preview" must not inherit a queued print.
@@ -468,7 +482,7 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is `false`, defaul
 ### 10.6 Company dashboard
 Suppliers see their products (with photos) and can **view / edit / delete** them, manage orders (confirm pending ones), and open the **Edit Company Profile** modal from the dashboard or the desktop **Profile** nav link. That modal edits the company profile, logo, exact map location and account details; products stay on the dashboard (see [10.25](#1025-company-profile-editing-v60)).
 
-**Header shows the supplier's name (v5.6):** the supplier's own name is bold and centred on **both** dashboards. Desktop renders `<p className="dashboard-supplier-name">{company?.name}</p>` inside `.dashboard-header-supplier`, on its own line under the "Supplier Dashboard" title, replacing the old `Welcome {company?.name}!` paragraph. Mobile puts the same `.dashboard-supplier-name` on the `<h2>` of `.mobile-page-head-supplier`, with "Supplier Dashboard" demoted to the `<p>` subtitle and the old `🏢` prefix dropped from the name. The rules are scoped to the supplier pages so the **customer** dashboard keeps its `Welcome {currentUser.name}!` / `Hi, {name}` greeting and its left alignment, and `word-break: break-word` keeps a long trading name from overflowing on a phone.
+**Header shows the supplier's name (v5.6):** the supplier's own name is bold and centred on **both** dashboards. Desktop renders `<p className="dashboard-supplier-name">{company?.name}</p>` inside `.dashboard-header-supplier`, on its own line under the **Welcome - Supplier Dashboard** page heading (v6.5), replacing the old `Welcome {company?.name}!` paragraph. Mobile puts the same `.dashboard-supplier-name` on the `<h2>` of `.mobile-page-head-supplier`, with "Supplier Dashboard" demoted to the `<p>` subtitle and the old `🏢` prefix dropped from the name. The rules are scoped to the supplier pages so the **customer** dashboard keeps its `Welcome {currentUser.name}!` / `Hi, {name}` greeting and its left alignment, and `word-break: break-word` keeps a long trading name from overflowing on a phone.
 
 **Own-stock detail (v5.4):** a supplier always sees everything about *their own* stock (this is the one surface where a stock number is not behind `canSeeStock`, because a supplier is reading their own inventory):
 - A **"📥 My stock"** card with four tiles: units in stock, stock value (`Σ quantity × price`), low-stock lines (`0 < quantity ≤ LOW_STOCK_THRESHOLD`) and out-of-stock lines. The tiles turn amber/red when the count is above zero.
@@ -551,7 +565,9 @@ Demo auth with lockout: 3 failed logins → 30-second lock (`loginAttempts`, `lo
   3. **Delivery zones** — a flat fee override keyed by the customer's city (e.g. Addis Ababa `400`, Adama `700`).
   Plus a **free-delivery threshold**: when the goods subtotal reaches it, delivery is `0`.
 - **Minimum order** — a goods-subtotal threshold. When enforced, the cart shows a visible warning and the **Confirm Order** button is disabled until the cart qualifies; `confirmOrder` double-checks the rule as a final guard.
-- **Who can use it:** only `userType === 'admin'` sees the ⚙️ Settings page (seeded account `admin@escon.et`). The seeder runs during initialization and re-creates the admin if removed from localStorage.
+- **VAT (v6.4)** �?" an enable/disable switch and a percentage rate (`settings.vat`). The rate is applied **once** to the whole net goods subtotal; delivery is never taxed. New and edited products store the current rate for reference, but pricing reads the admin setting.
+- **Accounts, suppliers & products (v6.4)** �?" the same page lists every account (delete non-admin users), every supplier profile (edit or delete it with its products) and the full catalogue (search, edit every field, delete). Deleting a supplier/account also removes its products, cart lines, notifications, wallet and ledger rows so initialization cannot "heal" it back.
+- **Who can use it:** only `userType === 'admin'` sees the ⚙️ Settings page (seeded account `admin@escon.et`). The seeder runs during initialization and re-creates the admin if removed from localStorage; the admin account is protected from deletion in the data manager.
 
 ### 10.17 Professional Proforma + scannable QR (NEW in v4)
 - **Files:** `src/components/ProformaInvoice.tsx`, `src/components/PublicProforma.tsx`.
@@ -672,6 +688,51 @@ Products stay on the supplier dashboard: add/edit/delete and the
 **Dimensions**, **Grade**, **Origin**, comma-separated **Certifications**) are
 unchanged. The v5.9 `my-business` page, its `myBusinessTab` state and the
 desktop/More-sheet **My Business** links are **not present in the v6.1 build**.
+
+---
+
+### 10.26 Cart/order UX, locations & one-page proforma (v6.5)
+
+**Data is no longer hard-coded.** `src/constants.ts` now exports only
+`ETHIOPIAN_CITIES`, `MEASUREMENT_UNITS` and `DEPARTMENTS`. `App.tsx` initializes
+`users`, `companies`, `materials` and `orders` from `localStorage`/Supabase or
+from `[]`; the admin seeder still guarantees `admin@escon.et`. Demo data is the
+idempotent `supabase/seed.sql` described in [4. Getting Started](#4-getting-started).
+
+**VAT timing.** `priceCartItems(items, applyVat = false)` and
+`calculateCartTotals(applyVat = false)` default to the net cart used by the
+cart modal and its re-pricing effect. `handlePrintProforma`,
+`handlePreviewProforma` and `confirmOrder` pass `true`, so VAT appears on the
+proforma and is charged on placement, never when the product is added. The cart
+summary hides the VAT amount, shows `VAT (x%): Added when you place the order`,
+and keeps a separate VAT-inclusive payable figure for wallet validation only.
+`priceCartItems` still computes VAT once on the aggregate goods subtotal.
+
+**Order / Ordered colours.** Order actions are yellow: `.m-pc-add-btn` (mobile
+product card) and `.order-box-btn` (product details). Once the line is in the
+cart they become green via `.m-pc-add-btn.ordered` / `.order-box-btn.is-ordered`.
+The cart summary box uses a green border, green heading, and green bold totals
+(`.cart-summary`, `.summary-row.total`, `.summary-row.vat-payable`).
+
+**GPS beside Order.** `MobileProductCard` renders `.m-pc-map-btn` (`🗺️ GPS`)
+next to the yellow Order button in `.m-pc-buy`; it calls
+`handleOpenMapWithRoute(company.id)`, the same route/selection path as the
+desktop “View Route on Map” control.
+
+**One-page print.** `ProformaInvoice.tsx` keeps a ref to `.pf-document`. Before
+printing it resets `--pf-print-zoom` to `1`, temporarily measures the document at
+`198mm` (A4 width minus 6mm margins), then sets the variable to
+`min(1, printableHeight / measuredHeight)`. `beforeprint` repeats the fit and
+`afterprint` resets it. `@media print` applies
+`zoom: var(--pf-print-zoom, 1)` and uses `@page { size: A4 portrait; margin: 6mm; }`
+plus `break-inside: avoid` for every major block.
+
+**My Location.** The customer dashboard (desktop and mobile) shows a **My
+Location** card with the saved address and coordinates. It opens `MapPicker`;
+`handleSaveMyLocation` writes `lat`, `lng` and reverse-geocoded address to the
+current user and (for suppliers) their company, so the next search/order uses the
+correct distance. Admin edits go through `handleAdminUpdateUser`
+(`onUpdateUser` prop on `AdminSettings`).
 
 ---
 
@@ -1020,6 +1081,52 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.5 — Supabase seed, VAT at order, one-page proforma & editable locations
+- **Hard-coded business records removed.** `src/constants.ts` keeps only the
+  city / unit / department reference lists; `App.tsx` falls back to `[]`. The
+  demo data moves to `supabase/seed.sql` (idempotent upsert of every `escon_kv`
+  key, generated from the previous sample arrays).
+- **VAT only at order time.** The cart no longer adds VAT on add or re-price. The
+  proforma and placed order apply one aggregate VAT through
+  `calculateCartTotals(true)`; the cart shows a clear pending-VAT note and checks
+  wallet balance against the VAT-inclusive total.
+- **One-page proforma.** `ProformaInvoice` measures `.pf-document` at A4 width and
+  sets `--pf-print-zoom` before every print, so long invoices scale down instead
+  of producing a second page.
+- **Locations everywhere.** Registration geocodes the address; customers get a
+  **My Location** card/`MapPicker`; admins can edit any user's coordinates from
+  Settings; supplier profile editing is unchanged.
+- **Order affordances.** Mobile product cards now show **🗺️ GPS** beside **Order**.
+  Order buttons are yellow; ordered/update buttons and the cart summary are green.
+- **Welcome headings** on page-level headings across desktop and mobile.
+- **Docs, tests & release.** README, this document, `docs/CLOUD_DATABASE.md` and
+  `docs/USER_GUIDE.md` describe the seed and new flows; `npm test` (55 tests) and
+  `npm run build` pass. Bumped `versionCode` 7 → 8, `versionName` 1.6 → 1.7 and
+  `sw.js` `VERSION` `e-scon-v1.9.0` → `e-scon-v1.10.0`.
+
+### v6.4 — editable data, admin data manager & single aggregate VAT
+- **Seed data no longer resets.** Initialization uses `sampleUsers` /
+  `sampleCompanies` / `sampleMaterials` / `sampleOrders` **only when the key is
+  absent**. A saved empty collection is respected, saved companies are no longer
+  merged back with `sampleCompanies`, and persistence writes empty arrays too.
+  Deleted demo rows therefore stay deleted after refresh.
+- **Every product field is editable.** The add/edit forms now expose profit
+  margin, transport estimate, weight per unit, model, packed weight, dimensions,
+  grade, origin and certifications. The old hard-coded 15% margin / 15 ETB
+  transport / 0.001 t weight are form defaults instead.
+- **Admin data manager.** **Settings** now lists accounts, suppliers and the
+  catalogue. Admins can delete non-admin accounts, edit/delete supplier profiles
+  (with their products) and search/edit/delete any product. The seeded admin
+  account is protected.
+- **VAT is calculated once.** `vatOnSubtotal()` computes VAT on the aggregate
+  net goods subtotal and `allocateVat()` splits that single amount across order
+  rows by net value, so cart, proforma and orders always agree. The rate and an
+  enable switch live in `SystemSettings.vat` and are editable in **Settings**.
+  Legacy `taxIncluded: true` sample rows are normalised to the VAT-exclusive
+  model on initialization.
+- **Housekeeping** — bumped `versionCode` 7 → 8, `versionName` 1.6 → 1.7 and
+  `sw.js` `VERSION` `e-scon-v1.9.0` → `e-scon-v1.10.0`.
 
 ### v6.3 — VAT always in the total & supplier profile recovery
 

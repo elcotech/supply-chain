@@ -56,6 +56,46 @@ export const cartGrandTotal = (subtotal: number, vatAmount: number, delivery: nu
   return round2(goods + vat + fee);
 };
 
+/**
+ * VAT for the whole cart. Unlike the old per-line approach, the tax is computed
+ * exactly once from the aggregate net goods subtotal, so rounding cannot drift
+ * when several lines are bought together.
+ */
+export const vatOnSubtotal = (
+  netSubtotal: number,
+  rate: number,
+  enabled = true
+): { rate: number; vatAmount: number; grossAmount: number } => {
+  const net = typeof netSubtotal === 'number' && isFinite(netSubtotal) && netSubtotal > 0 ? netSubtotal : 0;
+  const percentage = enabled && typeof rate === 'number' && isFinite(rate) && rate > 0
+    ? Math.min(100, rate)
+    : 0;
+  const vatAmount = addedVat(net, percentage);
+  return { rate: percentage, vatAmount, grossAmount: round2(net + vatAmount) };
+};
+
+/**
+ * Split one aggregate VAT amount across individual order lines by their net
+ * value. The last line absorbs any rounding remainder so the sum always equals
+ * the VAT on the proforma and cart total.
+ */
+export const allocateVat = (netAmounts: number[], totalVat: number): number[] => {
+  const amounts = (netAmounts || []).map(amount =>
+    typeof amount === 'number' && isFinite(amount) && amount > 0 ? amount : 0
+  );
+  const totalNet = amounts.reduce((sum, amount) => sum + amount, 0);
+  const vat = typeof totalVat === 'number' && isFinite(totalVat) && totalVat > 0 ? totalVat : 0;
+  if (amounts.length === 0 || totalNet <= 0 || vat <= 0) return amounts.map(() => 0);
+
+  let allocated = 0;
+  return amounts.map((amount, index) => {
+    if (index === amounts.length - 1) return round2(vat - allocated);
+    const share = round2(vat * amount / totalNet);
+    allocated = round2(allocated + share);
+    return share;
+  });
+};
+
 export const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-ET', { year: 'numeric', month: 'short', day: 'numeric' });
 };
@@ -512,7 +552,7 @@ export const printCartReport = async (reportData: any) => {
         ${supplierBlocks}
         <div class="summary">
           <div class="summary-row"><span>Subtotal (before VAT):</span><strong>${formatCurrency(reportData.subtotal)}</strong></div>
-          <div class="summary-row"><span>VAT (${addedVatRate(reportData.subtotal, reportData.vatAmount)}% added):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
+          <div class="summary-row"><span>VAT (${typeof reportData.vatRate === 'number' ? reportData.vatRate : addedVatRate(reportData.subtotal, reportData.vatAmount)}% added once):</span><strong>${formatCurrency(reportData.vatAmount)}</strong></div>
           <div class="summary-row"><span>Delivery Fee (${suppliers.length} supplier${suppliers.length === 1 ? '' : 's'}):</span><strong>${formatCurrency(reportData.transportCost)}</strong></div>
           <div class="summary-row total"><span>Total Amount:</span><strong>${formatCurrency(reportData.total)}</strong></div>
         </div>
@@ -539,7 +579,7 @@ export const exportCartToCSV = (cart: any[], totals: any) => {
     'Unit': item.unit,
     'Unit Price (before VAT)': item.price,
     'Line Total (before VAT)': item.price * item.quantity,
-    'VAT (added)': addedVat(item.price * item.quantity, item.vatPercentage || 15),
+    'VAT (added once at checkout)': '',
     'Total with VAT and Delivery': ''
   }));
   exportData.push({
@@ -549,7 +589,7 @@ export const exportCartToCSV = (cart: any[], totals: any) => {
     'Unit': '',
     'Unit Price (before VAT)': '',
     'Line Total (before VAT)': totals.subtotal,
-    'VAT (added)': totals.vatAmount,
+    'VAT (added once at checkout)': totals.vatAmount,
     'Total with VAT and Delivery': totals.total
   });
   exportToCSV(exportData, 'cart_detailed_report');

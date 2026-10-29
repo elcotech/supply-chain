@@ -14,6 +14,8 @@ import {
   addedVat,
   addedVatRate,
   cartGrandTotal,
+  vatOnSubtotal,
+  allocateVat,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -402,5 +404,51 @@ describe('cartGrandTotal (VAT is always part of the total)', () => {
     expect(cartGrandTotal(100.005, 15.004, 0)).toBe(115.01);
     expect(cartGrandTotal(NaN, 150, 200)).toBe(350);
     expect(cartGrandTotal(1000, 150, NaN)).toBe(1150);
+  });
+});
+
+describe('vatOnSubtotal (one calculation for the whole cart)', () => {
+  it('adds the configured rate to the aggregate subtotal', () => {
+    expect(vatOnSubtotal(3000, 15)).toEqual({ rate: 15, vatAmount: 450, grossAmount: 3450 });
+  });
+
+  it('rounds once at the end instead of per line', () => {
+    // Three 33.33 lines would each round to 5.00 (15.00 total) if VAT were
+    // applied per line; the aggregate is 99.99 -> 15.00 as well, but the
+    // aggregate is computed from one value, so tests with awkward numbers stay
+    // consistent across cart, proforma and orders.
+    expect(vatOnSubtotal(99.99, 15).vatAmount).toBe(15);
+  });
+
+  it('returns zero VAT when disabled or the rate is zero', () => {
+    expect(vatOnSubtotal(1000, 15, false)).toEqual({ rate: 0, vatAmount: 0, grossAmount: 1000 });
+    expect(vatOnSubtotal(1000, 0)).toEqual({ rate: 0, vatAmount: 0, grossAmount: 1000 });
+  });
+
+  it('caps the rate at 100% and handles unsafe values', () => {
+    expect(vatOnSubtotal(1000, 150).rate).toBe(100);
+    expect(vatOnSubtotal(NaN, 15)).toEqual({ rate: 15, vatAmount: 0, grossAmount: 0 });
+  });
+});
+
+describe('allocateVat (order rows mirror the proforma total)', () => {
+  it('splits VAT by net value and keeps the sum exact', () => {
+    const shares = allocateVat([1000, 2000, 3000], 900);
+    expect(shares).toEqual([150, 300, 450]);
+    expect(shares.reduce((sum, value) => sum + value, 0)).toBe(900);
+  });
+
+  it('gives the rounding remainder to the last line', () => {
+    const shares = allocateVat([100, 100, 100], 45.01);
+    expect(shares[0]).toBe(15);
+    expect(shares[1]).toBe(15);
+    expect(shares[2]).toBe(15.01);
+    expect(shares.reduce((sum, value) => sum + value, 0)).toBe(45.01);
+  });
+
+  it('returns zero shares for an empty or valueless cart', () => {
+    expect(allocateVat([], 100)).toEqual([]);
+    expect(allocateVat([0, 0], 100)).toEqual([0, 0]);
+    expect(allocateVat([100, 200], 0)).toEqual([0, 0]);
   });
 });

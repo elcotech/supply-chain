@@ -87,17 +87,25 @@ high-concurrency editing you would move to per-record tables.
 2. In the dashboard, open **SQL Editor → New query**, paste the contents of
    [`supabase/schema.sql`](../supabase/schema.sql) and **Run**. This creates the
    `escon_kv` table, its index and the RLS policies.
-3. Open **Project Settings → API** and copy:
+3. **Optional — load the demo dataset.** Open a new SQL query, paste
+   [`supabase/seed.sql`](../supabase/seed.sql) and **Run**. It upserts the demo
+   accounts (including `admin@escon.et` / `admin123`), suppliers, materials,
+   orders, wallets, reviews and default settings into `escon_kv`. The script is
+   idempotent (`on conflict (key) do update`), so it is safe to run again; it does
+   not reset data you edit in the app because only a fresh run of the script
+   writes those rows. `src/constants.ts` no longer contains any business records,
+   so without the seed a new install starts with the admin account only.
+4. Open **Project Settings → API** and copy:
    - **Project URL** → `REACT_APP_SUPABASE_URL`
    - **anon public key** → `REACT_APP_SUPABASE_ANON_KEY`
-4. Copy `.env.example` to `.env.local` and fill it in:
+5. Copy `.env.example` to `.env.local` and fill it in:
 
    ```env
    REACT_APP_SUPABASE_URL=https://<project-ref>.supabase.co
    REACT_APP_SUPABASE_ANON_KEY=sb_publishable_<...>
    ```
 
-5. Rebuild so the values are compiled into the bundle:
+6. Rebuild so the values are compiled into the bundle:
 
    ```powershell
    npm run build
@@ -150,7 +158,8 @@ are mostly swapping the storage calls for authenticated queries.
 
 - **Reset the database:** `delete from public.escon_kv;` (or delete individual
   rows). Clients re-upload their current in-memory collections on the next
-  change.
+  change. To restore the demo catalogue afterwards, run `supabase/seed.sql`
+  again; `src/constants.ts` contains no records to fall back to.
 - **Free-tier limits:** watch the Supabase project's database size and request
   volume; a large product catalogue with many base64 photos inflates the
   `materials` row quickly.

@@ -1,6 +1,6 @@
 # E-SCON — Ethio-Supply Chain Optimization Network
 
-A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, VAT-exclusive product pricing with VAT added at checkout, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
+A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, GIS supplier mapping with driving routes, distance & transport-cost calculation, VAT-exclusive product pricing with one configurable VAT calculated on the whole cart at checkout, editable demo data, an admin data manager, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
 
 ## 📚 Documentation
 
@@ -9,7 +9,7 @@ A single-page React + TypeScript platform connecting Ethiopian suppliers and cus
 | [**TECHNICAL_DOCUMENTATION.md**](./TECHNICAL_DOCUMENTATION.md) | Developers | The single source of truth: architecture, data models, features, integrations, styling, responsive design, deployment, troubleshooting |
 | [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) | End users | How to search, order, print proformas, sell, install the app, and troubleshoot |
 | [docs/ANDROID_BUILD.md](./docs/ANDROID_BUILD.md) | Developers | Building the debug APK and signed release AAB with Capacitor, JDK 17 and the Android SDK |
-| [docs/CLOUD_DATABASE.md](./docs/CLOUD_DATABASE.md) | Developers / admins | Supabase setup, the sync module, current settings-only usage, and security limitations |
+| [docs/CLOUD_DATABASE.md](./docs/CLOUD_DATABASE.md) | Developers / admins | Supabase setup, the `schema.sql` + `seed.sql` import, the full shared-data sync module, and security limitations |
 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Developers | Deploying the web app and the Android app |
 | [docs/PRIVACY_POLICY.md](./docs/PRIVACY_POLICY.md) | Legal / Play Store | Privacy policy template for the Play Store |
 | [docs/PLAY_STORE_LISTING.md](./docs/PLAY_STORE_LISTING.md) | Release managers | Store listing copy, assets, Data safety form and release checklist |
@@ -31,7 +31,7 @@ npm run build    # production build → ./build
 | Supplier | `zhiruyanduamlak062@gmail.com`    | `0909`   |
 | Customer | pick any user from the login list | `0909`   |
 
-The **Admin** account configures the delivery-fee model, delivery zones, free-delivery threshold and minimum-order rule on the ⚙️ Settings page.
+The **Admin** account configures the delivery-fee model, delivery zones, free-delivery threshold, minimum-order rule and VAT rate on the ⚙️ Settings page, and can edit or delete accounts, suppliers and products there. A fresh install starts with only the admin account; to load the demo suppliers, products and orders into Supabase, run `supabase/schema.sql` and then `supabase/seed.sql` in the Supabase SQL editor (see [docs/CLOUD_DATABASE.md](./docs/CLOUD_DATABASE.md)). The seed is an upsert, so edits and deletions made in the app are never re-seeded by the build.
 
 ## Key features
 
@@ -43,7 +43,9 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🌍 **Global cloud sync** — with Supabase configured, products added or edited on one device appear on every other device (startup pull, live Realtime updates and a 10-second polling fallback); accounts, companies, orders, wallets, reviews and carts travel too
 - 🕒 **Global live date/time widget** on every screen (invert color + transparency)
 - 🛒 **One supplier per cart** — a proforma is a legal document issued by a single seller, so a cart can only hold one supplier's goods. Adding from a second supplier is refused with a warning that names both suppliers and leaves your cart untouched; clear the cart or remove the other supplier's lines first
-- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), **VAT-exclusive prices** (the **Amount Before VAT** and 15% VAT are shown, with VAT added once at purchase), configurable delivery fees & minimum order, checkout → orders
+- 🛒 Single-supplier cart with **professional proforma** (single E-SCON branding, **ETB** currency), **VAT-exclusive prices** and **VAT added only when the order is placed** (the cart shows goods + delivery plus a clear "VAT added when you place the order" note), configurable delivery fees & minimum order, checkout → orders
+- 🖨️ **One-page proforma on every device** — `ProformaInvoice` measures the document at A4 width and auto-scales it before printing, so the invoice, totals, signatures and footer always stay on a single page
+- 📍 **Editable locations & GPS ordering** — customers set their real position from **My Location** on the dashboard (or in the map picker), suppliers edit the company pin in their profile, and admins can correct any account's coordinates from **Settings**. Every mobile product card has a **GPS** button beside **Order**, and delivery distances start from the user's saved location
 - ➕ **Order from the product view** — the `+ / −` quantity control appears only in the product details (steps of 1, live total, **any quantity** — no per-product minimum); results rows, product cards and the compare view just open the product
 - 🔒 **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 🗺️ **Automatic supplier routing** — the map always draws the route from the customer's real GPS position to the selected supplier, and re-draws it the moment GPS locks in; selecting another supplier (marker, list or re-opening) replaces the previous route instead of leaving it on screen
@@ -56,7 +58,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🚚 **Supplier-set delivery rate** — a supplier ticks "this item is delivered by me" and publishes a price per km plus a starting service fee; buyers see a "With delivery" checkbox beside every quantity and the fee is worked out from the real road distance at checkout
 - 🔍 **Scannable QR proforma** — scanning the invoice QR opens a mobile-friendly view of the order (works from paper); very long carts truncate the QR item list but record the true count, while the printed document always lists everything
 - 🛒 **Two ways into the cart, no more** — the header cart icon on desktop and the cart button in the mobile tab bar; the mobile top bar, the home quick-action tile, the results-row button and the product-card button are gone
-- 🏢 **Supplier dashboard leads with the supplier's name** — the company name is bold and centred on both the desktop and mobile supplier dashboards, instead of a "Welcome …!" line or an emoji-prefixed heading
+- 🏢 **Consistent "Welcome" headings** — every page-level heading starts with **Welcome**, and the supplier dashboard still leads with the supplier's company name
 - ⚙️ **Admin platform settings** — delivery pricing, zones, free delivery & minimum order, no code changes needed
 - 📲 **Installable PWA** with offline support and a device-specific install guide — every release bumps the service-worker version, so all users' cached assets are purged automatically while their accounts, products and orders stay untouched
 - 📊 Supplier & customer dashboards, order management

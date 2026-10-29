@@ -3,13 +3,22 @@
 // delivery zones and the minimum-order requirement. Changes persist to
 // localStorage and take effect immediately for all users.
 import React, { useState } from 'react';
-import { SystemSettings, DeliveryZone } from '../types';
+import { SystemSettings, DeliveryZone, User, Company, Material } from '../types';
 import { ETHIOPIAN_CITIES } from '../constants';
 import { formatCurrency } from '../utils';
 
 interface AdminSettingsProps {
   settings: SystemSettings;
   onSave: (settings: SystemSettings) => void;
+  users?: User[];
+  companies?: Company[];
+  materials?: Material[];
+  onDeleteUser?: (userId: string) => void;
+  onUpdateUser?: (user: User) => void;
+  onDeleteCompany?: (companyId: string) => void;
+  onEditCompany?: (company: Company) => void;
+  onEditMaterial?: (material: Material) => void;
+  onDeleteMaterial?: (materialId: string) => void;
 }
 
 const numberField = (value: string): number => {
@@ -17,11 +26,59 @@ const numberField = (value: string): number => {
   return isFinite(n) && n >= 0 ? n : 0;
 };
 
-const AdminSettings: React.FC<AdminSettingsProps> = ({ settings, onSave }) => {
+const AdminSettings: React.FC<AdminSettingsProps> = ({
+  settings,
+  onSave,
+  users = [],
+  companies = [],
+  materials = [],
+  onDeleteUser,
+  onUpdateUser,
+  onDeleteCompany,
+  onEditCompany,
+  onEditMaterial,
+  onDeleteMaterial,
+}) => {
   const [form, setForm] = useState<SystemSettings>(settings);
   const [newZoneCity, setNewZoneCity] = useState('Addis Ababa');
   const [newZoneFee, setNewZoneFee] = useState('500');
   const [savedFlash, setSavedFlash] = useState(false);
+  const [catalogueQuery, setCatalogueQuery] = useState('');
+  const [locationUserId, setLocationUserId] = useState<string | null>(null);
+  const [locationDraft, setLocationDraft] = useState({
+    address: '',
+    city: 'Addis Ababa',
+    lat: '',
+    lng: '',
+  });
+
+  const startLocationEdit = (user: User) => {
+    setLocationUserId(user.id);
+    setLocationDraft({
+      address: user.address || '',
+      city: user.city || 'Addis Ababa',
+      lat: Number.isFinite(user.lat) ? String(user.lat) : '',
+      lng: Number.isFinite(user.lng) ? String(user.lng) : '',
+    });
+  };
+
+  const saveLocation = (user: User) => {
+    if (!onUpdateUser) return;
+    const lat = parseFloat(locationDraft.lat);
+    const lng = parseFloat(locationDraft.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      alert('Enter a valid latitude (-90 to 90) and longitude (-180 to 180).');
+      return;
+    }
+    onUpdateUser({
+      ...user,
+      address: locationDraft.address.trim() || user.address,
+      city: locationDraft.city || user.city,
+      lat,
+      lng,
+    });
+    setLocationUserId(null);
+  };
 
   const d = form.delivery;
 
@@ -75,11 +132,20 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ settings, onSave }) => {
     { label: '1 tonne × 250 km', fee: d.distanceBaseFee + 250 * d.distancePerKmPerTon * 1 },
   ];
 
+  const query = catalogueQuery.trim().toLowerCase();
+  const filteredMaterials = query
+    ? materials.filter(material =>
+        material.name.toLowerCase().includes(query) ||
+        material.category.toLowerCase().includes(query) ||
+        (companies.find(company => company.id === material.companyId)?.name || '').toLowerCase().includes(query)
+      )
+    : materials;
+
   return (
     <main className="main-content">
       <section className="admin-settings glass">
         <div className="admin-settings-header">
-          <h1>⚙️ Platform Settings</h1>
+          <h1>⚙️ Welcome — Platform Settings</h1>
           <p>Configure business rules that apply to every user. Changes save instantly to your device and take effect immediately.</p>
           {savedFlash && <div className="alert alert-success">✅ Settings saved and applied immediately.</div>}
         </div>
@@ -245,6 +311,156 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({ settings, onSave }) => {
                 </small>
               </div>
             )}
+          </div>
+
+          <div className="settings-card">
+            <h2>VAT</h2>
+            <label className="settings-check">
+              <input
+                type="checkbox"
+                checked={form.vat.enabled}
+                onChange={e => setForm(prev => ({ ...prev, vat: { ...prev.vat, enabled: e.target.checked } }))}
+              />
+              Charge VAT on the goods subtotal
+            </label>
+            {form.vat.enabled && (
+              <div className="settings-field">
+                <label>VAT rate (%)</label>
+                <input
+                  type="number" min="0" max="100" step="0.1"
+                  value={form.vat.rate}
+                  onChange={e => setForm(prev => ({ ...prev, vat: { ...prev.vat, rate: Math.min(100, numberField(e.target.value)) } }))}
+                />
+                <small>
+                  VAT is calculated once on the whole net goods subtotal when the
+                  cart becomes a proforma or purchase. Delivery is not taxed.
+                </small>
+              </div>
+            )}
+          </div>
+
+          <div className="settings-card">
+            <h2>Accounts</h2>
+            <p className="settings-hint">
+              Delete a customer, supplier or any non-administrator account. Deleting a
+              supplier also removes its company profile and products.
+            </p>
+            {users.length === 0 && <p className="settings-empty">No accounts yet.</p>}
+            <div className="admin-data-list">
+              {users.map(user => (
+                <div key={user.id} className="admin-data-row">
+                  <div className="admin-data-main">
+                    <strong>{user.name}</strong>
+                    <small>{user.email} · {user.userType}{user.companyName ? ' · ' + user.companyName : ''}</small>
+                    <small>📍 {user.address || 'No address'}, {user.city || 'No city'} · {Number.isFinite(user.lat) && Number.isFinite(user.lng) ? `${Number(user.lat).toFixed(5)}, ${Number(user.lng).toFixed(5)}` : 'location not set'}</small>
+                  </div>
+                  <div className="admin-data-actions">
+                    {onUpdateUser && (
+                      <button type="button" className="btn-icon" onClick={() => startLocationEdit(user)}>Location</button>
+                    )}
+                    {user.userType !== 'admin' && onDeleteUser && (
+                      <button type="button" className="btn-icon danger" onClick={() => onDeleteUser(user.id)}>Delete</button>
+                    )}
+                    {user.userType === 'admin' && <span className="admin-data-protected">Protected</span>}
+                  </div>
+                  {locationUserId === user.id && (
+                    <div className="admin-location-edit">
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Address"
+                        value={locationDraft.address}
+                        onChange={e => setLocationDraft(prev => ({ ...prev, address: e.target.value }))}
+                      />
+                      <select
+                        className="form-select"
+                        value={locationDraft.city}
+                        onChange={e => setLocationDraft(prev => ({ ...prev, city: e.target.value }))}
+                      >
+                        {ETHIOPIAN_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
+                      </select>
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-input"
+                        placeholder="Latitude"
+                        value={locationDraft.lat}
+                        onChange={e => setLocationDraft(prev => ({ ...prev, lat: e.target.value }))}
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-input"
+                        placeholder="Longitude"
+                        value={locationDraft.lng}
+                        onChange={e => setLocationDraft(prev => ({ ...prev, lng: e.target.value }))}
+                      />
+                      <div className="admin-location-actions">
+                        <button type="button" className="btn btn-primary btn-sm" onClick={() => saveLocation(user)}>Save location</button>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLocationUserId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <h2>Suppliers</h2>
+            <p className="settings-hint">
+              Edit a supplier profile or delete it together with its products.
+            </p>
+            {companies.length === 0 && <p className="settings-empty">No supplier profiles yet.</p>}
+            <div className="admin-data-list">
+              {companies.map(company => {
+                const productCount = materials.filter(material => material.companyId === company.id).length;
+                return (
+                  <div key={company.id} className="admin-data-row">
+                    <div className="admin-data-main">
+                      <strong>{company.name}</strong>
+                      <small>{company.city || 'No city'} · {productCount} product{productCount === 1 ? '' : 's'}</small>
+                    </div>
+                    <div className="admin-data-actions">
+                      {onEditCompany && <button type="button" className="btn-icon" onClick={() => onEditCompany(company)}>Edit</button>}
+                      {onDeleteCompany && <button type="button" className="btn-icon danger" onClick={() => onDeleteCompany(company.id)}>Delete</button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <h2>Products</h2>
+            <p className="settings-hint">
+              Every product field is editable. Search the catalogue, then edit or delete a line.
+            </p>
+            <input
+              type="search"
+              className="form-input"
+              placeholder="Search products or suppliers…"
+              value={catalogueQuery}
+              onChange={e => setCatalogueQuery(e.target.value)}
+            />
+            {filteredMaterials.length === 0 && <p className="settings-empty">No products match.</p>}
+            <div className="admin-data-list">
+              {filteredMaterials.map(material => {
+                const company = companies.find(c => c.id === material.companyId);
+                return (
+                  <div key={material.id} className="admin-data-row">
+                    <div className="admin-data-main">
+                      <strong>{material.name}</strong>
+                      <small>{company?.name || 'Unknown supplier'} · {formatCurrency(material.price)} · {material.quantity} {material.unit}</small>
+                    </div>
+                    <div className="admin-data-actions">
+                      {onEditMaterial && <button type="button" className="btn-icon" onClick={() => onEditMaterial(material)}>Edit</button>}
+                      {onDeleteMaterial && <button type="button" className="btn-icon danger" onClick={() => onDeleteMaterial(material.id)}>Delete</button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="settings-actions">

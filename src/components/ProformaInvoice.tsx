@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CartItem, CartReport, User, Company, ProformaShareData, DeliveryMode } from '../types';
 import {
   formatCurrency, generateProformaQrDataUrl, checkMinOrder,
@@ -172,14 +172,56 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   const minOrderCheck = checkMinOrder(settings, report.subtotal);
 
   // ------------------------------------------------------------------ finance
-  // Prices exclude VAT: report.subtotal is the net goods value and
-  // report.vatAmount is added on top, followed by delivery.
-  const vatPercent = addedVatRate(report.subtotal, report.vatAmount);
+  // Prices exclude VAT: report.subtotal is the net goods value and the single
+  // report.vatAmount is added on top of the whole cart, followed by delivery.
+  const vatPercent = report.vatRate ?? addedVatRate(report.subtotal, report.vatAmount);
   const words = amountToWords(report.total);
 
+  // ------------------------------------------------------------------ print fit
+  // One proforma must never spill onto a second page, whatever the device. The
+  // print stylesheet sizes the document for A4; before printing we measure the
+  // natural height and scale it down through a CSS variable when it is taller
+  // than the printable area. Zoom is reset after printing so the on-screen view
+  // is unaffected.
+  const documentRef = useRef<HTMLDivElement>(null);
+  const fitToPage = useCallback(() => {
+    const doc = documentRef.current;
+    if (!doc) return;
+    doc.style.setProperty('--pf-print-zoom', '1');
+    // Measure at the A4 content width (210mm - 12mm margins) so the wrap is the
+    // same as on paper; measuring the wider on-screen card would underestimate
+    // the printed height and let the footer spill onto page two.
+    const previousWidth = doc.style.width;
+    const previousMaxWidth = doc.style.maxWidth;
+    doc.style.width = '198mm';
+    doc.style.maxWidth = '198mm';
+    // A4 portrait at 96dpi minus 6mm margins on each side.
+    const pageHeightPx = ((297 - 12) / 25.4) * 96;
+    const naturalHeight = doc.scrollHeight;
+    doc.style.width = previousWidth;
+    doc.style.maxWidth = previousMaxWidth;
+    if (!naturalHeight) return;
+    const zoom = Math.max(0.35, Math.min(1, (pageHeightPx - 10) / naturalHeight));
+    doc.style.setProperty('--pf-print-zoom', String(Number(zoom.toFixed(3))));
+    // Force the new zoom to be laid out before the print dialog snapshots it.
+    void doc.offsetHeight;
+  }, []);
+
   const handlePrint = () => {
+    fitToPage();
     window.print();
   };
+
+  useEffect(() => {
+    const onBeforePrint = () => fitToPage();
+    const onAfterPrint = () => documentRef.current?.style.setProperty('--pf-print-zoom', '1');
+    window.addEventListener('beforeprint', onBeforePrint);
+    window.addEventListener('afterprint', onAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      window.removeEventListener('afterprint', onAfterPrint);
+    };
+  }, [fitToPage]);
 
   // "To Proforma" — fire the print dialog once the modal has actually painted,
   // otherwise the browser prints the page behind the overlay. One shot per open
@@ -188,9 +230,12 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   useEffect(() => {
     if (!autoPrint || autoPrintFired.current) return;
     autoPrintFired.current = true;
-    const timer = setTimeout(() => window.print(), 350);
+    const timer = setTimeout(() => {
+      fitToPage();
+      window.print();
+    }, 350);
     return () => clearTimeout(timer);
-  }, [autoPrint]);
+  }, [autoPrint, fitToPage]);
 
   // ----------------------------------------------------------------- parts
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -243,7 +288,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
         </div>
 
         {/* Invoice Document */}
-        <div className="proforma-document pf-document">
+        <div className="proforma-document pf-document" ref={documentRef}>
           {/* ============================= HEADER ============================= */}
           <div className="pf-header">
             <div className="pf-brand">
@@ -455,7 +500,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                 <span>{formatCurrency(report.subtotal)}</span>
               </div>
               <div className="pf-sum-row pf-vat-row">
-                <span>VAT ({vatPercent}% added)</span>
+                <span>VAT ({vatPercent}% added once on goods)</span>
                 <span>{formatCurrency(report.vatAmount)}</span>
               </div>
               <div className="pf-sum-row">
@@ -468,8 +513,8 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               </div>
             </div>
             <div className="pf-vat-note">
-              Amount Before VAT is the net goods subtotal. VAT is added to the
-              goods amount at purchase; delivery is not subject to VAT.
+              Amount Before VAT is the net goods subtotal. VAT is calculated once
+              on the whole goods amount at purchase; delivery is not subject to VAT.
             </div>
             {/* The words sit directly under the numeric total. */}
             <div className="pf-words">

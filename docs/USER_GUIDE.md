@@ -28,13 +28,20 @@ You can use E-SCON in a normal browser, or install it as an app on your phone
 1. Open the app. After a short splash screen you land on the **Home** page.
 2. Tap **Login** (or **Register** to create an account).
 3. Choose your account type on the register page: **Customer** or **Supplier**.
-4. **Suppliers:** finish the company details and register. Your business gets a
-   default Addis Ababa location; set the exact pin afterwards from **Profile →
-   Edit Company Profile** (or **Edit Company Profile** on the dashboard) by
-   clicking/dragging the map marker. Buyers use that pin for distance and delivery
-   routing.
+4. Enter your address and city. E-SCON geocodes them so your account starts with
+   a real location; you can refine it at any time:
+   - **Customers:** **Dashboard → My Location → Edit / use current location**, then
+     drag the pin or press **Locate Me**.
+   - **Suppliers:** **Profile → Edit Company Profile** (or **Edit Company Profile**
+     on the dashboard) and click/drag the marker.
+   Buyers use that saved pin for distance and delivery routing. Admins can also
+   correct any account from **Settings → Data Manager → Location**.
 
 ### Demo accounts (sample data)
+
+> Demo suppliers, products and orders are loaded from **`supabase/seed.sql`** into
+> Supabase (see `docs/CLOUD_DATABASE.md`). A fresh install otherwise starts with
+> only the admin account — nothing is hard-coded in the app any more.
 
 | Role | Email | Password |
 | --- | --- | --- |
@@ -64,9 +71,11 @@ On the **Search** page:
   including the distance in km and estimated driving time. Use **View Route on
   Map** from the product details for the same thing.
 - On a phone, each product card shows the **bold product name, supplier and
-  price**, then a small **🛒 Order** button with a **🗺️ Map** button beside it —
-  Map jumps straight to the driving route for that supplier. The department is
-  not shown on search results (use the Department filter to narrow the list).
+  price**, then a yellow **🛒 Order** button with a **🗺️ GPS** button beside it.
+  **GPS** jumps straight to the driving route for that supplier; once the item is
+  in your cart the Order button turns **green** and reads **Ordered — edit**. The
+  department is not shown on search results (use the Department filter to narrow
+  the list).
 - The search box itself spans the **full width of the screen**, so there is more
   room to type.
 - Use the 🎯 **Locate Me** button on any map to centre it on your real position.
@@ -112,7 +121,11 @@ In the cart you can:
 - Tick or untick **"With delivery"** per line.
 - Toggle a manual delivery-fee override where offered.
 
-The totals update automatically (subtotal before VAT, 15% VAT added at purchase, per-line delivery and grand total).
+The totals update automatically. The green summary box shows the goods subtotal
+and delivery fee now, and states **“VAT (15%): Added when you place the order”** —
+VAT is not charged when you add a product. The payable-after-VAT figure is shown
+below the total and is what the wallet balance must cover. The Order button is
+yellow; once the line is in the cart it becomes green.
 
 ### Three order actions, in order
 
@@ -137,7 +150,9 @@ The **proforma is your order document**. It contains your details and the
 supplier's, the item table, a delivery breakdown, the **Amount Before VAT**, the
 VAT **added** on top of the goods subtotal, delivery cost and the grand total, the
 amount in words and the terms & conditions. It carries a **QR code** in the
-top-right corner.
+top-right corner. The document automatically scales to fit **one A4 page** when
+printed — on desktop, phone or tablet — so totals, signatures and the footer never
+continue onto a second page.
 
 Scanning the QR (or opening its link) shows a **mobile-friendly view** of the
 same proforma — useful for sharing or verifying a printed invoice. Very long
