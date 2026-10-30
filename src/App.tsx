@@ -6,7 +6,7 @@ import {
 } from './constants';
 import {
   safeLocalStorage, formatCurrency, formatDate,
-  calculateDistance, isUserLocked,
+  calculateDistance, getCurrentCoordinates, isUserLocked, GeoCoordinates,
   exportToCSV, exportOrdersToCSV,
   geocodeAddress, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
   deliveryBasisLabel, checkMinOrder,
@@ -1094,19 +1094,22 @@ function App() {
   const [isDistanceLoading, setIsDistanceLoading] = useState(false);
 
   useEffect(() => {
-    if (selectedMaterial) {
-      const company = getCompanyById(selectedMaterial.companyId);
-      if (company) {
-        setIsDistanceLoading(true);
-        calculateDistance(company.lat, company.lng, currentUser?.lat || 9.0320, currentUser?.lng || 38.7469)
-          .then(dist => setDistanceToSelected(dist))
-          .catch(() => setDistanceToSelected(null))
-          .finally(() => setIsDistanceLoading(false));
-      } else {
-        setDistanceToSelected(null);
-        setIsDistanceLoading(false);
-      }
+    if (!selectedMaterial) return;
+    const company = getCompanyById(selectedMaterial.companyId);
+    const lat = currentUser?.lat;
+    const lng = currentUser?.lng;
+    if (!company || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setDistanceToSelected(null);
+      setIsDistanceLoading(false);
+      return;
     }
+    let cancelled = false;
+    setIsDistanceLoading(true);
+    calculateDistance(company.lat, company.lng, lat as number, lng as number)
+      .then(dist => { if (!cancelled) setDistanceToSelected(dist); })
+      .catch(() => { if (!cancelled) setDistanceToSelected(null); })
+      .finally(() => { if (!cancelled) setIsDistanceLoading(false); });
+    return () => { cancelled = true; };
   }, [selectedMaterial, currentUser, getCompanyById]);
 
   // ---------- Open map with route ----------
@@ -1287,13 +1290,13 @@ function App() {
   // Administrators can correct any account's saved location. The owner can do the
   // same from their own dashboard ("My Location"), so GPS distances always start
   // from the user's real position once it has been set.
-  const handleAdminUpdateUser = (updatedUser: User) => {
+  const handleAdminUpdateUser = (updatedUser: User, silent = false) => {
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
     setCompanies(prev => prev.map(c => c.userId === updatedUser.id
       ? { ...c, lat: updatedUser.lat, lng: updatedUser.lng, city: updatedUser.city, location: updatedUser.address }
       : c));
     if (currentUser?.id === updatedUser.id) setCurrentUser(updatedUser);
-    showAlert('Account location updated ✅', 'success');
+    if (!silent) showAlert('Account location updated ✅', 'success');
   };
 
   const handleSaveMyLocation = (lat: number, lng: number, address: string) => {
@@ -1311,6 +1314,32 @@ function App() {
     setCurrentUser(updated);
     handleAdminUpdateUser(updated);
     setShowMyLocationPicker(false);
+  };
+
+  const hasUserCoordinates = (user: User | null): user is User & { lat: number; lng: number } =>
+    !!user && Number.isFinite(user.lat) && Number.isFinite(user.lng) && !(user.lat === 0 && user.lng === 0);
+
+  // Delivery distances must start from where the customer is *right now*, not
+  // from a pin saved days ago. This asks the device for a fresh high-accuracy
+  // fix, saves it to the profile, and falls back to the saved pin only when GPS
+  // is unavailable (with a clear warning, never silently).
+  const refreshCurrentLocation = async (): Promise<GeoCoordinates | null> => {
+    if (!currentUser) return null;
+    try {
+      const coords = await getCurrentCoordinates();
+      const updated: User = { ...currentUser, lat: coords.lat, lng: coords.lng };
+      setCurrentUser(updated);
+      handleAdminUpdateUser(updated, true);
+      return coords;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The current location is unavailable.';
+      if (hasUserCoordinates(currentUser)) {
+        showAlert(message + ' Using your saved location for this order.', 'warning');
+        return { lat: currentUser.lat, lng: currentUser.lng, accuracy: Number.NaN };
+      }
+      showAlert(message + ' Enable GPS/location access, then press Order again.', 'danger');
+      return null;
+    }
   };
 
   const handleAdminDeleteCompany = (companyId: string) => {
@@ -1725,9 +1754,14 @@ function App() {
   // decides whether anything is charged, the supplier's published per-km rate is
   // applied to the real supplier→buyer distance, and the platform settings are
   // only used for lines whose supplier has no rate of their own.
-  const priceCartItems = async (items: CartItem[], applyVat = false): Promise<CartReport | null> => {
+  const priceCartItems = async (
+    items: CartItem[],
+    applyVat = false,
+    origin?: { lat: number; lng: number }
+  ): Promise<CartReport | null> => {
     if (items.length === 0) return null;
     if (!currentUser) return null;
+    const buyer: User = origin ? { ...currentUser, lat: origin.lat, lng: origin.lng } : currentUser;
     setIsCalculating(true);
     let subtotal = 0, transportCost = 0;
     const supplierMap = new Map<string, CartSupplier>();
@@ -1748,10 +1782,10 @@ function App() {
         const supplierCompany = ensureSupplierCompany(item.supplierId, item.supplierName);
         const dist = await calculateDistance(
           supplierCompany.lat, supplierCompany.lng,
-          currentUser.lat || 9.0320, currentUser.lng || 38.7469
+          buyer.lat, buyer.lng
         );
         const { fee, mode } = await resolveLineDelivery(
-          item, supplierCompany, dist, subtotal, currentUser, settings
+          item, supplierCompany, dist, subtotal, buyer, settings
         );
         transportCost += fee;
         const existing = supplierMap.get(item.supplierId);
@@ -1818,12 +1852,61 @@ function App() {
     };
   };
 
-  const calculateCartTotals = (applyVat = false): Promise<CartReport | null> => priceCartItems(cart, applyVat);
+  const calculateCartTotals = (
+    applyVat = false,
+    origin?: { lat: number; lng: number }
+  ): Promise<CartReport | null> => priceCartItems(cart, applyVat, origin);
+
+  // The Order button in the product details is the moment delivery becomes real,
+  // so that is where we capture a *fresh* GPS fix and measure the driving route
+  // from it. The saved profile pin is only a fallback when the device cannot
+  // provide a position at all.
+  const handleDetailsOrder = async (
+    material: Material,
+    quantity: number,
+    includeDelivery: boolean
+  ): Promise<boolean> => {
+    if (!currentUser) {
+      showAlert('Please login to place an order', 'danger');
+      return false;
+    }
+    if (currentUser.userType !== 'customer') {
+      showAlert('Only customers can place orders', 'danger');
+      return false;
+    }
+    const company = getCompanyById(material.companyId);
+    if (!company) {
+      showAlert('The supplier for this product is unavailable.', 'danger');
+      return false;
+    }
+    const coords = await refreshCurrentLocation();
+    if (!coords) return false;
+    const alreadyInCart = cart.some(item => item.materialId === material.id);
+    if (!alreadyInCart && !addToCart(material, quantity, includeDelivery)) return false;
+    try {
+      const liveDistance = await calculateDistance(company.lat, company.lng, coords.lat, coords.lng);
+      setDistanceToSelected(liveDistance);
+    } catch {
+      setDistanceToSelected(null);
+    }
+    setSelectedMaterial(null);
+    setShowCartSummary(true);
+    return true;
+  };
 
   // Two repricings of the cart are only worth doing when the lines themselves
   // differ, so the effect below keys off a signature of quantity + delivery flag.
-  const cartSignature = (items: CartItem[]) =>
-    JSON.stringify(items.map(i => [i.id, i.quantity, i.includeDelivery !== false]));
+  const cartSignature = useCallback((items: CartItem[]) =>
+    JSON.stringify(items.map(i => [i.id, i.quantity, i.includeDelivery !== false])), []);
+
+  // A new GPS fix can change every delivery fee even when the cart lines are
+  // unchanged, so the buyer's coordinates belong in the re-pricing signature.
+  const userLocationSignature = Number.isFinite(currentUser?.lat) && Number.isFinite(currentUser?.lng)
+    ? `${currentUser!.lat},${currentUser!.lng}`
+    : 'no-location';
+  const cartPriceSignature = useCallback((items: CartItem[]) =>
+    cartSignature(items) + '|' + deliveryFeeOverride + '|' + userLocationSignature,
+    [cartSignature, deliveryFeeOverride, userLocationSignature]);
 
   const priceCartItemsRef = useRef(priceCartItems);
   priceCartItemsRef.current = priceCartItems;
@@ -1835,7 +1918,7 @@ function App() {
   // and must not itself be an effect dependency.
   useEffect(() => {
     if (!showCartSummary || cart.length === 0) return;
-    const signature = cartSignature(cart) + '|' + deliveryFeeOverride;
+    const signature = cartPriceSignature(cart);
     if (signature === repricedCart.current) return;
     repricedCart.current = signature;
     let cancelled = false;
@@ -1846,7 +1929,7 @@ function App() {
       });
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [cart, showCartSummary, deliveryFeeOverride]);
+  }, [cart, showCartSummary, deliveryFeeOverride, currentUser?.lat, currentUser?.lng, cartPriceSignature]);
 
   const handleCheckout = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
@@ -1856,7 +1939,7 @@ function App() {
     setShowCartSummary(true);
     // Mark these exact lines as priced so the re-pricing effect above does not
     // immediately recalculate what we just calculated.
-    repricedCart.current = cartSignature(cart) + '|' + deliveryFeeOverride;
+    repricedCart.current = cartPriceSignature(cart);
   };
 
   // "To Proforma" — open the proforma straight in its printable form. The buyer
@@ -1902,7 +1985,7 @@ function App() {
     setCartDetails(totals);
     setShowCartSummary(true);
     setHighlightPurchaseStep(true);
-    repricedCart.current = cartSignature(cart) + '|' + deliveryFeeOverride;
+    repricedCart.current = cartPriceSignature(cart);
   };
 
   // Allow the buyer to edit the delivery fee on the cart. Overrides the
@@ -3107,9 +3190,14 @@ function App() {
   // The quantity +/- control lives ONLY here, in the product details view — the
   // step where a customer has actually seen the product and is ready to order.
   // Search results, product cards and carousels only ever open this view.
-  const DetailsOrderBox = ({ material, isInCart, onAdded }: { material: Material; isInCart: boolean; onAdded: () => void }) => {
-    const min = 1; // customers may order any amount — no minimum order
+  const DetailsOrderBox = ({ material, isInCart, onOrder }: {
+    material: Material;
+    isInCart: boolean;
+    onOrder: (quantity: number, includeDelivery: boolean) => Promise<boolean>;
+  }) => {
+    const min = 1; // customers may order any amount - no minimum order
     const [qty, setQty] = useState(min);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     // Delivery is a decision the buyer makes here, while filling in the quantity.
     // It defaults to on: if the supplier publishes a per-km rate that is the fee
     // basis, otherwise the platform's configured delivery rate applies.
@@ -3117,11 +3205,15 @@ function App() {
     const soldOut = material.quantity <= 0;
     return (
       <div className="order-box">
-        <h3>🛒 Add to Cart</h3>
+        <h3>🛒 Order</h3>
         {soldOut ? (
           <p className="order-box-note">Currently unavailable — please contact the supplier.</p>
         ) : (
           <>
+            <p className="order-box-note">Pressing Order fetches your current GPS position so the delivery distance is measured from where you are now.</p>
+            {isInCart && (
+              <p className="order-box-note">This item is already in your cart. Continue to review the quantity and place your order.</p>
+            )}
             <div className="order-box-row">
               <QuantityStepper value={qty} min={min} unit={material.unit} onChange={setQty} />
               <span className="order-box-hint">Any quantity — use − / + or tap the number to type your own.</span>
@@ -3141,9 +3233,19 @@ function App() {
             <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
             <button
               className={'btn order-box-btn' + (isInCart ? ' is-ordered' : '')}
-              onClick={() => { if (addToCart(material, qty, withDelivery)) onAdded(); }}
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                try {
+                  await onOrder(qty, withDelivery);
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
             >
-              {isInCart ? '✅ Ordered — Update' : '➕ Add to Cart'}
+              {isSubmitting
+                ? 'Locating your current position...'
+                : isInCart ? '✅ Ordered — Go to Order' : '🛒 Order'}
             </button>
           </>
         )}
@@ -3173,6 +3275,9 @@ function App() {
           <div className="modal-body">
             {isLowStock && <div className="stock-flag stock-flag-low">⚠️ Low stock — only {selectedMaterial.quantity} {selectedMaterial.unit || 'units'} left</div>}
             {renderProductGallery(selectedMaterial)}
+            <div><h3>🏢 Supplier</h3>
+              <p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p>
+            </div>
             <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
             <div><h3>💰 Pricing</h3>
               <p>Unit: <strong>{formatCurrency(selectedMaterial.price)}</strong> / {selectedMaterial.unit}{canSeeStock && <><br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}</>}{canSeeStock && <><br/>Stock: {selectedMaterial.quantity} {selectedMaterial.unit}</>}</p>
@@ -3181,31 +3286,31 @@ function App() {
                 <span className="rating-num">{avgRating.toFixed(1)}</span>
                 <span className="rating-count">({productReviews.length} review{productReviews.length !== 1 ? 's' : ''})</span>
               </div>
+              {history.length >= 2 && forecast && (
+                <div className="forecast-panel">
+                  <div className="forecast-header">
+                    <h3>🤖 AI Price Forecast</h3>
+                    <span className={'trend-chip trend-' + forecast.trend}>
+                      {forecast.trend === 'up' ? '📈 Trending up' : forecast.trend === 'down' ? '📉 Trending down' : '➡️ Stable'}
+                    </span>
+                  </div>
+                  <Sparkline points={history.map(p => p.price)} width={220} height={56} />
+                  <div className="forecast-details">
+                    <span>Predicted next price: <strong>{formatCurrency(forecast.next)}</strong></span>
+                    <span className={forecast.changePct > 0 ? 'forecast-pos' : forecast.changePct < 0 ? 'forecast-neg' : ''}>
+                      {forecast.changePct > 0 ? '+' : ''}{forecast.changePct.toFixed(1)}% vs today
+                    </span>
+                    {selectedMaterial.category === 'Fuel' && (
+                      <span className="forecast-note">⚠️ Fuel prices are volatile — order at current price when the trend is rising</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            {history.length >= 2 && forecast && (
-              <div className="forecast-panel">
-                <div className="forecast-header">
-                  <h3>🤖 AI Price Forecast</h3>
-                  <span className={'trend-chip trend-' + forecast.trend}>
-                    {forecast.trend === 'up' ? '📈 Trending up' : forecast.trend === 'down' ? '📉 Trending down' : '➡️ Stable'}
-                  </span>
-                </div>
-                <Sparkline points={history.map(p => p.price)} width={220} height={56} />
-                <div className="forecast-details">
-                  <span>Predicted next price: <strong>{formatCurrency(forecast.next)}</strong></span>
-                  <span className={forecast.changePct > 0 ? 'forecast-pos' : forecast.changePct < 0 ? 'forecast-neg' : ''}>
-                    {forecast.changePct > 0 ? '+' : ''}{forecast.changePct.toFixed(1)}% vs today
-                  </span>
-                  {selectedMaterial.category === 'Fuel' && (
-                    <span className="forecast-note">⚠️ Fuel prices are volatile — order at current price when the trend is rising</span>
-                  )}
-                </div>
-              </div>
-            )}
-            <div><h3>🏢 Supplier</h3>
-              <p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p>
+            <div>
+              <h3>📍 Distance</h3>
               <p>
-                <strong>🚗 Distance from you:</strong>
+                <strong>Distance from you:</strong>{' '}
                 {isDistanceLoading ? (
                   <span className="distance-loader"><span className="dot-pulse"></span></span>
                 ) : distanceToSelected !== null ? (
@@ -3254,7 +3359,11 @@ function App() {
               )}
             </div>
             {currentUser?.userType === 'customer' && (
-              <DetailsOrderBox material={selectedMaterial} isInCart={isInCart} onAdded={() => setSelectedMaterial(null)} />
+              <DetailsOrderBox
+                material={selectedMaterial}
+                isInCart={isInCart}
+                onOrder={(quantity, includeDelivery) => handleDetailsOrder(selectedMaterial, quantity, includeDelivery)}
+              />
             )}
           </div>
         </div>

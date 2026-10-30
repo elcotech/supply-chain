@@ -100,11 +100,46 @@ export const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-ET', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+export interface GeoCoordinates {
+  lat: number;
+  lng: number;
+  accuracy: number;
+}
+
+/**
+ * Read the device's *current* position (not the saved profile pin). `maximumAge: 0`
+ * forces a fresh GPS/Wi-Fi fix, and high accuracy is requested so delivery
+ * distances are measured from where the customer is actually standing.
+ */
+export const getCurrentCoordinates = (timeoutMs = 20000): Promise<GeoCoordinates> =>
+  new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Geolocation is not supported on this device.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      position => resolve({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      }),
+      error => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Location permission was denied.'
+          : error.code === error.TIMEOUT
+            ? 'Getting the current location timed out.'
+            : 'The current location is unavailable.';
+        reject(new Error(message));
+      },
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 }
+    );
+  });
+
 // In-memory cache so repeated distance lookups (search, cart, map) don't hammer OSRM
 const distanceCache = new Map<string, number>();
 
 export const calculateDistance = async (originLat: number, originLng: number, destLat: number, destLng: number): Promise<number> => {
-  const key = `${originLat.toFixed(4)},${originLng.toFixed(4)},${destLat.toFixed(4)},${destLng.toFixed(4)}`;
+  const key = `${originLat.toFixed(6)},${originLng.toFixed(6)},${destLat.toFixed(6)},${destLng.toFixed(6)}`;
   const cached = distanceCache.get(key);
   if (cached !== undefined) return cached;
   try {

@@ -34,7 +34,8 @@ You can use E-SCON in a normal browser, or install it as an app on your phone
      drag the pin or press **Locate Me**.
    - **Suppliers:** **Profile → Edit Company Profile** (or **Edit Company Profile**
      on the dashboard) and click/drag the marker.
-   Buyers use that saved pin for distance and delivery routing. Admins can also
+   Buyers use that saved pin for search previews; pressing **Order** refreshes it
+   with the device's current GPS position before pricing delivery. Admins can also
    correct any account from **Settings → Data Manager → Location**.
 
 ### Demo accounts (sample data)
@@ -102,7 +103,22 @@ account.
 3. If the supplier offers delivery for that item, a **"With delivery"**
    checkbox appears beside the quantity. Tick it to have that line delivered;
    leave it clear to collect.
-4. Press **Add to Cart**.
+4. Press **Order**. E-SCON asks your device for a **fresh, high-accuracy GPS
+   position** (allow location access when prompted), calculates the driving
+   distance from that position to the supplier, adds the item to your cart and
+   opens the **order/cart** screen. If the item is already in the cart, the green
+   **Ordered — Go to Order** button takes you straight back to the cart without
+   adding it twice — it still refreshes your position first.
+
+The product details are always arranged in the same order: **Supplier →
+Description → Pricing → Distance → Customer Reviews**, with the Order box at the
+end. The distance shown before you order is a preview from your saved pin; the
+**Order** action replaces it with the live GPS distance used for delivery.
+
+> **Location access is required for accurate delivery.** If permission is denied,
+> the fix times out, or GPS is unavailable, E-SCON warns you and uses your saved
+> location only when one exists. If no saved location exists, enable location
+> access and press **Order** again.
 
 > **One supplier per cart.** A proforma invoice is a legal document issued by a
 > single seller, so a cart can only hold one supplier's goods. If you try to add
@@ -294,6 +310,8 @@ Installing is optional — the app works the same in a normal browser tab.
 | Problem | What to do |
 | --- | --- |
 | Distance says "Unable to calculate" | The route service is busy — retry in a moment; the app falls back to a straight-line estimate |
+| Order says my location is unavailable | Allow location/GPS access for E-SCON, then press **Order** again. Without permission the app can only use a saved location, if one exists |
+| Distance didn't change after I moved | The preview uses your saved pin; press **Order** to capture a fresh GPS fix and re-price delivery |
 | Map opens without a route | Re-select the supplier; the route redraws from your current GPS position |
 | Login is locked | 3 failed attempts lock it for 30 seconds — wait and retry |
 | Can't install the app | The install prompt needs HTTPS and a supported browser — try Chrome/Edge/Safari |

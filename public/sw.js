@@ -11,7 +11,7 @@
  * orders, carts, wallets, reviews and notifications live in localStorage and
  * are never removed here, so no user data is lost.
  */
-const VERSION = 'e-scon-v1.10.0';
+const VERSION = 'e-scon-v1.12.0';
 const SHELL_CACHE = VERSION + '-shell';
 const RUNTIME_CACHE = VERSION + '-runtime';
 
