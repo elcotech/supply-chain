@@ -476,7 +476,7 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`;
 
 Pressing **Place Order** fetches the device's **current GPS position** (`getCurrentCoordinates`, high accuracy, `maximumAge: 0`), measures the OSRM road distance from that fix, writes the order (cloud-first) and opens the Orders page; **Add to cart & review instead** adds the line and opens the cart. The distance shown before you order is only a preview from the saved pin.
 
-**The summary never fails silently.** When the totals cannot be produced, the rows and the dead "Calculating…" button are replaced by a `.pd-summary-block` (`is-conflict` / `is-location` / …) that states the reason and offers the one action that fixes it: **🗑️ Clear cart & order this product** for a cross-supplier cart, **🔁 Retry calculating** for a failed quote. While pricing it is legitimately disabled and reads **Calculating…**; while the request runs it reads **Placing your order…**. A customer account is required (`pd-summary-note`), and sold-out products show *Currently unavailable* instead of the actions. If GPS is denied or unavailable the buyer is warned; the saved location is used only when it exists. The cart modal still allows per-line quantity edits and per-line delivery toggles. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
+**The summary never fails silently.** When the totals cannot be produced, the rows and the dead "Calculating…" button are replaced by a `.pd-summary-block` (`is-conflict` / `is-location` / …) that states the reason and offers the one action that fixes it: **📍 Use my current location** when the buyer has no saved pin, **🗑️ Clear cart & order this product** for a cross-supplier cart, **🔁 Retry calculating** for a failed quote. If the buyer has no coordinates the summary asks for one GPS fix automatically (once per product); pressing **📍 Use my current location** retries that fix. While pricing it is legitimately disabled and reads **Calculating…**; while the request runs it reads **Placing your order…**. A customer account is required (`pd-summary-note`), and sold-out products show *Currently unavailable* instead of the actions. If GPS is denied or unavailable the buyer is warned; the saved location is used only when it exists. The cart modal still allows per-line quantity edits and per-line delivery toggles. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
 
 **Two cart entry points only (v5.2):** the cart is reachable from exactly two places — the header 🛒 icon on desktop (`.cart-icon-btn`) and the floating cart button in the mobile tab bar (`.m-fab-cart`). The mobile top-bar cart button, the home "Cart" quick-action tile, the desktop results-row cart button and the mobile product-card "In Cart — Open" button were all removed as duplicates. Product rows and cards keep their single button, but it now only ever **opens the product details** (where quantity and delivery are chosen) — it never opens the cart directly. On the product page the order action lives in **Order Summary**: **🛒 Place Order** places the order end-to-end, and **Add to cart & review instead** adds the line and opens the cart. The cart modal's own actions stay.
 
@@ -952,7 +952,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.13.0` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.0` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -966,9 +966,9 @@ For the install prompt to work:
 | Leaflet default marker icons broken  | The icon-fix snippet in `MapComponent.tsx`/`MapPicker.tsx` must load before any marker creation |
 | Distance shows "Unable to calculate" | OSRM demo server offline → haversine fallback already handles this; retry later |
 | Tapping Order seems to do nothing    | Fixed in v6.8: alerts are a fixed toast above modals, the cart shows a loading state instead of returning `null`, routing requests abort after 9 s and try a second OSRM endpoint, and `confirmOrder` has `try/catch/finally` so it can never leave the button stuck |
-| Order says location is unavailable   | Browser/app location permission is off, timed out, or the saved profile has no coordinates. Enable GPS/location access and press **Place Order** again; the app only falls back to the saved pin when one exists (v6.7) |
+| Order says location is unavailable   | Browser/app location permission is off, timed out, or the saved profile has no coordinates. Since v6.9 the Order Summary automatically asks for a fix and offers **📍 Use my current location**; allow GPS/location access and tap it, or press **Place Order** again. The app only falls back to the saved pin when one exists |
 | KM did not change after moving       | The detail preview uses the saved pin; press **Place Order** to take a fresh high-accuracy fix. The cart re-prices because its signature includes the buyer's coordinates |
-| Order Summary stays on "Calculating…" | The quote is still debounced (250 ms) or the routing request is in flight. If it never resolves the block explains why and offers **Retry calculating**; a cross-supplier cart offers **Clear cart & order this product** instead (§13.1) |
+| Order Summary stays on "Calculating…" | The quote is still debounced (250 ms) or the routing request is in flight. If it never resolves the block explains why and offers **📍 Use my current location** (no pin), **Retry calculating** (failed quote) or **Clear cart & order this product** (cross-supplier cart) instead (§13.1) |
 | "Please select a valid user" on a correct login | The account list had not finished loading. Local data is now published before the geocoding pass and login falls back to the stored `users` cache, so this window is gone in v6.8 (§6 startup order) |
 | Geocoding fails at startup           | Nominatim rate limit — the app keeps the last-known coordinates and continues |
 | localStorage quota exceeded         | Too many base64 product photos → reduce image count/size (cap is 6/product)   |
@@ -1098,6 +1098,24 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.9 — ordering works for a buyer with no saved pin
+- **Order Summary gets the location itself.** If the buyer has no usable
+  coordinates, the quote effect now requests one high-accuracy GPS fix
+  (`detailsLocationTried` limits it to one attempt per product) and prices from
+  it. If that fix fails, the `.pd-summary-block` offers **📍 Use my current
+  location**, which resets the attempt and re-quotes — instead of a dead
+  "Retry calculating" loop that could never succeed.
+- **Place Order uses the fresh fix immediately.** `handlePlaceOrderFromDetails`
+  passes the coordinates it just acquired to `confirmOrder`, which builds the
+  buyer object from them for the coordinate guard, `priceCartItems`,
+  `calculateDistance`, the wallet and the written order rows. The first location
+  grant therefore no longer fails against the stale `currentUser` state.
+- **Cart path asks for a fix too.** `confirmOrder` acquires a GPS position when
+  no `origin` is supplied and the buyer/stored profile has no coordinates, so
+  **1 To Purchase** stops refusing legacy or location-less accounts.
+- **Release.** Bumped `versionCode` 11 to 12, `versionName` 1.9.1 to 1.9.2 and
+  `sw.js` `VERSION` `e-scon-v1.13.0` to `e-scon-v1.14.0`.
 
 ### v6.8 - order feedback, accurate KM and cloud-first commit
 - **Product page rebuilt to the Sample Layout.** `DetailsOrderBox`/`renderMaterialDetails`

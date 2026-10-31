@@ -338,10 +338,16 @@ function App() {
   const [detailsQuote, setDetailsQuote] = useState<CartReport | null>(null);
   // Why the summary cannot quote. `null` means "still pricing"; any other value
   // is a reason the buyer can read and act on, so Place Order never sits on a
-  // permanent "Calculating…" with nothing explaining it.
-  const [detailsQuoteBlock, setDetailsQuoteBlock] = useState<{ kind: 'conflict' | 'error'; message: string } | null>(null);
+  // permanent "Calculating…" with nothing explaining it. `location` means the
+  // buyer has no usable pin yet, so the summary offers to take a GPS fix instead
+  // of a Retry that can never succeed.
+  const [detailsQuoteBlock, setDetailsQuoteBlock] = useState<{ kind: 'conflict' | 'error' | 'location'; message: string } | null>(null);
   // Bumped by the summary's Retry button to re-price the very same lines.
   const [detailsQuoteRetry, setDetailsQuoteRetry] = useState(0);
+  // One automatic GPS attempt per product. Without this, a buyer who denies the
+  // permission would be prompted every time the summary re-rendered; the Retry
+  // button clears it so they can try again deliberately.
+  const detailsLocationTried = useRef('');
   // Held here, not inside `DetailsOrderBox`: that component is declared inside
   // `App`, so React sees a new type on every render and would remount it,
   // discarding any state it owned mid-order.
@@ -2001,7 +2007,11 @@ function App() {
       // halfway leaves the buyer on a cart they can retry rather than nothing.
       setCart(lines);
       setSelectedMaterial(null);
-      const placed = await confirmOrder(lines);
+      // Pass the fresh fix into `confirmOrder` so it prices and records the
+      // order from the same coordinates. Reading `currentUser` here would use
+      // the pre-fix state (React state has not re-rendered yet) and could refuse
+      // a buyer who has just granted location for the first time.
+      const placed = await confirmOrder(lines, true, coords);
       if (placed) setShowCartSummary(false);
       return placed;
     } catch (error) {
@@ -2022,6 +2032,7 @@ function App() {
     setDetailsQuote(null);
     setDetailsImageIndex(0);
     setShowAllReviews(false);
+    detailsLocationTried.current = '';
   }, [selectedMaterialId]);
 
   // Two repricings of the cart are only worth doing when the lines themselves
@@ -2069,7 +2080,36 @@ function App() {
       return;
     }
     let cancelled = false;
-    const timer = setTimeout(() => {
+    const priceSummary = async () => {
+      // A buyer without a pin cannot be priced from a made-up city centre, and a
+      // Retry that only re-runs the same failing maths would leave the Order
+      // Summary permanently unpriceable. Ask the device for a fix once per
+      // product and price from those exact coordinates. Only when that fails do
+      // we show a message with an explicit "Use my current location" action.
+      let origin: { lat: number; lng: number } | undefined;
+      if (!hasUserCoordinates(currentUser)) {
+        if (detailsLocationTried.current === selectedMaterial.id) {
+          if (!cancelled) {
+            setDetailsQuote(null);
+            setDetailsQuoteBlock({
+              kind: 'location',
+              message: 'Your current location is needed to price delivery for this product. Allow location access, then press Use my current location.',
+            });
+          }
+          return;
+        }
+        detailsLocationTried.current = selectedMaterial.id;
+        origin = (await refreshCurrentLocation()) ?? undefined;
+        if (cancelled) return;
+        if (!origin) {
+          setDetailsQuote(null);
+          setDetailsQuoteBlock({
+            kind: 'location',
+            message: 'Your current location is needed to price delivery for this product. Allow location access, then press Use my current location.',
+          });
+          return;
+        }
+      }
       const lines = stageCartLine(cart, selectedMaterial, detailsQty, detailsDelivery, company.name, 'set');
       if (!lines) {
         // The cart holds another supplier's goods: a proforma is issued by one
@@ -2087,7 +2127,7 @@ function App() {
         }
         return;
       }
-      priceCartItems(lines, true)
+      priceCartItems(lines, true, origin)
         .then(report => {
           if (cancelled) return;
           if (report) {
@@ -2114,7 +2154,8 @@ function App() {
             message: error instanceof Error ? error.message : 'We could not calculate this total. Please try again.',
           });
         });
-    }, 250);
+    };
+    const timer = setTimeout(() => { void priceSummary(); }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailsQuoteSignature, detailsQuoteRetry]);
@@ -2242,17 +2283,34 @@ function App() {
     if (totals) setCartDetails(totals);
   };
 
-  const confirmOrder = async (linesOverride?: CartItem[], clearAfter = true): Promise<boolean> => {
+  const confirmOrder = async (
+    linesOverride?: CartItem[],
+    clearAfter = true,
+    origin?: { lat: number; lng: number }
+  ): Promise<boolean> => {
     // Normally the whole cart is bought; the product-details Place Order action
     // passes the cart it just staged so it can commit without waiting for a
     // state round-trip.
     const lines = linesOverride || cart;
     if (lines.length === 0 || isPlacingOrder) return false;
-    // Never price a delivery from a made-up city centre. The customer must have
-    // a real pin (captured by the Order action or saved in My Location). This
-    // check runs *before* the totals request so a missing pin produces one clear
-    // message instead of failing later inside the distance calculation.
-    if (!hasUserCoordinates(currentUser)) {
+    // A buyer can reach this point without a saved pin (a legacy account, or one
+    // whose location was cleared). Ask the device for a fresh fix here instead
+    // of refusing to order, and use those exact coordinates for the whole
+    // commit — React state has not re-rendered yet, so reading `currentUser`
+    // would still see the old, location-less object.
+    let buyerOrigin = origin;
+    if (!buyerOrigin && !hasUserCoordinates(currentUser)) {
+      buyerOrigin = (await refreshCurrentLocation()) ?? undefined;
+      if (!buyerOrigin) return false;
+    }
+    const buyer: User | null = currentUser
+      ? (buyerOrigin ? { ...currentUser, lat: buyerOrigin.lat, lng: buyerOrigin.lng } : currentUser)
+      : null;
+    // Never price a delivery from a made-up city centre. The buyer must now have
+    // a real pin (the fresh fix above, an origin passed in by the product page,
+    // or a pin saved in My Location). This check runs *before* the totals
+    // request so a missing pin produces one clear message.
+    if (!buyer || !hasUserCoordinates(buyer)) {
       showAlert('Your current location is required before placing the order. Enable GPS/location access and press Order again.', 'danger');
       setShowCartSummary(true);
       return false;
@@ -2267,7 +2325,9 @@ function App() {
     try {
     // Price exactly the lines being bought — not the `cart` state, which may not
     // have flushed yet when the product-details Place Order action staged them.
-    const totals = await priceCartItems(lines, true);
+    // The fresh origin (when there is one) is the same coordinate set the rows
+    // below are recorded from, so summary, delivery fee and order cannot differ.
+    const totals = await priceCartItems(lines, true, buyerOrigin);
     if (!totals) return false;
     // Block submission when the configured minimum-order rule is not met so
     // the customer cannot accidentally create an unfulfillable order.
@@ -2280,13 +2340,13 @@ function App() {
     const wholeTotal = totals.total;
     if (paymentMethod === 'wallet') {
       walletPaid = wholeTotal;
-      const ok = applyWalletChange(currentUser!.id, 'payment', wholeTotal, `Payment for cart (${lines.length} item${lines.length > 1 ? 's' : ''})`);
+      const ok = applyWalletChange(buyer.id, 'payment', wholeTotal, `Payment for cart (${lines.length} item${lines.length > 1 ? 's' : ''})`);
       if (ok === null) {
         showAlert('Insufficient wallet balance. Please top up first.', 'danger');
         setShowCartSummary(true);
         return false;
       }
-      pushNotification(currentUser!.id, 'payment', 'Wallet payment successful',
+      pushNotification(buyer.id, 'payment', 'Wallet payment successful',
         `ETB ${wholeTotal.toLocaleString()} paid with your wallet. Balance is now ${formatCurrency(ok)}.`);
     }
     // Allocate the one cart-level VAT amount across the order rows. The sum of
@@ -2313,10 +2373,10 @@ function App() {
       // the platform fallback when that supplier publishes no rate.
       const distanceKm = await calculateDistance(
         supplierCompany.lat, supplierCompany.lng,
-        currentUser!.lat, currentUser!.lng
+        buyer.lat, buyer.lng
       );
       const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
-        item, supplierCompany, distanceKm, totals.subtotal, currentUser!, systemSettings
+        item, supplierCompany, distanceKm, totals.subtotal, buyer, systemSettings
       );
       const totalAmount = cartGrandTotal(materialTotal, vatAmountItem, transportCostItem);
       const newOrder: Order = {
@@ -3530,6 +3590,16 @@ function App() {
                   {detailsQuoteBlock.kind === 'conflict' ? (
                     <button className="btn btn-secondary pd-summary-block-btn" onClick={() => clearCart()}>
                       🗑️ Clear cart &amp; order this product
+                    </button>
+                  ) : detailsQuoteBlock.kind === 'location' ? (
+                    <button
+                      className="btn btn-primary pd-summary-block-btn"
+                      onClick={() => {
+                        detailsLocationTried.current = '';
+                        setDetailsQuoteRetry(n => n + 1);
+                      }}
+                    >
+                      📍 Use my current location
                     </button>
                   ) : (
                     <button

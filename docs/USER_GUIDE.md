@@ -106,7 +106,8 @@ account.
    Order Summary re-prices straight away.
 4. Scroll to **Order Summary**. It prices the order on the page: material
    subtotal, delivery price, VAT and **Total Payable** — the exact amount that
-   will leave your account.
+   will leave your account. If you have no saved pin yet, the summary asks your
+   device for your location automatically.
 5. Press **🛒 Place Order**. E-SCON asks your device for a **fresh,
    high-accuracy GPS position** (allow location access when prompted), measures
    the driving distance from where you are standing to the supplier, places the
@@ -128,14 +129,15 @@ replaces it with the live GPS distance used for delivery.
 
 > **Location access is required for accurate delivery.** If permission is denied,
 > the fix times out, or GPS is unavailable, E-SCON warns you and uses your saved
-> location only when one exists. If no saved location exists, enable location
-> access and press **Place Order** again.
+> location only when one exists. If no saved location exists, the Order Summary
+> asks for a fix and shows **📍 Use my current location** — allow location access
+> and tap it (or press **Place Order**) again.
 
 > **Order Summary never fails silently.** While it prices, the button reads
-> **Calculating…**. If it cannot produce a total — your location is unavailable,
-> or the cart holds another supplier's goods — it says why and gives you the one
-> action that fixes it: **🔁 Retry calculating** or **🗑️ Clear cart & order this
-> product**.
+> **Calculating…**. If it cannot produce a total, it says why and gives you the
+> one action that fixes it: **📍 Use my current location** when you have no pin,
+> **🔁 Retry calculating** for a failed quote, or **🗑️ Clear cart & order this
+> product** when the cart holds another supplier's goods.
 
 > **One supplier per cart.** A proforma invoice is a legal document issued by a
 > single seller, so a cart can only hold one supplier's goods. If your cart
@@ -329,7 +331,7 @@ Installing is optional — the app works the same in a normal browser tab.
 | Distance says "Unable to calculate" | The route service is busy — retry in a moment; the app falls back to a straight-line estimate |
 | Order says my location is unavailable | Allow location/GPS access for E-SCON, then press **Place Order** again. Without permission the app can only use a saved location, if one exists |
 | Distance didn't change after I moved | The preview uses your saved pin; press **Place Order** to capture a fresh GPS fix and re-price delivery |
-| Order Summary keeps saying "Calculating…" | It prices 250 ms after you change something, so wait a beat. If it cannot finish, the block on screen says why and gives you **Retry calculating** — or **Clear cart & order this product** when the cart holds another supplier's goods |
+| Order Summary keeps saying "Calculating…" | It prices 250 ms after you change something, so wait a beat. If it cannot finish, the block on screen says why and gives you **📍 Use my current location** when you have no pin, **Retry calculating** for a failed quote, or **Clear cart & order this product** when the cart holds another supplier's goods |
 | "Please select a valid user" although the details are right | The account list was still loading. Close the form and try again — the list loads without waiting on location any more |
 | Map opens without a route | Re-select the supplier; the route redraws from your current GPS position |
 | Login is locked | 3 failed attempts lock it for 30 seconds — wait and retry |
