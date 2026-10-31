@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, MaterialDelivery, DeliveryMode, CartItem } from './types';
+import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, MaterialDelivery, DeliveryMode, CartItem, Material } from './types';
 
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
@@ -106,54 +106,103 @@ export interface GeoCoordinates {
   accuracy: number;
 }
 
-/**
- * Read the device's *current* position (not the saved profile pin). `maximumAge: 0`
- * forces a fresh GPS/Wi-Fi fix, and high accuracy is requested so delivery
- * distances are measured from where the customer is actually standing.
- */
-export const getCurrentCoordinates = (timeoutMs = 20000): Promise<GeoCoordinates> =>
+const positionError = (error: GeolocationPositionError): Error => {
+  const message = error.code === error.PERMISSION_DENIED
+    ? 'Location permission was denied.'
+    : error.code === error.TIMEOUT
+      ? 'Getting the current location timed out.'
+      : 'The current location is unavailable.';
+  return new Error(message);
+};
+
+const readPosition = (options: PositionOptions): Promise<GeoCoordinates> =>
   new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      reject(new Error('Geolocation is not supported on this device.'));
-      return;
-    }
     navigator.geolocation.getCurrentPosition(
       position => resolve({
         lat: position.coords.latitude,
         lng: position.coords.longitude,
         accuracy: position.coords.accuracy,
       }),
-      error => {
-        const message = error.code === error.PERMISSION_DENIED
-          ? 'Location permission was denied.'
-          : error.code === error.TIMEOUT
-            ? 'Getting the current location timed out.'
-            : 'The current location is unavailable.';
-        reject(new Error(message));
-      },
-      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 }
+      error => reject(positionError(error)),
+      options
     );
   });
 
-// In-memory cache so repeated distance lookups (search, cart, map) don't hammer OSRM
+/**
+ * Read the device's *current* position (not the saved profile pin). `maximumAge: 0`
+ * forces a fresh fix. A high-accuracy GPS/wifi fix is requested first; if the
+ * device cannot obtain one in time, a network-assisted fix is attempted before
+ * giving up, so ordering is not left waiting indefinitely.
+ */
+export const getCurrentCoordinates = async (timeoutMs = 16000): Promise<GeoCoordinates> => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    throw new Error('Geolocation is not supported on this device.');
+  }
+  const highTimeout = Math.max(5000, Math.round(timeoutMs * 0.7));
+  try {
+    return await readPosition({
+      enableHighAccuracy: true,
+      timeout: highTimeout,
+      maximumAge: 0,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Location permission was denied.') throw error;
+    return readPosition({
+      enableHighAccuracy: false,
+      timeout: Math.max(4000, timeoutMs - highTimeout),
+      maximumAge: 0,
+    });
+  }
+};
+
+// In-memory cache so repeated distance lookups (search, cart, map) don't hammer
+// the routing servers. Distances are exact OSRM road kilometres whenever a
+// routing server replies.
 const distanceCache = new Map<string, number>();
+const ROUTE_TIMEOUT_MS = 9000;
+const ROUTE_ENDPOINTS = [
+  'https://router.project-osrm.org/route/v1/driving',
+  'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+];
+
+const fetchRoadDistanceKm = async (url: string): Promise<number> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ROUTE_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+    if (response.ok === false) throw new Error('Routing server returned ' + response.status);
+    const data = await response.json();
+    const metres = data?.routes?.[0]?.distance;
+    if (!Number.isFinite(metres) || metres <= 0) throw new Error('No route found');
+    return metres / 1000;
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 export const calculateDistance = async (originLat: number, originLng: number, destLat: number, destLng: number): Promise<number> => {
+  if (![originLat, originLng, destLat, destLng].every(Number.isFinite)) {
+    throw new Error('Valid coordinates are required to measure the delivery distance.');
+  }
   const key = `${originLat.toFixed(6)},${originLng.toFixed(6)},${destLat.toFixed(6)},${destLng.toFixed(6)}`;
   const cached = distanceCache.get(key);
   if (cached !== undefined) return cached;
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=false`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.routes && data.routes.length > 0) {
-      const dist = data.routes[0].distance / 1000;
+
+  // Always prefer real road routing. Two independent OSRM endpoints keep the
+  // measurement working when one public server is slow or unavailable.
+  for (const endpoint of ROUTE_ENDPOINTS) {
+    try {
+      const url = `${endpoint}/${originLng},${originLat};${destLng},${destLat}?overview=false&alternatives=false&steps=false`;
+      const dist = await fetchRoadDistanceKm(url);
       distanceCache.set(key, dist);
       return dist;
+    } catch (error) {
+      console.warn('Road routing failed for ' + endpoint, error);
     }
-  } catch (error) {
-    console.warn("OSRM failed, using haversine fallback", error);
   }
+
+  // Last-resort straight-line distance. This keeps the app usable offline, but
+  // every online order uses the road distance returned above.
   const R = 6371;
   const dLat = (destLat - originLat) * Math.PI / 180;
   const dLon = (destLng - originLng) * Math.PI / 180;
@@ -340,6 +389,65 @@ export const cartHasOtherSupplier = (
   supplierId: string,
   materialId?: string
 ): boolean => findOtherCartSupplier(cart, supplierId, materialId) !== null;
+
+/**
+ * Build the cart that results from adding `material` to `current`.
+ *
+ * Pure, so the cart modal, the product-details **Place Order** action and the
+ * unit tests all share one definition of a cart line — the proforma, the order
+ * rows and the on-screen summary can therefore never disagree about what was
+ * bought. Returns `null` when the add would introduce a second supplier; the
+ * caller must then leave the cart exactly as it was.
+ *
+ * `mode` decides what happens to a line that is already in the cart:
+ *  - `'increment'` adds to its quantity (the cart modal's repeat add),
+ *  - `'set'` replaces it, because the product-details quantity field states the
+ *    total the buyer wants to order.
+ */
+export const stageCartLine = (
+  current: CartItem[],
+  material: Material,
+  quantity: number,
+  includeDelivery: boolean,
+  supplierName: string,
+  mode: 'increment' | 'set' = 'increment'
+): CartItem[] | null => {
+  const clash = findOtherCartSupplier(current, material.companyId, material.id);
+  if (clash) return null;
+  // Snapshot the supplier's published rate onto the line: the fee is worked out
+  // from the distance later, so the cart has to remember which rate applies.
+  const rate = material.delivery && material.delivery.offered ? material.delivery : undefined;
+  const existing = current.find(item => item.materialId === material.id);
+  if (existing) {
+    return current.map(item => item.materialId === material.id
+      ? {
+          ...item,
+          quantity: mode === 'set' ? quantity : item.quantity + quantity,
+          includeDelivery,
+          deliveryRate: rate
+        }
+      : item);
+  }
+  const line: CartItem = {
+    id: Date.now().toString(),
+    materialId: material.id,
+    materialName: material.name,
+    supplierId: material.companyId,
+    supplierName,
+    quantity,
+    price: material.price,
+    unit: material.unit,
+    minOrder: material.minOrder,
+    vatPercentage: material.vatPercentage,
+    specifications: material.specifications,
+    basePrice: material.basePrice,
+    profitMargin: material.profitMargin,
+    weightPerUnit: material.specifications?.weightPerUnit || 0.001,
+    includeDelivery,
+    deliveryRate: rate
+  };
+  return [...current, line];
+};
 
 // ---------- QR / share payload for proformas & orders ----------
 // The QR encodes a URL (so scanning opens the app) AND the compact proforma

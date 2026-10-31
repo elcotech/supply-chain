@@ -12,10 +12,10 @@ import {
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
-  vatOnSubtotal, allocateVat, cartGrandTotal
+  stageCartLine, vatOnSubtotal, allocateVat, cartGrandTotal
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
-import { cloudPush, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
+import { cloudPush, cloudPushNow, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
 import EditCompany from './components/EditCompany';
 import MapPicker from './components/MapPicker';
 import DateTime from './components/DateTime';
@@ -329,6 +329,27 @@ function App() {
   const [isSearchPerformed, setIsSearchPerformed] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  // Product-details ordering (the Sample Layout's Order Summary). These live
+  // here rather than inside the order box because the summary, the quantity row
+  // and the Place Order button are three separate sections of that layout and
+  // must read the same figures.
+  const [detailsQty, setDetailsQty] = useState(1);
+  const [detailsDelivery, setDetailsDelivery] = useState(true);
+  const [detailsQuote, setDetailsQuote] = useState<CartReport | null>(null);
+  // Why the summary cannot quote. `null` means "still pricing"; any other value
+  // is a reason the buyer can read and act on, so Place Order never sits on a
+  // permanent "Calculating…" with nothing explaining it.
+  const [detailsQuoteBlock, setDetailsQuoteBlock] = useState<{ kind: 'conflict' | 'error'; message: string } | null>(null);
+  // Bumped by the summary's Retry button to re-price the very same lines.
+  const [detailsQuoteRetry, setDetailsQuoteRetry] = useState(0);
+  // Held here, not inside `DetailsOrderBox`: that component is declared inside
+  // `App`, so React sees a new type on every render and would remount it,
+  // discarding any state it owned mid-order.
+  const [isDetailsOrdering, setIsDetailsOrdering] = useState(false);
+  // Which photo the product page is showing, and whether every review is open.
+  // Both belong to the Sample Layout's gallery dots and "See all reviews" link.
+  const [detailsImageIndex, setDetailsImageIndex] = useState(0);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartSummary, setShowCartSummary] = useState(false);
@@ -337,6 +358,22 @@ function App() {
   // system settings; a number overrides it everywhere (cart, proforma, orders).
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState<number | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  // True only while `confirmOrder` is committing. `isCalculating` is toggled by
+  // `priceCartItems` too, so it cannot be used as a re-entrancy lock: pricing
+  // finishes (and flips it back to false) while the order is still being written.
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  // Set when the open cart could not be priced. The re-pricing effect releases
+  // its own guard in that case, so this flag drives a visible Retry button rather
+  // than leaving the buyer on a spinner that never resolves.
+  const [cartPriceFailed, setCartPriceFailed] = useState(false);
+  // Bumped by the Retry button to re-run the re-pricing effect on the same cart.
+  const [cartPriceRetry, setCartPriceRetry] = useState(0);
+  // Signature of the cart lines currently priced into `cartDetails`. The
+  // re-pricing effect uses it to skip redundant work, so it MUST be cleared the
+  // moment `cartDetails` is discarded — otherwise clearing the cart and adding
+  // the same product again produces an identical signature, the effect returns
+  // early, `cartDetails` stays null and the cart modal can never render.
+  const repricedCart = useRef('');
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
   const [showMyLocationPicker, setShowMyLocationPicker] = useState(false);
@@ -910,9 +947,14 @@ function App() {
         }
       }
 
-      const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
-      if (cancelled) return;
-      setCompanies(enrichedCompanies);
+      // Publish everything already stored on this device *before* the geocoding
+      // pass. Geocoding every supplier is the only part that touches the network
+      // and it can take seconds on a slow connection; holding the account list
+      // back until it finished meant a buyer who reached the login form during
+      // that window was rejected with "Please select a valid user" even though
+      // the credentials were right (and the catalogue still read "No products
+      // listed yet"). Local data is complete and usable immediately.
+      setCompanies(baseCompanies);
       setUsers(parsedUsers);
       if (!savedUsers) safeLocalStorage.setItem('users', JSON.stringify(parsedUsers));
       // v6.4 uses one VAT-exclusive price model for every product. Older sample
@@ -942,6 +984,12 @@ function App() {
       if (savedReviews) setReviews(JSON.parse(savedReviews));
       setSystemSettings(loadSettings());
 
+      // Positions are the only thing that still needs the network. Swap the
+      // enriched list in once it is ready, then open the gates (persistence and
+      // cloud pushes) now that every collection holds this device's data.
+      const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
+      if (cancelled) return;
+      setCompanies(enrichedCompanies);
       safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
       setIsInitialized(true);
       showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
@@ -1127,7 +1175,19 @@ function App() {
     e.preventDefault();
     const { loginPassword, selectedUser } = formData;
     const user = users.find(u => u.email === selectedUser);
-    if (!user) { showAlert('Please select a valid user', 'danger'); return; }
+    if (!user) {
+      // The account list is hydrated from local data and then refreshed from the
+      // cloud; on a slow start the form can be on screen before it arrives. Say
+      // that instead of telling a buyer with correct credentials they are not a
+      // valid user.
+      showAlert(
+        users.length === 0
+          ? 'Your account list is still loading — please try again in a moment.'
+          : 'Please select a valid user',
+        'danger'
+      );
+      return;
+    }
     if (isUserLocked(user)) {
       const remainingTime = Math.ceil((user.lockUntil! - Date.now()) / 1000);
       showAlert('Account locked. Try again in ' + remainingTime + ' seconds', 'danger');
@@ -1674,40 +1734,7 @@ function App() {
     }
     // Snapshot the supplier's published rate onto the line: the fee is worked out
     // from the distance later, so the cart has to remember which rate applies.
-    const rate = material.delivery && material.delivery.offered ? material.delivery : undefined;
-    setCart(prev => {
-      // Same rule as above, re-applied on `prev` — the real cart at the moment of
-      // the write. The pre-flight check above runs against the `cart` closure,
-      // which a cart persisted by an older build could already contradict; this
-      // one cannot. A cart that gets past it is left exactly as it was rather
-      // than gaining a second supplier.
-      const clash = findOtherCartSupplier(prev, material.companyId, material.id);
-      if (clash) return prev;
-      // Re-adding a product already in the cart is a quantity change, not a new
-      // supplier, so it bumps the quantity instead of adding a line.
-      if (prev.some(item => item.materialId === material.id)) {
-        return prev.map(item => item.materialId === material.id ? { ...item, quantity: item.quantity + quantity, includeDelivery, deliveryRate: rate } : item);
-      }
-      const newCartItem: CartItem = {
-        id: Date.now().toString(),
-        materialId: material.id,
-        materialName: material.name,
-        supplierId: material.companyId,
-        supplierName: company.name,
-        quantity: quantity,
-        price: material.price,
-        unit: material.unit,
-        minOrder: material.minOrder,
-        vatPercentage: material.vatPercentage,
-        specifications: material.specifications,
-        basePrice: material.basePrice,
-        profitMargin: material.profitMargin,
-        weightPerUnit: material.specifications?.weightPerUnit || 0.001,
-        includeDelivery,
-        deliveryRate: rate
-      };
-      return [...prev, newCartItem];
-    });
+    setCart(prev => stageCartLine(prev, material, quantity, includeDelivery, company.name) || prev);
     showAlert(cart.some(i => i.materialId === material.id) ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
     return true;
   };
@@ -1742,12 +1769,16 @@ function App() {
 
 
 
-  const clearCart = () => {
+  const clearCart = (silent = false) => {
     setCart([]);
     setShowCartSummary(false);
     setCartDetails(null);
     setDeliveryFeeOverride(null);
-    showAlert('Cart cleared', 'info');
+    // Drop the priced signature with the totals. `cartDetails` is now null, so
+    // any later cart must be priced again even if it hashes to the same value.
+    repricedCart.current = '';
+    setCartPriceFailed(false);
+    if (!silent) showAlert('Cart cleared', 'info');
   };
 
   // Price a set of cart lines. Delivery is resolved per line: the buyer's checkbox
@@ -1762,6 +1793,14 @@ function App() {
     if (items.length === 0) return null;
     if (!currentUser) return null;
     const buyer: User = origin ? { ...currentUser, lat: origin.lat, lng: origin.lng } : currentUser;
+    // Delivery cannot be measured without a real buyer position. Bail out with a
+    // message the buyer can act on instead of letting `calculateDistance` throw a
+    // coordinate error deep inside the loop (which is what used to leave the cart
+    // modal permanently blank).
+    if (!hasUserCoordinates(buyer)) {
+      showAlert('Your location is needed to calculate delivery. Enable GPS/location access, then press Retry.', 'warning');
+      return null;
+    }
     setIsCalculating(true);
     let subtotal = 0, transportCost = 0;
     const supplierMap = new Map<string, CartSupplier>();
@@ -1809,6 +1848,13 @@ function App() {
           });
         }
       }
+    } catch (error) {
+      console.warn('Cart pricing failed', error);
+      showAlert(
+        error instanceof Error ? error.message : 'Could not calculate the delivery distance.',
+        'danger'
+      );
+      return null;
     } finally {
       setIsCalculating(false);
     }
@@ -1879,20 +1925,104 @@ function App() {
       showAlert('The supplier for this product is unavailable.', 'danger');
       return false;
     }
-    const coords = await refreshCurrentLocation();
-    if (!coords) return false;
-    const alreadyInCart = cart.some(item => item.materialId === material.id);
-    if (!alreadyInCart && !addToCart(material, quantity, includeDelivery)) return false;
     try {
-      const liveDistance = await calculateDistance(company.lat, company.lng, coords.lat, coords.lng);
-      setDistanceToSelected(liveDistance);
-    } catch {
-      setDistanceToSelected(null);
+      const coords = await refreshCurrentLocation();
+      if (!coords) return false;
+      const alreadyInCart = cart.some(item => item.materialId === material.id);
+      if (!alreadyInCart && !addToCart(material, quantity, includeDelivery)) return false;
+      try {
+        const liveDistance = await calculateDistance(company.lat, company.lng, coords.lat, coords.lng);
+        setDistanceToSelected(liveDistance);
+      } catch {
+        setDistanceToSelected(null);
+      }
+      // Open the cart immediately; the modal renders a loading state while the
+      // road distance is priced. It must never stay invisible just because the
+      // totals request has not finished yet.
+      setSelectedMaterial(null);
+      setShowCartSummary(true);
+      return true;
+    } catch (error) {
+      showAlert(
+        error instanceof Error ? error.message : 'Could not add this item to the cart.',
+        'danger'
+      );
+      return false;
     }
-    setSelectedMaterial(null);
-    setShowCartSummary(true);
-    return true;
   };
+
+  // The Sample Layout puts the Order Summary and its **Place Order** button on
+  // the product page itself, so the order commits from here instead of routing
+  // the buyer through the cart modal. It stages exactly the line the summary
+  // priced, then hands the whole set to `confirmOrder` — one code path for VAT,
+  // delivery, wallet and cloud sync, so the product page and the cart can never
+  // disagree about what was charged.
+  const handlePlaceOrderFromDetails = async (
+    material: Material,
+    quantity: number,
+    includeDelivery: boolean
+  ): Promise<boolean> => {
+    if (!currentUser) {
+      showAlert('Please login to place an order', 'danger');
+      return false;
+    }
+    if (currentUser.userType !== 'customer') {
+      showAlert('Only customers can place orders', 'danger');
+      return false;
+    }
+    if (isPlacingOrder) return false;
+    const company = getCompanyById(material.companyId);
+    if (!company) {
+      showAlert('The supplier for this product is unavailable.', 'danger');
+      return false;
+    }
+    if (material.quantity <= 0) {
+      showAlert('This product is currently unavailable.', 'danger');
+      return false;
+    }
+    try {
+      // A fresh high-accuracy fix first: delivery is measured from where the
+      // buyer is standing right now, not from a saved pin.
+      const coords = await refreshCurrentLocation();
+      if (!coords) return false;
+      // `'set'` — the quantity typed on the page is the quantity ordered.
+      const lines = stageCartLine(cart, material, quantity, includeDelivery, company.name, 'set');
+      if (!lines) {
+        const foreign = otherSupplierInCart(material.companyId, material.id);
+        showAlert(
+          'Your cart can only contain items from one supplier. It currently holds ' +
+          (foreign ? foreign.supplierName : 'another supplier') +
+          ' — clear the cart before ordering ' + material.name + '.',
+          'warning'
+        );
+        return false;
+      }
+      // Keep the cart in step with what is about to be bought, so a failure
+      // halfway leaves the buyer on a cart they can retry rather than nothing.
+      setCart(lines);
+      setSelectedMaterial(null);
+      const placed = await confirmOrder(lines);
+      if (placed) setShowCartSummary(false);
+      return placed;
+    } catch (error) {
+      showAlert(
+        error instanceof Error ? error.message : 'The order could not be placed. Please try again.',
+        'danger'
+      );
+      return false;
+    }
+  };
+
+  // Reset the quantity and delivery choice whenever a different product is
+  // opened, so the summary never quotes the previous product's figures.
+  const selectedMaterialId = selectedMaterial ? selectedMaterial.id : '';
+  useEffect(() => {
+    setDetailsQty(1);
+    setDetailsDelivery(true);
+    setDetailsQuote(null);
+    setDetailsImageIndex(0);
+    setShowAllReviews(false);
+  }, [selectedMaterialId]);
 
   // Two repricings of the cart are only worth doing when the lines themselves
   // differ, so the effect below keys off a signature of quantity + delivery flag.
@@ -1908,9 +2038,89 @@ function App() {
     cartSignature(items) + '|' + deliveryFeeOverride + '|' + userLocationSignature,
     [cartSignature, deliveryFeeOverride, userLocationSignature]);
 
+  // Price what the Order Summary will show. It stages the very lines
+  // `handlePlaceOrderFromDetails` will commit and prices them with
+  // `priceCartItems(..., true)` — the same call `confirmOrder` makes — so
+  // "Total Payable" is the amount that actually leaves the buyer's account.
+  const detailsQuoteSignature = [
+    selectedMaterialId,
+    detailsQty,
+    detailsDelivery,
+    cartSignature(cart),
+    userLocationSignature,
+    deliveryFeeOverride,
+    systemSettings.vat.rate,
+    systemSettings.vat.enabled,
+  ].join('|');
+
+  useEffect(() => {
+    if (!selectedMaterial || !currentUser) {
+      setDetailsQuote(null);
+      setDetailsQuoteBlock(null);
+      return;
+    }
+    // Any reason from the previous product is stale now; the timer below either
+    // prices the lines or replaces it with the reason this one cannot be.
+    setDetailsQuoteBlock(null);
+    const company = getCompanyById(selectedMaterial.companyId);
+    if (!company) {
+      setDetailsQuote(null);
+      setDetailsQuoteBlock({ kind: 'error', message: 'This supplier\u2019s profile could not be loaded. Please try again.' });
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const lines = stageCartLine(cart, selectedMaterial, detailsQty, detailsDelivery, company.name, 'set');
+      if (!lines) {
+        // The cart holds another supplier's goods: a proforma is issued by one
+        // seller, so this product cannot be staged on top of them. Name the
+        // supplier that is blocking it — an unexplained blank summary looks
+        // exactly like an order that refuses to go through.
+        const foreign = findOtherCartSupplier(cart, selectedMaterial.companyId, selectedMaterial.id);
+        if (!cancelled) {
+          setDetailsQuote(null);
+          setDetailsQuoteBlock({
+            kind: 'conflict',
+            message: 'Your cart holds items from ' + (foreign ? foreign.supplierName : 'another supplier') +
+              '. One proforma is issued by a single seller, so clear the cart to order ' + selectedMaterial.name + '.',
+          });
+        }
+        return;
+      }
+      priceCartItems(lines, true)
+        .then(report => {
+          if (cancelled) return;
+          if (report) {
+            setDetailsQuote(report);
+            setDetailsQuoteBlock(null);
+            return;
+          }
+          // Pricing gave up (no usable location, unreachable routing server,
+          // unreadable line). It already raised a specific alert; keep the reason
+          // on screen as well and offer a Retry, rather than leaving the buyer on
+          // a button that can never be pressed.
+          setDetailsQuote(null);
+          setDetailsQuoteBlock({
+            kind: 'error',
+            message: 'We could not calculate this total. Check that location access is enabled, then try again.',
+          });
+        })
+        .catch(error => {
+          console.warn('Product summary could not be priced', error);
+          if (cancelled) return;
+          setDetailsQuote(null);
+          setDetailsQuoteBlock({
+            kind: 'error',
+            message: error instanceof Error ? error.message : 'We could not calculate this total. Please try again.',
+          });
+        });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailsQuoteSignature, detailsQuoteRetry]);
+
   const priceCartItemsRef = useRef(priceCartItems);
   priceCartItemsRef.current = priceCartItems;
-  const repricedCart = useRef('');
 
   // Re-price the open cart whenever a quantity, a "with delivery" checkbox or the
   // manual delivery override changes, so the totals on screen always match the
@@ -1922,14 +2132,29 @@ function App() {
     if (signature === repricedCart.current) return;
     repricedCart.current = signature;
     let cancelled = false;
+    setCartPriceFailed(false);
     const timer = setTimeout(() => {
       priceCartItemsRef.current(cart, false).then(totals => {
-        if (cancelled || !totals) return;
-        setCartDetails(totals);
+        if (cancelled) return;
+        if (totals) {
+          setCartDetails(totals);
+          return;
+        }
+        // Pricing gave up (no location, unreachable routing, unreadable line).
+        // Release the guard so this cart can be priced again — without it the
+        // signature would still match and the effect would never run, leaving
+        // the buyer stuck on a loading screen with no way to order.
+        repricedCart.current = '';
+        setCartPriceFailed(true);
+      }).catch(error => {
+        if (cancelled) return;
+        console.warn('Cart could not be repriced', error);
+        repricedCart.current = '';
+        setCartPriceFailed(true);
       });
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [cart, showCartSummary, deliveryFeeOverride, currentUser?.lat, currentUser?.lng, cartPriceSignature]);
+  }, [cart, showCartSummary, deliveryFeeOverride, currentUser?.lat, currentUser?.lng, cartPriceSignature, cartPriceRetry]);
 
   const handleCheckout = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
@@ -2017,29 +2242,49 @@ function App() {
     if (totals) setCartDetails(totals);
   };
 
-  const confirmOrder = async () => {
-    if (cart.length === 0) return;
-    const totals = await calculateCartTotals(true);
-    if (!totals) return;
+  const confirmOrder = async (linesOverride?: CartItem[], clearAfter = true): Promise<boolean> => {
+    // Normally the whole cart is bought; the product-details Place Order action
+    // passes the cart it just staged so it can commit without waiting for a
+    // state round-trip.
+    const lines = linesOverride || cart;
+    if (lines.length === 0 || isPlacingOrder) return false;
+    // Never price a delivery from a made-up city centre. The customer must have
+    // a real pin (captured by the Order action or saved in My Location). This
+    // check runs *before* the totals request so a missing pin produces one clear
+    // message instead of failing later inside the distance calculation.
+    if (!hasUserCoordinates(currentUser)) {
+      showAlert('Your current location is required before placing the order. Enable GPS/location access and press Order again.', 'danger');
+      setShowCartSummary(true);
+      return false;
+    }
+    // Lock immediately: `priceCartItems` flips `isCalculating` back to false in
+    // its own finally while this function is still running, so that flag alone
+    // would let a second tap create a duplicate order.
+    setIsPlacingOrder(true);
+    setIsCalculating(true);
+    let walletPaid = 0;
+    let orderCommitted = false;
+    try {
+    // Price exactly the lines being bought — not the `cart` state, which may not
+    // have flushed yet when the product-details Place Order action staged them.
+    const totals = await priceCartItems(lines, true);
+    if (!totals) return false;
     // Block submission when the configured minimum-order rule is not met so
     // the customer cannot accidentally create an unfulfillable order.
     if (totals.minOrderEnabled && totals.belowMinOrder) {
       showAlert('This order is below the minimum of ' + formatCurrency(totals.minOrderAmount || 0) + '. Please add more items.', 'danger');
       setShowCartSummary(true);
-      return;
+      return false;
     }
-    setIsCalculating(true);
     // When paying from the E-SCON wallet, validate and reserve the full total once.
     const wholeTotal = totals.total;
-    let walletPaid = 0;
     if (paymentMethod === 'wallet') {
       walletPaid = wholeTotal;
-      const ok = applyWalletChange(currentUser!.id, 'payment', wholeTotal, `Payment for cart (${cart.length} item${cart.length > 1 ? 's' : ''})`);
+      const ok = applyWalletChange(currentUser!.id, 'payment', wholeTotal, `Payment for cart (${lines.length} item${lines.length > 1 ? 's' : ''})`);
       if (ok === null) {
         showAlert('Insufficient wallet balance. Please top up first.', 'danger');
-        setIsCalculating(false);
         setShowCartSummary(true);
-        return;
+        return false;
       }
       pushNotification(currentUser!.id, 'payment', 'Wallet payment successful',
         `ETB ${wholeTotal.toLocaleString()} paid with your wallet. Balance is now ${formatCurrency(ok)}.`);
@@ -2047,11 +2292,11 @@ function App() {
     // Allocate the one cart-level VAT amount across the order rows. The sum of
     // the rows therefore always equals the VAT shown on the proforma, even when
     // per-line rounding would otherwise add up to a cent or two more.
-    const netByLine = cart.map(item => item.basePrice * (1 + item.profitMargin) * item.quantity);
+    const netByLine = lines.map(item => item.basePrice * (1 + item.profitMargin) * item.quantity);
     const vatByLine = allocateVat(netByLine, totals.vatAmount);
     const createdOrders: Order[] = [];
-    for (let lineIndex = 0; lineIndex < cart.length; lineIndex++) {
-      const item = cart[lineIndex];
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const item = lines[lineIndex];
       // The material may have been deleted since the line was added; the order
       // must still be created, otherwise the buyer is charged for goods that
       // never reach the supplier.
@@ -2068,8 +2313,8 @@ function App() {
       // the platform fallback when that supplier publishes no rate.
       const distanceKm = await calculateDistance(
         supplierCompany.lat, supplierCompany.lng,
-        currentUser!.lat || 9.0320, currentUser!.lng || 38.7469
-      ).catch(() => 0);
+        currentUser!.lat, currentUser!.lng
+      );
       const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
         item, supplierCompany, distanceKm, totals.subtotal, currentUser!, systemSettings
       );
@@ -2086,7 +2331,7 @@ function App() {
         status: 'pending',
         orderDate: new Date().toISOString().split('T')[0],
         address: currentUser?.address || '',
-        notes: 'Order from cart - ' + cart.length + ' items total',
+        notes: 'Order from cart - ' + lines.length + ' items total',
         invoiceNumber: 'INV-' + new Date().getFullYear() + '-' + (orders.length + 1000 + createdOrders.length),
         taxAmount: 0,
         vatAmount: vatAmountItem,
@@ -2097,7 +2342,6 @@ function App() {
         revenueCredited: false
       };
       createdOrders.push(newOrder);
-      setOrders(prev => [...prev, newOrder]);
       notifyOrderParties(newOrder, `New order ${newOrder.invoiceNumber}`,
         `${currentUser!.name} ordered ${item.quantity} ${materialUnit} of ${materialName} — ETA ${deliveryEta(distanceKm)}.`);
       const buyerCompany = materialName;
@@ -2108,33 +2352,54 @@ function App() {
     }
     // If the buyer edited the delivery fee, re-scale each order's transport so
     // the placed orders match the proforma the buyer approved.
+    let placedOrders = createdOrders;
     if (deliveryFeeOverride !== null && createdOrders.length > 0) {
       const computedTrans = createdOrders.reduce((s, o) => s + o.transportCost, 0);
       const scale = computedTrans > 0 ? deliveryFeeOverride / computedTrans : 1;
-      setOrders(prev => {
-        const ids = new Set(createdOrders.map(o => o.id));
-        const scaled = createdOrders.map(o => {
-          const newTrans = Math.round(o.transportCost * scale * 100) / 100;
-          const materialTotal = o.unitPrice * o.quantity;
-          return {
-            ...o,
-            transportCost: newTrans,
-            totalAmount: cartGrandTotal(materialTotal, o.vatAmount || 0, newTrans)
-          };
-        });
-        return [...prev.filter(o => !ids.has(o.id)), ...scaled];
+      placedOrders = createdOrders.map(o => {
+        const newTrans = Math.round(o.transportCost * scale * 100) / 100;
+        const materialTotal = o.unitPrice * o.quantity;
+        return {
+          ...o,
+          transportCost: newTrans,
+          totalAmount: cartGrandTotal(materialTotal, o.vatAmount || 0, newTrans)
+        };
       });
     }
+    // Commit the orders once, then send them to Supabase immediately. The
+    // debounced persistence effect will keep them in sync afterwards.
+    const nextOrders = [...orders, ...placedOrders];
+    setOrders(nextOrders);
+    orderCommitted = true;
+    void cloudPushNow('orders', nextOrders).catch(error => {
+      console.warn('[cloud] immediate order push failed:', error);
+    });
     if (walletPaid > 0) {
       pushNotification(currentUser!.id, 'order', 'Wallet orders placed',
         `${createdOrders.length} order(s) totalling ${formatCurrency(walletPaid)} were paid instantly from your wallet.`);
     }
     showAlert('Order placed successfully! 📦 Total: ' + formatCurrency(totals.total), 'success');
-    clearCart();
+    if (clearAfter) clearCart(true);
     setShowCartSummary(false);
     setCurrentPage('orders');
-    setIsCalculating(false);
     setPaymentMethod('bank');
+    return true;
+    } catch (error) {
+      // If the wallet was charged but no order was committed, return the money
+      // instead of leaving the customer with a silent failure.
+      if (walletPaid > 0 && !orderCommitted) {
+        applyWalletChange(currentUser!.id, 'topup', walletPaid, 'Refund - order could not be saved');
+        pushNotification(currentUser!.id, 'payment', 'Order failed - wallet refunded',
+          `${formatCurrency(walletPaid)} was returned to your wallet.`);
+      }
+      console.error('Order failed', error);
+      showAlert(error instanceof Error ? error.message : 'The order could not be placed. Please try again.', 'danger');
+      setShowCartSummary(true);
+      return false;
+    } finally {
+      setIsCalculating(false);
+      setIsPlacingOrder(false);
+    }
   };
 
   // ---------- Export ----------
@@ -2381,19 +2646,6 @@ function App() {
   };
 
   // Render product image gallery for the details modal
-  const renderProductGallery = (material: Material) => {
-    if (!material.images || material.images.length === 0) {
-      return <div className="product-gallery product-gallery-empty">{renderProductImage([], material.category, 'lg')}<p>No photo uploaded yet</p></div>;
-    }
-    return (
-      <div className="product-gallery">
-        {material.images.map((img, i) => (
-          <img key={i} src={img} alt={material.name + ' photo ' + (i + 1)} className="product-gallery-img" loading="lazy" />
-        ))}
-      </div>
-    );
-  };
-
   // Product image upload section used in add/edit material forms
   const renderMaterialImageUploader = () => (
     <div className="form-group">
@@ -2527,11 +2779,61 @@ function App() {
   const renderAlert = () => {
     if (!alert) return null;
     const icons: Record<string, string> = { success: '✅', danger: '⚠️', warning: '⚠️', info: 'ℹ️' };
-    return <div className={'alert alert-' + alert.type}><span className="alert-icon">{icons[alert.type] || 'ℹ️'}</span>{alert.message}</div>;
+    return (
+      <div className="alert-stack" role="alert" aria-live="assertive">
+        <div className={'alert alert-' + alert.type}><span className="alert-icon">{icons[alert.type] || 'ℹ️'}</span>{alert.message}</div>
+      </div>
+    );
   };
 
   const renderCartSummary = () => {
-    if (!showCartSummary || !cartDetails) return null;
+    if (!showCartSummary) return null;
+    if (!cartDetails) {
+      return (
+        <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
+          <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{cart.length === 0 ? 'Shopping Cart' : 'Calculating your order...'}</h2>
+              <button className="modal-close" onClick={() => setShowCartSummary(false)}>Close</button>
+            </div>
+            <div className="modal-body">
+              {cart.length === 0 ? (
+                <div className="empty-cart">
+                  <h3>Your cart is empty</h3>
+                  <button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button>
+                </div>
+              ) : (
+                <div className="cart-loading" role="status" aria-live="polite">
+                  <span className="dot-pulse"></span>
+                  <p>Measuring the live road distance and calculating delivery...</p>
+                  <p className="cart-loading-note">Your items are in the cart. You can close this window and open Orders at any time.</p>
+                  {cartPriceFailed && (
+                    <>
+                      <p className="cart-loading-error">
+                        ⚠️ We could not calculate delivery for this cart.
+                        {' '}Check that location access is enabled, then try again.
+                      </p>
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => {
+                          // Release the effect's signature guard, then bump the
+                          // tick so the very same cart is priced again.
+                          repricedCart.current = '';
+                          setCartPriceFailed(false);
+                          setCartPriceRetry(n => n + 1);
+                        }}
+                      >
+                        🔁 Retry calculating
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
     const supplierGroups = cartDetails.suppliers || [];
     const multipleSuppliers = supplierGroups.length > 1;
     // The cart shows goods + delivery only. VAT is applied at order time, so the
@@ -2558,13 +2860,13 @@ function App() {
                 <div className="cart-order-steps">
                   <button
                     className={'cart-order-step is-primary' + (highlightPurchaseStep ? ' is-returned' : '')}
-                    onClick={confirmOrder}
-                    disabled={isCalculating || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
+                    onClick={() => { void confirmOrder(); }}
+                    disabled={isCalculating || isPlacingOrder || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
                     title={cartDetails.minOrderEnabled && cartDetails.belowMinOrder ? 'Minimum order not met' : ''}
                   >
                     <span className="cart-step-num">1</span>
-                    <span className="cart-step-label">{isCalculating ? 'Calculating...' : 'To Purchase'}</span>
-                    <span className="cart-step-hint">{highlightPurchaseStep ? 'Tap here to place your order' : 'Place the order'}</span>
+                    <span className="cart-step-label">{isPlacingOrder ? 'Placing order…' : isCalculating ? 'Calculating...' : 'To Purchase'}</span>
+                    <span className="cart-step-hint">{isPlacingOrder ? 'Please keep this window open' : highlightPurchaseStep ? 'Tap here to place your order' : 'Place the order'}</span>
                   </button>
                   <button className="cart-order-step" onClick={handlePrintProforma}>
                     <span className="cart-step-num">2</span>
@@ -2689,7 +2991,7 @@ function App() {
                     at the top, so the two cannot disagree about the total and a
                     buyer never has to guess which of two buttons commits. */}
                 <div className="cart-actions">
-                  <button className="btn-secondary" onClick={clearCart}>Clear Cart</button>
+                  <button className="btn-secondary" onClick={() => clearCart()}>Clear Cart</button>
                 </div>
               </>
             )}
@@ -3190,80 +3492,149 @@ function App() {
   // The quantity +/- control lives ONLY here, in the product details view — the
   // step where a customer has actually seen the product and is ready to order.
   // Search results, product cards and carousels only ever open this view.
-  const DetailsOrderBox = ({ material, isInCart, onOrder }: {
-    material: Material;
-    isInCart: boolean;
-    onOrder: (quantity: number, includeDelivery: boolean) => Promise<boolean>;
-  }) => {
-    const min = 1; // customers may order any amount - no minimum order
-    const [qty, setQty] = useState(min);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    // Delivery is a decision the buyer makes here, while filling in the quantity.
-    // It defaults to on: if the supplier publishes a per-km rate that is the fee
-    // basis, otherwise the platform's configured delivery rate applies.
-    const [withDelivery, setWithDelivery] = useState(true);
+  // The Sample Layout's **Order Summary** block: the totals a buyer approves and
+  // the button that commits them. Quantity and the delivery choice live in App
+  // state so the quantity row further up the page and this summary can never
+  // quote different figures.
+  const DetailsOrderBox = ({ material, isInCart }: { material: Material; isInCart: boolean }) => {
     const soldOut = material.quantity <= 0;
+    const quote = detailsQuote;
+    const loading = quote === null;
+    const isCustomer = currentUser?.userType === 'customer';
+    // Only this product when the cart holds nothing else, otherwise say how many
+    // lines are being bought rather than implying a single-line order.
+    const subtotalLabel = quote && quote.uniqueItems > 1
+      ? `Material Subtotal (${quote.uniqueItems} items)`
+      : `Material Subtotal (${detailsQty} ${material.unit} × ${formatCurrency(material.price)})`;
     return (
-      <div className="order-box">
-        <h3>🛒 Order</h3>
-        {soldOut ? (
-          <p className="order-box-note">Currently unavailable — please contact the supplier.</p>
+      <section className="pd-section pd-summary">
+        <div className="pd-head">
+          <span className="pd-head-icon">🧾</span>
+          <h3>Order Summary</h3>
+          {isInCart && <span className="pd-in-cart">In your cart</span>}
+        </div>
+        {!isCustomer ? (
+          <p className="pd-summary-note">Sign in with a customer account to place this order.</p>
+        ) : soldOut ? (
+          <p className="pd-summary-note">Currently unavailable — please contact the supplier.</p>
         ) : (
           <>
-            <p className="order-box-note">Pressing Order fetches your current GPS position so the delivery distance is measured from where you are now.</p>
-            {isInCart && (
-              <p className="order-box-note">This item is already in your cart. Continue to review the quantity and place your order.</p>
-            )}
-            <div className="order-box-row">
-              <QuantityStepper value={qty} min={min} unit={material.unit} onChange={setQty} />
-              <span className="order-box-hint">Any quantity — use − / + or tap the number to type your own.</span>
+            {detailsQuoteBlock ? (
+              /* The totals cannot be produced right now. Say why and give the one
+                 action that fixes it — a disabled "Calculating…" button with no
+                 explanation reads as an order that simply will not go through. */
+              <div className={'pd-summary-block is-' + detailsQuoteBlock.kind} role="alert">
+                <span className="pd-summary-block-icon">⚠️</span>
+                <div className="pd-summary-block-body">
+                  <p>{detailsQuoteBlock.message}</p>
+                  {detailsQuoteBlock.kind === 'conflict' ? (
+                    <button className="btn btn-secondary pd-summary-block-btn" onClick={() => clearCart()}>
+                      🗑️ Clear cart &amp; order this product
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary pd-summary-block-btn"
+                      onClick={() => setDetailsQuoteRetry(n => n + 1)}
+                    >
+                      🔁 Retry calculating
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="pd-summary-rows">
+              <div className="pd-summary-row">
+                <span>{subtotalLabel}</span>
+                <strong>{loading ? '…' : formatCurrency(quote!.subtotal)}</strong>
+              </div>
+              <div className="pd-summary-row">
+                <span>
+                  Delivery Price
+                  {!loading && quote!.transportCost > 0 && (
+                    <small className="pd-summary-sub">{deliveryBasisLabel(material.delivery, detailsDelivery)}</small>
+                  )}
+                </span>
+                <strong>{loading ? '…' : detailsDelivery ? formatCurrency(quote!.transportCost) : 'Not included'}</strong>
+              </div>
+              {systemSettings.vat.enabled && !loading && quote!.vatAmount > 0 && (
+                <div className="pd-summary-row">
+                  <span>VAT ({quote!.vatRate ?? systemSettings.vat.rate}%)</span>
+                  <strong>{formatCurrency(quote!.vatAmount)}</strong>
+                </div>
+              )}
+              <div className="pd-summary-divider" />
+              <div className="pd-summary-row pd-summary-total">
+                <span>Total Payable</span>
+                <strong>{loading ? '…' : formatCurrency(quote!.total)}</strong>
+              </div>
             </div>
-            <label className={'order-box-delivery' + (withDelivery ? ' on' : '')}>
-              <input
-                type="checkbox"
-                checked={withDelivery}
-                onChange={e => setWithDelivery(e.target.checked)}
-                aria-label={'Include delivery cost for ' + material.name}
-              />
-              <span className="order-box-delivery-text">
-                <strong>With delivery cost</strong>
-                <small>{deliveryBasisLabel(material.delivery, withDelivery)}</small>
-              </span>
-            </label>
-            <div className="order-box-total">Total: <strong>{formatCurrency(material.price * qty)}</strong></div>
             <button
-              className={'btn order-box-btn' + (isInCart ? ' is-ordered' : '')}
-              disabled={isSubmitting}
+              className="btn btn-primary pd-place-order"
+              disabled={loading || isDetailsOrdering || isPlacingOrder}
               onClick={async () => {
-                setIsSubmitting(true);
+                setIsDetailsOrdering(true);
                 try {
-                  await onOrder(qty, withDelivery);
+                  await handlePlaceOrderFromDetails(material, detailsQty, detailsDelivery);
                 } finally {
-                  setIsSubmitting(false);
+                  setIsDetailsOrdering(false);
                 }
               }}
             >
-              {isSubmitting
-                ? 'Locating your current position...'
-                : isInCart ? '✅ Ordered — Go to Order' : '🛒 Order'}
+              🛒 {isDetailsOrdering || isPlacingOrder
+                ? 'Placing your order…'
+                : loading ? 'Calculating…' : 'Place Order'}
             </button>
+            <p className="pd-summary-hint">
+              Pressing Place Order takes a fresh GPS fix so delivery is measured from where you are now.
+            </p>
+            <button
+              className="pd-add-to-cart"
+              disabled={isDetailsOrdering || isPlacingOrder}
+              onClick={async () => {
+                setIsDetailsOrdering(true);
+                try {
+                  await handleDetailsOrder(material, detailsQty, detailsDelivery);
+                } finally {
+                  setIsDetailsOrdering(false);
+                }
+              }}
+            >
+              Add to cart &amp; review instead
+            </button>
+              </>
+            )}
+            <p className="pd-trust">✅ Secure Payment &nbsp;•&nbsp; 🚚 Fast Delivery</p>
+            <div className="pd-notice">
+              <span className="pd-notice-icon">ℹ️</span>
+              <span>You will receive an order confirmation with tracking details after payment.</span>
+            </div>
           </>
         )}
-      </div>
+      </section>
     );
   };
 
   const renderMaterialDetails = () => {
     if (!selectedMaterial) return null;
-    const company = getCompanyById(selectedMaterial.companyId);
-    const isInCart = cart.some(item => item.materialId === selectedMaterial.id);
-    const history = selectedMaterial.priceHistory || [];
-    const forecast = forecastPrice(history, selectedMaterial.price);
-    const productReviews = reviewForMaterial(selectedMaterial.id);
-    const avgRating = ratingForMaterial(selectedMaterial);
-    const isLowStock = canSeeStock && selectedMaterial.quantity <= LOW_STOCK_THRESHOLD;
+    const material = selectedMaterial;
+    const company = getCompanyById(material.companyId);
+    const isInCart = cart.some(item => item.materialId === material.id);
+    const history = material.priceHistory || [];
+    const forecast = forecastPrice(history, material.price);
+    const productReviews = reviewForMaterial(material.id);
+    const avgRating = ratingForMaterial(material);
+    const isLowStock = canSeeStock && material.quantity <= LOW_STOCK_THRESHOLD;
     const canReview = currentUser?.userType === 'customer' &&
-      orders.some(o => o.customerId === currentUser.id && o.materialId === selectedMaterial.id && o.status === 'delivered');
+      orders.some(o => o.customerId === currentUser.id && o.materialId === material.id && o.status === 'delivered');
+    const soldOut = material.quantity <= 0;
+    const quoteLoading = detailsQuote === null;
+    const images = material.images || [];
+    const imageIndex = Math.min(detailsImageIndex, Math.max(0, images.length - 1));
+    const supplierUser = company ? getUserById(company.userId) : undefined;
+    const supplierPhone = company?.phone || supplierUser?.phone || '—';
+    const orderDate = new Date().toISOString().split('T')[0];
+    const visibleReviews = showAllReviews ? productReviews : productReviews.slice(0, 3);
 
     return (
       <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
@@ -3273,59 +3644,210 @@ function App() {
             <button className="modal-close" onClick={() => setSelectedMaterial(null)}>✕</button>
           </div>
           <div className="modal-body">
-            {isLowStock && <div className="stock-flag stock-flag-low">⚠️ Low stock — only {selectedMaterial.quantity} {selectedMaterial.unit || 'units'} left</div>}
-            {renderProductGallery(selectedMaterial)}
-            <div><h3>🏢 Supplier</h3>
-              <p><strong>{company?.name}</strong><br/>📍 {company?.city}<br/>⭐ {company?.rating}/5</p>
-            </div>
-            <div><h3>📝 Description</h3><p>{selectedMaterial.description}</p></div>
-            <div><h3>💰 Pricing</h3>
-              <p>Unit: <strong>{formatCurrency(selectedMaterial.price)}</strong> / {selectedMaterial.unit}{canSeeStock && <><br/>Min Order: {selectedMaterial.minOrder} {selectedMaterial.unit}</>}{canSeeStock && <><br/>Stock: {selectedMaterial.quantity} {selectedMaterial.unit}</>}</p>
-              <div className="rating-summary">
-                <StarRatingDisplay value={avgRating} />
-                <span className="rating-num">{avgRating.toFixed(1)}</span>
-                <span className="rating-count">({productReviews.length} review{productReviews.length !== 1 ? 's' : ''})</span>
-              </div>
-              {history.length >= 2 && forecast && (
-                <div className="forecast-panel">
-                  <div className="forecast-header">
-                    <h3>🤖 AI Price Forecast</h3>
-                    <span className={'trend-chip trend-' + forecast.trend}>
-                      {forecast.trend === 'up' ? '📈 Trending up' : forecast.trend === 'down' ? '📉 Trending down' : '➡️ Stable'}
+            {isLowStock && <div className="stock-flag stock-flag-low">⚠️ Low stock — only {material.quantity} {material.unit || 'units'} left</div>}
+
+            {/* ---------- 1. Product details (Sample Layout §1) ---------- */}
+            <section className="pd-section">
+              <div className="pd-head"><span className="pd-head-icon">📦</span><h3>Product Details</h3></div>
+              <div className="pd-grid">
+                <div className="pd-media">
+                  <div className="pd-media-frame">
+                    <span className={'pd-stock' + (soldOut ? ' out' : '')}>
+                      {soldOut ? 'Out of stock' : '✔ In Stock'}
                     </span>
-                  </div>
-                  <Sparkline points={history.map(p => p.price)} width={220} height={56} />
-                  <div className="forecast-details">
-                    <span>Predicted next price: <strong>{formatCurrency(forecast.next)}</strong></span>
-                    <span className={forecast.changePct > 0 ? 'forecast-pos' : forecast.changePct < 0 ? 'forecast-neg' : ''}>
-                      {forecast.changePct > 0 ? '+' : ''}{forecast.changePct.toFixed(1)}% vs today
-                    </span>
-                    {selectedMaterial.category === 'Fuel' && (
-                      <span className="forecast-note">⚠️ Fuel prices are volatile — order at current price when the trend is rising</span>
+                    {images.length > 0 ? (
+                      <img
+                        className="pd-media-img"
+                        src={images[imageIndex]}
+                        alt={material.name + ' photo ' + (imageIndex + 1)}
+                        loading="lazy"
+                      />
+                    ) : (
+                      renderProductImage([], material.category, 'lg')
                     )}
                   </div>
+                  {images.length > 1 && (
+                    <div className="pd-dots" role="tablist" aria-label="Product photos">
+                      {images.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          role="tab"
+                          aria-selected={i === imageIndex}
+                          aria-label={'Show photo ' + (i + 1)}
+                          className={'pd-dot' + (i === imageIndex ? ' on' : '')}
+                          onClick={() => setDetailsImageIndex(i)}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div>
-              <h3>📍 Distance</h3>
-              <p>
-                <strong>Distance from you:</strong>{' '}
-                {isDistanceLoading ? (
-                  <span className="distance-loader"><span className="dot-pulse"></span></span>
-                ) : distanceToSelected !== null ? (
-                  <span className="distance-link" onClick={() => company && handleOpenMapWithRoute(company.id)} title="Click to view route on map">
-                    {distanceToSelected.toFixed(1)} km
-                  </span>
-                ) : ' Unable to calculate'}
-                {distanceToSelected !== null && <span className="eta-chip">🕒 ETA {deliveryEta(distanceToSelected)}</span>}
-              </p>
-              {company && (
-                <button className="btn btn-primary map-route-btn" onClick={() => { handleOpenMapWithRoute(company.id); setSelectedMaterial(null); }}>🗺️ View Route on Map</button>
-              )}
-            </div>
-            <div className="reviews-section">
-              <h3>⭐ Customer Reviews</h3>
+
+                <div className="pd-info">
+                  <span className="pd-category">🏗️ {material.category}</span>
+                  <h2 className="pd-title">{material.name}</h2>
+                  <p className="pd-desc">{material.description}</p>
+
+                  <div className="pd-metrics">
+                    <div className="pd-metric">
+                      <span className="pd-metric-icon">💰</span>
+                      <div className="pd-metric-text">
+                        <small>Unit Price</small>
+                        <strong>{formatCurrency(material.price)} / {material.unit}</strong>
+                      </div>
+                    </div>
+                    <label className={'pd-metric pd-metric-delivery' + (detailsDelivery ? ' on' : '')}>
+                      <span className="pd-metric-icon">🚚</span>
+                      <div className="pd-metric-text">
+                        <small>Delivery Price</small>
+                        <strong>{quoteLoading ? '…' : detailsDelivery ? formatCurrency(detailsQuote!.transportCost) : 'Not included'}</strong>
+                        <small className="pd-metric-note">{deliveryBasisLabel(material.delivery, detailsDelivery)}</small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={detailsDelivery}
+                        onChange={e => setDetailsDelivery(e.target.checked)}
+                        aria-label={'Include delivery cost for ' + material.name}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="pd-row">
+                    <div className="pd-qty">
+                      <span className="pd-row-label">Quantity</span>
+                      <div className="pd-qty-control">
+                        <QuantityStepper value={detailsQty} min={1} unit={material.unit} onChange={setDetailsQty} />
+                      </div>
+                      <span className="pd-row-hint">Any quantity — tap the number to type your own</span>
+                    </div>
+                    <div className="pd-metric pd-subtotal">
+                      <span className="pd-metric-icon">🧾</span>
+                      <div className="pd-metric-text">
+                        <small>Material Subtotal</small>
+                        <strong>{formatCurrency(material.price * detailsQty)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pd-row pd-row-dates">
+                    <div className="pd-date">
+                      <span className="pd-metric-icon">📅</span>
+                      <div className="pd-metric-text"><small>Order Date</small><strong>{orderDate}</strong></div>
+                    </div>
+                    <div className="pd-date">
+                      <span className="pd-metric-icon">🕒</span>
+                      <div className="pd-metric-text">
+                        <small>Delivery Time</small>
+                        <strong>{distanceToSelected !== null ? '~ ' + deliveryEta(distanceToSelected) : 'Confirmed with the supplier'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {canSeeStock && (
+                    <div className="pd-stockline">
+                      Min order: <strong>{material.minOrder} {material.unit}</strong>
+                      <span>Stock: <strong>{material.quantity} {material.unit}</strong></span>
+                    </div>
+                  )}
+
+                  <div className="rating-summary">
+                    <StarRatingDisplay value={avgRating} />
+                    <span className="rating-num">{avgRating.toFixed(1)}</span>
+                    <span className="rating-count">({productReviews.length} review{productReviews.length !== 1 ? 's' : ''})</span>
+                  </div>
+
+                  {history.length >= 2 && forecast && (
+                    <div className="forecast-panel">
+                      <div className="forecast-header">
+                        <h3>🤖 AI Price Forecast</h3>
+                        <span className={'trend-chip trend-' + forecast.trend}>
+                          {forecast.trend === 'up' ? '📈 Trending up' : forecast.trend === 'down' ? '📉 Trending down' : '➡️ Stable'}
+                        </span>
+                      </div>
+                      <Sparkline points={history.map(p => p.price)} width={220} height={56} />
+                      <div className="forecast-details">
+                        <span>Predicted next price: <strong>{formatCurrency(forecast.next)}</strong></span>
+                        <span className={forecast.changePct > 0 ? 'forecast-pos' : forecast.changePct < 0 ? 'forecast-neg' : ''}>
+                          {forecast.changePct > 0 ? '+' : ''}{forecast.changePct.toFixed(1)}% vs today
+                        </span>
+                        {material.category === 'Fuel' && (
+                          <span className="forecast-note">⚠️ Fuel prices are volatile — order at current price when the trend is rising</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* ---------- 2. Supplier information (Sample Layout §2) ---------- */}
+            <section className="pd-section">
+              <div className="pd-head"><span className="pd-head-icon">🏢</span><h3>Supplier Information</h3></div>
+              <div className="pd-supplier">
+                <div className="pd-supplier-top">
+                  <span className="pd-supplier-avatar">{(company?.name || '?').charAt(0).toUpperCase()}</span>
+                  <div className="pd-supplier-id">
+                    <strong className="pd-supplier-name">
+                      {company?.name}
+                      <span className="pd-verified" title="Verified supplier">✔</span>
+                    </strong>
+                    <div className="pd-supplier-rating">
+                      <StarRatingDisplay value={avgRating} size={13} />
+                      <span>{avgRating.toFixed(1)}/5 ({productReviews.length} review{productReviews.length !== 1 ? 's' : ''})</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pd-supplier-meta">
+                  <div className="pd-meta">
+                    <span className="pd-meta-icon">📍</span>
+                    <div>
+                      <small>Address</small>
+                      <strong>{company?.location || company?.city || '—'}</strong>
+                      <span>{company?.city}, Ethiopia</span>
+                    </div>
+                  </div>
+                  <div className="pd-meta">
+                    <span className="pd-meta-icon">📞</span>
+                    <div><small>Phone</small><strong>{supplierPhone}</strong></div>
+                  </div>
+                </div>
+
+                <div className="pd-map-card">
+                  <div className="pd-route" aria-hidden="true">
+                    <span className="pd-route-node from">Your location</span>
+                    <span className="pd-route-line"><i /></span>
+                    <span className="pd-route-node to">{company?.name || 'Supplier'}</span>
+                  </div>
+                  <div className="pd-map-info">
+                    <span className="pd-map-pill">🚗 {distanceToSelected !== null ? distanceToSelected.toFixed(1) + ' km' : '—'}</span>
+                    <span className="pd-map-pill">🕒 {distanceToSelected !== null ? '~ ' + deliveryEta(distanceToSelected) : '—'}</span>
+                    {company && (
+                      <button
+                        className="pd-map-open"
+                        onClick={() => { handleOpenMapWithRoute(company.id); setSelectedMaterial(null); }}
+                      >
+                        🗺️ View Route on Map ›
+                      </button>
+                    )}
+                  </div>
+                  {isDistanceLoading && (
+                    <p className="pd-map-loading"><span className="distance-loader"><span className="dot-pulse"></span></span> Measuring road distance…</p>
+                  )}
+                </div>
+              </div>
+            </section>
+            {/* ---------- 3. Customer reviews (Sample Layout §3) ---------- */}
+            <section className="pd-section">
+              <div className="pd-head">
+                <span className="pd-head-icon">⭐</span>
+                <h3>Customer Reviews</h3>
+                {productReviews.length > 3 && (
+                  <button className="pd-see-all" onClick={() => setShowAllReviews(v => !v)}>
+                    {showAllReviews ? 'Show less ‹' : 'See all reviews ›'}
+                  </button>
+                )}
+              </div>
               {currentUser?.userType === 'customer' && (
                 <div className="review-form">
                   <StarRatingInput value={reviewDraft.rating} onChange={(v) => setReviewDraft(prev => ({ ...prev, rating: v }))} />
@@ -3337,34 +3859,35 @@ function App() {
                     rows={2}
                     onChange={(e) => setReviewDraft(prev => ({ ...prev, comment: e.target.value }))}
                   />
-                  <button className="btn btn-primary" disabled={!canReview} onClick={() => submitReview(selectedMaterial.id)}>Post Review</button>
+                  <button className="btn btn-primary" disabled={!canReview} onClick={() => submitReview(material.id)}>Post Review</button>
                 </div>
               )}
               {productReviews.length === 0 ? (
                 <p className="reviews-empty">No reviews yet — be the first to rate this product.</p>
               ) : (
-                <div className="reviews-list">
-                  {productReviews.map(r => (
-                    <div key={r.id} className="review-item">
-                      <div className="review-top">
+                <div className="pd-reviews-scroll">
+                  {visibleReviews.map(r => (
+                    <article key={r.id} className="pd-review-card">
+                      <div className="pd-review-top">
                         <span className="review-avatar">{r.userName.charAt(0).toUpperCase()}</span>
-                        <span className="review-name">{r.userName}</span>
-                        <span className="review-date">{timeAgo(r.date)}</span>
+                        <div className="pd-review-who">
+                          <span className="review-name">{r.userName}</span>
+                          <div className="pd-review-score">
+                            <StarRatingDisplay value={r.rating} size={12} />
+                            <span>{r.rating.toFixed(1)}</span>
+                          </div>
+                        </div>
+                        <time className="review-date">{new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</time>
                       </div>
-                      <StarRatingDisplay value={r.rating} size={12} />
                       {r.comment && <p className="review-comment">{r.comment}</p>}
-                    </div>
+                    </article>
                   ))}
                 </div>
               )}
-            </div>
-            {currentUser?.userType === 'customer' && (
-              <DetailsOrderBox
-                material={selectedMaterial}
-                isInCart={isInCart}
-                onOrder={(quantity, includeDelivery) => handleDetailsOrder(selectedMaterial, quantity, includeDelivery)}
-              />
-            )}
+            </section>
+
+            {/* ---------- 4. Order summary & checkout (Sample Layout §4) ---------- */}
+            <DetailsOrderBox material={material} isInCart={isInCart} />
           </div>
         </div>
       </div>

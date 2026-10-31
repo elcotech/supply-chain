@@ -55,6 +55,32 @@ export const isSharedKey = (key: string): boolean =>
   !LOCAL_ONLY.has(key) &&
   (SHARED_KEYS.has(key) || SHARED_PREFIXES.some(prefix => key.startsWith(prefix)));
 
+// ---------------------------------------------------------------------------
+// Stale-row protection
+// ---------------------------------------------------------------------------
+// `updated_at` is written from the client clock, so it is the authority on
+// which copy of a key is newest. Every local write records that clock here.
+//
+// Why this matters: a change poll is a read-modify-write. Its query can execute
+// *before* a local push commits while the response arrives *after* it, so the
+// row it carries still holds the previous value. Applying that row would not
+// only revert React state, it would push the reverted copy back to Supabase —
+// a just-placed order would vanish a few seconds after the success message.
+// Rows older than our own last write for that key are therefore dropped.
+const lastLocalWrite = new Map<string, number>();
+
+const noteLocalWrite = (key: string, at: number = Date.now()): void => {
+  lastLocalWrite.set(key, at);
+};
+
+const isStaleRow = (key: string, updatedAt?: string): boolean => {
+  const writtenAt = lastLocalWrite.get(key);
+  if (writtenAt === undefined || !updatedAt) return false;
+  const rowTime = Date.parse(updatedAt);
+  // Keep a row that is at least as new as our last write (that is our own echo).
+  return Number.isFinite(rowTime) && rowTime < writtenAt;
+};
+
 /** Download every shared row from Supabase into the local cache. */
 export const pullCloudToCache = async (): Promise<boolean> => {
   if (!isCloudEnabled || !supabase) return false;
@@ -97,8 +123,15 @@ export const fetchCloudChanges = async (): Promise<CloudRow[]> => {
       return [];
     }
     const rows = (data || []) as CloudRow[];
-    rows.forEach(row => trackCursor(row.updated_at));
-    return rows;
+    const usable = rows.filter(row => {
+      if (isStaleRow(row.key, row.updated_at)) {
+        console.warn('[cloud] dropped stale row for ' + row.key);
+        return false;
+      }
+      trackCursor(row.updated_at);
+      return true;
+    });
+    return usable;
   } catch (err) {
     console.warn('[cloud] change poll error:', err);
     return [];
@@ -120,6 +153,7 @@ export const subscribeToCloud = (onRow: (key: string, data: unknown) => void): (
       (payload: any) => {
         const row = payload?.new as CloudRow | undefined;
         if (!row || typeof row.key !== 'string') return;
+        if (isStaleRow(row.key, row.updated_at)) return;
         trackCursor(row.updated_at);
         onRow(row.key, row.data);
       }
@@ -137,11 +171,14 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 const flush = async (): Promise<void> => {
   if (!supabase || pending.size === 0) return;
-  const rows = Array.from(pending.entries()).map(([key, data]) => ({
-    key,
-    data,
-    updated_at: new Date().toISOString(),
-  }));
+  const now = new Date().toISOString();
+  // Use the very timestamp the row will carry, otherwise a 1 ms clock tick
+  // between the two would make our own echo look stale and get dropped.
+  const nowMs = Date.parse(now);
+  const rows = Array.from(pending.entries()).map(([key, data]) => {
+    noteLocalWrite(key, nowMs);
+    return { key, data, updated_at: now };
+  });
   pending.clear();
   const { error } = await supabase.from(TABLE).upsert(rows, { onConflict: 'key' });
   if (error) console.warn('[cloud] push failed:', error.message);
@@ -151,6 +188,7 @@ const flush = async (): Promise<void> => {
 export const cloudPush = (key: string, value: unknown): void => {
   if (!isCloudEnabled || !supabase || !isSharedKey(key)) return;
   pending.set(key, value);
+  noteLocalWrite(key);
   if (flushTimer) clearTimeout(flushTimer);
   flushTimer = setTimeout(() => {
     flushTimer = null;
@@ -162,6 +200,7 @@ export const cloudPush = (key: string, value: unknown): void => {
 export const cloudPushNow = async (key: string, value: unknown): Promise<void> => {
   if (!isCloudEnabled || !supabase || !isSharedKey(key)) return;
   pending.set(key, value);
+  noteLocalWrite(key);
   if (flushTimer) {
     clearTimeout(flushTimer);
     flushTimer = null;

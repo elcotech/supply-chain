@@ -11,11 +11,13 @@ import {
   buildProformaShareData,
   findOtherCartSupplier,
   cartHasOtherSupplier,
+  stageCartLine,
   addedVat,
   addedVatRate,
   cartGrandTotal,
   vatOnSubtotal,
   allocateVat,
+  calculateDistance,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -127,6 +129,109 @@ describe('findOtherCartSupplier (one supplier per cart)', () => {
     const mixed = [line('1', 'c1', 'm1'), line('2', 'c2', 'm2')];
     expect(findOtherCartSupplier(mixed, 'c1', 'm3')).not.toBeNull();
     expect(findOtherCartSupplier(mixed, 'c2', 'm3')).not.toBeNull();
+  });
+});
+
+describe('stageCartLine (one source of truth for a cart line)', () => {
+  const material = (overrides: Partial<any> = {}) => ({
+    id: 'm1',
+    companyId: 'c1',
+    name: 'Cement',
+    category: 'Construction Material',
+    basePrice: 100,
+    profitMargin: 0.15,
+    price: 115,
+    quantity: 500,
+    unit: 'bag',
+    minOrder: 1,
+    description: 'Portland cement',
+    transportCost: 15,
+    rating: 0,
+    images: [],
+    taxIncluded: false,
+    vatPercentage: 15,
+    lastUpdated: '2025-10-30',
+    ...overrides,
+  }) as any;
+
+  const existing = (overrides: Partial<any> = {}) => ({
+    id: '1',
+    materialId: 'm1',
+    materialName: 'Cement',
+    supplierId: 'c1',
+    supplierName: 'Nati Building Supplies',
+    quantity: 5,
+    price: 115,
+    unit: 'bag',
+    minOrder: 1,
+    vatPercentage: 15,
+    basePrice: 100,
+    profitMargin: 0.15,
+    weightPerUnit: 0.001,
+    ...overrides,
+  }) as any;
+
+  it('builds a full line from an empty cart and snapshots the supplier rate', () => {
+    const rate = { offered: true, perKm: 12, startFee: 300 };
+    const lines = stageCartLine([], material({ delivery: rate }), 50, true, 'Nati Building Supplies', 'set');
+    expect(lines).not.toBeNull();
+    expect(lines).toHaveLength(1);
+    expect(lines![0]).toMatchObject({
+      materialId: 'm1',
+      supplierId: 'c1',
+      supplierName: 'Nati Building Supplies',
+      quantity: 50,
+      price: 115,
+      basePrice: 100,
+      profitMargin: 0.15,
+      includeDelivery: true,
+      unit: 'bag',
+    });
+    expect(lines![0].deliveryRate).toEqual(rate);
+  });
+
+  it('stores no rate when the supplier does not offer delivery', () => {
+    const lines = stageCartLine([], material({ delivery: { offered: false, perKm: 0, startFee: 0 } }), 1, false, 'S');
+    expect(lines![0].deliveryRate).toBeUndefined();
+    expect(lines![0].includeDelivery).toBe(false);
+  });
+
+  it('refuses a second supplier and leaves the cart untouched', () => {
+    const cart = [existing({ quantity: 5 })];
+    // A genuinely different product from a different supplier - not a re-order
+    // of the line already in the cart.
+    const result = stageCartLine(cart, material({ id: 'm9', name: 'Timber', companyId: 'c2' }), 3, true, 'Other Supplier');
+    expect(result).toBeNull();
+    expect(cart).toHaveLength(1);
+    expect(cart[0].quantity).toBe(5);
+  });
+
+  it("'increment' adds to the quantity of a line already in the cart", () => {
+    const cart = [existing({ quantity: 5 })];
+    const lines = stageCartLine(cart, material(), 3, true, 'Nati Building Supplies', 'increment');
+    expect(lines).toHaveLength(1);
+    expect(lines![0].quantity).toBe(8);
+  });
+
+  it("'set' replaces the quantity, which is what the product page states", () => {
+    const cart = [existing({ quantity: 5 })];
+    const lines = stageCartLine(cart, material(), 50, true, 'Nati Building Supplies', 'set');
+    expect(lines).toHaveLength(1);
+    expect(lines![0].quantity).toBe(50);
+  });
+
+  it('does not mutate the cart it was given', () => {
+    const cart = [existing({ quantity: 5 })];
+    const before = JSON.stringify(cart);
+    stageCartLine(cart, material(), 50, true, 'Nati Building Supplies', 'set');
+    expect(JSON.stringify(cart)).toBe(before);
+  });
+
+  it('adds a second product from the same supplier as its own line', () => {
+    const cart = [existing()];
+    const lines = stageCartLine(cart, material({ id: 'm2', name: 'Steel' }), 7, true, 'Nati Building Supplies');
+    expect(lines).toHaveLength(2);
+    expect(lines!.map(l => l.materialId)).toEqual(['m1', 'm2']);
   });
 });
 
@@ -450,5 +555,33 @@ describe('allocateVat (order rows mirror the proforma total)', () => {
     expect(allocateVat([], 100)).toEqual([]);
     expect(allocateVat([0, 0], 100)).toEqual([0, 0]);
     expect(allocateVat([100, 200], 0)).toEqual([0, 0]);
+  });
+});
+describe('calculateDistance (road kilometres)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('returns the OSRM road distance in kilometres', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ routes: [{ distance: 12345 }] }),
+    } as any);
+    await expect(calculateDistance(6.11, 37.22, 6.33, 37.44)).resolves.toBe(12.345);
+  });
+
+  it('falls back to the second routing server when the first fails', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockRejectedValueOnce(new Error('primary down'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ routes: [{ distance: 76500 }] }),
+      } as any);
+    await expect(calculateDistance(6.51, 37.62, 6.73, 37.84)).resolves.toBe(76.5);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects missing coordinates instead of inventing a distance', async () => {
+    await expect(calculateDistance(Number.NaN, 37.22, 6.33, 37.44)).rejects.toThrow('Valid coordinates');
   });
 });

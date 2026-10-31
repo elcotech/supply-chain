@@ -34,8 +34,9 @@ You can use E-SCON in a normal browser, or install it as an app on your phone
      drag the pin or press **Locate Me**.
    - **Suppliers:** **Profile → Edit Company Profile** (or **Edit Company Profile**
      on the dashboard) and click/drag the marker.
-   Buyers use that saved pin for search previews; pressing **Order** refreshes it
-   with the device's current GPS position before pricing delivery. Admins can also
+   Buyers use that saved pin for search previews; pressing **Place Order** on a
+   product refreshes it with the device's current GPS position before pricing
+   delivery. Admins can also
    correct any account from **Settings → Data Manager → Location**.
 
 ### Demo accounts (sample data)
@@ -100,31 +101,47 @@ account.
 2. Set the **quantity** with `−` / `+`, or tap the number to type an exact
    amount. There is **no per-product minimum** — any quantity of 1 or more is
    allowed.
-3. If the supplier offers delivery for that item, a **"With delivery"**
-   checkbox appears beside the quantity. Tick it to have that line delivered;
-   leave it clear to collect.
-4. Press **Order**. E-SCON asks your device for a **fresh, high-accuracy GPS
-   position** (allow location access when prompted), calculates the driving
-   distance from that position to the supplier, adds the item to your cart and
-   opens the **order/cart** screen. If the item is already in the cart, the green
-   **Ordered — Go to Order** button takes you straight back to the cart without
-   adding it twice — it still refreshes your position first.
+3. If the supplier offers delivery for that item, the **Delivery Price** card
+   carries a **"With delivery"** checkbox. Untick it to collect instead — the
+   Order Summary re-prices straight away.
+4. Scroll to **Order Summary**. It prices the order on the page: material
+   subtotal, delivery price, VAT and **Total Payable** — the exact amount that
+   will leave your account.
+5. Press **🛒 Place Order**. E-SCON asks your device for a **fresh,
+   high-accuracy GPS position** (allow location access when prompted), measures
+   the driving distance from where you are standing to the supplier, places the
+   order and takes you to the **Orders** page. If the item is already in your
+   cart, the quantity you set on the page is the quantity that gets ordered.
 
-The product details are always arranged in the same order: **Supplier →
-Description → Pricing → Distance → Customer Reviews**, with the Order box at the
-end. The distance shown before you order is a preview from your saved pin; the
-**Order** action replaces it with the live GPS distance used for delivery.
+Would rather review first? Press **Add to cart & review instead** — the item goes
+into your cart and the cart opens, where **1 To Purchase** places the same order.
+
+The product page is laid out in four sections, in this order: **Product Details →
+Supplier Information → Customer Reviews → Order Summary**. Product Details holds
+the photo gallery with its **✔ In Stock** badge, the category tag, title,
+description, the **Unit Price** and **Delivery Price** cards, the quantity row
+with the live **Material Subtotal**, and the **Order Date** / **Delivery Time**
+row. Supplier Information shows the verified supplier, its rating, address, phone
+and a route preview with the distance, ETA and **View Route on Map**. The
+distance shown before you order is a preview from your saved pin; **Place Order**
+replaces it with the live GPS distance used for delivery.
 
 > **Location access is required for accurate delivery.** If permission is denied,
 > the fix times out, or GPS is unavailable, E-SCON warns you and uses your saved
 > location only when one exists. If no saved location exists, enable location
-> access and press **Order** again.
+> access and press **Place Order** again.
+
+> **Order Summary never fails silently.** While it prices, the button reads
+> **Calculating…**. If it cannot produce a total — your location is unavailable,
+> or the cart holds another supplier's goods — it says why and gives you the one
+> action that fixes it: **🔁 Retry calculating** or **🗑️ Clear cart & order this
+> product**.
 
 > **One supplier per cart.** A proforma invoice is a legal document issued by a
-> single seller, so a cart can only hold one supplier's goods. If you try to add
-> a product from a second supplier, E-SCON warns you, names both suppliers and
-> **leaves your cart untouched**. Clear your cart (or remove the other
-> supplier's lines) first.
+> single seller, so a cart can only hold one supplier's goods. If your cart
+> already holds another supplier's items, the Order Summary names that supplier
+> instead of pretending the order can go through. Clear your cart (or remove the
+> other supplier's lines) first.
 
 ### The cart
 
@@ -310,8 +327,10 @@ Installing is optional — the app works the same in a normal browser tab.
 | Problem | What to do |
 | --- | --- |
 | Distance says "Unable to calculate" | The route service is busy — retry in a moment; the app falls back to a straight-line estimate |
-| Order says my location is unavailable | Allow location/GPS access for E-SCON, then press **Order** again. Without permission the app can only use a saved location, if one exists |
-| Distance didn't change after I moved | The preview uses your saved pin; press **Order** to capture a fresh GPS fix and re-price delivery |
+| Order says my location is unavailable | Allow location/GPS access for E-SCON, then press **Place Order** again. Without permission the app can only use a saved location, if one exists |
+| Distance didn't change after I moved | The preview uses your saved pin; press **Place Order** to capture a fresh GPS fix and re-price delivery |
+| Order Summary keeps saying "Calculating…" | It prices 250 ms after you change something, so wait a beat. If it cannot finish, the block on screen says why and gives you **Retry calculating** — or **Clear cart & order this product** when the cart holds another supplier's goods |
+| "Please select a valid user" although the details are right | The account list was still loading. Close the form and try again — the list loads without waiting on location any more |
 | Map opens without a route | Re-select the supplier; the route redraws from your current GPS position |
 | Login is locked | 3 failed attempts lock it for 30 seconds — wait and retry |
 | Can't install the app | The install prompt needs HTTPS and a supported browser — try Chrome/Edge/Safari |

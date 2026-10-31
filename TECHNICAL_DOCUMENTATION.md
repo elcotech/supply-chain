@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.7 (live GPS distance captured on Order, product-detail order flow)
-> **Previous:** 6.6 (Supplier → Description → Pricing → Distance → Reviews, Order opens the cart)
+> **Version:** 6.8 (visible order feedback, cloud-first order commit, accurate road KM)
+> **Previous:** 6.7 (Supplier → Description → Pricing → Distance → Reviews, Order opens the cart)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -470,9 +470,15 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`;
 
 `handleExportOrders`, `exportOrdersToCSV`, `handleExportMaterials` and `exportToCSV` are all still in `utils.ts` / `App.tsx` and still used by the supplier + admin surfaces (header, company dashboard "Your Products", order management, Data Center backup). **If you add a new export, gate it the same way** — never add one to a page a customer can reach.
 
-**Order entry:** a customer never picks a quantity in a list. The 🛒 button on a results row, the **Order** button on a mobile product card and **View & Order** in the compare modal all open the **product details**, where the only quantity control lives (`DetailsOrderBox` + `QuantityStepper`, steps of 1 with a live total, and since v5.5 the number itself is a **typed field** so a custom quantity can be entered without tapping + a hundred times). The details are ordered **Supplier → Description → Pricing → Distance → Customer Reviews**, followed by the order box: pressing **Order** first fetches the device's **current GPS position** (`getCurrentCoordinates`, high accuracy, `maximumAge: 0`), measures the OSRM road distance from that fix, adds the line and opens the cart/order screen. An already-carted line shows a green **Ordered — Go to Order** button that still refreshes the position and opens the cart without adding the same item twice. If GPS is denied or unavailable the buyer is warned; the saved location is used only when it exists. The cart modal still allows per-line quantity edits and per-line delivery toggles. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
+**Order entry:** a customer never picks a quantity in a list. The 🛒 button on a results row, the **Order** button on a mobile product card and **View & Order** in the compare modal all open the **product details**, where the only quantity control lives (`DetailsOrderBox` + `QuantityStepper`, steps of 1 with a live total, and since v5.5 the number itself is a **typed field** so a custom quantity can be entered without tapping + a hundred times).
 
-**Two cart entry points only (v5.2):** the cart is reachable from exactly two places — the header 🛒 icon on desktop (`.cart-icon-btn`) and the floating cart button in the mobile tab bar (`.m-fab-cart`). The mobile top-bar cart button, the home "Cart" quick-action tile, the desktop results-row cart button and the mobile product-card "In Cart — Open" button were all removed as duplicates. Product rows and cards keep their single button, but it now only ever **opens the product details** (where quantity and delivery are chosen) — it never opens the cart directly. The product-details **Order** button is an order action: it adds the line and opens the cart, and the green **Ordered — Go to Order** state opens the cart without adding it again. The cart modal's own actions stay.
+**Product page layout (v6.8, follows `Sample Layout.jpg`):** the details are rendered as four stacked sections in this fixed order — **Product Details → Supplier Information → Customer Reviews → Order Summary** (`.pd-section`, each with a `.pd-head`). *Product Details* holds the photo gallery (`.pd-media`, `.pd-dots`), the category tag, title, description, the **Unit Price** and **Delivery Price** metric cards, the quantity row (`.pd-qty` + `QuantityStepper`) with the live **Material Subtotal**, and the **Order Date** / **Delivery Time** row. *Supplier Information* shows the verified supplier, rating, address, phone and a route card with distance, ETA and **View Route on Map**. *Customer Reviews* lists per-product reviews. *Order Summary* (`.pd-summary`) is the order box: it prices the order **on the page** 250 ms after any change — Material Subtotal, Delivery Price, VAT (when enabled) and **Total Payable** — and offers **🛒 Place Order** plus a quieter **Add to cart & review instead**.
+
+Pressing **Place Order** fetches the device's **current GPS position** (`getCurrentCoordinates`, high accuracy, `maximumAge: 0`), measures the OSRM road distance from that fix, writes the order (cloud-first) and opens the Orders page; **Add to cart & review instead** adds the line and opens the cart. The distance shown before you order is only a preview from the saved pin.
+
+**The summary never fails silently.** When the totals cannot be produced, the rows and the dead "Calculating…" button are replaced by a `.pd-summary-block` (`is-conflict` / `is-location` / …) that states the reason and offers the one action that fixes it: **🗑️ Clear cart & order this product** for a cross-supplier cart, **🔁 Retry calculating** for a failed quote. While pricing it is legitimately disabled and reads **Calculating…**; while the request runs it reads **Placing your order…**. A customer account is required (`pd-summary-note`), and sold-out products show *Currently unavailable* instead of the actions. If GPS is denied or unavailable the buyer is warned; the saved location is used only when it exists. The cart modal still allows per-line quantity edits and per-line delivery toggles. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
+
+**Two cart entry points only (v5.2):** the cart is reachable from exactly two places — the header 🛒 icon on desktop (`.cart-icon-btn`) and the floating cart button in the mobile tab bar (`.m-fab-cart`). The mobile top-bar cart button, the home "Cart" quick-action tile, the desktop results-row cart button and the mobile product-card "In Cart — Open" button were all removed as duplicates. Product rows and cards keep their single button, but it now only ever **opens the product details** (where quantity and delivery are chosen) — it never opens the cart directly. On the product page the order action lives in **Order Summary**: **🛒 Place Order** places the order end-to-end, and **Add to cart & review instead** adds the line and opens the cart. The cart modal's own actions stay.
 
 **No per-product minimum (v5.4):** customers may order **any quantity of 1 or more**. A product's `minOrder` field is kept as **supplier reference data** (product form, cart snapshot, proforma notes, comparison view) but is no longer enforced in the ordering path — `addToCart`, `updateCartQuantity`, the cart quantity inputs and the product-details stepper all work in units of 1, and the customer-facing description panel no longer shows a "Min Order" line. The separate **admin-configured minimum-order value** in ETB (goods-subtotal threshold, see [10.5](#105-cart--checkout)) is a different rule and is untouched.
 
@@ -819,12 +825,13 @@ The delivery UI is four small blocks, added in one commented section:
 - Rounded corners (10–16 px), pill buttons, soft shadows, smooth transitions.
 - Zebra-striped tables with sticky gradient headers and orange hover.
 - **Beautiful `<select>` list boxes**: custom chevron via inline SVG `background-image`, `appearance: none`, hover/focus rings, readable `option` colors in both themes.
-- **Order box** (`.order-box`, `.qty-stepper`): the product-details quantity control, styled once for all breakpoints (44px touch targets on ≤ 768px).
+- **Product page (Sample Layout)** (`.pd-section`, `.pd-grid`, `.pd-media`, `.pd-metric`, `.pd-qty`, `.pd-supplier`, `.pd-summary`, `.pd-summary-row`, `.pd-place-order`): the four-section product-details layout — Product Details → Supplier Information → Customer Reviews → Order Summary — with the price/quantity cards, supplier route card and the on-page order box, styled once for all breakpoints (44px touch targets on ≤ 768px).
+- **Order box** (`.order-box`, `.qty-stepper`): the quantity control inside the product page (`.qty-stepper` is the stepper itself; `.order-box` is the legacy wrapper kept for older markup), styled once for all breakpoints.
 - **Stock flags** (`.stock-flag` / `.stock-flag-low`): amber pill used for the supplier-only low-stock warning inside the product details view.
 - **Stock chips** (`.stock-chip-in` / `.stock-chip-low` / `.stock-chip-out`): green / amber / red pills used on the supplier dashboard so a supplier reads their own stock status at a glance (never shown to customers).
 
 ### Sections (for navigation)
-Header → Navigation → Buttons → Cards → Search → Product Grid → Tables → Product Row → Modal → Map Picker → Edit Company → Alert → Stats → Features → Footer → Home Hero → User Info → Cart → Dashboard → Distance Loader → Map Styles → PWA → Swipe → Icon Buttons → Dark Mode → Responsive → **UI v2 polish (appended section)** → Mobile shell (≤ 768px) → Order box / quantity stepper → Stock flags → **Proforma invoice & print** → **Product card "View details" affordance** → **Form controls / checkbox rows** → **Auth pages (centered sign-in)** → **Cart quantity editor** → **Supplier stock tiles & chips**.
+Header → Navigation → Buttons → Cards → Search → Product Grid → Tables → Product Row → Modal → Map Picker → Edit Company → Alert → Stats → Features → Footer → Home Hero → User Info → Cart → Dashboard → Distance Loader → Map Styles → PWA → Swipe → Icon Buttons → Dark Mode → Responsive → **UI v2 polish (appended section)** → Mobile shell (≤ 768px) → **Product page (Sample Layout)** & quantity stepper → Stock flags → **Proforma invoice & print** → **Product card "View details" affordance** → **Form controls / checkbox rows** → **Auth pages (centered sign-in)** → **Cart quantity editor** → **Supplier stock tiles & chips**.
 
 ---
 
@@ -870,7 +877,7 @@ It is the step where the customer has actually seen the product and is ready to 
 | Desktop results row (`🛒`) | opens the product details (`setSelectedMaterial`) |
 | Mobile product card (`🛒 Order` / `🛒 Edit order`) | opens the product details |
 | Compare modal (`View & Order`) | closes the modal and opens the product details |
-| Product details (`DetailsOrderBox`) | `QuantityStepper` (typed number + − / +) + running total + **With delivery** checkbox + **Order** (adds the line and opens the cart) / green **Ordered — Go to Order** (opens the cart without adding again) |
+| Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number + − / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then **🛒 Place Order** (fresh GPS fix → order → Orders page) or **Add to cart & review instead** (adds the line and opens the cart) |
 | Cart modal | per-line number input (`updateCartQuantity`) + per-line **With delivery** checkbox (`updateCartDelivery`) |
 
 - `QuantityStepper` is a **module-scope** component in `App.tsx` (next to `CartQuantityInput`, just above `function App()`); `DetailsOrderBox` stays next to `renderMaterialDetails`. It steps by **1** and stops at **1** — customers may order any amount, so the stepper must not derive its step or floor from `minOrder` (`min` is hard-coded to `1`).
@@ -945,7 +952,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.12.0` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.13.0` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -958,8 +965,11 @@ For the install prompt to work:
 | ------------------------------------ | ---------------------------------------------------------------------------- |
 | Leaflet default marker icons broken  | The icon-fix snippet in `MapComponent.tsx`/`MapPicker.tsx` must load before any marker creation |
 | Distance shows "Unable to calculate" | OSRM demo server offline → haversine fallback already handles this; retry later |
-| Order says location is unavailable   | Browser/app location permission is off, timed out, or the saved profile has no coordinates. Enable GPS/location access and press **Order** again; the app only falls back to the saved pin when one exists (v6.7) |
-| KM did not change after moving       | The detail preview uses the saved pin; press **Order** to take a fresh high-accuracy fix. The cart re-prices because its signature includes the buyer's coordinates |
+| Tapping Order seems to do nothing    | Fixed in v6.8: alerts are a fixed toast above modals, the cart shows a loading state instead of returning `null`, routing requests abort after 9 s and try a second OSRM endpoint, and `confirmOrder` has `try/catch/finally` so it can never leave the button stuck |
+| Order says location is unavailable   | Browser/app location permission is off, timed out, or the saved profile has no coordinates. Enable GPS/location access and press **Place Order** again; the app only falls back to the saved pin when one exists (v6.7) |
+| KM did not change after moving       | The detail preview uses the saved pin; press **Place Order** to take a fresh high-accuracy fix. The cart re-prices because its signature includes the buyer's coordinates |
+| Order Summary stays on "Calculating…" | The quote is still debounced (250 ms) or the routing request is in flight. If it never resolves the block explains why and offers **Retry calculating**; a cross-supplier cart offers **Clear cart & order this product** instead (§13.1) |
+| "Please select a valid user" on a correct login | The account list had not finished loading. Local data is now published before the geocoding pass and login falls back to the stored `users` cache, so this window is gone in v6.8 (§6 startup order) |
 | Geocoding fails at startup           | Nominatim rate limit — the app keeps the last-known coordinates and continues |
 | localStorage quota exceeded         | Too many base64 product photos → reduce image count/size (cap is 6/product)   |
 | `npm start` fails on Windows         | Ensure Node ≥ 14; delete `node_modules` and re-run `npm install`              |
@@ -1034,7 +1044,7 @@ Read this before touching any code. It prevents the most common mistakes.
 7. **Tests are pure-logic only.** Do not write tests that import `App.tsx`, `MapComponent.tsx` or Leaflet — they need DOM APIs jsdom can't provide. Run `CI=true npm test -- --watchAll=false`.
 8. **Mobile reuse** — build mobile UI from existing helpers (`renderProductImage`, `formatCurrency`, `handleCheckout`, `handleQuickReorder`, …); `MobileProductCard` is the single reusable product card for the carousel and search grid. New mobile-only files go under `src/hooks/` / `src/components/` and use CSS variables so both themes keep working.
 9. **No dark surfaces.** Both themes are light blue. Use the `--bg` / `--card-bg` / `--glass-bg` / `--surface` tokens for any new background; deep blue (`--primary`) is only for accents that carry white text (heroes, primary buttons, avatars, badges). Never paint a page, card, modal or bar in `#000` / navy / `rgba(0,0,0,α)` (except `.datetime-widget.inverted`). Dim overlays may use the navy scrim `rgba(8, 22, 40, α)`.
-10. **Quantities are chosen in one place only** — the product details order box (§13.1). A list, card or carousel may only *navigate* to it; do not add a stepper, quantity input or `prompt()` to a results row, product card or table.
+10. **Quantities are chosen in one place only** — the product page's **Order Summary** / quantity row (§13.1). A list, card or carousel may only *navigate* to it; do not add a stepper, quantity input or `prompt()` to a results row, product card or table.
 11. **Stock is supplier-only.** Any new UI that prints `material.quantity` must be wrapped in `canSeeStock` (company + admin) — the only exception is a supplier reading **their own** inventory on the company dashboard, which already renders inside the `userType === 'company'` guard (§10.6). Customers and guests must never see a stock number, an "In stock"/"Out" chip or a low-stock banner.
 12. **Never enforce a per-product minimum.** `Material.minOrder` is supplier reference data; the customer path works in units of 1 (§13.1). The only minimum a customer can hit is the admin-configured goods-subtotal rule in `settings.ts`.
 13. **A route request is a nonce, not a flag.** When the map should show a route, bump `routeRequestId` *and* set `autoRouteSupplierId`; never clear the destination to "reset" it (§10.2). Drawing waits for `isMapReady` and always goes through `drawRouteForSupplier`, which starts from the real GPS position once it is known.
@@ -1088,6 +1098,51 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.8 - order feedback, accurate KM and cloud-first commit
+- **Product page rebuilt to the Sample Layout.** `DetailsOrderBox`/`renderMaterialDetails`
+  now render four sections in a fixed order — **Product Details → Supplier
+  Information → Customer Reviews → Order Summary** (`.pd-section`) — with the
+  photo gallery, Unit/Delivery price cards, the quantity row and live Material
+  Subtotal, the supplier route card, reviews, and an **Order Summary** that
+  prices subtotal, delivery, VAT and **Total Payable** on the page. The old
+  **Supplier → Description → Pricing → Distance → Reviews** ordering and the
+  trailing `.order-box` are gone.
+- **Ordering no longer dead-ends.** When the summary cannot quote — no usable
+  location, or the cart holds another supplier's goods — the disabled
+  "Calculating…" button with `…` totals is replaced by a `.pd-summary-block`
+  that names the cause and offers **Retry calculating** or **Clear cart & order
+  this product**. **🛒 Place Order** writes the order and opens the Orders page;
+  **Add to cart & review instead** keeps the old cart path.
+- **Startup no longer blocks login or the catalogue.** The account, company,
+  material and order collections are published to React state (and the login
+  datalist) *before* the Nominatim geocoding pass, which is the only network
+  part of init; `setIsInitialized(true)` still gates persistence and cloud
+  pushes. `handleLogin` also falls back to the stored `users` cache, so a valid
+  account is never rejected with "Please select a valid user" while the list
+  loads.
+- **Order no longer appears to do nothing.** Alerts now render in a fixed toast
+  layer above every modal, so a GPS/permission error is visible instead of being
+  hidden behind the product-details overlay.
+- **Cart opens even while pricing.** The cart modal no longer returns `null`
+  when totals are still loading; it shows a live "Calculating your order..."
+  state and then the priced cart. This removes the blank/no-response failure
+  when the routing request was slow.
+- **No hung routing requests.** `calculateDistance` now aborts each OSRM request
+  after 9 seconds and tries a second independent OSRM endpoint. The straight-line
+  fallback is used only when both road-routing servers fail. Six-decimal cache
+  keys and the real supplier/buyer coordinates keep the measured KM accurate.
+- **No invented Addis coordinates.** `confirmOrder` refuses to place an order
+  without a real customer pin; the old `9.0320 / 38.7469` fallback is gone.
+- **Cloud-first order write.** Placed orders are written to React state and
+  pushed to Supabase `escon_kv` immediately, in addition to the normal realtime
+  and polling sync. All shared collections remain cloud-synced; localStorage is
+  only the fast local cache.
+- **Safer failure handling.** `confirmOrder` has a `try/catch/finally`, always
+  clears the calculating state, and refunds a wallet payment if the order could
+  not be committed. The success alert is no longer overwritten by "Cart cleared".
+- **Release.** Bumped `versionCode` 10 to 11, `versionName` 1.9 to 1.9.1 and
+  `sw.js` `VERSION` `e-scon-v1.12.0` to `e-scon-v1.13.0`.
 
 ### v6.7 — live GPS distance on Order
 - **Fresh fix, not the saved pin.** Pressing **Order** in the product details

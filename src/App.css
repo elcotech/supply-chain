@@ -1007,6 +1007,17 @@ body {
 }
 
 /* ---------- Alert ---------- */
+/* Fixed above every modal (details, cart, proforma) so an order error can never
+   be hidden behind the overlay that triggered it. */
+.alert-stack {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 24px));
+  z-index: 10050;
+  pointer-events: none;
+}
 .alert {
   padding: 12px 18px;
   border-radius: var(--radius-sm);
@@ -1015,6 +1026,25 @@ body {
   align-items: center;
   gap: 10px;
   animation: slideIn 0.3s ease;
+  pointer-events: auto;
+  box-shadow: 0 12px 32px rgba(15, 43, 61, 0.22);
+}
+.cart-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 220px;
+  text-align: center;
+  padding: 24px 12px;
+}
+.cart-loading p { margin: 0; color: var(--text-secondary, #64748b); }
+.cart-loading .cart-loading-note { font-size: 0.85rem; max-width: 360px; }
+.cart-loading .cart-loading-error {
+  color: #b45309;
+  font-weight: 600;
+  max-width: 380px;
 }
 .alert-success {
   background: #d1fae5;
@@ -6681,4 +6711,505 @@ a:focus-visible {
   color: var(--text-light);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+/* ===========================================================================
+   Sample Layout — product details & order (v7.0)
+   ---------------------------------------------------------------------------
+   Implements the four sections of `Sample Layout.jpg`:
+     1. Product Details      (.pd-grid / .pd-media / .pd-info)
+     2. Supplier Information (.pd-supplier + route preview card)
+     3. Customer Reviews     (.pd-reviews-scroll)
+     4. Order Summary        (.pd-summary + Place Order)
+   Appended here on purpose so the existing rules above stay untouched.
+   =========================================================================== */
+
+.pd-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.pd-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.pd-head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  color: var(--primary);
+  flex: 1;
+}
+.pd-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(15, 76, 129, 0.1);
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+.pd-see-all {
+  border: 0;
+  background: transparent;
+  color: var(--primary-light);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.pd-in-cart {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #065f46;
+  background: #d1fae5;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+/* ---------- 1. Product details ---------- */
+.pd-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.pd-media-frame {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(18, 76, 129, 0.06);
+  border: 1px solid var(--border);
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pd-media-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pd-stock {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  background: #2ecc71;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.pd-stock.out { background: #e11d48; }
+.pd-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
+}
+.pd-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(18, 76, 129, 0.25);
+}
+.pd-dot.on { background: var(--primary); transform: scale(1.25); }
+
+.pd-category {
+  display: inline-block;
+  background: rgba(26, 111, 181, 0.12);
+  color: var(--primary-light);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.pd-title {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  color: var(--primary);
+  line-height: 1.25;
+}
+.pd-desc {
+  margin: 0 0 14px;
+  color: var(--text-light);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.pd-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.pd-metric {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  position: relative;
+  min-width: 0;
+}
+.pd-metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+.pd-metric-text { display: flex; flex-direction: column; min-width: 0; }
+.pd-metric-text small {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: none;
+}
+.pd-metric-text strong {
+  color: var(--primary);
+  font-size: 0.98rem;
+  word-break: break-word;
+}
+.pd-metric-note { color: var(--text-muted); }
+.pd-metric-delivery { cursor: pointer; }
+.pd-metric-delivery input { margin-left: auto; flex-shrink: 0; }
+.pd-metric-delivery:not(.on) { opacity: 0.72; }
+
+.pd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.pd-qty { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pd-row-label { font-size: 0.82rem; font-weight: 700; color: var(--text-light); }
+.pd-row-hint { font-size: 0.72rem; color: var(--text-muted); }
+.pd-subtotal { flex: 0 1 auto; }
+.pd-row-dates { margin-bottom: 0; }
+.pd-date {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.pd-stockline {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--text-light);
+  background: rgba(18, 76, 129, 0.06);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  margin-bottom: 12px;
+}
+
+/* ---------- 2. Supplier information ---------- */
+.pd-supplier {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+.pd-supplier-top { display: flex; align-items: center; gap: 12px; }
+.pd-supplier-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.pd-supplier-id { min-width: 0; }
+.pd-supplier-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--primary);
+  font-size: 1.02rem;
+}
+.pd-verified {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #1a6fb5;
+  color: #fff;
+  font-size: 0.6rem;
+}
+.pd-supplier-rating {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+  color: var(--text-light);
+  margin-top: 3px;
+}
+.pd-supplier-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 13px;
+}
+.pd-meta { display: flex; gap: 9px; align-items: flex-start; min-width: 0; }
+.pd-meta-icon { font-size: 1rem; line-height: 1.2; }
+.pd-meta > div { display: flex; flex-direction: column; min-width: 0; }
+.pd-meta small { font-size: 0.7rem; color: var(--text-muted); }
+.pd-meta strong { color: var(--primary); font-size: 0.86rem; word-break: break-word; }
+.pd-meta span { font-size: 0.78rem; color: var(--text-light); }
+
+.pd-map-card {
+  margin-top: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(26, 111, 181, 0.1), rgba(46, 204, 113, 0.08));
+}
+.pd-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px 10px;
+}
+.pd-route-node {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pd-route-line {
+  flex: 1;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, var(--primary-light) 0 7px, transparent 7px 14px);
+  position: relative;
+  min-width: 30px;
+}
+.pd-route-line i {
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateY(-50%);
+}
+.pd-map-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 12px 12px;
+}
+.pd-map-pill {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.pd-map-open {
+  margin-left: auto;
+  border: 0;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 7px 13px;
+  cursor: pointer;
+}
+.pd-map-open:hover { background: var(--primary-light); }
+.pd-map-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 12px 12px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ---------- 3. Customer reviews ---------- */
+.pd-reviews-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.pd-review-card {
+  flex: 0 0 min(260px, 78%);
+  scroll-snap-align: start;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+.pd-review-top { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.pd-review-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.pd-review-score { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-light); }
+.pd-review-card .review-date { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+.pd-review-card .review-comment { margin: 0; font-size: 0.85rem; color: var(--text-light); line-height: 1.45; }
+
+/* ---------- 4. Order summary ---------- */
+.pd-summary { background: rgba(255, 255, 255, 0.9); }
+.pd-summary-rows { display: flex; flex-direction: column; gap: 9px; }
+.pd-summary-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 0.92rem;
+  color: var(--text-light);
+}
+.pd-summary-row > span { display: flex; flex-direction: column; min-width: 0; }
+.pd-summary-row strong { color: var(--primary); white-space: nowrap; }
+.pd-summary-sub { font-size: 0.72rem; color: var(--text-muted); }
+.pd-summary-divider { height: 1px; background: var(--border); margin: 3px 0; }
+.pd-summary-total { font-size: 1.06rem; }
+.pd-summary-total span,
+.pd-summary-total strong { color: var(--primary); font-weight: 800; }
+.pd-summary-note { margin: 0; color: var(--text-light); font-size: 0.88rem; }
+
+/* A summary that cannot quote yet: the reason in words plus the one action
+   that unblocks it, instead of a Place Order button frozen on "Calculating…". */
+.pd-summary-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(190, 60, 45, 0.06);
+  border: 1px dashed rgba(190, 60, 45, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+.pd-summary-block-icon { font-size: 1.05rem; line-height: 1.35; }
+.pd-summary-block-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.pd-summary-block-body p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--text-light);
+  line-height: 1.5;
+}
+.pd-summary-block-btn { width: 100%; padding: 10px 14px; font-size: 0.88rem; }
+
+.pd-place-order {
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px 18px;
+  font-size: 1.02rem;
+  font-weight: 800;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+.pd-place-order:disabled { opacity: 0.6; cursor: not-allowed; }
+.pd-summary-hint {
+  margin: 9px 0 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+.pd-add-to-cart {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--primary-light);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px;
+}
+.pd-add-to-cart:disabled { opacity: 0.5; cursor: not-allowed; }
+.pd-trust {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 12px 0 0;
+}
+.pd-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: rgba(18, 76, 129, 0.07);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  margin-top: 12px;
+  font-size: 0.82rem;
+  color: var(--text-light);
+  line-height: 1.45;
+}
+.pd-notice-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+
+/* Stack the two-column product grid on phones so the photo stays above the
+   metrics, matching the sample's single-column mobile screen. */
+@media (max-width: 720px) {
+  .pd-grid { grid-template-columns: 1fr; gap: 14px; }
+  .pd-metrics { grid-template-columns: 1fr; }
+  .pd-supplier-meta { grid-template-columns: 1fr; }
+  .pd-map-open { margin-left: 0; width: 100%; }
+  .pd-title { font-size: 1.16rem; }
 }
