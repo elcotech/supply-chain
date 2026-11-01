@@ -114,8 +114,11 @@ account.
    order and takes you to the **Orders** page. If the item is already in your
    cart, the quantity you set on the page is the quantity that gets ordered.
 
-Would rather review first? Press **Add to cart & review instead** — the item goes
+Would rather review first? Press **Add to Cart & Review** — the item goes
 into your cart and the cart opens, where **1 To Purchase** places the same order.
+Adding never waits for GPS: the line is saved first. When the cart needs to price
+delivery it asks for your location once. If permission is denied, your lines stay
+in the cart and you can press **Use my current location** or **Retry calculating**.
 
 The product page is laid out in four sections, in this order: **Product Details →
 Supplier Information → Customer Reviews → Order Summary**. Product Details holds
@@ -127,9 +130,9 @@ and a route preview with the distance, ETA and **View Route on Map**. The
 distance shown before you order is a preview from your saved pin; **Place Order**
 replaces it with the live GPS distance used for delivery.
 
-> **Location access is required for accurate delivery.** If permission is denied,
+> **Location access is needed to price delivery, not to add items.** If permission is denied,
 > the fix times out, or GPS is unavailable, E-SCON warns you and uses your saved
-> location only when one exists. If no saved location exists, the Order Summary
+> location only when one exists. If no saved location exists, the cart (or Order Summary)
 > asks for a fix and shows **📍 Use my current location** — allow location access
 > and tap it (or press **Place Order**) again.
 
@@ -156,7 +159,10 @@ In the cart you can:
 - Tick or untick **"With delivery"** per line.
 - Toggle a manual delivery-fee override where offered.
 
-The totals update automatically. The green summary box shows the goods subtotal
+The totals update automatically. If the cart has no saved location, it asks your
+device for one when it opens; allow location access and the delivery fee appears.
+If permission is denied, the cart keeps every line and shows **Use my current
+location** or **Retry calculating** instead of spinning forever. The green summary box shows the goods subtotal
 and delivery fee now, and states **“VAT (15%): Added when you place the order”** —
 VAT is not charged when you add a product. The payable-after-VAT figure is shown
 below the total and is what the wallet balance must cover. The Order button is
@@ -329,7 +335,7 @@ Installing is optional — the app works the same in a normal browser tab.
 | Problem | What to do |
 | --- | --- |
 | Distance says "Unable to calculate" | The route service is busy — retry in a moment; the app falls back to a straight-line estimate |
-| Order says my location is unavailable | Allow location/GPS access for E-SCON, then press **Place Order** again. Without permission the app can only use a saved location, if one exists |
+| Order says my location is unavailable | Your items are already saved in the cart. Allow location/GPS access for E-SCON, then use **Use my current location** in the cart (or press **Place Order** again). Without permission the app can only use a saved location, if one exists |
 | Distance didn't change after I moved | The preview uses your saved pin; press **Place Order** to capture a fresh GPS fix and re-price delivery |
 | Order Summary keeps saying "Calculating…" | It prices 250 ms after you change something, so wait a beat. If it cannot finish, the block on screen says why and gives you **📍 Use my current location** when you have no pin, **Retry calculating** for a failed quote, or **Clear cart & order this product** when the cart holds another supplier's goods |
 | "Please select a valid user" although the details are right | The account list was still loading. Close the form and try again — the list loads without waiting on location any more |

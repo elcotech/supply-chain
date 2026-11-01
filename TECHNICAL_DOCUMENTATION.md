@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.8 (visible order feedback, cloud-first order commit, accurate road KM)
-> **Previous:** 6.7 (Supplier → Description → Pricing → Distance → Reviews, Order opens the cart)
+> **Version:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing)
+> **Previous:** 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -20,7 +20,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65)
+10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65), plus [10.27 Cart-first ordering](#1027-cart-first-ordering-v610)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -484,6 +484,8 @@ Pressing **Place Order** fetches the device's **current GPS position** (`getCurr
 
 **Cart re-prices live (v5.2):** while the cart modal is open, a `useEffect` re-runs `priceCartItems` 250 ms after any quantity change, "With delivery" toggle or manual delivery-fee override, so the totals on screen never drift from the cart. It keys off `cartPriceSignature(cart)` — the cart lines, the manual delivery-fee override **and the buyer's current coordinates** — and reaches the pricing function through `priceCartItemsRef`; putting `priceCartItems` itself in the dependency array would loop, because it is rebuilt on every render. A fresh GPS fix from the Order action therefore re-prices delivery fees even when the cart lines are unchanged (v6.7). `handleCheckout` writes the same signature into `repricedCart` so opening the cart does not immediately recalculate what it just calculated.
 
+Since v6.10 the guard is written **inside** the 250 ms timeout. Writing it before the timeout let a re-render clear the timer while leaving the signature marked as priced; the next effect run then returned early and the cart stayed on "Calculating your order..." indefinitely. A cancelled in-flight price now releases the guard (only if it still owns the same signature), and both the no-totals path and the error path release it before setting `cartPriceFailed`. The failure state is rendered inside the loading modal, with the saved cart lines and a **Use my current location** / **Retry calculating** action instead of a dead spinner.
+
 **Cart quantity is freely editable (v5.4):** each cart line renders `CartQuantityInput` (module scope in `App.tsx`, just above `function App()`) — a number field with `−` / `+` keys. It keeps a **local draft string** and only calls `updateCartQuantity` with a valid whole number (on blur, on Enter or via the keys). The old inline `onChange={e => updateCartQuantity(item.id, parseInt(e.target.value))}` re-rendered the field on every keystroke, so clearing the box produced `NaN`, bounced an alert and made the cart look read-only. Keep the component at module scope — defined inside `App()` it becomes a new component type on every render, which remounts the input and drops the draft mid-typing. The `Qty:` label was dropped so the unit sits next to the field, and the native spinners are hidden in favour of the `−` / `+` buttons (`.cart-qty-btn`, 38px on touch). Since v5.2 the same component also renders the per-line "With delivery" checkbox (`.cart-delivery-toggle`) calling `updateCartDelivery`.
 
 **Stock visibility:** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price and unit only.
@@ -745,6 +747,37 @@ with a fresh GPS fix (saved silently), so the cart/proforma use the customer's
 current position even if they moved since setting it. Admin edits go through
 `handleAdminUpdateUser` (`onUpdateUser` prop on `AdminSettings`).
 
+### 10.27 Cart-first ordering (v6.10)
+
+Adding a product and pricing delivery are separate steps. `handleDetailsOrder`
+now calls `addToCart` **before** it looks at the buyer's coordinates, so a
+denied, unavailable or slow GPS fix can no longer prevent a line from reaching
+the cart. `Add to Cart & Review` is always visible on the product page; it
+stores the line, keeps the page quantity, and opens the cart. A route preview on
+the product page only updates when coordinates already exist, so opening a
+product never blocks on geolocation.
+
+The cart asks for the position itself. The first time an open, non-empty cart
+has no usable coordinates, the `showCartSummary` effect calls
+`refreshCurrentLocation()` once (`cartLocationTried` prevents repeat prompts).
+While pricing, the modal lists the saved lines and shows **Calculating your
+order...**. If the fix cannot be obtained, the same modal becomes an explicit
+failure state with the saved lines, **Use my current location** (when there is
+still no pin) or **Retry calculating** (when a pin exists). Nothing added to the
+cart is lost.
+
+`handlePlaceOrderFromDetails` follows the same rule: it stages the line into the
+cart before requesting a fresh fix. If the fix fails it opens the cart instead
+of returning the buyer to an unchanged product page. The cart's own
+**To Purchase** path remains the retry point.
+
+The cart re-pricing effect also no longer cancels itself. Its signature guard is
+written inside the 250 ms timer, not before it, and is released when an in-flight
+price is cancelled. Previously a re-render during the debounce cleared the timer
+while leaving the guard set, so the effect returned early forever and the cart
+stayed on the loading state. When pricing finishes without totals, the guard is
+released and `cartPriceFailed` exposes the retry action.
+
 ---
 
 ## 11. Third-Party Integrations
@@ -877,7 +910,7 @@ It is the step where the customer has actually seen the product and is ready to 
 | Desktop results row (`🛒`) | opens the product details (`setSelectedMaterial`) |
 | Mobile product card (`🛒 Order` / `🛒 Edit order`) | opens the product details |
 | Compare modal (`View & Order`) | closes the modal and opens the product details |
-| Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number + − / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then **🛒 Place Order** (fresh GPS fix → order → Orders page) or **Add to cart & review instead** (adds the line and opens the cart) |
+| Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number + − / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then **🛒 Place Order** (fresh GPS fix → order → Orders page) or **Add to Cart & Review** (stores the line without waiting for GPS and opens the cart, v6.10) |
 | Cart modal | per-line number input (`updateCartQuantity`) + per-line **With delivery** checkbox (`updateCartDelivery`) |
 
 - `QuantityStepper` is a **module-scope** component in `App.tsx` (next to `CartQuantityInput`, just above `function App()`); `DetailsOrderBox` stays next to `renderMaterialDetails`. It steps by **1** and stops at **1** — customers may order any amount, so the stepper must not derive its step or floor from `minOrder` (`min` is hard-coded to `1`).
@@ -888,6 +921,7 @@ It is the step where the customer has actually seen the product and is ready to 
 - A sold-out product shows **"Currently unavailable — please contact the supplier."** instead of the stepper, so nothing un-orderable can be added to the cart.
 - The old native `prompt("Quantity (Min: …)")` on the desktop results row and the card-level `m-stepper` are **removed** — keep it that way; never reintroduce a quantity control in a list.
 - **Adding can be refused (v5.6).** `addToCart` returns `boolean`: `false` when the buyer is not a signed-in customer, when the quantity is invalid, when the supplier cannot be resolved, or when the cart already holds a **different** supplier. `DetailsOrderBox` calls `onAdded()` only on `true`, so a refused add leaves the dialog open with the quantity and delivery choices intact. Do not close the dialog unconditionally.
+- **Adding does not require GPS (v6.10).** `handleDetailsOrder` adds the line first; location is only requested by the open cart when it needs to price delivery. **Place Order** also stages the line before taking a fix and, if the fix fails, opens the cart with the saved line instead of leaving the product page unchanged.
 
 **2. Stock levels are supplier-only data.**
 `const canSeeStock = currentUser?.userType === 'company' || currentUser?.userType === 'admin'` (`App.tsx`, "Role visibility") gates **every** stock number in the UI. Customers *and* signed-out visitors see none:
@@ -952,7 +986,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.0` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.1` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -969,6 +1003,7 @@ For the install prompt to work:
 | Order says location is unavailable   | Browser/app location permission is off, timed out, or the saved profile has no coordinates. Since v6.9 the Order Summary automatically asks for a fix and offers **📍 Use my current location**; allow GPS/location access and tap it, or press **Place Order** again. The app only falls back to the saved pin when one exists |
 | KM did not change after moving       | The detail preview uses the saved pin; press **Place Order** to take a fresh high-accuracy fix. The cart re-prices because its signature includes the buyer's coordinates |
 | Order Summary stays on "Calculating…" | The quote is still debounced (250 ms) or the routing request is in flight. If it never resolves the block explains why and offers **📍 Use my current location** (no pin), **Retry calculating** (failed quote) or **Clear cart & order this product** (cross-supplier cart) instead (§13.1) |
+| Cart stays on "Calculating your order..." | Fixed in v6.10: the re-pricing guard is written inside the 250 ms timer and released when pricing is cancelled. If totals still fail, the loading modal lists the saved lines and offers **Use my current location** or **Retry calculating**. Check `repricedCart`, `cartPriceFailed` and the auto-location effect (10.27) |
 | "Please select a valid user" on a correct login | The account list had not finished loading. Local data is now published before the geocoding pass and login falls back to the stored `users` cache, so this window is gone in v6.8 (§6 startup order) |
 | Geocoding fails at startup           | Nominatim rate limit — the app keeps the last-known coordinates and continues |
 | localStorage quota exceeded         | Too many base64 product photos → reduce image count/size (cap is 6/product)   |
@@ -1076,7 +1111,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.10.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.14.1`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1098,6 +1133,30 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.10 - cart first, location when pricing
+- **Adding to the cart never waits for GPS.** `Add to Cart & Review` is always
+  visible on the product page and `handleDetailsOrder` stores the line before it
+  reads any coordinates. A denied, unavailable or slow location can no longer
+  stop a product from reaching the cart. The button label is now
+  **Add to Cart & Review**.
+- **The cart asks for the location.** Opening a non-empty cart without usable
+  coordinates calls `refreshCurrentLocation()` once (`cartLocationTried` stops
+  repeat prompts). While delivery is priced the modal lists the saved lines and
+  shows **Calculating your order...**. If the fix fails, the modal keeps the
+  lines and offers **Use my current location** (no pin) or **Retry calculating**
+  (pin exists), with the proforma/checkout steps hidden until pricing succeeds.
+- **Place Order stages the line first.** `handlePlaceOrderFromDetails` adds the
+  line to the cart before taking a fresh fix. If the fix fails, the cart opens
+  with the line saved so the buyer can retry from **1 To Purchase** instead of
+  returning to an unchanged product page.
+- **Cart repricing can no longer cancel itself.** The `repricedCart` signature
+  guard is now written inside the 250 ms timer, and a cancelled in-flight price
+  releases it. The previous ordering let a re-render clear the timer while the
+  guard stayed set, so the effect returned early forever and the cart stayed on
+  "Calculating your order...". The failure state is now reachable and actionable.
+- **Release.** Bumped `versionCode` 12 to 13, `versionName` 1.9.2 to 1.9.3 and
+  `sw.js` `VERSION` `e-scon-v1.14.0` to `e-scon-v1.14.1`.
 
 ### v6.9 — ordering works for a buyer with no saved pin
 - **Order Summary gets the location itself.** If the buyer has no usable

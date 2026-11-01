@@ -380,6 +380,9 @@ function App() {
   // the same product again produces an identical signature, the effect returns
   // early, `cartDetails` stays null and the cart modal can never render.
   const repricedCart = useRef('');
+  // One automatic location request per open cart. A denied permission should not
+  // re-prompt on every render; the failure state offers a deliberate retry.
+  const cartLocationTried = useRef(false);
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
   const [showMyLocationPicker, setShowMyLocationPicker] = useState(false);
@@ -1740,8 +1743,9 @@ function App() {
     }
     // Snapshot the supplier's published rate onto the line: the fee is worked out
     // from the distance later, so the cart has to remember which rate applies.
+    const alreadyInCart = cart.some(i => i.materialId === material.id);
     setCart(prev => stageCartLine(prev, material, quantity, includeDelivery, company.name) || prev);
-    showAlert(cart.some(i => i.materialId === material.id) ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
+    showAlert(alreadyInCart ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
     return true;
   };
 
@@ -1909,10 +1913,10 @@ function App() {
     origin?: { lat: number; lng: number }
   ): Promise<CartReport | null> => priceCartItems(cart, applyVat, origin);
 
-  // The Order button in the product details is the moment delivery becomes real,
-  // so that is where we capture a *fresh* GPS fix and measure the driving route
-  // from it. The saved profile pin is only a fallback when the device cannot
-  // provide a position at all.
+  // "Add to cart & review" is a collection action, not a checkout action: the
+  // line is stored first, whatever the GPS state, and the cart takes the fresh
+  // fix when it prices delivery. The saved profile pin is only used to show the
+  // route preview when one already exists.
   const handleDetailsOrder = async (
     material: Material,
     quantity: number,
@@ -1932,19 +1936,22 @@ function App() {
       return false;
     }
     try {
-      const coords = await refreshCurrentLocation();
-      if (!coords) return false;
-      const alreadyInCart = cart.some(item => item.materialId === material.id);
-      if (!alreadyInCart && !addToCart(material, quantity, includeDelivery)) return false;
-      try {
-        const liveDistance = await calculateDistance(company.lat, company.lng, coords.lat, coords.lng);
-        setDistanceToSelected(liveDistance);
-      } catch {
-        setDistanceToSelected(null);
+      // Adding to the cart must never depend on GPS. The buyer can collect a
+      // basket first and only capture a fresh fix when the cart needs delivery
+      // priced; otherwise a denied/absent location blocks the cart entirely.
+      // `stageCartLine` also refreshes the quantity when this product is already
+      // in the cart, so the page quantity is what gets collected.
+      if (!addToCart(material, quantity, includeDelivery)) return false;
+      if (hasUserCoordinates(currentUser)) {
+        try {
+          const liveDistance = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
+          setDistanceToSelected(liveDistance);
+        } catch {
+          setDistanceToSelected(null);
+        }
       }
-      // Open the cart immediately; the modal renders a loading state while the
-      // road distance is priced. It must never stay invisible just because the
-      // totals request has not finished yet.
+      // Open the cart immediately; the modal shows the collected lines while the
+      // road distance is priced, and asks for a location if one is still needed.
       setSelectedMaterial(null);
       setShowCartSummary(true);
       return true;
@@ -1987,11 +1994,11 @@ function App() {
       return false;
     }
     try {
-      // A fresh high-accuracy fix first: delivery is measured from where the
-      // buyer is standing right now, not from a saved pin.
-      const coords = await refreshCurrentLocation();
-      if (!coords) return false;
-      // `'set'` — the quantity typed on the page is the quantity ordered.
+      // Stage the line into the cart *first*, whatever the GPS state. A
+      // same-supplier product joins the lines already there, so pressing Place
+      // Order always lands the goods in the cart — a denied or slow location
+      // can never leave the buyer with nothing on screen. `'set'` — the quantity
+      // typed on the page is the quantity ordered.
       const lines = stageCartLine(cart, material, quantity, includeDelivery, company.name, 'set');
       if (!lines) {
         const foreign = otherSupplierInCart(material.companyId, material.id);
@@ -2007,6 +2014,18 @@ function App() {
       // halfway leaves the buyer on a cart they can retry rather than nothing.
       setCart(lines);
       setSelectedMaterial(null);
+      // A fresh high-accuracy fix: delivery is measured from where the buyer is
+      // standing right now, not from a saved pin.
+      const coords = await refreshCurrentLocation();
+      if (!coords) {
+        // No usable position, so the order cannot be priced yet — but the
+        // goods are safely in the cart. Send the buyer to the cart, which
+        // shows the saved lines and offers "Use my current location", instead
+        // of leaving the product page with nothing to show for the tap.
+        cartLocationTried.current = true;
+        setShowCartSummary(true);
+        return false;
+      }
       // Pass the fresh fix into `confirmOrder` so it prices and records the
       // order from the same coordinates. Reading `currentUser` here would use
       // the pre-fix state (React state has not re-rendered yet) and could refuse
@@ -2163,6 +2182,23 @@ function App() {
   const priceCartItemsRef = useRef(priceCartItems);
   priceCartItemsRef.current = priceCartItems;
 
+  // Opening the cart is the moment delivery becomes real, so ask for the buyer's
+  // position once here if the profile has none. The cart lines are already stored
+  // (adding never waits for GPS); this only unlocks delivery pricing, proforma
+  // and print. A denied prompt leaves the cart visible with an explicit action.
+  useEffect(() => {
+    if (!showCartSummary || cart.length === 0) {
+      if (cart.length === 0) cartLocationTried.current = false;
+      return;
+    }
+    if (hasUserCoordinates(currentUser) || cartLocationTried.current) return;
+    cartLocationTried.current = true;
+    void refreshCurrentLocation().then(coords => {
+      if (!coords) setCartPriceFailed(true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCartSummary, cart.length, currentUser?.lat, currentUser?.lng]);
+
   // Re-price the open cart whenever a quantity, a "with delivery" checkbox or the
   // manual delivery override changes, so the totals on screen always match the
   // cart. The pricing helper lives in a ref because it is rebuilt on every render
@@ -2171,12 +2207,16 @@ function App() {
     if (!showCartSummary || cart.length === 0) return;
     const signature = cartPriceSignature(cart);
     if (signature === repricedCart.current) return;
-    repricedCart.current = signature;
     let cancelled = false;
     setCartPriceFailed(false);
     const timer = setTimeout(() => {
+      if (cancelled) return;
+      repricedCart.current = signature;
       priceCartItemsRef.current(cart, false).then(totals => {
-        if (cancelled) return;
+        if (cancelled) {
+          if (repricedCart.current === signature) repricedCart.current = '';
+          return;
+        }
         if (totals) {
           setCartDetails(totals);
           return;
@@ -2188,7 +2228,10 @@ function App() {
         repricedCart.current = '';
         setCartPriceFailed(true);
       }).catch(error => {
-        if (cancelled) return;
+        if (cancelled) {
+          if (repricedCart.current === signature) repricedCart.current = '';
+          return;
+        }
         console.warn('Cart could not be repriced', error);
         repricedCart.current = '';
         setCartPriceFailed(true);
@@ -2853,7 +2896,7 @@ function App() {
         <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
           <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{cart.length === 0 ? 'Shopping Cart' : 'Calculating your order...'}</h2>
+              <h2>{cart.length === 0 || cartPriceFailed ? 'Shopping Cart' : 'Calculating your order...'}</h2>
               <button className="modal-close" onClick={() => setShowCartSummary(false)}>Close</button>
             </div>
             <div className="modal-body">
@@ -2865,25 +2908,54 @@ function App() {
               ) : (
                 <div className="cart-loading" role="status" aria-live="polite">
                   <span className="dot-pulse"></span>
-                  <p>Measuring the live road distance and calculating delivery...</p>
-                  <p className="cart-loading-note">Your items are in the cart. You can close this window and open Orders at any time.</p>
+                  <p>
+                    {cartPriceFailed
+                      ? 'Your items are saved. Delivery pricing needs your current location.'
+                      : 'Measuring the live road distance and calculating delivery...'}
+                  </p>
+                  <div className="cart-items cart-loading-items">
+                    {cart.map(item => (
+                      <div key={item.id} className="cart-item">
+                        <div className="cart-item-info">
+                          <h4>{item.materialName}</h4>
+                          <p>
+                            {item.supplierName} • {formatCurrency(item.price)} / {item.unit}
+                            {item.includeDelivery !== false && ' • 🚚 delivery included'}
+                          </p>
+                        </div>
+                        <div className="cart-item-total"><strong>× {item.quantity}</strong></div>
+                        <button className="btn-icon danger" onClick={() => removeFromCart(item.id)} title="Remove item">🗑️</button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="cart-loading-note">You can close this window and reopen the cart at any time.</p>
                   {cartPriceFailed && (
                     <>
                       <p className="cart-loading-error">
                         ⚠️ We could not calculate delivery for this cart.
-                        {' '}Check that location access is enabled, then try again.
+                        {' '}Allow location access, then try again to view the proforma and place the order.
                       </p>
                       <button
                         className="btn btn-primary"
-                        onClick={() => {
-                          // Release the effect's signature guard, then bump the
-                          // tick so the very same cart is priced again.
+                        onClick={async () => {
+                          // Release the effect's signature guard. Without a pin,
+                          // take a fix first; Retry alone can never succeed.
                           repricedCart.current = '';
                           setCartPriceFailed(false);
-                          setCartPriceRetry(n => n + 1);
+                          if (hasUserCoordinates(currentUser)) {
+                            setCartPriceRetry(n => n + 1);
+                            return;
+                          }
+                          cartLocationTried.current = true;
+                          const coords = await refreshCurrentLocation();
+                          if (coords) {
+                            setCartPriceRetry(n => n + 1);
+                          } else {
+                            setCartPriceFailed(true);
+                          }
                         }}
                       >
-                        🔁 Retry calculating
+                        {hasUserCoordinates(currentUser) ? '🔁 Retry calculating' : '📍 Use my current location'}
                       </button>
                     </>
                   )}
@@ -3658,6 +3730,8 @@ function App() {
             <p className="pd-summary-hint">
               Pressing Place Order takes a fresh GPS fix so delivery is measured from where you are now.
             </p>
+              </>
+            )}
             <button
               className="pd-add-to-cart"
               disabled={isDetailsOrdering || isPlacingOrder}
@@ -3670,10 +3744,8 @@ function App() {
                 }
               }}
             >
-              Add to cart &amp; review instead
+              🛒 Add to Cart &amp; Review
             </button>
-              </>
-            )}
             <p className="pd-trust">✅ Secure Payment &nbsp;•&nbsp; 🚚 Fast Delivery</p>
             <div className="pd-notice">
               <span className="pd-notice-icon">ℹ️</span>
