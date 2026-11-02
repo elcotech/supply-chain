@@ -7896,6 +7896,37 @@ a:focus-visible {
   margin-top: 18px;
 }
 
+.cart-new-delivery-detail {
+  font-size: 0.92rem;
+  color: var(--text-muted, #6b7280);
+  margin: 6px 0 10px;
+}
+
+.cart-new-platform-hint {
+  background: var(--bg-alt, #f5f7fa);
+  border-left: 3px solid var(--warn, #d97706);
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-muted, #6b7280);
+  font-size: 0.88rem;
+  margin-top: 12px;
+}
+
+.cart-sample-close {
+  background: none;
+  border: 0;
+  color: #9fb3c8;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.cart-sample-close:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.12);
+  border-radius: 6px;
+}
+
 /* Sample Layout: Clear is an outlined pill, the right-hand primary action is
    a solid dark-blue pill with white text. */
 .cart-sample-clear {

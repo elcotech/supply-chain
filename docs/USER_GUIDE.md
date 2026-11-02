@@ -324,9 +324,7 @@ Installing is optional — the app works the same in a normal browser tab.
 > proformas or account screens when you need them. Treat those captures as
 > sensitive business documents.
 
-> When a new version is released, the app refreshes its own files automatically
-> the next time you open it. **Your account, products, orders and favourites are
-> never affected** by an update.
+> When a new version is released, the app refreshes its own files automatically — the service-worker version for the web build, and the Android `versionCode` for the installed app. Your account, products and orders are never lost in a refresh; the next time you open the app you get the new build.
 
 ---
 

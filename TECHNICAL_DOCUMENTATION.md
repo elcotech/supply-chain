@@ -354,12 +354,12 @@ Plain (non-memo) helpers worth knowing:
 | `groupCartBySupplier` | Cart lines grouped per supplier |
 | `handlePreviewProforma` | Prices the whole cart and opens the single consolidated proforma |
 | `handleBackToPurchase` | Closes the proforma, re-prices and re-opens the cart at step 1 with `is-returned` on "To Purchase" (v5.7) |
-| `handleDeliveryFeeChange` / `handleDeliveryFeeReset` | Manual delivery fee, split pro-rata across the cart's suppliers |
+| `handleDeliveryFeeChange` / `handleDeliveryFeeReset` | **Removed in v6.12.** Manual delivery-fee override was retired when the cart was rebuilt as a single-page proforma-style layout; delivery is now driven solely by each line's "With delivery" checkbox and the supplier's published rate (or the platform fallback). |
 | `renderDeliveryTermsFields` | The shared "delivered by me + per km + starting fee" block in the add and edit product forms |
-| `platformDeliveryHint` | Warns the buyer when a supplier publishes no rate so the platform fee applies |
+| `platformDeliveryHint` | Live buyer-facing note shown in the cart's Delivery Cost block when one or more supplier groups have no published rate and the platform fee applies |
 | `cartSignature` | Quantity + delivery-flag signature that keys the cart re-pricing effect |
 
-Module-scope component: `CartQuantityInput` (the editable per-line quantity field with its "With delivery" checkbox, §10.5).
+Quantity controls (§10.5): the new single-page cart (§10.28) renders each line's quantity with inline `−` / `+` stepper buttons inside the items table, and the "With delivery" choice is on the same card's Delivery Cost block. The old `CartQuantityInput` module component (a reusable quantity + checkbox unit that lived above `function App()` and was shared by the old cart modal and `DetailsOrderBox`) was removed when the cart UI was rebuilt; per-line delivery is still a cart-line property (`CartItem.includeDelivery`) so the proforma and placed orders keep agreeing.
 
 ---
 
@@ -456,7 +456,7 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`;
 **Sample Layout cart UI (v6.11):** `renderCartSummary` now rebuilds the cart modal against `Sample Layout.jpg`, inside the `cart-sample-*` class family (styles at the end of `App.css`):
 - **Header** (`.cart-sample-head`): dark-blue bar with the `E-SCON | SHOPPING CART` brand on the left, a **live date/time** (`LiveClock`, a 1 s `setInterval` in `App.tsx` — deliberately ticking here, unlike the proforma which freezes its timestamp) and the ✕ close button on the right.
 - **Steps** (`.cart-sample-steps`): the three order actions restyled to the layout — step 1 solid dark blue with white text, steps 2/3 light-blue fill with dark-blue text.
-- **Product cards** (`.cart-sample-products` / `.cart-sample-product`): one white card per line with a photo thumbnail (`.cart-sample-thumb`, 🏗️ fallback), the product name in dark blue, **Supplier:** / **Location:** rows, the `ETB … / unit • Min: …` price line, and two stacked outlined buttons on the right — **View** (opens the product details) and **Map** (draws the supplier route). Both close the cart first because the details/map modals render *before* the cart in the DOM and would otherwise be covered. The quantity row is `CartQuantityInput` plus the line total and **Remove**, with a vertical rule (`.cart-qty-sep`) between the unit and the **With delivery** pill.
+- **Product cards** (`.cart-sample-products` / `.cart-sample-product`): one white card per line with a photo thumbnail (`.cart-sample-thumb`, 🏗️ fallback), the product name in dark blue, **Supplier:** / **Location:** rows, the `ETB … / unit • Min: …` price line, and two stacked outlined buttons on the right — **View** (opens the product details) and **Map** (draws the supplier route). Both close the cart first because the details/map modals render *before* the cart in the DOM and would otherwise be covered. The quantity row is the per-line `−` / `+` stepper plus a **Remove** button; the "With delivery" choice lives on the Delivery Cost card, not on the product card.
 - **Financial Summary** (`.cart-sample-summary`): dark-blue header bar, then numbered rows (`.cart-sample-row` + CSS-counter `.cart-fin-no`): **Unit price × Quantity** (one row per line), **Subtotal**, **VAT (rate%)** with the "added when you place the order" note, **Delivery Cost** — whose sub-label prints the **exact road KM** the line carried from the product page, e.g. `(11.7 km × 25.01 ETB/km)` — and the highlighted **Grand Total** (the VAT-inclusive payable used for the wallet check). The delivery fee stays editable (input + ⟲ auto) exactly as before.
 - **Payment Method** (`.cart-sample-payment`) and the **Clear / To Purchase** action row (`.cart-sample-actions`), as in the layout.
 
@@ -500,7 +500,7 @@ Pressing **Place Order** stages the line with the **exact KM the page is display
 
 Since v6.10 the guard is written **inside** the 250 ms timeout. Writing it before the timeout let a re-render clear the timer while leaving the signature marked as priced; the next effect run then returned early and the cart stayed on "Calculating your order..." indefinitely. A cancelled in-flight price now releases the guard (only if it still owns the same signature), and both the no-totals path and the error path release it before setting `cartPriceFailed`. The failure state is rendered inside the loading modal, with the saved cart lines and a **Use my current location** / **Retry calculating** action instead of a dead spinner.
 
-**Cart quantity is freely editable (v5.4):** each cart line renders `CartQuantityInput` (module scope in `App.tsx`, just above `function App()`) — a number field with `−` / `+` keys. It keeps a **local draft string** and only calls `updateCartQuantity` with a valid whole number (on blur, on Enter or via the keys). The old inline `onChange={e => updateCartQuantity(item.id, parseInt(e.target.value))}` re-rendered the field on every keystroke, so clearing the box produced `NaN`, bounced an alert and made the cart look read-only. Keep the component at module scope — defined inside `App()` it becomes a new component type on every render, which remounts the input and drops the draft mid-typing. The `Qty:` label was dropped so the unit sits next to the field, and the native spinners are hidden in favour of the `−` / `+` buttons (`.cart-qty-btn`, 38px on touch). Since v5.2 the same component also renders the per-line "With delivery" checkbox (`.cart-delivery-toggle`) calling `updateCartDelivery`.
+**Cart quantity is freely editable (v5.4):** each cart line renders its quantity with a `−` / `+` stepper inside the new single-page cart's items table (`.cart-new-table .cart-new-qty`). The stepper keeps a local draft string and only commits a valid whole number on blur, Enter or via the buttons, so clearing the box never pushes NaN into the line total or the grand total. The native spinners are hidden in favour of the `−` / `+` buttons (`.cart-new-qty-btn`). Since v5.2 the same quantity card also carries the per-line "With delivery" checkbox, now rendered inside the cart's Delivery Cost block rather than on the line card itself — the decision still rides on `CartItem.includeDelivery` so the proforma and placed orders keep agreeing.
 
 **Stock visibility:** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price and unit only.
 
@@ -638,7 +638,7 @@ A supplier can offer to deliver an item themselves, and the buyer decides per li
 - `materialDeliveryStartFee` — ETB starting service fee, charged once.
 The two rate fields and the live example sentence (`.delivery-terms-preview`) are **hidden** until the box is ticked, so an irrelevant rate is never asked for. `buildMaterialDelivery(formData)` turns the three fields into `Material.delivery`.
 
-**Buyer side:** a "With delivery" checkbox sits next to the quantity, in `CartQuantityInput` (cart modal) and in `DetailsOrderBox` (product details). The product-details checkbox defaults to **on**; a cart line with no `includeDelivery` field at all (saved before v5.2) also means **on**, so existing carts keep their old totals — `item.includeDelivery !== false` is the check everywhere, never a truthiness test.
+**Buyer side:** a "With delivery" checkbox sits on the same card as the quantity — in the new single-page cart's Delivery Cost block and in `DetailsOrderBox` (product details). The product-details checkbox defaults to **on**; a cart line with no `includeDelivery` field at all (saved before v5.2) also means **on**, so existing carts keep their old totals — `item.includeDelivery !== false` is the check everywhere, never a truthiness test.
 
 **The pricing rule — one function, `resolveLineDelivery`:**
 1. Box unticked → fee `0`, mode `none`.
@@ -934,10 +934,10 @@ It is the step where the customer has actually seen the product and is ready to 
 | Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number + − / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then **🛒 Place Order** (stages the exact measured KM → order → Orders page; fresh GPS fix only when a line has no measurement) or **Add to Cart & Review** (stores the line without waiting for GPS and opens the cart, v6.10) |
 | Cart modal | per-line number input (`updateCartQuantity`) + per-line **With delivery** checkbox (`updateCartDelivery`); the staged `distanceKm` is what the totals and checkout charge (v6.11) |
 
-- `QuantityStepper` is a **module-scope** component in `App.tsx` (next to `CartQuantityInput`, just above `function App()`); `DetailsOrderBox` stays next to `renderMaterialDetails`. It steps by **1** and stops at **1** — customers may order any amount, so the stepper must not derive its step or floor from `minOrder` (`min` is hard-coded to `1`).
-- **The number is a real input (v5.5).** The middle of `.qty-stepper` is `<input className="qty-value">`, not a read-only `<span>`: a customer can tap − / + **or type any whole number** and commit with Enter or by clicking away. Same draft-string pattern as `CartQuantityInput` — the local `draft` string keeps the field usable while it is being emptied, and `commit()` only calls `onChange` with a parsed integer `>= min` (never `NaN`, so the running total below the stepper can never go blank). The unit moved out of the old `<small>` into a sibling `<span className="qty-unit">`. The native spinners are hidden (`appearance: textfield` + the two `::-webkit-*-spin-button` resets) so − / + stay the only visible controls; do not re-add a read-only value span.
-- **Module scope is load-bearing** for both quantity inputs: defined inside `App()` they are a new component type on every render, which remounts the input and throws away the draft mid-typing. Keep them at module scope.
+- `QuantityStepper` is a **module-scope** component in `App.tsx` (just above `function App()`, used only by `DetailsOrderBox`); `DetailsOrderBox` stays next to `renderMaterialDetails`. It steps by **1** and stops at **1** — customers may order any amount, so the stepper must not derive its step or floor from `minOrder` (`min` is hard-coded to `1`).
+- **The number is a real input (v5.5).** The middle of `.qty-stepper` is `<input className="qty-value">`, not a read-only `<span>`: a customer can tap − / + **or type any whole number** and commit with Enter or by clicking away. The local `draft` string keeps the field usable while it is being emptied, and `commit()` only calls `onChange` with a parsed integer `>= min` (never `NaN`, so the running subtotal below the stepper can never go blank). The unit moved out of the old `<small>` into a sibling `<span className="qty-unit">`. The native spinners are hidden (`appearance: textfield` + the two `::-webkit-*-spin-button` resets) so − / + stay the only visible controls; do not re-add a read-only value span.
 - `DetailsOrderBox` owns its quantity state, so it resets to `1` every time the modal is opened (no `document.getElementById` juggling any more). Its hint reads "Any quantity — use − / + or tap the number to type your own."
+- The cart's own quantity control is the inline `−` / `+` stepper in the items table, not a separate module component: that keeps the single-page layout self-contained and avoids the stale `CartQuantityInput` dead code path.
 - `addToCart` and `updateCartQuantity` only guard against non-finite values and quantities below 1. The cart line input uses `min={1} step={1}`. **Do not** re-add a `minOrder` check to either function; the per-product minimum is reference data only (see [10.5](#105-cart--checkout)).
 - A sold-out product shows **"Currently unavailable — please contact the supplier."** instead of the stepper, so nothing un-orderable can be added to the cart.
 - The old native `prompt("Quantity (Min: …)")` on the desktop results row and the card-level `m-stepper` are **removed** — keep it that way; never reintroduce a quantity control in a list.
@@ -1136,7 +1136,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
-- **"Add a quantity control somewhere new":** don't. Open the product details (`setSelectedMaterial`) and let `DetailsOrderBox` handle it. The same goes for the "With delivery" checkbox — it belongs to the quantity control, so it rides along in `CartQuantityInput` and `DetailsOrderBox`.
+- **"Add a quantity control somewhere new":** don't. Open the product details (`setSelectedMaterial`) and let `DetailsOrderBox` handle it. The same goes for the "With delivery" checkbox — it belongs to the quantity card, so it rides along in the new single-page cart's Delivery Cost block and in `DetailsOrderBox`.
 - **"The delivery fee on the proforma doesn't match the order":** something bypassed `resolveLineDelivery`. Diff the call sites: `priceCartItems` (cart + proforma) and `confirmOrder` (order creation) must both call it with the same `includeDelivery` and `deliveryRate`. Also check `CartItem.deliveryRate` was snapshotted when the item was added — a cart line that lost its rate silently falls back to the platform fee (§10.22).
 - **"A customer wants their order list as a file":** they cannot export it — that is deliberate. Point them at the **proforma** (cart → `2 To Proforma` / `3 To Preview`), which is their order document. Do not add an export for them; if the product owner changes their mind, the gating points are listed together in §10.5.
 - **"The buyer went to the proforma and now can't order":** that is what `handleBackToPurchase` is for. It closes the document, re-prices and re-opens the cart with `is-returned` on the "To Purchase" step. If the button only closes the overlay, you have restored the old broken behaviour (§10.5).
@@ -1155,30 +1155,13 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 
-### v6.11 — the product page's exact KM carries into the cart (Sample Layout cart)
-- **One distance, from product page to checkout.** Every staged cart line now
-  stores `CartItem.distanceKm` — the exact road KM the product page displayed
-  (`measureDistanceForMaterial` snapshots `distanceToSelected`, falling back to
-  one measurement from the saved pin). `priceCartItems`, `resolveLineDelivery`,
-  `computeDeliveryFee`, `confirmOrder` and the proforma all reuse that value and
-  only route for legacy lines without one, so the cart can no longer quote a
-  different distance than the buyer just saw. While every line carries a
-  measurement the cart takes **no new GPS fix**, and switching products clears
-  `distanceToSelected` so a previous product's KM can never be staged.
-- **Cart rebuilt against `Sample Layout.jpg`.** The modal now renders
-  `E-SCON | SHOPPING CART` in a dark-blue header with a **live date/time**
-  (`LiveClock`), the three order steps restyled (step 1 solid dark blue, steps
-  2/3 light blue), photo product cards with **View**/**Map** buttons and a
-  quantity row separated from **With delivery** by a vertical rule, a numbered
-  **Financial Summary** (Unit price × Quantity → Subtotal → VAT → Delivery Cost
-  showing the carried KM → Grand Total), the **Payment Method** block and the
-  **Clear** / **To Purchase** bottom row. Classes: `.cart-sample-*` (styles at
-  the end of `App.css`).
-- **Tests.** `stageCartLine` distance snapshots (set / missing / NaN /
-  re-stage keeps the first) and `computeDeliveryFee` using a measured `distanceKm`
-  without calling the router.
-- **Release.** Bumped `versionCode` 13 to 14, `versionName` 1.9.3 to 1.9.4 and
-  `sw.js` `VERSION` `e-scon-v1.14.1` to `e-scon-v1.14.2`.
+### v6.12 — new Sample Layout cart, single page on every device (bug-fix: dead code + stale docs cleaned)
+- **Cart rebuilt against the latest `Sample Layout.jpg`.** The modal is now a full single-page proforma-style order document that fits on one screen on desktop, tablet and phone: supplier & buyer details, a product photo banner per line, a numbered order-items table (with inline `−` / `+` quantity stepper), a Delivery Cost block that prints the **exact road km** carried from the product page and the per-km rate, a live buyer-facing note when a supplier group has no published rate and the platform fee applies, financial totals (Amount before VAT → VAT → Delivery Cost → Grand Total), the amount in words, terms & conditions, payment-method choices, supplier & buyer signature lines, and the bottom actions.
+- **Stale-weight guard fixed.** The cart no longer quotes a different distance than the product page: each `CartItem.distanceKm` is snapshotted when the line is staged, and `priceCartItems`, `resolveLineDelivery`, `confirmOrder` and the proforma reuse it verbatim, routing only for legacy lines without one.
+- **Dead code removed.** The old `CartQuantityInput` module component and its `onToggleDelivery` wiring were removed when the cart UI was rebuilt; the dead `handleDeliveryFeeChange` / `handleDeliveryFeeReset` manual-delivery-fee handlers were removed (delivery is now driven solely by each line's "With delivery" checkbox and the supplier's published rate, or the platform fallback). No unused declarations remain in the production build.
+- **Single-page sizing.** The modal body is capped and scaled so the whole order document is readable without scrolling on every device; the close button is the layout's ✕ style and lives in the dark-blue header with the live `LiveClock`.
+- **Documentation.** §9 (module-scope functions) and §10.5 (cart & checkout) rewritten for the rebuilt cart; stale `CartQuantityInput` / manual-delivery-fee references removed from the troubleshooting notes and the route table.
+- **Release.** Bumped `versionCode` 15 to 16, `versionName` 1.9.5 to 1.9.6 and `sw.js` `VERSION` `e-scon-v1.14.3` to `e-scon-v1.14.4`.
 
 ### v6.10 - cart first, location when pricing
 - **Adding to the cart never waits for GPS.** `Add to Cart & Review` is always

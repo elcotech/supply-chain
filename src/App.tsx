@@ -157,67 +157,10 @@ const canonicalJson = (value: unknown): string => {
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
-// The cart quantity has to be freely editable. A number input wired straight to
-// state re-renders on every keystroke (clearing the box yields NaN), which makes
-// the cart look read-only — so the field keeps a local draft string and only
-// commits a valid whole number, on blur, on Enter or via the − / + keys.
-// Next to the quantity sits the "with / without delivery cost" checkbox, so the
-// buyer decides while filling in how many units they want. Module scope on
-// purpose: defined inside App() it would be a new component type on every
-// render, remounting the input and dropping the draft.
-const CartQuantityInput = ({ item, onCommit, onToggleDelivery }: {
-  item: CartItem;
-  onCommit: (itemId: string, quantity: number) => void;
-  onToggleDelivery: (itemId: string, includeDelivery: boolean) => void;
-}) => {
-  const [draft, setDraft] = useState(String(item.quantity));
-  useEffect(() => { setDraft(String(item.quantity)); }, [item.quantity]);
-  // Carts saved before the option existed have no flag; `undefined` means the
-  // historical behaviour — delivery included.
-  const withDelivery = item.includeDelivery !== false;
-
-  const commit = (raw: string) => {
-    const parsed = parseInt(raw, 10);
-    if (Number.isFinite(parsed) && parsed >= 1) {
-      setDraft(String(parsed));
-      onCommit(item.id, parsed);
-      return;
-    }
-    // Nothing valid typed (e.g. an empty field while editing) — resync silently.
-    setDraft(String(item.quantity));
-  };
-
-  return (
-    <div className="cart-item-quantity">
-      <button type="button" className="cart-qty-btn" onClick={() => commit(String(Math.max(1, item.quantity - 1)))} aria-label={'Decrease quantity of ' + item.materialName}>−</button>
-      <input
-        type="number"
-        inputMode="numeric"
-        value={draft}
-        min={1}
-        step={1}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={e => commit(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }}
-        aria-label={'Quantity of ' + item.materialName}
-      />
-      <button type="button" className="cart-qty-btn" onClick={() => commit(String(item.quantity + 1))} aria-label={'Increase quantity of ' + item.materialName}>+</button>
-      <span>{item.unit}</span>
-      {/* Sample Layout: a vertical rule separates the quantity from the
-          with/without-delivery choice. */}
-      <span className="cart-qty-sep" aria-hidden="true" />
-      <label className={'cart-delivery-toggle' + (withDelivery ? ' on' : '')}>
-        <input
-          type="checkbox"
-          checked={withDelivery}
-          onChange={e => onToggleDelivery(item.id, e.target.checked)}
-          aria-label={'Include delivery cost for ' + item.materialName}
-        />
-        <span>With delivery</span>
-      </label>
-    </div>
-  );
-};
+// The new single-page cart renders quantity via inline +/− stepper buttons
+// next to the With delivery choice, so the buyer commits quantity and delivery
+// on the same card. This comment is retained above the shared line-delivery
+// resolver.
 
 // Resolve the delivery fee for one cart line, shared by the cart summary and the
 // order it produces so the two can never disagree. The buyer's checkbox is the
@@ -1782,19 +1725,6 @@ function App() {
     setCart(prev => prev.map(i => i.id === itemId ? { ...i, quantity: Math.round(newQuantity) } : i));
   };
 
-  // The "with / without delivery cost" checkbox on a cart line. Ticking it on a
-  // product the supplier delivers themselves stores that supplier's rate, so the
-  // per-km fee can be calculated from the real distance in the cart totals.
-  const updateCartDelivery = (itemId: string, includeDelivery: boolean) => {
-    setCart(prev => prev.map(item => {
-      if (item.id !== itemId) return item;
-      const material = getMaterialById(item.materialId);
-      const rate = material && material.delivery && material.delivery.offered ? material.delivery : item.deliveryRate;
-      return { ...item, includeDelivery, deliveryRate: rate };
-    }));
-  };
-
-
 
   const clearCart = (silent = false) => {
     setCart([]);
@@ -2356,34 +2286,6 @@ function App() {
     repricedCart.current = cartPriceSignature(cart);
   };
 
-  // Allow the buyer to edit the delivery fee on the cart. Overrides the
-  // automatic fee everywhere (cart summary, proforma, placed orders).
-  const handleDeliveryFeeChange = (value: number) => {
-    const fee = Number.isFinite(value) && value >= 0 ? value : 0;
-    setDeliveryFeeOverride(fee);
-    setCartDetails(prev => {
-      if (!prev) return prev;
-      const scale = prev.transportCost > 0 ? fee / prev.transportCost : 1;
-      const suppliers = (prev.suppliers || []).map(sup => ({
-        ...sup,
-        transportCost: Math.round(sup.transportCost * scale * 100) / 100,
-      }));
-      return {
-        ...prev,
-        transportCost: fee,
-        // VAT stays in the total: only the delivery component changes here.
-        total: cartGrandTotal(prev.subtotal, prev.vatAmount, fee),
-        suppliers,
-        freeDeliveryApplied: fee === 0 && prev.minOrderEnabled,
-      };
-    });
-  };
-
-  const handleDeliveryFeeReset = async () => {
-    setDeliveryFeeOverride(null);
-    const totals = await calculateCartTotals();
-    if (totals) setCartDetails(totals);
-  };
 
   const confirmOrder = async (
     linesOverride?: CartItem[],
@@ -3034,21 +2936,8 @@ function App() {
     const expectedVat = vatOnSubtotal(cartDetails.subtotal, cartDetails.vatRate ?? 0, systemSettings.vat.enabled);
     const payableTotal = cartGrandTotal(cartDetails.subtotal, expectedVat.vatAmount, cartDetails.transportCost);
     const primarySupplier = supplierGroups[0];
+    const platformHint = platformDeliveryHint(supplierGroups);
     const primaryDeliveryItem = primarySupplier?.items.find(item => item.includeDelivery !== false);
-    const deliveryDetail = (() => {
-      if (supplierGroups.length > 1) return `(${supplierGroups.length} suppliers)`;
-      if (!primarySupplier || !primaryDeliveryItem || primarySupplier.deliveryMode === 'none' || primarySupplier.transportCost === 0) {
-        return '(you arrange transport)';
-      }
-      const rate = primaryDeliveryItem.deliveryRate;
-      if (rate?.offered) {
-        const parts = [`${primarySupplier.distanceKm.toFixed(1)} km`];
-        if (rate.perKm > 0) parts.push(`× ${Number(rate.perKm).toFixed(2)} ETB/km`);
-        if (rate.startFee > 0) parts.push(`+ ${Number(rate.startFee).toFixed(2)} ETB start`);
-        return `(${parts.join(' ')})`;
-      }
-      return `(${primarySupplier.distanceKm.toFixed(1)} km × platform rate)`;
-    })();
     const buyer = currentUser;
     return (
       <div className="modal-overlay cart-overlay-single" onClick={() => setShowCartSummary(false)}>
@@ -3187,9 +3076,7 @@ function App() {
                       </tbody>
                     </table>
                   </div>
-                </div>
-
-                <div className="cart-new-delivery-section">
+                </div>                  <div className="cart-new-delivery-section">
                   <div className="cart-new-delivery-head">
                     <span>📍 Delivery Cost (to destination)</span>
                     <div>
@@ -3198,14 +3085,27 @@ function App() {
                     </div>
                   </div>
                   <div className="cart-new-delivery-body">
+                    <div className="cart-new-delivery-detail">
+                      {primarySupplier && primaryDeliveryItem && primarySupplier.deliveryMode !== 'none' && primarySupplier.transportCost > 0
+                        ? (primaryDeliveryItem.deliveryRate && primaryDeliveryItem.deliveryRate.offered
+                          ? `Distance: ${primarySupplier.distanceKm.toFixed(1)} km` + (primaryDeliveryItem.deliveryRate.perKm > 0 ? ` × ${Number(primaryDeliveryItem.deliveryRate.perKm).toFixed(2)} ETB/km` : '') + (primaryDeliveryItem.deliveryRate.startFee > 0 ? ` + ${Number(primaryDeliveryItem.deliveryRate.startFee).toFixed(2)} ETB start` : '')
+                          : `Distance: ${primarySupplier.distanceKm.toFixed(1)} km × platform rate`)
+                        : primarySupplier && primarySupplier.transportCost === 0
+                          ? '(you arrange transport)'
+                          : supplierGroups.length > 1
+                            ? `(${supplierGroups.length} suppliers)`
+                            : '(you arrange transport)'}
+                    </div>
                     <div className="cart-new-delivery-row">
                       <div><label>Starting Point</label><select><option>CMC</option></select></div>
                       <div><label>Destination</label><select><option>{buyer?.city || 'Bole Gerji'}</option></select></div>
                       <div><label>Total Distance</label><div>{primarySupplier?.distanceKm?.toFixed(1) || '0.0'} km <small>Rate: ETB {(cartDetails.transportCost / Math.max(1, primarySupplier?.distanceKm || 1)).toFixed(2)} / km</small></div></div>
                       <div><label>Delivery Cost</label><div>ETB {cartDetails.transportCost.toFixed(2)}</div></div>
                     </div>
+                    {platformHint && <div className="cart-new-platform-hint" role="note">{platformHint}</div>}
                   </div>
                 </div>
+
 
                 <div className="cart-new-financial">
                   <div className="cart-new-fin-row"><span>Amount Before VAT</span><span>ETB {cartDetails.subtotal.toFixed(2)}</span></div>
