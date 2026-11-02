@@ -203,6 +203,9 @@ const CartQuantityInput = ({ item, onCommit, onToggleDelivery }: {
       />
       <button type="button" className="cart-qty-btn" onClick={() => commit(String(item.quantity + 1))} aria-label={'Increase quantity of ' + item.materialName}>+</button>
       <span>{item.unit}</span>
+      {/* Sample Layout: a vertical rule separates the quantity from the
+          with/without-delivery choice. */}
+      <span className="cart-qty-sep" aria-hidden="true" />
       <label className={'cart-delivery-toggle' + (withDelivery ? ' on' : '')}>
         <input
           type="checkbox"
@@ -231,6 +234,11 @@ const resolveLineDelivery = async (
 ): Promise<{ fee: number; mode: DeliveryMode }> => {
   const includeDelivery = item.includeDelivery !== false;
   const rate = item.deliveryRate;
+  // Prefer the exact distance measured when this line was added to the cart
+  // (e.g. on the product page) so the charged KM matches what the buyer saw.
+  const measured = typeof item.distanceKm === 'number' && isFinite(item.distanceKm) && item.distanceKm > 0
+    ? item.distanceKm
+    : distanceKm;
   if (!includeDelivery) return { fee: 0, mode: 'none' };
   let platformFee = 0;
   if (!(rate && rate.offered)) {
@@ -242,11 +250,12 @@ const resolveLineDelivery = async (
       customerCity: customer.city || null,
       weightTons: (item.weightPerUnit || 0.001) * item.quantity,
       orderSubtotal,
+      distanceKm: measured,
       settings,
     });
   }
   return {
-    fee: computeLineDeliveryFee({ includeDelivery, rate, distanceKm, platformFee }),
+    fee: computeLineDeliveryFee({ includeDelivery, rate, distanceKm: measured, platformFee }),
     mode: lineDeliveryMode({ includeDelivery, rate }),
   };
 };
@@ -254,6 +263,14 @@ const resolveLineDelivery = async (
 // Two lines from the same supplier can be billed differently (one with delivery
 // at the supplier's rate, one collected by the buyer). Fold their modes into the
 // single badge the cart group and the proforma show.
+// A cart line keeps the exact KM measured on the product page. When it is
+// present, pricing and the placed order reuse it instead of asking the routing
+// server again (which could answer from a different GPS fix).
+const measuredLineDistance = (item: CartItem): number | null =>
+  typeof item.distanceKm === 'number' && isFinite(item.distanceKm) && item.distanceKm > 0
+    ? item.distanceKm
+    : null;
+
 const combineDeliveryModes = (a?: DeliveryMode, b?: DeliveryMode): DeliveryMode => {
   if (!a) return b || 'none';
   if (!b) return a;
@@ -1717,7 +1734,7 @@ function App() {
   const otherSupplierInCart = (supplierId: string, materialId?: string) =>
     findOtherCartSupplier(cart, supplierId, materialId);
 
-  const addToCart = (material: Material, quantity: number, includeDelivery: boolean): boolean => {
+  const addToCart = (material: Material, quantity: number, includeDelivery: boolean, distanceKm?: number): boolean => {
     if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return false; }
     if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return false; }
     // Customers may order any amount: a per-product `minOrder` is supplier
@@ -1725,10 +1742,10 @@ function App() {
     if (!Number.isFinite(quantity) || quantity < 1) { showAlert('Please enter a quantity of at least 1', 'danger'); return false; }
     const materialCompany = getCompanyById(material.companyId);
     if (!materialCompany) return false;
-    return addToCartLogic(material, quantity, materialCompany, includeDelivery);
+    return addToCartLogic(material, quantity, materialCompany, includeDelivery, distanceKm);
   };
 
-  const addToCartLogic = (material: Material, quantity: number, company: Company, includeDelivery: boolean): boolean => {
+  const addToCartLogic = (material: Material, quantity: number, company: Company, includeDelivery: boolean, distanceKm?: number): boolean => {
     // Re-adding the same product is always fine, whatever else is in the cart,
     // so `materialId` is passed and findOtherCartSupplier lets that case through.
     const foreign = otherSupplierInCart(material.companyId, material.id);
@@ -1744,7 +1761,7 @@ function App() {
     // Snapshot the supplier's published rate onto the line: the fee is worked out
     // from the distance later, so the cart has to remember which rate applies.
     const alreadyInCart = cart.some(i => i.materialId === material.id);
-    setCart(prev => stageCartLine(prev, material, quantity, includeDelivery, company.name) || prev);
+    setCart(prev => stageCartLine(prev, material, quantity, includeDelivery, company.name, 'increment', distanceKm) || prev);
     showAlert(alreadyInCart ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
     return true;
   };
@@ -1803,11 +1820,11 @@ function App() {
     if (items.length === 0) return null;
     if (!currentUser) return null;
     const buyer: User = origin ? { ...currentUser, lat: origin.lat, lng: origin.lng } : currentUser;
-    // Delivery cannot be measured without a real buyer position. Bail out with a
-    // message the buyer can act on instead of letting `calculateDistance` throw a
-    // coordinate error deep inside the loop (which is what used to leave the cart
-    // modal permanently blank).
-    if (!hasUserCoordinates(buyer)) {
+    // A line that kept its exact product-page KM can be priced without a new
+    // position. Only ask for coordinates when at least one line has no measured
+    // distance to reuse.
+    const needsCoordinates = items.some(item => measuredLineDistance(item) === null);
+    if (needsCoordinates && !hasUserCoordinates(buyer)) {
       showAlert('Your location is needed to calculate delivery. Enable GPS/location access, then press Retry.', 'warning');
       return null;
     }
@@ -1829,10 +1846,12 @@ function App() {
         // Never skip a line: a missing profile is rebuilt on the spot so the
         // goods value, its VAT and its delivery are always counted.
         const supplierCompany = ensureSupplierCompany(item.supplierId, item.supplierName);
-        const dist = await calculateDistance(
-          supplierCompany.lat, supplierCompany.lng,
-          buyer.lat, buyer.lng
-        );
+        // Reuse the exact distance captured on the product page. Only fall back
+        // to routing for legacy cart lines that have no measurement.
+        const captured = measuredLineDistance(item);
+        const dist = captured !== null
+          ? captured
+          : await calculateDistance(supplierCompany.lat, supplierCompany.lng, buyer.lat, buyer.lng);
         const { fee, mode } = await resolveLineDelivery(
           item, supplierCompany, dist, subtotal, buyer, settings
         );
@@ -1913,6 +1932,26 @@ function App() {
     origin?: { lat: number; lng: number }
   ): Promise<CartReport | null> => priceCartItems(cart, applyVat, origin);
 
+  // Capture the exact distance the product page is displaying so the same KM
+  // travels with the cart line. If the preview is still loading (or has no
+  // position), measure once with the saved pin; only when that is impossible do
+  // we leave the line unmeasured for the cart to price later.
+  const measureDistanceForMaterial = async (material: Material): Promise<number | undefined> => {
+    const company = getCompanyById(material.companyId);
+    if (!company) return undefined;
+    if (distanceToSelected !== null && Number.isFinite(distanceToSelected) && distanceToSelected > 0) {
+      return distanceToSelected;
+    }
+    if (!hasUserCoordinates(currentUser)) return undefined;
+    try {
+      const measured = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
+      setDistanceToSelected(measured);
+      return measured;
+    } catch {
+      return undefined;
+    }
+  };
+
   // "Add to cart & review" is a collection action, not a checkout action: the
   // line is stored first, whatever the GPS state, and the cart takes the fresh
   // fix when it prices delivery. The saved profile pin is only used to show the
@@ -1939,16 +1978,14 @@ function App() {
       // Adding to the cart must never depend on GPS. The buyer can collect a
       // basket first and only capture a fresh fix when the cart needs delivery
       // priced; otherwise a denied/absent location blocks the cart entirely.
+      // Capture the exact KM shown on the product page and carry it to the cart
+      // so the delivery cost uses that result verbatim.
+      const measuredKm = await measureDistanceForMaterial(material);
       // `stageCartLine` also refreshes the quantity when this product is already
       // in the cart, so the page quantity is what gets collected.
-      if (!addToCart(material, quantity, includeDelivery)) return false;
-      if (hasUserCoordinates(currentUser)) {
-        try {
-          const liveDistance = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
-          setDistanceToSelected(liveDistance);
-        } catch {
-          setDistanceToSelected(null);
-        }
+      if (!addToCart(material, quantity, includeDelivery, measuredKm)) return false;
+      if (measuredKm !== undefined && Number.isFinite(measuredKm)) {
+        setDistanceToSelected(measuredKm);
       }
       // Open the cart immediately; the modal shows the collected lines while the
       // road distance is priced, and asks for a location if one is still needed.
@@ -1994,12 +2031,15 @@ function App() {
       return false;
     }
     try {
+      // The Order Summary already measured the road distance. Carry that exact
+      // KM onto the cart line so checkout charges the same delivery result.
+      const measuredKm = await measureDistanceForMaterial(material);
       // Stage the line into the cart *first*, whatever the GPS state. A
       // same-supplier product joins the lines already there, so pressing Place
       // Order always lands the goods in the cart — a denied or slow location
       // can never leave the buyer with nothing on screen. `'set'` — the quantity
       // typed on the page is the quantity ordered.
-      const lines = stageCartLine(cart, material, quantity, includeDelivery, company.name, 'set');
+      const lines = stageCartLine(cart, material, quantity, includeDelivery, company.name, 'set', measuredKm);
       if (!lines) {
         const foreign = otherSupplierInCart(material.companyId, material.id);
         showAlert(
@@ -2014,22 +2054,22 @@ function App() {
       // halfway leaves the buyer on a cart they can retry rather than nothing.
       setCart(lines);
       setSelectedMaterial(null);
-      // A fresh high-accuracy fix: delivery is measured from where the buyer is
-      // standing right now, not from a saved pin.
-      const coords = await refreshCurrentLocation();
-      if (!coords) {
-        // No usable position, so the order cannot be priced yet — but the
-        // goods are safely in the cart. Send the buyer to the cart, which
-        // shows the saved lines and offers "Use my current location", instead
-        // of leaving the product page with nothing to show for the tap.
-        cartLocationTried.current = true;
-        setShowCartSummary(true);
-        return false;
+      // Every line already carries the exact product-page distance, so no new
+      // GPS fix is taken here. Only a legacy/unmeasured line still needs a
+      // position before it can be priced.
+      let coords: GeoCoordinates | undefined;
+      if (lines.some(item => measuredLineDistance(item) === null)) {
+        coords = (await refreshCurrentLocation()) ?? undefined;
+        if (!coords && !hasUserCoordinates(currentUser)) {
+          // No usable position, so the order cannot be priced yet — but the
+          // goods are safely in the cart. Send the buyer to the cart, which
+          // shows the saved lines and offers "Use my current location", instead
+          // of leaving the product page with nothing to show for the tap.
+          cartLocationTried.current = true;
+          setShowCartSummary(true);
+          return false;
+        }
       }
-      // Pass the fresh fix into `confirmOrder` so it prices and records the
-      // order from the same coordinates. Reading `currentUser` here would use
-      // the pre-fix state (React state has not re-rendered yet) and could refuse
-      // a buyer who has just granted location for the first time.
       const placed = await confirmOrder(lines, true, coords);
       if (placed) setShowCartSummary(false);
       return placed;
@@ -2052,6 +2092,12 @@ function App() {
     setDetailsImageIndex(0);
     setShowAllReviews(false);
     detailsLocationTried.current = '';
+    // Drop the previous product's measurement so a cart line staged before the
+    // new route arrives can never carry the old product's KM. The distance
+    // effect above (declared earlier, so it runs first) is already measuring
+    // this product's route; until it lands the summary prices from the saved
+    // pin — the same endpoints the pill will display.
+    setDistanceToSelected(null);
   }, [selectedMaterialId]);
 
   // Two repricings of the cart are only worth doing when the lines themselves
@@ -2078,6 +2124,7 @@ function App() {
     detailsDelivery,
     cartSignature(cart),
     userLocationSignature,
+    distanceToSelected,
     deliveryFeeOverride,
     systemSettings.vat.rate,
     systemSettings.vat.enabled,
@@ -2129,7 +2176,15 @@ function App() {
           return;
         }
       }
-      const lines = stageCartLine(cart, selectedMaterial, detailsQty, detailsDelivery, company.name, 'set');
+      const lines = stageCartLine(
+        cart,
+        selectedMaterial,
+        detailsQty,
+        detailsDelivery,
+        company.name,
+        'set',
+        distanceToSelected !== null && Number.isFinite(distanceToSelected) ? distanceToSelected : undefined
+      );
       if (!lines) {
         // The cart holds another supplier's goods: a proforma is issued by one
         // seller, so this product cannot be staged on top of them. Name the
@@ -2191,6 +2246,10 @@ function App() {
       if (cart.length === 0) cartLocationTried.current = false;
       return;
     }
+    // Every line already carries the exact product-page KM, so the cart can be
+    // priced from the buyer's saved pin (or even offline) without taking a new
+    // fix that would move the distance to a different result.
+    if (cart.every(item => measuredLineDistance(item) !== null)) return;
     if (hasUserCoordinates(currentUser) || cartLocationTried.current) return;
     cartLocationTried.current = true;
     void refreshCurrentLocation().then(coords => {
@@ -2336,13 +2395,16 @@ function App() {
     // state round-trip.
     const lines = linesOverride || cart;
     if (lines.length === 0 || isPlacingOrder) return false;
+    // A line with an exact product-page KM does not need a fresh position.
+    // Request one only when at least one legacy/unmeasured line still needs it.
+    const needsCoordinates = lines.some(item => measuredLineDistance(item) === null);
     // A buyer can reach this point without a saved pin (a legacy account, or one
     // whose location was cleared). Ask the device for a fresh fix here instead
     // of refusing to order, and use those exact coordinates for the whole
     // commit — React state has not re-rendered yet, so reading `currentUser`
     // would still see the old, location-less object.
     let buyerOrigin = origin;
-    if (!buyerOrigin && !hasUserCoordinates(currentUser)) {
+    if (needsCoordinates && !buyerOrigin && !hasUserCoordinates(currentUser)) {
       buyerOrigin = (await refreshCurrentLocation()) ?? undefined;
       if (!buyerOrigin) return false;
     }
@@ -2353,7 +2415,7 @@ function App() {
     // a real pin (the fresh fix above, an origin passed in by the product page,
     // or a pin saved in My Location). This check runs *before* the totals
     // request so a missing pin produces one clear message.
-    if (!buyer || !hasUserCoordinates(buyer)) {
+    if (!buyer || (needsCoordinates && !hasUserCoordinates(buyer))) {
       showAlert('Your current location is required before placing the order. Enable GPS/location access and press Order again.', 'danger');
       setShowCartSummary(true);
       return false;
@@ -2414,10 +2476,10 @@ function App() {
       // Delivery must match what the buyer approved on the proforma: the same
       // per-line checkbox, the supplier's per-km rate over the real distance, or
       // the platform fallback when that supplier publishes no rate.
-      const distanceKm = await calculateDistance(
-        supplierCompany.lat, supplierCompany.lng,
-        buyer.lat, buyer.lng
-      );
+      const capturedDistance = measuredLineDistance(item);
+      const distanceKm = capturedDistance !== null
+        ? capturedDistance
+        : await calculateDistance(supplierCompany.lat, supplierCompany.lng, buyer.lat as number, buyer.lng as number);
       const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
         item, supplierCompany, distanceKm, totals.subtotal, buyer, systemSettings
       );
@@ -2967,16 +3029,40 @@ function App() {
       );
     }
     const supplierGroups = cartDetails.suppliers || [];
-    const multipleSuppliers = supplierGroups.length > 1;
     // The cart shows goods + delivery only. VAT is applied at order time, so the
     // wallet check has to look at the VAT-inclusive amount the buyer will pay.
     const expectedVat = vatOnSubtotal(cartDetails.subtotal, cartDetails.vatRate ?? 0, systemSettings.vat.enabled);
     const payableTotal = cartGrandTotal(cartDetails.subtotal, expectedVat.vatAmount, cartDetails.transportCost);
+    const primarySupplier = supplierGroups[0];
+    const primaryDeliveryItem = primarySupplier?.items.find(item => item.includeDelivery !== false);
+    const deliveryDetail = (() => {
+      if (supplierGroups.length > 1) return `(${supplierGroups.length} suppliers)`;
+      if (!primarySupplier || !primaryDeliveryItem || primarySupplier.deliveryMode === 'none' || primarySupplier.transportCost === 0) {
+        return '(you arrange transport)';
+      }
+      const rate = primaryDeliveryItem.deliveryRate;
+      if (rate?.offered) {
+        const parts = [`${primarySupplier.distanceKm.toFixed(1)} km`];
+        if (rate.perKm > 0) parts.push(`× ${Number(rate.perKm).toFixed(2)} ETB/km`);
+        if (rate.startFee > 0) parts.push(`+ ${Number(rate.startFee).toFixed(2)} ETB start`);
+        return `(${parts.join(' ')})`;
+      }
+      return `(${primarySupplier.distanceKm.toFixed(1)} km × platform rate)`;
+    })();
     return (
       <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
-        <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
-          <div className="modal-header"><h2>🛒 Shopping Cart</h2><button className="modal-close" onClick={() => setShowCartSummary(false)}>✕</button></div>
-          <div className="cart-datetime-bar"><LiveClock /></div>
+        <div className="modal-content cart-modal cart-sample-modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-header cart-sample-head">
+            <div className="cart-sample-brand">
+              <span className="cart-sample-brand-name">E-SCON</span>
+              <span className="cart-sample-brand-divider">|</span>
+              <span className="cart-sample-brand-title">Shopping Cart</span>
+            </div>
+            <div className="cart-sample-head-right">
+              <span className="cart-sample-clock"><LiveClock /></span>
+              <button className="modal-close" onClick={() => setShowCartSummary(false)}>✕</button>
+            </div>
+          </div>
           <div className="modal-body">
             {cart.length === 0 ? (
               <div className="empty-cart"><span className="empty-cart-icon">🛒</span><h3>Your cart is empty</h3><button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button></div>
@@ -2989,7 +3075,7 @@ function App() {
                     button that returns here and highlights step 1, so a buyer who
                     reviewed the document is never stranded. Cart CSV export was
                     removed: the proforma is now the buyer's only order document. */}
-                <div className="cart-order-steps">
+                <div className="cart-order-steps cart-sample-steps">
                   <button
                     className={'cart-order-step is-primary' + (highlightPurchaseStep ? ' is-returned' : '')}
                     onClick={() => { void confirmOrder(); }}
@@ -3011,75 +3097,123 @@ function App() {
                     <span className="cart-step-hint">View on screen</span>
                   </button>
                 </div>
-                {multipleSuppliers ? (
-                  <div className="cart-supplier-info"><h3>🏢 {cartDetails.supplierName}</h3><p>📦 {cartDetails.itemCount} units from {supplierGroups.length} suppliers</p></div>
-                ) : (
-                  <div className="cart-supplier-info"><h3>🏢 Supplier: {cartDetails.supplierName}</h3><p>📍 {cartDetails.supplierCity} • 📦 Distance: {cartDetails.distanceKm.toFixed(1)} km</p></div>
-                )}
-                {supplierGroups.map(sup => (
-                  <div key={sup.supplierId} className="cart-supplier-group">
-                    <div className="cart-supplier-group-header">
-                      <span className="cart-supplier-group-name">🏢 {sup.supplierName}</span>
-                      <span className="cart-supplier-group-meta">
-                        📍 {sup.supplierCity} • 🚗 {sup.distanceKm.toFixed(1)} km • 🚚 {formatCurrency(sup.transportCost)}
-                        {sup.deliveryMode && sup.deliveryMode !== 'none' && sup.deliveryBasis ? ' · ' + sup.deliveryBasis : ''}
-                        {sup.deliveryMode === 'none' ? ' · no delivery cost' : ''}
-                      </span>
+
+                {supplierGroups.map(sup => {
+                  const company = ensureSupplierCompany(sup.supplierId, sup.supplierName);
+                  return (
+                    <div key={sup.supplierId} className="cart-sample-products">
+                      {sup.items.map(item => {
+                        const material = getMaterialById(item.materialId);
+                        const image = material?.images?.[0];
+                        return (
+                          <article key={item.id} className="cart-sample-product">
+                            <div className="cart-sample-thumb">
+                              {image ? <img src={image} alt={item.materialName} /> : <span className="cart-sample-thumb-fallback">🏗️</span>}
+                            </div>
+                            <div className="cart-sample-product-body">
+                              <div className="cart-sample-product-top">
+                                <h3>{item.materialName}</h3>
+                                {/* Sample Layout: two stacked actions on the right
+                                    of the card — View opens the product page, Map
+                                    draws the supplier route. Both close the cart
+                                    first because these modals render above it. */}
+                                <div className="cart-sample-card-actions">
+                                  <button
+                                    type="button"
+                                    className="cart-sample-card-btn"
+                                    disabled={!material}
+                                    onClick={() => {
+                                      setShowCartSummary(false);
+                                      if (material) setSelectedMaterial(material);
+                                    }}
+                                  >
+                                    View
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="cart-sample-card-btn"
+                                    onClick={() => {
+                                      setShowCartSummary(false);
+                                      handleOpenMapWithRoute(company.id);
+                                    }}
+                                  >
+                                    Map
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="cart-sample-supplier"><span>Supplier:</span> <strong>{sup.supplierName}</strong></p>
+                              <p className="cart-sample-location"><span>Location:</span> {company.location || company.city || sup.supplierCity}</p>
+                              <div className="cart-sample-price-line">
+                                <div className="cart-sample-price">{formatCurrency(item.price)} <span>/ {item.unit}</span></div>
+                                <span className="cart-sample-bullet" aria-hidden="true">•</span>
+                                <span className="cart-sample-min">Min: {item.minOrder.toLocaleString()} {item.unit}</span>
+                              </div>
+                              <div className="cart-sample-controls">
+                                <CartQuantityInput item={item} onCommit={updateCartQuantity} onToggleDelivery={updateCartDelivery} />
+                                <span className="cart-sample-line-total">{formatCurrency(item.price * item.quantity)}</span>
+                                <button type="button" className="cart-sample-remove" onClick={() => removeFromCart(item.id)}>Remove</button>
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })}
                     </div>
-                    <div className="cart-items">
-                      {sup.items.map(item => (
-                        <div key={item.id} className="cart-item">
-                          <div className="cart-item-info">
-                            <h4>{item.materialName}</h4>
-                            <p>
-                              {formatCurrency(item.price)} / {item.unit} • Min: {item.minOrder}
-                              {item.includeDelivery !== false && ' • 🚚 delivery included'}
-                            </p>
-                          </div>
-                          <CartQuantityInput item={item} onCommit={updateCartQuantity} onToggleDelivery={updateCartDelivery} />
-                          <div className="cart-item-total"><strong>{formatCurrency(item.price * item.quantity)}</strong></div>
-                          <button className="btn-icon danger" onClick={() => removeFromCart(item.id)}>🗑️</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <div className="cart-summary">
+                  );
+                })}
+
+                <div className="cart-sample-summary">
                   <h3>Financial Summary</h3>
-                  <div className="cart-delivery-hint">
-                    🚚 Tick <strong>“With delivery”</strong> next to a quantity to include its delivery cost, or untick it to collect the item yourself.
-                  </div>
                   {platformDeliveryHint(supplierGroups) && (
                     <div className="min-order-notice warn">{platformDeliveryHint(supplierGroups)}</div>
                   )}
-                  <div className="summary-row"><span>Subtotal (before VAT):</span><span>{formatCurrency(cartDetails.subtotal)}</span></div>
-                  {systemSettings.vat.enabled && (
-                    <div className="summary-row vat-pending"><span>VAT ({expectedVat.rate}%):</span><span>Added when you place the order</span></div>
-                  )}
-                  <div className="summary-row">
-                    <span>Delivery Fee{multipleSuppliers ? ` (${supplierGroups.length} suppliers)` : ''}:</span>
-                    <span className="delivery-fee-edit">
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={deliveryFeeOverride !== null ? deliveryFeeOverride : cartDetails.transportCost}
-                        onChange={(e) => handleDeliveryFeeChange(parseFloat(e.target.value))}
-                        aria-label="Delivery fee (ETB)"
-                      />
-                      <span className="delivery-fee-currency">ETB</span>
-                      {deliveryFeeOverride !== null && (
-                        <button type="button" className="link-btn delivery-fee-reset" onClick={handleDeliveryFeeReset} title="Use the automatic delivery fee">⟲ auto</button>
-                      )}
-                    </span>
+                  <div className="cart-sample-rows">
+                    {supplierGroups.map(sup => sup.items.map(item => (
+                      <div className="cart-sample-row" key={'fin-' + item.id}>
+                        <span className="cart-sample-row-label">
+                          <span className="cart-fin-no" />
+                          <span><strong>Unit price × Quantity</strong><small>({formatCurrency(item.price)} × {item.quantity})</small></span>
+                        </span>
+                        <span className="cart-sample-row-value">{formatCurrency(item.price * item.quantity)}</span>
+                      </div>
+                    )))}
+                    <div className="cart-sample-row">
+                      <span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>Subtotal</strong></span></span>
+                      <span className="cart-sample-row-value">{formatCurrency(cartDetails.subtotal)}</span>
+                    </div>
+                    {systemSettings.vat.enabled && (
+                      <div className="cart-sample-row cart-sample-row-vat">
+                        <span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>VAT ({expectedVat.rate}%)</strong><small>Added when you place the order</small></span></span>
+                        <span className="cart-sample-row-value">{formatCurrency(expectedVat.vatAmount)}</span>
+                      </div>
+                    )}
+                    <div className="cart-sample-row">
+                      <span className="cart-sample-row-label">
+                        <span className="cart-fin-no" />
+                        <span><strong>Delivery Cost</strong><small>{deliveryDetail}</small></span>
+                      </span>
+                      <span className="cart-sample-row-value cart-sample-fee">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={deliveryFeeOverride !== null ? deliveryFeeOverride : cartDetails.transportCost}
+                          onChange={(e) => handleDeliveryFeeChange(parseFloat(e.target.value))}
+                          aria-label="Delivery fee (ETB)"
+                        />
+                        <span className="delivery-fee-currency">ETB</span>
+                        {deliveryFeeOverride !== null && (
+                          <button type="button" className="link-btn delivery-fee-reset" onClick={handleDeliveryFeeReset} title="Use the automatic delivery fee">⟲ auto</button>
+                        )}
+                      </span>
+                    </div>
+                    {cartDetails.freeDeliveryApplied && (
+                      <div className="cart-sample-row cart-sample-row-free"><span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>Free delivery applied</strong></span></span><span className="cart-sample-row-value">ETB 0.00</span></div>
+                    )}
+                    <div className="cart-sample-row cart-sample-row-total">
+                      <span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>Grand Total</strong></span></span>
+                      <span className="cart-sample-row-value">{formatCurrency(payableTotal)}</span>
+                    </div>
                   </div>
-                  {cartDetails.freeDeliveryApplied && (
-                    <div className="summary-row free-delivery-row"><span>🎉 Free delivery applied (order above threshold):</span><span>ETB 0.00</span></div>
-                  )}
-                  <div className="summary-row total"><span>Total Before VAT:</span><span>{formatCurrency(cartDetails.subtotal + cartDetails.transportCost)}</span></div>
-                  {systemSettings.vat.enabled && (
-                    <div className="summary-row vat-payable"><span>Payable after VAT is added:</span><span>{formatCurrency(payableTotal)}</span></div>
-                  )}
                   {cartDetails.minOrderEnabled && (
                     cartDetails.belowMinOrder ? (
                       <div className="min-order-notice error">
@@ -3090,13 +3224,14 @@ function App() {
                     )
                   )}
                 </div>
-                <div className="payment-selector">
-                  <h4>💳 Payment Method</h4>
+
+                <div className="payment-selector cart-sample-payment">
+                  <h3>Payment Method</h3>
                   <div className="payment-options">
                     <label className={'pay-option' + (paymentMethod === 'wallet' ? ' active' : '')}>
                       <input type="radio" name="paymentMethod" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
                       <span className="pay-icon">💳</span>
-                      <span className="pay-meta"><strong>E-SCON Wallet</strong><small>Balance {formatCurrency(walletBalance(currentUser!.id))}</small></span>
+                      <span className="pay-meta"><strong>E-SCON Wallet</strong><small>Balance: {formatCurrency(walletBalance(currentUser!.id))}</small></span>
                       <span className="pay-check">{paymentMethod === 'wallet' ? '✓' : ''}</span>
                     </label>
                     <label className={'pay-option' + (paymentMethod === 'bank' ? ' active' : '')}>
@@ -3119,11 +3254,16 @@ function App() {
                     <div className="min-order-notice ok">✅ Balance covers this order — instant checkout.</div>
                   )}
                 </div>
-                {/* Utility row only. Placing the order is the "To Purchase" step
-                    at the top, so the two cannot disagree about the total and a
-                    buyer never has to guess which of two buttons commits. */}
-                <div className="cart-actions">
-                  <button className="btn-secondary" onClick={() => clearCart()}>Clear Cart</button>
+
+                <div className="cart-sample-actions">
+                  <button className="cart-sample-clear" onClick={() => clearCart()}>Clear</button>
+                  <button
+                    className="cart-sample-place"
+                    onClick={() => { void confirmOrder(); }}
+                    disabled={isCalculating || isPlacingOrder || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
+                  >
+                    {isPlacingOrder ? 'Placing order…' : isCalculating ? 'Calculating...' : 'To Purchase'}
+                  </button>
                 </div>
               </>
             )}

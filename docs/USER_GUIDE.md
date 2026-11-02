@@ -108,10 +108,10 @@ account.
    subtotal, delivery price, VAT and **Total Payable** — the exact amount that
    will leave your account. If you have no saved pin yet, the summary asks your
    device for your location automatically.
-5. Press **🛒 Place Order**. E-SCON asks your device for a **fresh,
-   high-accuracy GPS position** (allow location access when prompted), measures
-   the driving distance from where you are standing to the supplier, places the
-   order and takes you to the **Orders** page. If the item is already in your
+5. Press **🛒 Place Order**. E-SCON places the order using the **exact driving
+   distance the page just showed you** — no new location prompt while that
+   measurement exists (it only asks your device for a position when a line has
+   none) — and takes you to the **Orders** page. If the item is already in your
    cart, the quantity you set on the page is the quantity that gets ordered.
 
 Would rather review first? Press **Add to Cart & Review** — the item goes
@@ -127,8 +127,9 @@ description, the **Unit Price** and **Delivery Price** cards, the quantity row
 with the live **Material Subtotal**, and the **Order Date** / **Delivery Time**
 row. Supplier Information shows the verified supplier, its rating, address, phone
 and a route preview with the distance, ETA and **View Route on Map**. The
-distance shown before you order is a preview from your saved pin; **Place Order**
-replaces it with the live GPS distance used for delivery.
+distance shown is the one used for delivery: **Place Order** and **Add to Cart
+& Review** carry that exact figure into the cart and checkout instead of
+measuring again.
 
 > **Location access is needed to price delivery, not to add items.** If permission is denied,
 > the fix times out, or GPS is unavailable, E-SCON warns you and uses your saved
@@ -153,20 +154,28 @@ replaces it with the live GPS distance used for delivery.
 Open the cart from the **🛒 icon** in the header (desktop) or the **floating cart
 button** in the mobile tab bar. There are only these two ways in.
 
+The cart follows the app's shopping-cart layout: a dark-blue **E-SCON |
+SHOPPING CART** header with the **live date and time**, the three order steps
+below it, one photo card per item (with **View** to open the product page and
+**Map** to draw the route), the quantity controls with the **With delivery**
+choice, then a numbered **Financial Summary** and the **Payment Method** block.
+
 In the cart you can:
 
 - Change the quantity of any line (number field with `−` / `+`).
 - Tick or untick **"With delivery"** per line.
 - Toggle a manual delivery-fee override where offered.
+- Press **View** or **Map** on an item card to re-open the product or its route.
 
-The totals update automatically. If the cart has no saved location, it asks your
-device for one when it opens; allow location access and the delivery fee appears.
-If permission is denied, the cart keeps every line and shows **Use my current
-location** or **Retry calculating** instead of spinning forever. The green summary box shows the goods subtotal
-and delivery fee now, and states **“VAT (15%): Added when you place the order”** —
-VAT is not charged when you add a product. The payable-after-VAT figure is shown
-below the total and is what the wallet balance must cover. The Order button is
-yellow; once the line is in the cart it becomes green.
+The totals update automatically, and the **Delivery Cost** row shows the exact
+road distance the product page measured (for example `(11.7 km × 25.01
+ETB/km)`) — the same figure you saw before adding the item, never a new
+measurement. The cart only asks your device for a location when a line has no
+measured distance yet; if permission is denied, the cart keeps every line and
+shows **Use my current location** or **Retry calculating** instead of spinning
+forever. The Financial Summary shows the goods subtotal, the pending VAT note
+(**"Added when you place the order"**) and the **Grand Total** — the
+VAT-inclusive payable that is what the wallet balance must cover.
 
 ### Three order actions, in order
 
@@ -177,11 +186,13 @@ The cart shows three buttons:
    PDF**.
 3. **3 To Preview** — shows the same document on screen without printing.
 
-The button at the bottom of the cart is **Clear Cart** only.
+The bottom row of the cart holds **Clear** (empties the cart) and **To
+Purchase** — the same action as step 1, through the same code path, so the two
+can never disagree about the total.
 
 > Reviewed a proforma and now want to order? Press **🛒 Back to To Purchase** on
-> the proforma. It closes the document, **re-prices the cart** (a delivery
-> distance can legitimately change) and drops you back on step 1, pulsing the
+> the proforma. It closes the document, **re-prices the cart** (quantities and
+> fees are refreshed; the measured distance itself stays fixed) and drops you back on step 1, pulsing the
 > **To Purchase** button so you can't miss it. On an empty cart it takes you back
 > to product search.
 
@@ -336,7 +347,7 @@ Installing is optional — the app works the same in a normal browser tab.
 | --- | --- |
 | Distance says "Unable to calculate" | The route service is busy — retry in a moment; the app falls back to a straight-line estimate |
 | Order says my location is unavailable | Your items are already saved in the cart. Allow location/GPS access for E-SCON, then use **Use my current location** in the cart (or press **Place Order** again). Without permission the app can only use a saved location, if one exists |
-| Distance didn't change after I moved | The preview uses your saved pin; press **Place Order** to capture a fresh GPS fix and re-price delivery |
+| Distance didn't change after I moved | The distance is measured once and then kept, so the cart can never quote a different number than you saw. To measure again from your new position, move the pin in **My Location** and reopen the product |
 | Order Summary keeps saying "Calculating…" | It prices 250 ms after you change something, so wait a beat. If it cannot finish, the block on screen says why and gives you **📍 Use my current location** when you have no pin, **Retry calculating** for a failed quote, or **Clear cart & order this product** when the cart holds another supplier's goods |
 | "Please select a valid user" although the details are right | The account list was still loading. Close the form and try again — the list loads without waiting on location any more |
 | Map opens without a route | Re-select the supplier; the route redraws from your current GPS position |

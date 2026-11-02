@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing)
-> **Previous:** 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
+> **Version:** 6.11 (the product page's exact KM carries into cart & checkout, Sample Layout cart UI)
+> **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
 
@@ -124,10 +124,10 @@ any time from **Dashboard → My Location**, which uses the shared
 [`MapPicker`](../src/components/MapPicker.tsx) and saves the address, city and
 coordinates back to their account. Suppliers edit the same pin from **Profile →
 Edit Company Profile**. Admins can correct any account from **Settings → Data
-Manager → Location**. Search previews use this saved pin; the **Order** action
-takes a fresh high-accuracy GPS fix and uses that position for the cart,
-proforma and placed order (v6.7), falling back to the saved pin only when the
-device cannot provide a location.
+Manager → Location**. Search previews and the product page measure from this
+saved pin; since v6.11 the **Order** action reuses that exact measured KM for
+the cart, proforma and placed order, and only takes a fresh high-accuracy GPS
+fix when a line has no measurement yet (e.g. a legacy cart or no pin at all).
 
 > The **Admin** account is a seeded platform role. Only admins see the **⚙️ Settings** page where the delivery-fee model, delivery zones, free-delivery threshold, minimum-order rule and VAT rate are configured, and where accounts, suppliers and products can be managed (see §10.16). It is created automatically on first load if missing and cannot be deleted from the data manager.
 
@@ -451,7 +451,21 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 
 Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`; older sample rows are normalised on load), so VAT is never extracted from the entered price. `priceCartItems` sums the net line totals into `subtotal`. With `applyVat` false (cart, re-price, back-to-purchase, delivery-fee reset) `vatAmount` is `0`; with `applyVat` true (both proforma actions and `confirmOrder`) it calls **`vatOnSubtotal(subtotal, settings.vat.rate, settings.vat.enabled)` once** for the whole cart and sets `total = subtotal + vatAmount + transportCost`. VAT is therefore never rounded per line. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item; `allocateVat` splits the single cart VAT across those rows by their net value (last row absorbs the rounding remainder), so the orders always sum to the proforma total. The cart shows a pending-VAT note and a VAT-inclusive payable figure (used for the wallet check); the proforma shows the VAT amount. The cart then resets and the Orders page opens. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
 
-**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals(true)`, so the figures cannot disagree (the cart modal itself prices with `calculateCartTotals(false)`). The bottom of the modal now holds only `Clear Cart` — placing the order in two places at once was a way to commit to the wrong total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
+**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals(true)`, so the figures cannot disagree (the cart modal itself prices with `calculateCartTotals(false)`). Since v6.11 the bottom of the modal follows `Sample Layout.jpg` again: an outlined **Clear** pill on the left and a solid dark-blue **To Purchase** pill on the right (`.cart-sample-actions`), both committing through the same `confirmOrder()` as step 1 — two entry points, one code path, so they can never disagree about the total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
+
+**Sample Layout cart UI (v6.11):** `renderCartSummary` now rebuilds the cart modal against `Sample Layout.jpg`, inside the `cart-sample-*` class family (styles at the end of `App.css`):
+- **Header** (`.cart-sample-head`): dark-blue bar with the `E-SCON | SHOPPING CART` brand on the left, a **live date/time** (`LiveClock`, a 1 s `setInterval` in `App.tsx` — deliberately ticking here, unlike the proforma which freezes its timestamp) and the ✕ close button on the right.
+- **Steps** (`.cart-sample-steps`): the three order actions restyled to the layout — step 1 solid dark blue with white text, steps 2/3 light-blue fill with dark-blue text.
+- **Product cards** (`.cart-sample-products` / `.cart-sample-product`): one white card per line with a photo thumbnail (`.cart-sample-thumb`, 🏗️ fallback), the product name in dark blue, **Supplier:** / **Location:** rows, the `ETB … / unit • Min: …` price line, and two stacked outlined buttons on the right — **View** (opens the product details) and **Map** (draws the supplier route). Both close the cart first because the details/map modals render *before* the cart in the DOM and would otherwise be covered. The quantity row is `CartQuantityInput` plus the line total and **Remove**, with a vertical rule (`.cart-qty-sep`) between the unit and the **With delivery** pill.
+- **Financial Summary** (`.cart-sample-summary`): dark-blue header bar, then numbered rows (`.cart-sample-row` + CSS-counter `.cart-fin-no`): **Unit price × Quantity** (one row per line), **Subtotal**, **VAT (rate%)** with the "added when you place the order" note, **Delivery Cost** — whose sub-label prints the **exact road KM** the line carried from the product page, e.g. `(11.7 km × 25.01 ETB/km)` — and the highlighted **Grand Total** (the VAT-inclusive payable used for the wallet check). The delivery fee stays editable (input + ⟲ auto) exactly as before.
+- **Payment Method** (`.cart-sample-payment`) and the **Clear / To Purchase** action row (`.cart-sample-actions`), as in the layout.
+
+**The product page's exact KM carries into the cart (v6.11):** delivery used to be re-measured when the cart opened (a fresh GPS fix or a new OSRM query), so the KM the buyer had just seen on the product page could come back different in the cart and at checkout. Now the measurement travels with the line:
+- `CartItem.distanceKm` (`types.ts`) stores the exact road km measured on the product page when the line was staged. `stageCartLine(..., distanceKm)` snapshots it (keeping the previous measurement when a later re-stage has none — unit-tested in `utils.test.ts`).
+- `measureDistanceForMaterial(material)` captures what the page is displaying: `distanceToSelected` when it is already loaded, otherwise one measurement from the saved pin (the same endpoints the pill will display). The `selectedMaterialId` reset effect clears `distanceToSelected` on every product switch so a previous product's KM can never be staged for the new one.
+- `measuredLineDistance(item)` is the single reader. `priceCartItems`, `resolveLineDelivery` (which passes it to `computeDeliveryFee` as `distanceKm`), `confirmOrder` and the cart's Financial Summary all prefer it and only fall back to `calculateDistance` for legacy lines that have no measurement.
+- **No new GPS fix while a measurement exists:** the cart-open location effect, `priceCartItems`' coordinate guard and `confirmOrder`'s fix request all skip when every line carries a measured distance, so opening the cart or pressing **To Purchase** cannot move the number. A fresh fix is taken only for an unmeasured line (legacy carts, buyer with no pin).
+- The **Delivery Cost** row in the cart, the proforma's per-supplier distance and the placed orders therefore all show the same KM the product page displayed. Unit tests: `stageCartLine` distance snapshots, `computeDeliveryFee` reusing `distanceKm` without calling the router.
 
 **Back to "To Purchase" (v5.7):** the proforma is a **full-screen overlay**, and its old `← Back to Cart` button only called `setShowProforma(false)` — which left the buyer on whatever page was behind it with no cart open. Anyone who opened "To Proforma" to check a figure and then wanted to order had to hunt for the 🛒 icon again, and a buyer who had just reviewed a delivery total had no obvious way to commit to it. The proforma's second button is now **🛒 Back to To Purchase** and takes the optional `onBackToPurchase` prop, wired in `App.tsx` to `handleBackToPurchase()`:
 - It clears `showProforma` **and** `proformaAutoPrint` — a later "To Preview" must not inherit a queued print.
@@ -474,7 +488,7 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`;
 
 **Product page layout (v6.8, follows `Sample Layout.jpg`):** the details are rendered as four stacked sections in this fixed order — **Product Details → Supplier Information → Customer Reviews → Order Summary** (`.pd-section`, each with a `.pd-head`). *Product Details* holds the photo gallery (`.pd-media`, `.pd-dots`), the category tag, title, description, the **Unit Price** and **Delivery Price** metric cards, the quantity row (`.pd-qty` + `QuantityStepper`) with the live **Material Subtotal**, and the **Order Date** / **Delivery Time** row. *Supplier Information* shows the verified supplier, rating, address, phone and a route card with distance, ETA and **View Route on Map**. *Customer Reviews* lists per-product reviews. *Order Summary* (`.pd-summary`) is the order box: it prices the order **on the page** 250 ms after any change — Material Subtotal, Delivery Price, VAT (when enabled) and **Total Payable** — and offers **🛒 Place Order** plus a quieter **Add to cart & review instead**.
 
-Pressing **Place Order** fetches the device's **current GPS position** (`getCurrentCoordinates`, high accuracy, `maximumAge: 0`), measures the OSRM road distance from that fix, writes the order (cloud-first) and opens the Orders page; **Add to cart & review instead** adds the line and opens the cart. The distance shown before you order is only a preview from the saved pin.
+Pressing **Place Order** stages the line with the **exact KM the page is displaying** and writes the order (cloud-first) from it; a fresh GPS fix is taken only when a line has no measurement yet (see the v6.11 distance note above). **Add to Cart & Review** stores the line the same way and opens the cart. The distance shown before you order is therefore not a preview — it is the value checkout charges.
 
 **The summary never fails silently.** When the totals cannot be produced, the rows and the dead "Calculating…" button are replaced by a `.pd-summary-block` (`is-conflict` / `is-location` / …) that states the reason and offers the one action that fixes it: **📍 Use my current location** when the buyer has no saved pin, **🗑️ Clear cart & order this product** for a cross-supplier cart, **🔁 Retry calculating** for a failed quote. If the buyer has no coordinates the summary asks for one GPS fix automatically (once per product); pressing **📍 Use my current location** retries that fix. While pricing it is legitimately disabled and reads **Calculating…**; while the request runs it reads **Placing your order…**. A customer account is required (`pd-summary-note`), and sold-out products show *Currently unavailable* instead of the actions. If GPS is denied or unavailable the buyer is warned; the saved location is used only when it exists. The cart modal still allows per-line quantity edits and per-line delivery toggles. Full rules in [13.1](#131-ordering-flow--supplier-only-stock).
 
@@ -742,9 +756,11 @@ plus `break-inside: avoid` for every major block.
 Location** card with the saved address and coordinates. It opens `MapPicker`;
 `handleSaveMyLocation` writes `lat`, `lng` and reverse-geocoded address to the
 current user and (for suppliers) their company, so the next search preview uses
-the correct distance. On **Order**, `refreshCurrentLocation` overwrites that pin
-with a fresh GPS fix (saved silently), so the cart/proforma use the customer's
-current position even if they moved since setting it. Admin edits go through
+the correct distance. On **Order**, a fresh fix is taken only for a line that
+has no measured distance yet; a line that carries the product page's exact KM
+reuses it, so the cart and proforma cannot change the number under the buyer.
+When a fix is taken, `refreshCurrentLocation` overwrites the pin silently so the
+customer's current position wins over an old one. Admin edits go through
 `handleAdminUpdateUser` (`onUpdateUser` prop on `AdminSettings`).
 
 ### 10.27 Cart-first ordering (v6.10)
@@ -859,6 +875,7 @@ The delivery UI is four small blocks, added in one commented section:
 - Zebra-striped tables with sticky gradient headers and orange hover.
 - **Beautiful `<select>` list boxes**: custom chevron via inline SVG `background-image`, `appearance: none`, hover/focus rings, readable `option` colors in both themes.
 - **Product page (Sample Layout)** (`.pd-section`, `.pd-grid`, `.pd-media`, `.pd-metric`, `.pd-qty`, `.pd-supplier`, `.pd-summary`, `.pd-summary-row`, `.pd-place-order`): the four-section product-details layout — Product Details → Supplier Information → Customer Reviews → Order Summary — with the price/quantity cards, supplier route card and the on-page order box, styled once for all breakpoints (44px touch targets on ≤ 768px).
+- **Cart (Sample Layout, v6.11)** (`.cart-sample-modal`, `.cart-sample-head`, `.cart-sample-steps`, `.cart-sample-product`, `.cart-sample-card-btn`, `.cart-qty-sep`, `.cart-sample-summary`, `.cart-sample-row`, `.cart-fin-no`, `.cart-sample-payment`, `.cart-sample-actions`): the rebuilt cart — brand header with live clock, three order steps, photo product cards with View/Map, numbered Financial Summary rows (the Delivery Cost row prints the carried KM) and the Clear / To Purchase pills, styled once for all breakpoints.
 - **Order box** (`.order-box`, `.qty-stepper`): the quantity control inside the product page (`.qty-stepper` is the stepper itself; `.order-box` is the legacy wrapper kept for older markup), styled once for all breakpoints.
 - **Stock flags** (`.stock-flag` / `.stock-flag-low`): amber pill used for the supplier-only low-stock warning inside the product details view.
 - **Stock chips** (`.stock-chip-in` / `.stock-chip-low` / `.stock-chip-out`): green / amber / red pills used on the supplier dashboard so a supplier reads their own stock status at a glance (never shown to customers).
@@ -910,8 +927,8 @@ It is the step where the customer has actually seen the product and is ready to 
 | Desktop results row (`🛒`) | opens the product details (`setSelectedMaterial`) |
 | Mobile product card (`🛒 Order` / `🛒 Edit order`) | opens the product details |
 | Compare modal (`View & Order`) | closes the modal and opens the product details |
-| Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number + − / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then **🛒 Place Order** (fresh GPS fix → order → Orders page) or **Add to Cart & Review** (stores the line without waiting for GPS and opens the cart, v6.10) |
-| Cart modal | per-line number input (`updateCartQuantity`) + per-line **With delivery** checkbox (`updateCartDelivery`) |
+| Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number + − / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then **🛒 Place Order** (stages the exact measured KM → order → Orders page; fresh GPS fix only when a line has no measurement) or **Add to Cart & Review** (stores the line without waiting for GPS and opens the cart, v6.10) |
+| Cart modal | per-line number input (`updateCartQuantity`) + per-line **With delivery** checkbox (`updateCartDelivery`); the staged `distanceKm` is what the totals and checkout charge (v6.11) |
 
 - `QuantityStepper` is a **module-scope** component in `App.tsx` (next to `CartQuantityInput`, just above `function App()`); `DetailsOrderBox` stays next to `renderMaterialDetails`. It steps by **1** and stops at **1** — customers may order any amount, so the stepper must not derive its step or floor from `minOrder` (`min` is hard-coded to `1`).
 - **The number is a real input (v5.5).** The middle of `.qty-stepper` is `<input className="qty-value">`, not a read-only `<span>`: a customer can tap − / + **or type any whole number** and commit with Enter or by clicking away. Same draft-string pattern as `CartQuantityInput` — the local `draft` string keeps the field usable while it is being emptied, and `commit()` only calls `onChange` with a parsed integer `>= min` (never `NaN`, so the running total below the stepper can never go blank). The unit moved out of the old `<small>` into a sibling `<span className="qty-unit">`. The native spinners are hidden (`appearance: textfield` + the two `::-webkit-*-spin-button` resets) so − / + stay the only visible controls; do not re-add a read-only value span.
@@ -921,7 +938,7 @@ It is the step where the customer has actually seen the product and is ready to 
 - A sold-out product shows **"Currently unavailable — please contact the supplier."** instead of the stepper, so nothing un-orderable can be added to the cart.
 - The old native `prompt("Quantity (Min: …)")` on the desktop results row and the card-level `m-stepper` are **removed** — keep it that way; never reintroduce a quantity control in a list.
 - **Adding can be refused (v5.6).** `addToCart` returns `boolean`: `false` when the buyer is not a signed-in customer, when the quantity is invalid, when the supplier cannot be resolved, or when the cart already holds a **different** supplier. `DetailsOrderBox` calls `onAdded()` only on `true`, so a refused add leaves the dialog open with the quantity and delivery choices intact. Do not close the dialog unconditionally.
-- **Adding does not require GPS (v6.10).** `handleDetailsOrder` adds the line first; location is only requested by the open cart when it needs to price delivery. **Place Order** also stages the line before taking a fix and, if the fix fails, opens the cart with the saved line instead of leaving the product page unchanged.
+- **Adding does not require GPS (v6.10).** `handleDetailsOrder` adds the line first; location is only requested by the open cart when it needs to price delivery. **Place Order** also stages the line before taking a fix and, if the fix fails, opens the cart with the saved line instead of leaving the product page unchanged. Since v6.11 both actions pass the page's exact KM (`measureDistanceForMaterial`) into `stageCartLine`, so the cart charges the distance the buyer just read.
 
 **2. Stock levels are supplier-only data.**
 `const canSeeStock = currentUser?.userType === 'company' || currentUser?.userType === 'admin'` (`App.tsx`, "Role visibility") gates **every** stock number in the UI. Customers *and* signed-out visitors see none:
@@ -986,7 +1003,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.1` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.2` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1001,7 +1018,7 @@ For the install prompt to work:
 | Distance shows "Unable to calculate" | OSRM demo server offline → haversine fallback already handles this; retry later |
 | Tapping Order seems to do nothing    | Fixed in v6.8: alerts are a fixed toast above modals, the cart shows a loading state instead of returning `null`, routing requests abort after 9 s and try a second OSRM endpoint, and `confirmOrder` has `try/catch/finally` so it can never leave the button stuck |
 | Order says location is unavailable   | Browser/app location permission is off, timed out, or the saved profile has no coordinates. Since v6.9 the Order Summary automatically asks for a fix and offers **📍 Use my current location**; allow GPS/location access and tap it, or press **Place Order** again. The app only falls back to the saved pin when one exists |
-| KM did not change after moving       | The detail preview uses the saved pin; press **Place Order** to take a fresh high-accuracy fix. The cart re-prices because its signature includes the buyer's coordinates |
+| KM did not change after moving       | By design since v6.11: the measured KM is fixed once a line carries it so the cart/checkout cannot quote a different number. To re-measure from a new position, move the pin in **My Location** (or reopen the product page) — the route effect re-runs on the updated coordinates |
 | Order Summary stays on "Calculating…" | The quote is still debounced (250 ms) or the routing request is in flight. If it never resolves the block explains why and offers **📍 Use my current location** (no pin), **Retry calculating** (failed quote) or **Clear cart & order this product** (cross-supplier cart) instead (§13.1) |
 | Cart stays on "Calculating your order..." | Fixed in v6.10: the re-pricing guard is written inside the 250 ms timer and released when pricing is cancelled. If totals still fail, the loading modal lists the saved lines and offers **Use my current location** or **Retry calculating**. Check `repricedCart`, `cartPriceFailed` and the auto-location effect (10.27) |
 | "Please select a valid user" on a correct login | The account list had not finished loading. Local data is now published before the geocoding pass and login falls back to the stored `users` cache, so this window is gone in v6.8 (§6 startup order) |
@@ -1111,7 +1128,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.14.1`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.14.2`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1133,6 +1150,31 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.11 — the product page's exact KM carries into the cart (Sample Layout cart)
+- **One distance, from product page to checkout.** Every staged cart line now
+  stores `CartItem.distanceKm` — the exact road KM the product page displayed
+  (`measureDistanceForMaterial` snapshots `distanceToSelected`, falling back to
+  one measurement from the saved pin). `priceCartItems`, `resolveLineDelivery`,
+  `computeDeliveryFee`, `confirmOrder` and the proforma all reuse that value and
+  only route for legacy lines without one, so the cart can no longer quote a
+  different distance than the buyer just saw. While every line carries a
+  measurement the cart takes **no new GPS fix**, and switching products clears
+  `distanceToSelected` so a previous product's KM can never be staged.
+- **Cart rebuilt against `Sample Layout.jpg`.** The modal now renders
+  `E-SCON | SHOPPING CART` in a dark-blue header with a **live date/time**
+  (`LiveClock`), the three order steps restyled (step 1 solid dark blue, steps
+  2/3 light blue), photo product cards with **View**/**Map** buttons and a
+  quantity row separated from **With delivery** by a vertical rule, a numbered
+  **Financial Summary** (Unit price × Quantity → Subtotal → VAT → Delivery Cost
+  showing the carried KM → Grand Total), the **Payment Method** block and the
+  **Clear** / **To Purchase** bottom row. Classes: `.cart-sample-*` (styles at
+  the end of `App.css`).
+- **Tests.** `stageCartLine` distance snapshots (set / missing / NaN /
+  re-stage keeps the first) and `computeDeliveryFee` using a measured `distanceKm`
+  without calling the router.
+- **Release.** Bumped `versionCode` 13 to 14, `versionName` 1.9.3 to 1.9.4 and
+  `sw.js` `VERSION` `e-scon-v1.14.1` to `e-scon-v1.14.2`.
 
 ### v6.10 - cart first, location when pricing
 - **Adding to the cart never waits for GPS.** `Add to Cart & Review` is always

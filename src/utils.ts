@@ -236,6 +236,8 @@ export interface DeliveryFeeInput {
   weightTons: number;
   /** Cart goods subtotal (VAT-exclusive, before delivery) — used for free-delivery. */
   orderSubtotal: number;
+  /** Exact road distance already measured for this line, when there is one. */
+  distanceKm?: number;
   settings: SystemSettings;
 }
 
@@ -266,10 +268,12 @@ export const computeDeliveryFee = async (input: DeliveryFeeInput): Promise<numbe
     return Math.max(0, numberOr(s.fixedFee, 0));
   }
 
-  const distance = await calculateDistance(
-    input.supplierLat, input.supplierLng,
-    input.customerLat, input.customerLng
-  );
+  const distance = typeof input.distanceKm === 'number' && isFinite(input.distanceKm) && input.distanceKm > 0
+    ? input.distanceKm
+    : await calculateDistance(
+      input.supplierLat, input.supplierLng,
+      input.customerLat, input.customerLng
+    );
   const base = numberOr(s.distanceBaseFee, 0);
   const perKmPerTon = numberOr(s.distancePerKmPerTon, 0);
   return Math.max(0, base + distance * perKmPerTon * Math.max(input.weightTons, 0.001));
@@ -410,13 +414,17 @@ export const stageCartLine = (
   quantity: number,
   includeDelivery: boolean,
   supplierName: string,
-  mode: 'increment' | 'set' = 'increment'
+  mode: 'increment' | 'set' = 'increment',
+  distanceKm?: number
 ): CartItem[] | null => {
   const clash = findOtherCartSupplier(current, material.companyId, material.id);
   if (clash) return null;
   // Snapshot the supplier's published rate onto the line: the fee is worked out
   // from the distance later, so the cart has to remember which rate applies.
   const rate = material.delivery && material.delivery.offered ? material.delivery : undefined;
+  const measured = typeof distanceKm === 'number' && isFinite(distanceKm) && distanceKm > 0
+    ? distanceKm
+    : undefined;
   const existing = current.find(item => item.materialId === material.id);
   if (existing) {
     return current.map(item => item.materialId === material.id
@@ -424,7 +432,10 @@ export const stageCartLine = (
           ...item,
           quantity: mode === 'set' ? quantity : item.quantity + quantity,
           includeDelivery,
-          deliveryRate: rate
+          deliveryRate: rate,
+          // Keep the existing measurement unless the caller passes a fresh
+          // exact result (e.g. the KM the product page just displayed).
+          distanceKm: measured !== undefined ? measured : item.distanceKm
         }
       : item);
   }
@@ -444,7 +455,8 @@ export const stageCartLine = (
     profitMargin: material.profitMargin,
     weightPerUnit: material.specifications?.weightPerUnit || 0.001,
     includeDelivery,
-    deliveryRate: rate
+    deliveryRate: rate,
+    distanceKm: measured
   };
   return [...current, line];
 };

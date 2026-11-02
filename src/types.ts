@@ -227,6 +227,13 @@ export interface CartItem {
   includeDelivery?: boolean;
   /** The supplier's published per-km rate, snapshotted when the line was added. */
   deliveryRate?: MaterialDelivery;
+  /**
+   * The exact road distance (km) measured on the product page when this line
+   * was added. Pricing and the placed order reuse this value verbatim so the
+   * cart delivery cost can never disagree with the KM the buyer just saw.
+   * Older carts have no value and fall back to a fresh routing lookup.
+   */
+  distanceKm?: number;
 }
 
 /** How a supplier's delivery fee was priced for one cart/order. */

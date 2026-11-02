@@ -196,6 +196,24 @@ describe('stageCartLine (one source of truth for a cart line)', () => {
     expect(lines![0].includeDelivery).toBe(false);
   });
 
+  it('snapshots the exact product-page distance so the cart reuses it', () => {
+    const lines = stageCartLine([], material(), 50, true, 'Nati Building Supplies', 'set', 11.7);
+    expect(lines![0].distanceKm).toBe(11.7);
+  });
+
+  it('ignores a missing or nonsensical measured distance', () => {
+    const missing = stageCartLine([], material(), 50, true, 'Nati Building Supplies', 'set');
+    expect(missing![0].distanceKm).toBeUndefined();
+    const invalid = stageCartLine([], material(), 50, true, 'Nati Building Supplies', 'set', NaN);
+    expect(invalid![0].distanceKm).toBeUndefined();
+  });
+
+  it('keeps the first measured distance when a line is re-staged without one', () => {
+    const cart = [existing({ distanceKm: 9.4 })];
+    const lines = stageCartLine(cart, material(), 8, true, 'Nati Building Supplies', 'set');
+    expect(lines![0].distanceKm).toBe(9.4);
+  });
+
   it('refuses a second supplier and leaves the cart untouched', () => {
     const cart = [existing({ quantity: 5 })];
     // A genuinely different product from a different supplier - not a re-order
@@ -302,6 +320,18 @@ describe('computeDeliveryFee', () => {
       DEFAULT_SETTINGS.delivery.distanceBaseFee +
       100 * DEFAULT_SETTINGS.delivery.distancePerKmPerTon * 2;
     expect(fee).toBe(expected);
+  });
+
+  it('uses the measured distance instead of asking the router again', async () => {
+    const settings = fixedSettings();
+    settings.delivery.mode = 'distance-based';
+    settings.delivery.distanceBaseFee = 0;
+    settings.delivery.distancePerKmPerTon = 10;
+    const fee = await computeDeliveryFee(
+      baseInput({ settings, weightTons: 2, orderSubtotal: 1000, distanceKm: 11.7 })
+    );
+    expect(fee).toBe(234);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 
