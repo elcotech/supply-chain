@@ -765,6 +765,10 @@ customer's current position wins over an old one. Admin edits go through
 
 ### 10.27 Cart-first ordering (v6.10)
 
+### 10.28 New Sample Layout cart (v6.12)
+
+`renderCartSummary` now renders the cart in the new proforma-style layout matching the latest `Sample Layout.jpg` (supplier/buyer details, product banner, items table, delivery section, financial totals, amount in words, terms/payment, signatures, bottom actions). The modal is constrained to fit as a single page on every device with responsive scaling.
+
 Adding a product and pricing delivery are separate steps. `handleDetailsOrder`
 now calls `addToCart` **before** it looks at the buyer's coordinates, so a
 denied, unavailable or slow GPS fix can no longer prevent a line from reaching

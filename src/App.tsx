@@ -3049,223 +3049,225 @@ function App() {
       }
       return `(${primarySupplier.distanceKm.toFixed(1)} km × platform rate)`;
     })();
+    const buyer = currentUser;
     return (
-      <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
-        <div className="modal-content cart-modal cart-sample-modal" onClick={e => e.stopPropagation()}>
-          <div className="modal-header cart-sample-head">
+      <div className="modal-overlay cart-overlay-single" onClick={() => setShowCartSummary(false)}>
+        <div className="modal-content cart-modal cart-sample-modal cart-single-page" onClick={e => e.stopPropagation()}>
+          <div className="modal-header cart-sample-head cart-single-header">
             <div className="cart-sample-brand">
-              <span className="cart-sample-brand-name">E-SCON</span>
+              <span className="cart-sample-brand-name">☰ E-SCON</span>
               <span className="cart-sample-brand-divider">|</span>
-              <span className="cart-sample-brand-title">Shopping Cart</span>
+              <span className="cart-sample-brand-title">SHOPPING CART</span>
             </div>
             <div className="cart-sample-head-right">
               <span className="cart-sample-clock"><LiveClock /></span>
               <button className="modal-close" onClick={() => setShowCartSummary(false)}>✕</button>
             </div>
           </div>
-          <div className="modal-body">
+          <div className="modal-body cart-single-body">
             {cart.length === 0 ? (
               <div className="empty-cart"><span className="empty-cart-icon">🛒</span><h3>Your cart is empty</h3><button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button></div>
             ) : (
-              <>
-                {/* The three order actions, in the order the buyer works through
-                    them. "To Purchase" places the order, "To Proforma" opens the
-                    printable/save-as-PDF invoice, "To Preview" reads the same
-                    invoice on screen. The proforma has a "Back to To Purchase"
-                    button that returns here and highlights step 1, so a buyer who
-                    reviewed the document is never stranded. Cart CSV export was
-                    removed: the proforma is now the buyer's only order document. */}
-                <div className="cart-order-steps cart-sample-steps">
+              <div className="cart-new-layout">
+                <div className="cart-new-steps">
                   <button
-                    className={'cart-order-step is-primary' + (highlightPurchaseStep ? ' is-returned' : '')}
+                    className={'cart-new-step active' + (highlightPurchaseStep ? ' returned' : '')}
                     onClick={() => { void confirmOrder(); }}
                     disabled={isCalculating || isPlacingOrder || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
-                    title={cartDetails.minOrderEnabled && cartDetails.belowMinOrder ? 'Minimum order not met' : ''}
                   >
-                    <span className="cart-step-num">1</span>
-                    <span className="cart-step-label">{isPlacingOrder ? 'Placing order…' : isCalculating ? 'Calculating...' : 'To Purchase'}</span>
-                    <span className="cart-step-hint">{isPlacingOrder ? 'Please keep this window open' : highlightPurchaseStep ? 'Tap here to place your order' : 'Place the order'}</span>
+                    <span className="cart-new-step-num">1</span>
+                    <span>{isPlacingOrder ? 'Placing...' : 'To Purchase'}</span>
                   </button>
-                  <button className="cart-order-step" onClick={handlePrintProforma}>
-                    <span className="cart-step-num">2</span>
-                    <span className="cart-step-label">To Proforma</span>
-                    <span className="cart-step-hint">Print / save PDF</span>
+                  <button className="cart-new-step" onClick={handlePrintProforma}>
+                    <span className="cart-new-step-num">2</span>
+                    <span>To Proforma</span>
                   </button>
-                  <button className="cart-order-step" onClick={handlePreviewProforma}>
-                    <span className="cart-step-num">3</span>
-                    <span className="cart-step-label">To Preview</span>
-                    <span className="cart-step-hint">View on screen</span>
+                  <button className="cart-new-step" onClick={handlePreviewProforma}>
+                    <span className="cart-new-step-num">3</span>
+                    <span>To Review</span>
                   </button>
+                </div>
+
+                <div className="cart-new-parties">
+                  {supplierGroups.map(sup => {
+                    const company = ensureSupplierCompany(sup.supplierId, sup.supplierName);
+                    return (
+                      <div key={sup.supplierId} className="cart-new-party-box">
+                        <div className="cart-new-party-head">
+                          <span>🏢</span>
+                          <span>Supplier Details</span>
+                        </div>
+                        <div className="cart-new-party-body">
+                          <div className="cart-new-party-row"><span>Company Name</span><span>: {company.name}</span></div>
+                          <div className="cart-new-party-row"><span>Address</span><span>: {company.location || company.city || sup.supplierCity}</span></div>
+                          <div className="cart-new-party-row"><span>TIN</span><span>: {company.tinNumber || '-'}</span></div>
+                          <div className="cart-new-party-row"><span>VAT No.</span><span>: {company.vatNumber || '-'}</span></div>
+                          <div className="cart-new-party-row"><span>Phone</span><span>: {(company as any).phone || '-'}</span></div>
+                          <div className="cart-new-party-row"><span>Email</span><span>: {(company as any).email || '-'}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="cart-new-party-box">
+                    <div className="cart-new-party-head">
+                      <span>👤</span>
+                      <span>Buyer Details</span>
+                    </div>
+                    <div className="cart-new-party-body">
+                      <div className="cart-new-party-row"><span>Company Name</span><span>: {buyer?.name || '-'}</span></div>
+                      <div className="cart-new-party-row"><span>Address</span><span>: {buyer?.address ? buyer.address + (buyer.city ? ', ' + buyer.city : '') : (buyer?.city || '-')}</span></div>
+                      <div className="cart-new-party-row"><span>TIN</span><span>: {buyer?.tinNumber || '-'}</span></div>
+                      <div className="cart-new-party-row"><span>VAT No.</span><span>: {buyer?.vatNumber || '-'}</span></div>
+                      <div className="cart-new-party-row"><span>Contact Person</span><span>: {buyer?.name || '-'}</span></div>
+                      <div className="cart-new-party-row"><span>Phone</span><span>: {buyer?.phone || '-'}</span></div>
+                      <div className="cart-new-party-row"><span>Email</span><span>: {buyer?.email || '-'}</span></div>
+                    </div>
+                  </div>
                 </div>
 
                 {supplierGroups.map(sup => {
                   const company = ensureSupplierCompany(sup.supplierId, sup.supplierName);
-                  return (
-                    <div key={sup.supplierId} className="cart-sample-products">
-                      {sup.items.map(item => {
-                        const material = getMaterialById(item.materialId);
-                        const image = material?.images?.[0];
-                        return (
-                          <article key={item.id} className="cart-sample-product">
-                            <div className="cart-sample-thumb">
-                              {image ? <img src={image} alt={item.materialName} /> : <span className="cart-sample-thumb-fallback">🏗️</span>}
-                            </div>
-                            <div className="cart-sample-product-body">
-                              <div className="cart-sample-product-top">
-                                <h3>{item.materialName}</h3>
-                                {/* Sample Layout: two stacked actions on the right
-                                    of the card — View opens the product page, Map
-                                    draws the supplier route. Both close the cart
-                                    first because these modals render above it. */}
-                                <div className="cart-sample-card-actions">
-                                  <button
-                                    type="button"
-                                    className="cart-sample-card-btn"
-                                    disabled={!material}
-                                    onClick={() => {
-                                      setShowCartSummary(false);
-                                      if (material) setSelectedMaterial(material);
-                                    }}
-                                  >
-                                    View
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="cart-sample-card-btn"
-                                    onClick={() => {
-                                      setShowCartSummary(false);
-                                      handleOpenMapWithRoute(company.id);
-                                    }}
-                                  >
-                                    Map
-                                  </button>
-                                </div>
-                              </div>
-                              <p className="cart-sample-supplier"><span>Supplier:</span> <strong>{sup.supplierName}</strong></p>
-                              <p className="cart-sample-location"><span>Location:</span> {company.location || company.city || sup.supplierCity}</p>
-                              <div className="cart-sample-price-line">
-                                <div className="cart-sample-price">{formatCurrency(item.price)} <span>/ {item.unit}</span></div>
-                                <span className="cart-sample-bullet" aria-hidden="true">•</span>
-                                <span className="cart-sample-min">Min: {item.minOrder.toLocaleString()} {item.unit}</span>
-                              </div>
-                              <div className="cart-sample-controls">
-                                <CartQuantityInput item={item} onCommit={updateCartQuantity} onToggleDelivery={updateCartDelivery} />
-                                <span className="cart-sample-line-total">{formatCurrency(item.price * item.quantity)}</span>
-                                <button type="button" className="cart-sample-remove" onClick={() => removeFromCart(item.id)}>Remove</button>
-                              </div>
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  );
+                  return sup.items.map(item => {
+                    const material = getMaterialById(item.materialId);
+                    const image = material?.images?.[0];
+                    return (
+                      <div key={item.id} className="cart-new-product-banner">
+                        <div className="cart-new-product-img">
+                          {image ? <img src={image} alt={item.materialName} /> : <span>🏗️</span>}
+                        </div>
+                        <div className="cart-new-product-info">
+                          <h3>{item.materialName.toUpperCase()}</h3>
+                          <div className="cart-new-product-price">{formatCurrency(item.price)} / {item.unit}</div>
+                          <div className="cart-new-product-desc">"{material?.description || item.materialName}"</div>
+                        </div>
+                        <div className="cart-new-product-actions">
+                          <button type="button" disabled={!material} onClick={() => { setShowCartSummary(false); if (material) setSelectedMaterial(material); }}>📍 GPS MAP</button>
+                          <button type="button" onClick={() => { setShowCartSummary(false); handleOpenMapWithRoute(company.id); }}>🔄 Auto Refresh</button>
+                          <button type="button" onClick={() => removeFromCart(item.id)} style={{color:'#d33'}}>🗑️ Remove</button>
+                        </div>
+                      </div>
+                    );
+                  });
                 })}
 
-                <div className="cart-sample-summary">
-                  <h3>Financial Summary</h3>
-                  {platformDeliveryHint(supplierGroups) && (
-                    <div className="min-order-notice warn">{platformDeliveryHint(supplierGroups)}</div>
-                  )}
-                  <div className="cart-sample-rows">
-                    {supplierGroups.map(sup => sup.items.map(item => (
-                      <div className="cart-sample-row" key={'fin-' + item.id}>
-                        <span className="cart-sample-row-label">
-                          <span className="cart-fin-no" />
-                          <span><strong>Unit price × Quantity</strong><small>({formatCurrency(item.price)} × {item.quantity})</small></span>
-                        </span>
-                        <span className="cart-sample-row-value">{formatCurrency(item.price * item.quantity)}</span>
-                      </div>
-                    )))}
-                    <div className="cart-sample-row">
-                      <span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>Subtotal</strong></span></span>
-                      <span className="cart-sample-row-value">{formatCurrency(cartDetails.subtotal)}</span>
-                    </div>
-                    {systemSettings.vat.enabled && (
-                      <div className="cart-sample-row cart-sample-row-vat">
-                        <span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>VAT ({expectedVat.rate}%)</strong><small>Added when you place the order</small></span></span>
-                        <span className="cart-sample-row-value">{formatCurrency(expectedVat.vatAmount)}</span>
-                      </div>
-                    )}
-                    <div className="cart-sample-row">
-                      <span className="cart-sample-row-label">
-                        <span className="cart-fin-no" />
-                        <span><strong>Delivery Cost</strong><small>{deliveryDetail}</small></span>
-                      </span>
-                      <span className="cart-sample-row-value cart-sample-fee">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={deliveryFeeOverride !== null ? deliveryFeeOverride : cartDetails.transportCost}
-                          onChange={(e) => handleDeliveryFeeChange(parseFloat(e.target.value))}
-                          aria-label="Delivery fee (ETB)"
-                        />
-                        <span className="delivery-fee-currency">ETB</span>
-                        {deliveryFeeOverride !== null && (
-                          <button type="button" className="link-btn delivery-fee-reset" onClick={handleDeliveryFeeReset} title="Use the automatic delivery fee">⟲ auto</button>
-                        )}
-                      </span>
-                    </div>
-                    {cartDetails.freeDeliveryApplied && (
-                      <div className="cart-sample-row cart-sample-row-free"><span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>Free delivery applied</strong></span></span><span className="cart-sample-row-value">ETB 0.00</span></div>
-                    )}
-                    <div className="cart-sample-row cart-sample-row-total">
-                      <span className="cart-sample-row-label"><span className="cart-fin-no" /><span><strong>Grand Total</strong></span></span>
-                      <span className="cart-sample-row-value">{formatCurrency(payableTotal)}</span>
-                    </div>
+                <div className="cart-new-items-section">
+                  <div className="cart-new-items-head">
+                    <span>🛒 Order Items</span>
+                    <span>{cart.length} item{cart.length === 1 ? '' : 's'}</span>
                   </div>
-                  {cartDetails.minOrderEnabled && (
-                    cartDetails.belowMinOrder ? (
-                      <div className="min-order-notice error">
-                        ⚠️ This order is below the minimum of {formatCurrency(cartDetails.minOrderAmount || 0)} in goods value. Add {formatCurrency((cartDetails.minOrderAmount || 0) - cartDetails.subtotal)} more to proceed.
-                      </div>
-                    ) : (
-                      <div className="min-order-notice ok">✅ Meets the minimum order requirement of {formatCurrency(cartDetails.minOrderAmount || 0)}.</div>
-                    )
-                  )}
+                  <div className="cart-new-table-wrap">
+                    <table className="cart-new-table">
+                      <thead>
+                        <tr>
+                          <th>No.</th>
+                          <th>Item Name</th>
+                          <th>Description</th>
+                          <th>Unit</th>
+                          <th>Qty</th>
+                          <th>Unit Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cart.map((item, idx) => (
+                          <tr key={item.id}>
+                            <td>{idx + 1}</td>
+                            <td>{item.materialName}</td>
+                            <td>{getMaterialById(item.materialId)?.description?.substring(0,40) || item.materialName}</td>
+                            <td>{item.unit}</td>
+                            <td>
+                              <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                                <button onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity-1))} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}>−</button>
+                                <span>{item.quantity}</span>
+                                <button onClick={() => updateCartQuantity(item.id, item.quantity+1)} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}>+</button>
+                              </div>
+                            </td>
+                            <td>ETB {item.price.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
-                <div className="payment-selector cart-sample-payment">
-                  <h3>Payment Method</h3>
-                  <div className="payment-options">
-                    <label className={'pay-option' + (paymentMethod === 'wallet' ? ' active' : '')}>
-                      <input type="radio" name="paymentMethod" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} />
-                      <span className="pay-icon">💳</span>
-                      <span className="pay-meta"><strong>E-SCON Wallet</strong><small>Balance: {formatCurrency(walletBalance(currentUser!.id))}</small></span>
-                      <span className="pay-check">{paymentMethod === 'wallet' ? '✓' : ''}</span>
-                    </label>
-                    <label className={'pay-option' + (paymentMethod === 'bank' ? ' active' : '')}>
-                      <input type="radio" name="paymentMethod" checked={paymentMethod === 'bank'} onChange={() => setPaymentMethod('bank')} />
-                      <span className="pay-icon">🏦</span>
-                      <span className="pay-meta"><strong>Bank Transfer</strong><small>Pay on invoice (proforma)</small></span>
-                      <span className="pay-check">{paymentMethod === 'bank' ? '✓' : ''}</span>
-                    </label>
-                    <label className={'pay-option' + (paymentMethod === 'cod' ? ' active' : '')}>
-                      <input type="radio" name="paymentMethod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} />
-                      <span className="pay-icon">💵</span>
-                      <span className="pay-meta"><strong>Cash on Delivery</strong><small>Pay when goods arrive</small></span>
-                      <span className="pay-check">{paymentMethod === 'cod' ? '✓' : ''}</span>
-                    </label>
+                <div className="cart-new-delivery-section">
+                  <div className="cart-new-delivery-head">
+                    <span>📍 Delivery Cost (to destination)</span>
+                    <div>
+                      <button>📍 GPS MAP</button>
+                      <button onClick={() => setCartPriceRetry(n => n+1)}>🔄 Refresh</button>
+                    </div>
                   </div>
-                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') < payableTotal && (
-                    <div className="min-order-notice error">⚠️ Insufficient wallet balance ({formatCurrency(walletBalance(currentUser ? currentUser.id : ''))}). <button className="link-btn" onClick={() => { setShowCartSummary(false); setShowWallet(true); }}>Top up now</button></div>
-                  )}
-                  {paymentMethod === 'wallet' && walletBalance(currentUser ? currentUser.id : '') >= payableTotal && (
-                    <div className="min-order-notice ok">✅ Balance covers this order — instant checkout.</div>
-                  )}
+                  <div className="cart-new-delivery-body">
+                    <div className="cart-new-delivery-row">
+                      <div><label>Starting Point</label><select><option>CMC</option></select></div>
+                      <div><label>Destination</label><select><option>{buyer?.city || 'Bole Gerji'}</option></select></div>
+                      <div><label>Total Distance</label><div>{primarySupplier?.distanceKm?.toFixed(1) || '0.0'} km <small>Rate: ETB {(cartDetails.transportCost / Math.max(1, primarySupplier?.distanceKm || 1)).toFixed(2)} / km</small></div></div>
+                      <div><label>Delivery Cost</label><div>ETB {cartDetails.transportCost.toFixed(2)}</div></div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="cart-sample-actions">
-                  <button className="cart-sample-clear" onClick={() => clearCart()}>Clear</button>
-                  <button
-                    className="cart-sample-place"
-                    onClick={() => { void confirmOrder(); }}
-                    disabled={isCalculating || isPlacingOrder || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
-                  >
-                    {isPlacingOrder ? 'Placing order…' : isCalculating ? 'Calculating...' : 'To Purchase'}
+                <div className="cart-new-financial">
+                  <div className="cart-new-fin-row"><span>Amount Before VAT</span><span>ETB {cartDetails.subtotal.toFixed(2)}</span></div>
+                  {systemSettings.vat.enabled && <div className="cart-new-fin-row"><span>VAT ({expectedVat.rate}%)</span><span>ETB {expectedVat.vatAmount.toFixed(2)}</span></div>}
+                  <div className="cart-new-fin-row"><span>Delivery Cost</span><span>ETB {cartDetails.transportCost.toFixed(2)}</span></div>
+                  <div className="cart-new-fin-row grand"><span>Grand Total</span><span>ETB {payableTotal.toFixed(2)}</span></div>
+                </div>
+
+                <div className="cart-new-words">
+                  💰 Amount in Words: {payableTotal.toLocaleString()} Ethiopian Birr Only
+                </div>
+
+                <div className="cart-new-bottom">
+                  <div className="cart-new-terms">
+                    <div className="cart-new-terms-head"><span>📋</span><span>Terms, Conditions, Delivery & Remarks</span></div>
+                    <div className="cart-new-terms-body">
+                      <div>✓ Payment Terms: 50% advance required. Balance due upon delivery.</div>
+                      <div>✓ Delivery: Supplier Delivery - 3-5 business days from order confirmation.</div>
+                      <div>✓ Subject to stock availability. Priced per line as marked.</div>
+                      <div>✓ Warranty: Standard manufacturer warranty applies. Damaged goods must be reported within 48 hours.</div>
+                      <div>✓ Returns: Unopened items may be returned within 7 days. Restocking fee of 10%.</div>
+                      <div>✓ Pricing: Prices are subject to change without prior notice.</div>
+                      <div>✓ Remarks: Please confirm the delivery address and contact number before dispatch.</div>
+                    </div>
+                  </div>
+                  <div className="cart-new-payment">
+                    <div className="cart-new-payment-head"><span>💳</span><span>Payment Methods</span></div>
+                    <div className="cart-new-payment-body">
+                      <label className={paymentMethod === 'wallet' ? 'active' : ''}><input type="radio" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} /> 💳 E-SCON Wallet <small>Balance: {formatCurrency(walletBalance(buyer?.id || ''))}</small></label>
+                      <label className={paymentMethod === 'bank' ? 'active' : ''}><input type="radio" checked={paymentMethod === 'bank'} onChange={() => setPaymentMethod('bank')} /> 🏦 Bank Transfer <small>Pay via bank account</small></label>
+                      <label className={paymentMethod === 'cod' ? 'active' : ''}><input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} /> 💵 Cash on Delivery <small>Pay when goods arrive</small></label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="cart-new-signatures">
+                  {supplierGroups.map(sup => {
+                    const company = ensureSupplierCompany(sup.supplierId, sup.supplierName);
+                    return (
+                      <div key={sup.supplierId} className="cart-new-sig-box">
+                        <div>AUTHORIZED SUPPLIER SIGNATURE</div>
+                        <div><strong>{company.name}</strong></div>
+                        <div className="sig-line"></div>
+                        <div>Date: {new Date().toLocaleDateString('en-GB')}</div>
+                      </div>
+                    );
+                  })}
+                  <div className="cart-new-sig-box">
+                    <div>BUYER'S ACKNOWLEDGMENT</div>
+                    <div><strong>{buyer?.name || '-'}</strong></div>
+                    <div className="sig-line"></div>
+                    <div>Date: {new Date().toLocaleDateString('en-GB')}</div>
+                  </div>
+                </div>
+
+                <div className="cart-new-actions">
+                  <button onClick={() => { void confirmOrder(); }} disabled={isCalculating || isPlacingOrder || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}>
+                    ✓ Place Order
                   </button>
+                  <button onClick={handlePrintProforma}>🛒 Add to Cart & Review</button>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
