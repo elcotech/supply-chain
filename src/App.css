@@ -7540,9 +7540,292 @@ a:focus-visible {
   border: 2px solid #005baa;
 }
 
+@media (max-width: 900px) and (min-width: 768px) {
+  /* Tablet landscape — keep two columns where possible */
+  .cart-new-delivery-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cart-new-product-banner {
+    grid-template-columns: 55px 1fr auto;
+  }
+  .cart-new-product-actions {
+    flex-direction: column;
+  }
+}
+
 @media (max-width: 900px) {
   .cart-new-parties, .cart-new-bottom {
     grid-template-columns: 1fr;
+  }
+  .cart-new-product-banner {
+    grid-template-columns: 50px 1fr;
+  }
+  .cart-new-product-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+  .cart-new-delivery-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Small phones — single column, stacked everything */
+@media (max-width: 640px) {
+  .cart-new-layout {
+    font-size: 0.7rem;
+    gap: 4px;
+  }
+  .cart-new-step {
+    padding: 3px 8px;
+    font-size: 0.65rem;
+    gap: 4px;
+  }
+  .cart-new-step-num {
+    width: 16px;
+    height: 16px;
+    font-size: 0.6rem;
+  }
+  .cart-new-parties {
+    gap: 4px;
+  }
+  .cart-new-party-box {
+    border-radius: 4px;
+  }
+  .cart-new-party-head {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+  }
+  .cart-new-party-body {
+    padding: 3px 4px;
+  }
+  .cart-new-party-row {
+    grid-template-columns: 70px 1fr;
+    gap: 2px;
+    font-size: 0.6rem;
+  }
+  .cart-new-product-banner {
+    grid-template-columns: 45px 1fr;
+    gap: 6px;
+    padding: 3px 4px;
+  }
+  .cart-new-product-img {
+    width: 45px;
+    height: 45px;
+  }
+  .cart-new-product-info h3 {
+    font-size: 0.7rem;
+  }
+  .cart-new-product-price {
+    font-size: 0.65rem;
+  }
+  .cart-new-product-desc {
+    display: none;
+  }
+  .cart-new-product-actions {
+    flex-direction: row;
+    gap: 4px;
+  }
+  .cart-new-product-actions button {
+    padding: 1px 4px;
+    font-size: 0.6rem;
+  }
+  .cart-new-items-head {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+  }
+  .cart-new-table {
+    font-size: 0.6rem;
+  }
+  .cart-new-table th,
+  .cart-new-table td {
+    padding: 1px 3px;
+  }
+  .cart-new-delivery-head {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    flex-wrap: wrap;
+  }
+  .cart-new-delivery-head button {
+    padding: 1px 4px;
+    font-size: 0.6rem;
+    margin-left: 2px;
+  }
+  .cart-new-delivery-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    font-size: 0.6rem;
+  }
+  .cart-new-delivery-detail {
+    font-size: 0.6rem;
+  }
+  .cart-new-financial {
+    border-radius: 4px;
+  }
+  .cart-new-fin-row {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+  }
+  .cart-new-words {
+    padding: 2px 6px;
+    font-size: 0.6rem;
+  }
+  .cart-new-bottom {
+    gap: 4px;
+  }
+  .cart-new-terms-head,
+  .cart-new-payment-head {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+  }
+  .cart-new-terms-body,
+  .cart-new-payment-body {
+    padding: 3px 4px;
+    font-size: 0.6rem;
+  }
+  .cart-new-payment-body label {
+    padding: 1px 3px;
+    font-size: 0.6rem;
+  }
+  .cart-new-signatures {
+    grid-template-columns: 1fr;
+  }
+  .cart-new-sig-box {
+    padding: 3px 4px;
+    font-size: 0.6rem;
+  }
+  .cart-new-sig-box .sig-line {
+    margin: 6px 2px 2px;
+  }
+  .cart-new-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .cart-new-actions button {
+    padding: 8px 12px;
+    font-size: 0.75rem;
+  }
+  .cart-sample-head {
+    padding: 4px 8px;
+    gap: 8px;
+  }
+  .cart-sample-brand-name,
+  .cart-sample-brand-title {
+    font-size: 0.85rem;
+  }
+  .cart-sample-clock {
+    font-size: 0.7rem;
+  }
+  .cart-sample-modal .modal-close {
+    padding: 4px 6px;
+  }
+  .cart-sample-products {
+    gap: 8px;
+  }
+  .cart-sample-product {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+  .cart-sample-thumb {
+    width: 100%;
+    height: 180px;
+  }
+  .cart-sample-product-top {
+    flex-direction: column;
+  }
+  .cart-sample-card-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+  .cart-sample-card-btn {
+    padding: 4px 12px;
+    font-size: 0.72rem;
+  }
+  .cart-sample-summary h3,
+  .cart-sample-payment h3 {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+  .cart-sample-row {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+  .cart-sample-row-label {
+    gap: 8px;
+  }
+  .cart-fin-no {
+    width: 16px;
+    height: 16px;
+    font-size: 0.6rem;
+  }
+  .cart-sample-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .cart-sample-clear,
+  .cart-sample-place {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Very small phones (≤400px) — extra compact */
+@media (max-width: 400px) {
+  .cart-new-layout {
+    font-size: 0.65rem;
+    gap: 3px;
+  }
+  .cart-new-party-row {
+    grid-template-columns: 60px 1fr;
+    font-size: 0.55rem;
+  }
+  .cart-new-product-banner {
+    grid-template-columns: 35px 1fr;
+    gap: 4px;
+  }
+  .cart-new-product-img {
+    width: 35px;
+    height: 35px;
+  }
+  .cart-new-product-info h3 {
+    font-size: 0.6rem;
+  }
+  .cart-new-product-actions button {
+    font-size: 0.55rem;
+    padding: 1px 3px;
+  }
+  .cart-new-table {
+    font-size: 0.55rem;
+  }
+  .cart-new-delivery-row {
+    font-size: 0.55rem;
+  }
+  .cart-new-fin-row {
+    font-size: 0.6rem;
+    padding: 1px 4px;
+  }
+  .cart-new-terms-body,
+  .cart-new-payment-body {
+    font-size: 0.55rem;
+  }
+  .cart-new-sig-box {
+    font-size: 0.55rem;
+    padding: 2px 3px;
+  }
+  .cart-new-actions button {
+    padding: 6px 10px;
+    font-size: 0.7rem;
+  }
+  .cart-sample-brand-name,
+  .cart-sample-brand-title {
+    font-size: 0.75rem;
+  }
+  .cart-sample-product-top h3 {
+    font-size: 0.85rem;
+  }
+  .cart-sample-card-btn {
+    padding: 3px 8px;
+    font-size: 0.65rem;
   }
 }
 

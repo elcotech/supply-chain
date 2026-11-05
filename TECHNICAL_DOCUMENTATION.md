@@ -2,7 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.11 (the product page's exact KM carries into cart & checkout, Sample Layout cart UI)
+> **Version:** 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices: desktop, tablet, mobile)
+> **Previous:** 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI), 6.11 (the product page's exact KM carries into cart & checkout, Sample Layout cart UI)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
@@ -938,7 +939,36 @@ Header → Navigation → Buttons → Cards → Search → Product Grid → Tabl
 - **Forms (v5.4)**: `.form-input` / `.form-select` / `.form-textarea` / `.btn-submit` are re-stated inside the `768px` block (16px font, 46px min-height) because their base rules now live at the end of the file and would otherwise win. The sign-in card drops its vertical centering on phones, and the cart quantity field grows its `−` / `+` keys to 38px.
 - **Supplier stock (v5.4)**: the mobile supplier dashboard shows the same four stock tiles as the desktop one (`.m-stock-grid`, 2×2) plus a per-row status chip.
 
-### 13.1 Ordering flow & supplier-only stock
+### 13.1 Sample Layout responsive cart (v6.14)
+
+The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders correctly on **every device size**: desktop (> 900px), tablet landscape (768–900px), phones (≤ 640px) and very small phones (≤ 400px).
+
+**Layout sections (in order, matching the reference image):**
+
+1. **Header** (`.cart-sample-head`): dark-blue gradient bar with `☰ E-SCON | SHOPPING CART` brand, live clock (`LiveClock`), and ✕ close.
+2. **Steps** (`.cart-new-steps` / `.cart-order-step`): three tabs — `1 To Purchase` (solid dark blue, white text), `2 To Proforma`, `3 To Review` (light-blue fill, dark-blue text).
+3. **Supplier & Buyer Details** (`.cart-new-parties`): two side-by-side rounded cards — Supplier Details and Buyer Details — each with key:value rows (Company Name, Address, TIN, VAT No., Phone, Email for supplier; plus Contact Person for buyer).
+4. **Item Details Banner** (`.cart-new-product-banner`): per-line card with product thumbnail, name, price/unit, description, and stacked **GPS MAP** + **Auto Refresh** buttons.
+5. **Order Items Table** (`.cart-new-items-section` / `.cart-new-table`): No., Item Name, Description, Unit, Qty (with `−` / `+` stepper), Unit Price.
+6. **Delivery Cost** (`.cart-new-delivery-section`): header with 📍 Delivery Cost label + GPS MAP / Refresh buttons, then Starting Point / Destination / Total Distance / Delivery Cost rows.
+7. **Financial Summary** (`.cart-new-financial`): Amount Before VAT, VAT (%), Delivery Cost, Grand Total (highlighted dark-blue row).
+8. **Amount in Words** (`.cart-new-words`): light-blue bar with the total spelled out.
+9. **Terms & Payment** (`.cart-new-bottom`): two side-by-side boxes — Terms, Conditions, Delivery & Remarks (left) and Payment Methods (right, with wallet/bank/cash radio options).
+10. **Signatures** (`.cart-new-signatures`): three boxes — Authorized Supplier Signature, E-SCON, Buyer's Acknowledgment.
+11. **Bottom Actions** (`.cart-new-actions`): green **Place Order** button + outlined **Add to Cart & Review** button.
+
+**Responsive breakpoints:**
+
+| Breakpoint | Width | Behavior |
+| --- | --- | --- |
+| Desktop | > 900px | Full two-column parties, two-column bottom (terms + payment), 4-column delivery row, side-by-side product banner with stacked actions |
+| Tablet landscape | 768–900px | Parties stack to 1fr, delivery row 2-col, product banner keeps thumbnail + info + stacked actions |
+| Phone | ≤ 640px | Everything single-column, compact font sizes (0.6–0.75rem), full-width action buttons stacked vertically, delivery row 1-col, signatures stacked |
+| Small phone | ≤ 400px | Extra compact (0.55–0.7rem), 35px thumbnails, tighter spacing |
+
+The product details page (§4 — Product Details → Supplier Information → Customer Reviews → Order Summary) also stacks to single-column on phones (≤ 720px) per the existing `.pd-grid` / `.pd-metrics` / `.pd-supplier-meta` media query.
+
+### 13.2 Ordering flow & supplier-only stock
 
 Two rules govern what a customer sees about quantities and stock.
 
