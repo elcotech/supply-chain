@@ -798,6 +798,25 @@ while leaving the guard set, so the effect returned early forever and the cart
 stayed on the loading state. When pricing finishes without totals, the guard is
 released and `cartPriceFailed` exposes the retry action.
 
+### 10.29 Accurate supplier locations (v6.13)
+
+`utils.ts` exports three location helpers:
+
+- `lookupKnownPlace(address, city)` matches the most specific gazetteer alias
+  first (`Bole Gerji` before `Bole`) and returns exact OSM coordinates for the
+  seeded Addis neighbourhoods plus Adama.
+- `isGenericCoordinate(lat, lng, address, city)` detects the legacy pins that
+  were placed within ~1 km of a city centre, so existing local/browser data is
+  repaired on the next startup.
+- `geocodeAddress(address, city)` uses the gazetteer first, then Nominatim
+  (`jsonv2`, `addressdetails=1`, `countrycodes=et`, `limit=1`) with a 1.1 s
+  throttle and an Ethiopia bounding-box check.
+
+`App.tsx` geocodes changed supplier pins sequentially, persists local storage
+only when a pin actually moved, and the cart's **Refresh** action calls
+`refreshCartDelivery` to take one fresh high-accuracy fix, re-measure every line
+with `calculateDistance` and re-price through `priceCartItems`.
+
 ---
 
 ## 11. Third-Party Integrations
@@ -1154,6 +1173,33 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.13 - accurate map pins, live cart delivery block, shared amount in words
+- **Supplier pins resolve to their real addresses.** `utils.ts` now carries a
+  local OSM gazetteer for Bole, Bole Gerji/Gerji, CMC, Kazanchis, Kality, Akaki,
+  Piazza, Megenagna, Sar Bet, Gofa, Lebanon/Bole Medhanialem, Lideta, Mexico and
+  Adama. `geocodeAddress` checks it before calling Nominatim, and
+  `isGenericCoordinate` detects the old hand-waved seed pins so they are
+  re-resolved automatically.
+- **Nominatim is no longer called in parallel.** Startup geocoding runs
+  sequentially with a 1.1 s gap, uses `format=jsonv2&addressdetails=1`, and
+  rejects results outside Ethiopia. Supplier alerts appear only when a pin
+  actually moved.
+- **Cart Delivery Cost block is live.** Starting Point is the selected supplier's
+  real location (switchable), Destination is the buyer's address/city,
+  Total Distance is the measured line distance, Rate is the supplier's per-km
+  rate or the effective platform rate, and Delivery Cost is the actual quote.
+  `GPS MAP` opens the supplier route; `Refresh` takes a fresh GPS fix,
+  re-measures every line and re-prices the cart.
+- **Amount in words is shared.** `numberToWords` / `amountToWords` live in
+  `utils.ts`; the cart and `ProformaInvoice` both use them (Birr + cents).
+- **Routing is resilient.** The map tries `router.project-osrm.org`, then
+  `routing.openstreetmap.de`, checks HTTP status and times out at 12 s before
+  falling back to a straight line.
+- **Seed data.** `supabase/seed.sql` user/company pins now use the same accurate
+  neighbourhood coordinates.
+- **Release.** Bumped `versionCode` 16 to 17, `versionName` 1.9.6 to 1.9.7 and
+  `sw.js` `VERSION` `e-scon-v1.14.4` to `e-scon-v1.14.5`.
 
 ### v6.12 — new Sample Layout cart, single page on every device (bug-fix: dead code + stale docs cleaned)
 - **Cart rebuilt against the latest `Sample Layout.jpg`.** The modal is now a full single-page proforma-style order document that fits on one screen on desktop, tablet and phone: supplier & buyer details, a product photo banner per line, a numbered order-items table (with inline `−` / `+` quantity stepper), a Delivery Cost block that prints the **exact road km** carried from the product page and the per-km rate, a live buyer-facing note when a supplier group has no published rate and the platform fee applies, financial totals (Amount before VAT → VAT → Delivery Cost → Grand Total), the amount in words, terms & conditions, payment-method choices, supplier & buyer signature lines, and the bottom actions.

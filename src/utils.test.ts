@@ -18,6 +18,9 @@ import {
   vatOnSubtotal,
   allocateVat,
   calculateDistance,
+  amountToWords,
+  lookupKnownPlace,
+  isGenericCoordinate,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -60,6 +63,53 @@ describe('formatCurrency', () => {
   it('handles negatives and invalid input safely', () => {
     expect(formatCurrency(-25)).toBe('-ETB 25.00');
     expect(formatCurrency(NaN)).toBe('ETB 0.00');
+  });
+});
+
+describe('amountToWords', () => {
+  it('spells whole Birr amounts', () => {
+    expect(amountToWords(500)).toBe('Five Hundred Ethiopian Birr Only');
+  });
+
+  it('includes cents', () => {
+    expect(amountToWords(528.28)).toBe(
+      'Five Hundred and Twenty Eight Ethiopian Birr and Twenty Eight Cents Only'
+    );
+    expect(amountToWords(10.01)).toBe('Ten Ethiopian Birr and One Cent Only');
+  });
+
+  it('handles zero and invalid amounts safely', () => {
+    expect(amountToWords(0)).toBe('Zero Ethiopian Birr Only');
+    expect(amountToWords(NaN)).toBe('Zero Ethiopian Birr Only');
+  });
+});
+
+describe('accurate supplier locations', () => {
+  it('resolves CMC and Bole Gerji to their real OpenStreetMap points', () => {
+    expect(lookupKnownPlace('CMC, Addis Ababa', 'Addis Ababa')).toEqual({
+      lat: 9.0197660,
+      lng: 38.8475773,
+    });
+    expect(lookupKnownPlace('Bole Gerji, Addis Ababa', 'Addis Ababa')).toEqual({
+      lat: 8.9940023,
+      lng: 38.8274717,
+    });
+  });
+
+  it('prefers the specific neighbourhood over its parent name', () => {
+    const gerji = lookupKnownPlace('Bole Gerji, Addis Ababa', 'Addis Ababa');
+    const bole = lookupKnownPlace('Bole, Addis Ababa', 'Addis Ababa');
+    expect(gerji).not.toEqual(bole);
+  });
+
+  it('flags old hand-waved seed pins as generic', () => {
+    expect(isGenericCoordinate(9.035, 38.745, 'CMC, Addis Ababa', 'Addis Ababa')).toBe(true);
+    expect(isGenericCoordinate(9.03, 38.74, 'Bole, Addis Ababa', 'Addis Ababa')).toBe(true);
+  });
+
+  it('leaves accurate pins untouched', () => {
+    expect(isGenericCoordinate(9.0197660, 38.8475773, 'CMC, Addis Ababa', 'Addis Ababa')).toBe(false);
+    expect(isGenericCoordinate(8.9822541, 38.8383871, 'Bole, Addis Ababa', 'Addis Ababa')).toBe(false);
   });
 });
 

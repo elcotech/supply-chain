@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CartItem, CartReport, User, Company, ProformaShareData, DeliveryMode } from '../types';
 import {
   formatCurrency, generateProformaQrDataUrl, checkMinOrder,
-  buildProformaShareData, addedVatRate,
+  buildProformaShareData, addedVatRate, amountToWords,
 } from '../utils';
 import { loadSettings } from '../settings';
 
@@ -47,18 +47,6 @@ const DELIVERY_MODE_LABEL: Record<DeliveryMode, string> = {
   platform: 'Platform rate',
   none: 'No delivery',
 };
-
-// Convert an amount into English words with Birr + cents support.
-function amountToWords(amount: number): string {
-  const abs = Math.abs(amount);
-  const birr = Math.floor(abs);
-  const cents = Math.round((abs - birr) * 100);
-  const birrText = (birr === 0 ? 'Zero' : numberToWords(birr)) + ' Ethiopian Birr';
-  const centText = cents > 0
-    ? ' and ' + numberToWords(cents) + (cents === 1 ? ' Cent' : ' Cents')
-    : '';
-  return birrText + centText + ' Only';
-}
 
 const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   cart,
@@ -640,30 +628,5 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     </div>
   );
 };
-
-// Helper: convert an integer to English words (reused by amountToWords).
-function numberToWords(num: number): string {
-  if (num === 0) return 'Zero';
-  const ones = [
-    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
-    'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen',
-    'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen',
-  ];
-  const tens = [
-    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy',
-    'Eighty', 'Ninety',
-  ];
-
-  const convert = (n: number): string => {
-    if (n < 20) return ones[n];
-    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
-    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + convert(n % 100) : '');
-    if (n < 1000000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + convert(n % 1000) : '');
-    if (n < 1000000000) return convert(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 ? ' ' + convert(n % 1000000) : '');
-    return convert(Math.floor(n / 1000000000)) + ' Billion' + (n % 1000000000 ? ' ' + convert(n % 1000000000) : '');
-  };
-
-  return convert(num);
-}
 
 export default ProformaInvoice;

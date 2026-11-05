@@ -5,10 +5,10 @@ import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS
 } from './constants';
 import {
-  safeLocalStorage, formatCurrency, formatDate,
+  safeLocalStorage, formatCurrency, formatDate, amountToWords,
   calculateDistance, getCurrentCoordinates, isUserLocked, GeoCoordinates,
   exportToCSV, exportOrdersToCSV,
-  geocodeAddress, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
+  geocodeAddress, isGenericCoordinate, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
@@ -804,26 +804,31 @@ function App() {
   }, [showAlert, navigateTo]);
 
   // ---------- Geocoding helpers ----------
-  const isGenericCoord = useCallback((lat: number, lng: number, city: string): boolean => {
-    const cityCenters: Record<string, [number, number]> = {
-      'Addis Ababa': [9.0320, 38.7469],
-      'Adama': [8.5400, 39.2700],
-    };
-    const center = cityCenters[city];
-    if (!center) return false;
-    return Math.abs(lat - center[0]) < 0.01 && Math.abs(lng - center[1]) < 0.01;
+  // Seeded suppliers historically carried an approximate pin near the city
+  // centre. Re-resolve those against the accurate neighbourhood gazetteer (or
+  // Nominatim for anything unknown) while leaving pins that already sit on the
+  // real address untouched. Lookups run sequentially: Nominatim permits only
+  // one request per second, and a parallel burst would be rate-limited.
+  const geocodeCompany = useCallback(async (company: Company): Promise<Company> => {
+    if (!isGenericCoordinate(company.lat, company.lng, company.location, company.city)) {
+      return company;
+    }
+    const result = await geocodeAddress(company.location, company.city);
+    if (!result) return company;
+    // Avoid producing a new object (and a needless cloud write) when the
+    // resolved point is effectively the pin that was already stored.
+    if (Math.abs(company.lat - result.lat) < 1e-6 && Math.abs(company.lng - result.lng) < 1e-6) {
+      return company;
+    }
+    return { ...company, lat: result.lat, lng: result.lng };
   }, []);
 
-  const geocodeCompany = useCallback(async (company: Company): Promise<Company> => {
-    if (isGenericCoord(company.lat, company.lng, company.city)) {
-      const result = await geocodeAddress(company.location, company.city);
-      if (result) return { ...company, lat: result.lat, lng: result.lng };
-    }
-    return company;
-  }, [isGenericCoord]);
-
   const geocodeAllCompanies = useCallback(async (companiesToGeocode: Company[]): Promise<Company[]> => {
-    return await Promise.all(companiesToGeocode.map(geocodeCompany));
+    const resolved: Company[] = [];
+    for (const company of companiesToGeocode) {
+      resolved.push(await geocodeCompany(company));
+    }
+    return resolved;
   }, [geocodeCompany]);
 
   // ---------- Initialisation ----------
@@ -958,10 +963,15 @@ function App() {
       // cloud pushes) now that every collection holds this device's data.
       const enrichedCompanies = await geocodeAllCompanies(baseCompanies);
       if (cancelled) return;
+      const locationsCorrected = enrichedCompanies.some((company, index) =>
+        company.lat !== baseCompanies[index]?.lat || company.lng !== baseCompanies[index]?.lng
+      );
       setCompanies(enrichedCompanies);
-      safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
+      if (locationsCorrected) {
+        safeLocalStorage.setItem('companies', JSON.stringify(enrichedCompanies));
+        showAlert('Supplier map locations corrected from their addresses. 🗺️', 'success');
+      }
       setIsInitialized(true);
-      showAlert('Supplier locations geocoded successfully! 🗺️', 'success');
     };
     init();
     return () => { cancelled = true; };
@@ -1369,6 +1379,31 @@ function App() {
       showAlert(message + ' Enable GPS/location access, then press Order again.', 'danger');
       return null;
     }
+  };
+
+  // "Refresh" in the cart's Delivery Cost block: take a fresh GPS fix and
+  // re-measure every line from it, then persist that exact road distance on the
+  // line. This is the same value the order will reuse, so the map/route and the
+  // charged delivery cannot drift apart after the buyer has moved.
+  const refreshCartDelivery = async (): Promise<void> => {
+    if (cart.length === 0) return;
+    const coords = await refreshCurrentLocation();
+    if (!coords) return;
+    let changed = false;
+    const updated = await Promise.all(cart.map(async item => {
+      const supplier = ensureSupplierCompany(item.supplierId, item.supplierName);
+      try {
+        const km = await calculateDistance(supplier.lat, supplier.lng, coords.lat, coords.lng);
+        const rounded = Math.round(km * 1000) / 1000;
+        if (item.distanceKm === undefined || Math.abs(item.distanceKm - rounded) > 0.0005) changed = true;
+        return { ...item, distanceKm: rounded };
+      } catch {
+        return item;
+      }
+    }));
+    if (changed) setCart(updated);
+    repricedCart.current = '';
+    setCartPriceRetry(n => n + 1);
   };
 
   const handleAdminDeleteCompany = (companyId: string) => {
@@ -2939,6 +2974,19 @@ function App() {
     const platformHint = platformDeliveryHint(supplierGroups);
     const primaryDeliveryItem = primarySupplier?.items.find(item => item.includeDelivery !== false);
     const buyer = currentUser;
+    const buyerAddress = buyer?.address?.trim() || '';
+    const buyerCity = buyer?.city?.trim() || '';
+    const destinationLabel = buyerAddress
+      ? (buyerCity && !buyerAddress.toLowerCase().includes(buyerCity.toLowerCase())
+        ? `${buyerAddress}, ${buyerCity}`
+        : buyerAddress)
+      : buyerCity || 'Your current location';
+    const supplierRate = primaryDeliveryItem?.deliveryRate?.offered
+      ? Number(primaryDeliveryItem.deliveryRate.perKm) || 0
+      : 0;
+    const effectiveRate = primarySupplier && primarySupplier.distanceKm > 0
+      ? cartDetails.transportCost / primarySupplier.distanceKm
+      : supplierRate;
     return (
       <div className="modal-overlay cart-overlay-single" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal cart-sample-modal cart-single-page" onClick={e => e.stopPropagation()}>
@@ -3080,8 +3128,25 @@ function App() {
                   <div className="cart-new-delivery-head">
                     <span>📍 Delivery Cost (to destination)</span>
                     <div>
-                      <button>📍 GPS MAP</button>
-                      <button onClick={() => setCartPriceRetry(n => n+1)}>🔄 Refresh</button>
+                      <button
+                        type="button"
+                        disabled={!primarySupplier}
+                        onClick={() => {
+                          if (!primarySupplier) return;
+                          setShowCartSummary(false);
+                          handleOpenMapWithRoute(primarySupplier.supplierId);
+                        }}
+                      >
+                        📍 GPS MAP
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isCalculating}
+                        onClick={() => { void refreshCartDelivery(); }}
+                        title="Take a fresh GPS fix and re-measure the route"
+                      >
+                        🔄 Refresh
+                      </button>
                     </div>
                   </div>
                   <div className="cart-new-delivery-body">
@@ -3097,10 +3162,35 @@ function App() {
                             : '(you arrange transport)'}
                     </div>
                     <div className="cart-new-delivery-row">
-                      <div><label>Starting Point</label><select><option>CMC</option></select></div>
-                      <div><label>Destination</label><select><option>{buyer?.city || 'Bole Gerji'}</option></select></div>
-                      <div><label>Total Distance</label><div>{primarySupplier?.distanceKm?.toFixed(1) || '0.0'} km <small>Rate: ETB {(cartDetails.transportCost / Math.max(1, primarySupplier?.distanceKm || 1)).toFixed(2)} / km</small></div></div>
-                      <div><label>Delivery Cost</label><div>ETB {cartDetails.transportCost.toFixed(2)}</div></div>
+                      <div>
+                        <label>Starting Point</label>
+                        <select
+                          value={primarySupplier?.supplierId || ''}
+                          onChange={e => {
+                            if (!e.target.value) return;
+                            setShowCartSummary(false);
+                            handleOpenMapWithRoute(e.target.value);
+                          }}
+                          aria-label="Delivery starting point"
+                        >
+                          {supplierGroups.map(sup => {
+                            const company = ensureSupplierCompany(sup.supplierId, sup.supplierName);
+                            return (
+                              <option key={sup.supplierId} value={sup.supplierId}>
+                                {company.location || company.city || company.name}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div>
+                        <label>Destination</label>
+                        <select value={destinationLabel} aria-label="Delivery destination">
+                          <option value={destinationLabel}>{destinationLabel}</option>
+                        </select>
+                      </div>
+                      <div><label>Total Distance</label><div>{primarySupplier?.distanceKm?.toFixed(1) || '0.0'} km <small>Rate: ETB {effectiveRate.toFixed(2)} / km</small></div></div>
+                      <div><label>Delivery Cost</label><div>{formatCurrency(cartDetails.transportCost)}</div></div>
                     </div>
                     {platformHint && <div className="cart-new-platform-hint" role="note">{platformHint}</div>}
                   </div>
@@ -3115,7 +3205,7 @@ function App() {
                 </div>
 
                 <div className="cart-new-words">
-                  💰 Amount in Words: {payableTotal.toLocaleString()} Ethiopian Birr Only
+                  💰 Amount in Words: {amountToWords(payableTotal)}
                 </div>
 
                 <div className="cart-new-bottom">

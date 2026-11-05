@@ -96,6 +96,47 @@ export const allocateVat = (netAmounts: number[], totalVat: number): number[] =>
   });
 };
 
+/**
+ * Convert a non-negative integer into English words. Used by the cart and the
+ * proforma so both documents spell the payable amount identically.
+ */
+export const numberToWords = (num: number): string => {
+  if (!Number.isFinite(num) || num <= 0) return 'Zero';
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
+    'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen',
+    'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen',
+  ];
+  const tens = [
+    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy',
+    'Eighty', 'Ninety',
+  ];
+
+  const convert = (n: number): string => {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + convert(n % 100) : '');
+    if (n < 1000000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + convert(n % 1000) : '');
+    if (n < 1000000000) return convert(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 ? ' ' + convert(n % 1000000) : '');
+    return convert(Math.floor(n / 1000000000)) + ' Billion' + (n % 1000000000 ? ' ' + convert(n % 1000000000) : '');
+  };
+
+  return convert(Math.floor(num));
+};
+
+/** Spell an ETB amount as "Five Hundred Ethiopian Birr and Fifty Cents Only". */
+export const amountToWords = (amount: number): string => {
+  const safe = typeof amount === 'number' && isFinite(amount) ? amount : 0;
+  const abs = Math.abs(safe);
+  const birr = Math.floor(abs);
+  const cents = Math.round((abs - birr) * 100);
+  const birrText = numberToWords(birr) + ' Ethiopian Birr';
+  const centText = cents > 0
+    ? ' and ' + numberToWords(cents) + (cents === 1 ? ' Cent' : ' Cents')
+    : '';
+  return birrText + centText + ' Only';
+};
+
 export const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-ET', { year: 'numeric', month: 'short', day: 'numeric' });
 };
@@ -770,18 +811,135 @@ export const exportOrdersToCSV = (orders: any[], materials: any[], companies: an
   exportToCSV(exportData, 'orders_export');
 };
 
-export const geocodeAddress = async (address: string, city: string): Promise<{ lat: number; lng: number } | null> => {
-  try {
-const query = encodeURIComponent(`${address}, ${city}, Ethiopia`);
-    const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'E-SCON-App' }
-    });
-    const data = await response.json();
-    if (data && data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+/**
+ * City centres used only as a last-resort fallback when an address cannot be
+ * resolved. They match the map's list so a supplier without an address still
+ * appears in the right town instead of in the middle of Addis Ababa.
+ */
+export const CITY_CENTERS: Record<string, { lat: number; lng: number }> = {
+  'Addis Ababa': { lat: 9.0320, lng: 38.7469 },
+  'Adama': { lat: 8.5410, lng: 39.2705 },
+  'Bahir Dar': { lat: 11.6000, lng: 37.3900 },
+  'Gondar': { lat: 12.6000, lng: 37.4700 },
+  'Dessie': { lat: 11.1300, lng: 39.6300 },
+  'Hawassa': { lat: 7.0500, lng: 38.4800 },
+  'Jimma': { lat: 7.6700, lng: 36.8300 },
+  'Jijiga': { lat: 9.3500, lng: 42.8000 },
+  'Mekelle': { lat: 13.4900, lng: 39.4800 },
+  'Dire Dawa': { lat: 9.5900, lng: 41.8700 },
+  'Harar': { lat: 9.3100, lng: 42.1200 },
+  'Nekemte': { lat: 9.0800, lng: 36.5300 },
+  'Debre Markos': { lat: 10.3300, lng: 37.7300 },
+  'Asosa': { lat: 10.0600, lng: 34.5300 },
+  'Gambela': { lat: 8.2500, lng: 34.5900 },
+  'Semera': { lat: 11.7900, lng: 41.0100 },
+  'Debre Berhan': { lat: 9.6800, lng: 39.5300 },
+  'Wolkite': { lat: 8.2800, lng: 37.7900 },
+  'Bishoftu': { lat: 8.7400, lng: 38.9800 },
+  'Shashemene': { lat: 7.2000, lng: 38.6000 },
+};
+
+/**
+ * Resolved neighbourhood / landmark coordinates for the places used by the
+ * demo catalogue and by ordinary Addis Ababa addresses. Local lookup is tried
+ * before Nominatim because (a) it is instant and (b) Nominatim's public usage
+ * policy allows at most one request per second. Coordinates were resolved from
+ * OpenStreetMap data.
+ */
+const KNOWN_PLACES: { aliases: string[]; lat: number; lng: number }[] = [
+  { aliases: ['bole gerji', 'gerji'], lat: 8.9940023, lng: 38.8274717 },
+  { aliases: ['cmc'], lat: 9.0197660, lng: 38.8475773 },
+  { aliases: ['kazanchis'], lat: 9.0159277, lng: 38.7712221 },
+  { aliases: ['kality', 'akaki kality'], lat: 8.9379544, lng: 38.7630034 },
+  { aliases: ['akaki'], lat: 8.8985522, lng: 38.8103421 },
+  { aliases: ['piazza', 'piassa'], lat: 9.0336984, lng: 38.7547538 },
+  { aliases: ['megenagna'], lat: 9.0196149, lng: 38.8016732 },
+  { aliases: ['sar bet', 'sarbet'], lat: 8.9954127, lng: 38.7377105 },
+  { aliases: ['gofa'], lat: 8.9808340, lng: 38.7494830 },
+  { aliases: ['lebanon'], lat: 8.9984556, lng: 38.7862428 },
+  { aliases: ['lideta'], lat: 9.0114751, lng: 38.7288996 },
+  { aliases: ['mexico'], lat: 9.0103877, lng: 38.7445490 },
+  { aliases: ['bole medhanialem'], lat: 8.9984556, lng: 38.7862428 },
+  { aliases: ['bole'], lat: 8.9822541, lng: 38.8383871 },
+  { aliases: ['adama'], lat: 8.5410261, lng: 39.2705461 },
+];
+
+const normalizePlace = (value: string): string =>
+  (value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const distanceKmBetween = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+  const R = 6371;
+  const dLat = (bLat - aLat) * Math.PI / 180;
+  const dLng = (bLng - aLng) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+/** Resolve an address/city against the accurate local gazetteer. */
+export const lookupKnownPlace = (address: string, city: string): { lat: number; lng: number } | null => {
+  const haystack = normalizePlace(`${address || ''} ${city || ''}`);
+  if (!haystack) return null;
+  for (const place of KNOWN_PLACES) {
+    if (place.aliases.some(alias => haystack.includes(normalizePlace(alias)))) {
+      return { lat: place.lat, lng: place.lng };
     }
-    return null;
+  }
+  return null;
+};
+
+/**
+ * True when a saved pin is a hand-waved "somewhere near the city centre" value
+ * rather than the supplier's actual address. Such pins are safely re-geocoded;
+ * a pin that already sits on its known neighbourhood is left untouched.
+ */
+export const isGenericCoordinate = (lat: number, lng: number, address: string, city: string): boolean => {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return true;
+  const known = lookupKnownPlace(address, city);
+  if (known) return distanceKmBetween(lat, lng, known.lat, known.lng) > 0.5;
+  const center = CITY_CENTERS[city];
+  return center ? distanceKmBetween(lat, lng, center.lat, center.lng) < 2 : false;
+};
+
+// Nominatim asks clients to send no more than one request per second. Serialise
+// the fallback lookups so a fresh install never gets its IP blocked.
+let lastNominatimAt = 0;
+const waitForNominatim = async (): Promise<void> => {
+  const wait = 1100 - (Date.now() - lastNominatimAt);
+  if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+  lastNominatimAt = Date.now();
+};
+
+export const geocodeAddress = async (address: string, city: string): Promise<{ lat: number; lng: number } | null> => {
+  const cleanAddress = (address || '').trim();
+  const cleanCity = (city || '').trim();
+  // Known Ethiopian neighbourhoods resolve instantly and consistently.
+  const known = lookupKnownPlace(cleanAddress, cleanCity);
+  if (known) return known;
+  if (!cleanAddress && !cleanCity) return null;
+
+  const seen = new Set<string>();
+  const parts = [cleanAddress, cleanCity, 'Ethiopia']
+    .filter(part => part && !seen.has(part.toLowerCase()) && seen.add(part.toLowerCase()));
+  const query = encodeURIComponent(parts.join(', '));
+  const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=jsonv2&addressdetails=1&countrycodes=et&limit=1&accept-language=en`;
+  try {
+    await waitForNominatim();
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error('Geocoding server returned ' + response.status);
+    const data = await response.json();
+    const first = Array.isArray(data) ? data[0] : null;
+    const lat = parseFloat(first?.lat);
+    const lng = parseFloat(first?.lon);
+    // Reject results outside Ethiopia; a wrong country would wreck distances.
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < 3.3 || lat > 15 || lng < 32.8 || lng > 48.1) {
+      return null;
+    }
+    return { lat, lng };
   } catch (error) {
     console.warn('Geocoding failed for', address, city, error);
     return null;

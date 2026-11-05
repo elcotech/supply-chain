@@ -207,28 +207,41 @@ const MapComponent: React.FC<MapComponentProps> = ({
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  // OSRM routing — returns road-following route with accurate distance
+  // OSRM routing — returns road-following route with accurate distance. Two
+  // independent public servers are tried so one slow/blocked endpoint does not
+  // silently fall back to a straight line.
   const fetchRoute = useCallback(async (
     originLat: number, originLng: number, destLat: number, destLng: number
   ): Promise<RouteResult | null> => {
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
-        const coordinates: [number, number][] = route.geometry.coordinates.map(
-          (c: [number, number]) => [c[1], c[0]]
-        );
-        return {
-          distanceKm: route.distance / 1000,
-          durationMin: route.duration / 60,
-          coordinates,
-        };
+    const endpoints = [
+      'https://router.project-osrm.org/route/v1/driving',
+      'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+    ];
+    for (const endpoint of endpoints) {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 12000);
+      try {
+        const url = `${endpoint}/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error('Routing server returned ' + response.status);
+        const data = await response.json();
+        const route = data?.routes?.[0];
+        if (route?.geometry?.coordinates?.length) {
+          const coordinates: [number, number][] = route.geometry.coordinates.map(
+            (c: [number, number]) => [c[1], c[0]]
+          );
+          return {
+            distanceKm: route.distance / 1000,
+            durationMin: route.duration / 60,
+            coordinates,
+          };
+        }
+        throw new Error('No route found');
+      } catch (err) {
+        console.warn('OSRM route fetch failed for ' + endpoint, err);
+      } finally {
+        window.clearTimeout(timer);
       }
-    } catch (err) {
-      console.error('OSRM route fetch failed:', err);
     }
     return null;
   }, []);
@@ -402,6 +415,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     leafletMap.current = map;
     setIsMapReady(true);
+    // The modal animates in; let the container reach its final size before
+    // Leaflet calculates the tile grid, otherwise the first view is offset.
+    window.setTimeout(() => map.invalidateSize(), 0);
 
     // Place supplier markers
     const allLatLngs: L.LatLngExpression[] = [];
