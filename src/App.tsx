@@ -6,7 +6,7 @@ import {
 } from './constants';
 import {
   safeLocalStorage, formatCurrency, formatDate, amountToWords,
-  calculateDistance, getCurrentCoordinates, isUserLocked, GeoCoordinates,
+  calculateDistance, roundKm, getCurrentCoordinates, isUserLocked, GeoCoordinates,
   exportToCSV, exportOrdersToCSV,
   geocodeAddress, isGenericCoordinate, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
   deliveryBasisLabel, checkMinOrder,
@@ -188,8 +188,8 @@ const resolveLineDelivery = async (
     platformFee = await computeDeliveryFee({
       supplierLat: supplier.lat,
       supplierLng: supplier.lng,
-      customerLat: customer.lat || 9.0320,
-      customerLng: customer.lng || 38.7469,
+      customerLat: customer.lat,
+      customerLng: customer.lng,
       customerCity: customer.city || null,
       weightTons: (item.weightPerUnit || 0.001) * item.quantity,
       orderSubtotal,
@@ -1133,7 +1133,7 @@ function App() {
     let cancelled = false;
     setIsDistanceLoading(true);
     calculateDistance(company.lat, company.lng, lat as number, lng as number)
-      .then(dist => { if (!cancelled) setDistanceToSelected(dist); })
+      .then(dist => { if (!cancelled) setDistanceToSelected(roundKm(dist)); })
       .catch(() => { if (!cancelled) setDistanceToSelected(null); })
       .finally(() => { if (!cancelled) setIsDistanceLoading(false); });
     return () => { cancelled = true; };
@@ -1393,9 +1393,8 @@ function App() {
     const updated = await Promise.all(cart.map(async item => {
       const supplier = ensureSupplierCompany(item.supplierId, item.supplierName);
       try {
-        const km = await calculateDistance(supplier.lat, supplier.lng, coords.lat, coords.lng);
-        const rounded = Math.round(km * 1000) / 1000;
-        if (item.distanceKm === undefined || Math.abs(item.distanceKm - rounded) > 0.0005) changed = true;
+        const rounded = roundKm(await calculateDistance(supplier.lat, supplier.lng, coords.lat, coords.lng));
+        if (item.distanceKm === undefined || Math.abs(item.distanceKm - rounded) > 0.05) changed = true;
         return { ...item, distanceKm: rounded };
       } catch {
         return item;
@@ -1405,6 +1404,47 @@ function App() {
     repricedCart.current = '';
     setCartPriceRetry(n => n + 1);
   };
+
+  // Keep the stored cart KMs in step with the buyer's current position. The map,
+  // "Refresh" and a page reload can all change `currentUser.lat/lng`; without
+  // this, the cart would keep charging a distance measured from the old pin
+  // while the product page and map show the new one. Only the buyer's origin is
+  // re-measured — the supplier pins stay fixed — and the resulting 0.1 km value
+  // is exactly what the cart, proforma and order rows display.
+  const cartMeasuredOrigin = useRef('');
+  useEffect(() => {
+    if (!hasUserCoordinates(currentUser) || cart.length === 0) return;
+    const originKey = `${currentUser.id}:${currentUser.lat.toFixed(6)},${currentUser.lng.toFixed(6)}`;
+    if (cartMeasuredOrigin.current === originKey) return;
+    cartMeasuredOrigin.current = originKey;
+    let cancelled = false;
+    let finished = false;
+    void (async () => {
+      let changed = false;
+      const updated = await Promise.all(cart.map(async item => {
+        const supplier = ensureSupplierCompany(item.supplierId, item.supplierName);
+        try {
+          const km = roundKm(await calculateDistance(supplier.lat, supplier.lng, currentUser.lat, currentUser.lng));
+          if (measuredLineDistance(item) === null || Math.abs((item.distanceKm as number) - km) > 0.05) changed = true;
+          return { ...item, distanceKm: km };
+        } catch {
+          return item;
+        }
+      }));
+      finished = true;
+      if (cancelled || !changed) return;
+      setCart(updated);
+      repricedCart.current = '';
+      setCartPriceRetry(n => n + 1);
+    })();
+    return () => {
+      cancelled = true;
+      // A cart change interrupted the measurement — allow the next render to
+      // start it again instead of leaving the lines on the previous origin.
+      if (!finished) cartMeasuredOrigin.current = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, currentUser?.lat, currentUser?.lng, cart]);
 
   const handleAdminDeleteCompany = (companyId: string) => {
     const company = companies.find(c => c.id === companyId);
@@ -1626,16 +1666,24 @@ function App() {
       let distance: number | undefined;
       if (company) {
         const weight = (material.specifications?.weightPerUnit || 0.001) * material.minOrder;
-        distance = await calculateDistance(company.lat, company.lng, currentUser?.lat || 9.0320, currentUser?.lng || 38.7469);
-        // Delivery estimate is driven by SystemSettings (fixed/distance/zones).
-        estimatedTransport = await computeDeliveryFee({
-          supplierLat: company.lat, supplierLng: company.lng,
-          customerLat: currentUser?.lat || 9.0320, customerLng: currentUser?.lng || 38.7469,
-          customerCity: currentUser?.city || null,
-          weightTons: weight,
-          orderSubtotal: material.price * material.minOrder,
-          settings: systemSettings,
-        });
+        // Measure from the buyer's real pin only. The old hard-coded Addis
+        // fallback produced a distance the product page (which refuses to invent
+        // a position) could never match; showing no estimate is better than
+        // showing a different KM before and after opening the product.
+        if (hasUserCoordinates(currentUser)) {
+          distance = roundKm(await calculateDistance(
+            company.lat, company.lng, currentUser.lat, currentUser.lng
+          ));
+          // Delivery estimate is driven by SystemSettings (fixed/distance/zones).
+          estimatedTransport = await computeDeliveryFee({
+            supplierLat: company.lat, supplierLng: company.lng,
+            customerLat: currentUser.lat, customerLng: currentUser.lng,
+            customerCity: currentUser.city || null,
+            weightTons: weight,
+            orderSubtotal: material.price * material.minOrder,
+            settings: systemSettings,
+          });
+        }
       }
       const totalCost = material.price + ((estimatedTransport || 0) / material.minOrder);
       return { ...material, company, totalCost, estimatedTransport, distance };
@@ -1814,9 +1862,9 @@ function App() {
         // Reuse the exact distance captured on the product page. Only fall back
         // to routing for legacy cart lines that have no measurement.
         const captured = measuredLineDistance(item);
-        const dist = captured !== null
+        const dist = roundKm(captured !== null
           ? captured
-          : await calculateDistance(supplierCompany.lat, supplierCompany.lng, buyer.lat, buyer.lng);
+          : await calculateDistance(supplierCompany.lat, supplierCompany.lng, buyer.lat, buyer.lng));
         const { fee, mode } = await resolveLineDelivery(
           item, supplierCompany, dist, subtotal, buyer, settings
         );
@@ -1867,7 +1915,7 @@ function App() {
     // `subtotal` is the net goods value; VAT is added once on top, then delivery.
     const total = cartGrandTotal(subtotal, vatAmount, transportCost);
     const multiple = suppliers.length > 1;
-    const totalDistance = suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0);
+    const totalDistance = roundKm(suppliers.reduce((sum, sup) => sum + sup.distanceKm, 0));
     const minOrderCheck = checkMinOrder(settings, subtotal);
     const threshold = settings.delivery.freeDeliveryThreshold;
     return {
@@ -1909,7 +1957,7 @@ function App() {
     }
     if (!hasUserCoordinates(currentUser)) return undefined;
     try {
-      const measured = await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng);
+      const measured = roundKm(await calculateDistance(company.lat, company.lng, currentUser.lat, currentUser.lng));
       setDistanceToSelected(measured);
       return measured;
     } catch {
@@ -2414,9 +2462,9 @@ function App() {
       // per-line checkbox, the supplier's per-km rate over the real distance, or
       // the platform fallback when that supplier publishes no rate.
       const capturedDistance = measuredLineDistance(item);
-      const distanceKm = capturedDistance !== null
+      const distanceKm = roundKm(capturedDistance !== null
         ? capturedDistance
-        : await calculateDistance(supplierCompany.lat, supplierCompany.lng, buyer.lat as number, buyer.lng as number);
+        : await calculateDistance(supplierCompany.lat, supplierCompany.lng, buyer.lat as number, buyer.lng as number));
       const { fee: transportCostItem, mode: deliveryMode } = await resolveLineDelivery(
         item, supplierCompany, distanceKm, totals.subtotal, buyer, systemSettings
       );
@@ -3661,7 +3709,7 @@ function App() {
                         )}
                         <td>⭐ {item.rating || 'N/A'}</td>
                         <td className="distance-cell">
-                          <span className="distance-badge" title={currentUser ? 'Distance from your location' : 'Distance from default location (Addis Ababa)'}>
+                          <span className="distance-badge" title={hasUserCoordinates(currentUser) ? 'Road distance from your current location' : 'Set your location to see the road distance'}>
                             🚗 {item.distance != null ? item.distance.toFixed(1) + ' km' : '—'}
                           </span>
                         </td>
@@ -3748,6 +3796,18 @@ function App() {
           autoRouteSupplierId={routeId}
           routeRequestId={routeRequestId}
           onRouteShown={(companyId) => setAutoRouteSupplierId(companyId)}
+          onLocationFix={(fix) => {
+            if (!currentUser) return;
+            if (hasUserCoordinates(currentUser) &&
+              Math.abs(currentUser.lat - fix.lat) < 1e-6 &&
+              Math.abs(currentUser.lng - fix.lng) < 1e-6) return;
+            // The map just obtained a real GPS fix. Persist it as the buyer's
+            // origin so the product page, cart and proforma measure from the
+            // exact same point instead of an older saved pin.
+            const updated: User = { ...currentUser, lat: fix.lat, lng: fix.lng };
+            setCurrentUser(updated);
+            handleAdminUpdateUser(updated, true);
+          }}
         />
       </Suspense>
     );

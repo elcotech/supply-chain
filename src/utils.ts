@@ -256,6 +256,15 @@ export const calculateDistance = async (originLat: number, originLng: number, de
   return dist;
 };
 
+/**
+ * Round a measured distance to the 0.1 km precision shown in every buyer-facing
+ * view (search, product page, cart, proforma and map). Storing the rounded value
+ * on the cart line means the KM the buyer reads is exactly the KM the delivery
+ * fee is calculated from.
+ */
+export const roundKm = (km: number): number =>
+  Number.isFinite(km) && km > 0 ? Math.round(km * 10) / 10 : 0;
+
 export const calculateTransportCost = async (
   supplierLat: number, supplierLng: number,
   customerLat: number, customerLng: number,
@@ -464,7 +473,7 @@ export const stageCartLine = (
   // from the distance later, so the cart has to remember which rate applies.
   const rate = material.delivery && material.delivery.offered ? material.delivery : undefined;
   const measured = typeof distanceKm === 'number' && isFinite(distanceKm) && distanceKm > 0
-    ? distanceKm
+    ? roundKm(distanceKm)
     : undefined;
   const existing = current.find(item => item.materialId === material.id);
   if (existing) {

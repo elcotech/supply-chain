@@ -88,6 +88,12 @@ interface MapComponentProps {
   routeRequestId?: number;
   /** Fired after a route has been drawn, with the supplier it points to. */
   onRouteShown?: (companyId: string) => void;
+  /**
+   * Reports a meaningful GPS fix so the rest of the app measures from the same
+   * position the map is drawing from. Called on the first fix and again only
+   * when the buyer moves (≈50 m) or accuracy improves substantially.
+   */
+  onLocationFix?: (coords: { lat: number; lng: number; accuracy: number }) => void;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({
@@ -99,6 +105,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   autoRouteSupplierId,
   routeRequestId = 0,
   onRouteShown,
+  onLocationFix,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
@@ -126,6 +133,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
     lng: currentUser?.lng || 38.7469,
     accuracy: 0,
   });
+  // Tells the parent about real GPS fixes so the product page, cart and proforma
+  // all re-measure from the same origin the map uses. The callback lives in a ref
+  // because the watcher is installed once (empty deps) and must not go stale.
+  const onLocationFixRef = useRef(onLocationFix);
+  const reportedLocationRef = useRef<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const reportLocationFix = useCallback((lat: number, lng: number, accuracy: number) => {
+    const last = reportedLocationRef.current;
+    const moved = !last ||
+      Math.abs(last.lat - lat) > 0.0005 ||
+      Math.abs(last.lng - lng) > 0.0005;
+    // A much tighter accuracy is worth reporting even when the pin barely moved.
+    const clearer = !!last && accuracy > 0 && (last.accuracy <= 0 || accuracy < last.accuracy * 0.7);
+    if (!moved && !clearer) return;
+    reportedLocationRef.current = { lat, lng, accuracy };
+    onLocationFixRef.current?.({ lat, lng, accuracy });
+  }, []);
   const currentCompanyIdRef = useRef<string | null>(null);
   // Latest route drawer, so the geolocation watcher can refresh an already drawn
   // route once the real GPS position is known (declared after that watcher).
@@ -144,6 +167,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   }, []);
 
   const getUserPosition = useCallback(() => ({ ...userPositionRef.current }), []);
+
+  useEffect(() => {
+    onLocationFixRef.current = onLocationFix;
+  }, [onLocationFix]);
 
   // Remove ALL overlays from map — no stale closure issues
   const clearAllOverlays = useCallback(() => {
@@ -176,6 +203,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         const { latitude, longitude, accuracy } = position.coords;
         userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
         setGeoLocationStatus('granted');
+        reportLocationFix(latitude, longitude, accuracy);
 
         // Live-update user marker and accuracy circle on the map
         if (leafletMap.current && userMarkerRef.current) {
@@ -205,7 +233,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [reportLocationFix]);
 
   // OSRM routing — returns road-following route with accurate distance. Two
   // independent public servers are tried so one slow/blocked endpoint does not
@@ -505,6 +533,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         const { latitude, longitude, accuracy } = pos.coords;
         userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
         setGeoLocationStatus('granted');
+        reportLocationFix(latitude, longitude, accuracy);
         if (leafletMap.current) {
           leafletMap.current.setView([latitude, longitude], 14, { animate: true });
         }

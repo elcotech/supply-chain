@@ -18,6 +18,7 @@ import {
   vatOnSubtotal,
   allocateVat,
   calculateDistance,
+  roundKm,
   amountToWords,
   lookupKnownPlace,
   isGenericCoordinate,
@@ -663,5 +664,31 @@ describe('calculateDistance (road kilometres)', () => {
 
   it('rejects missing coordinates instead of inventing a distance', async () => {
     await expect(calculateDistance(Number.NaN, 37.22, 6.33, 37.44)).rejects.toThrow('Valid coordinates');
+  });
+});
+
+describe('roundKm (one decimal everywhere)', () => {
+  it('rounds the measured road distance to the displayed 0.1 km', () => {
+    expect(roundKm(11.74)).toBe(11.7);
+    expect(roundKm(11.75)).toBe(11.8);
+    expect(roundKm(11.749999)).toBe(11.7);
+  });
+
+  it('treats a missing or nonsensical distance as zero', () => {
+    expect(roundKm(0)).toBe(0);
+    expect(roundKm(-2)).toBe(0);
+    expect(roundKm(Number.NaN)).toBe(0);
+    expect(roundKm(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('is what stageCartLine stores, so the fee uses the visible KM', () => {
+    const material = {
+      id: 'm1', companyId: 'c1', name: 'Cement', category: 'Construction Material',
+      basePrice: 100, profitMargin: 0.15, price: 115, quantity: 500, unit: 'bag',
+      minOrder: 1, description: 'Portland cement', vatPercentage: 15,
+      specifications: { weightPerUnit: 0.05 },
+    } as any;
+    const lines = stageCartLine([], material, 50, true, 'Nati Building Supplies', 'set', 11.749);
+    expect(lines![0].distanceKm).toBe(11.7);
   });
 });

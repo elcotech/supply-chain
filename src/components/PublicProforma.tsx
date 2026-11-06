@@ -82,16 +82,6 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
             </p>
           )}
 
-          {data.f && data.f.length > 0 && (
-            <div className="public-proforma-suppliers">
-              {data.f.map((line, idx) => (
-                <span key={idx}>
-                  🚚 {line.n}: {(Number(line.k) || 0).toFixed(1)} km — {formatCurrency(Number(line.c) || 0)}
-                </span>
-              ))}
-            </div>
-          )}
-
           <div className="public-proforma-summary">
             <div><span>Items:</span><strong>{data.i.length} line item{data.i.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</strong></div>
             <div><span>Amount Before VAT:</span><strong>{formatCurrency(data.sub)}</strong></div>

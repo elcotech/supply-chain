@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CartItem, CartReport, User, Company, ProformaShareData, DeliveryMode } from '../types';
+import { CartItem, CartReport, User, Company, ProformaShareData } from '../types';
 import {
   formatCurrency, generateProformaQrDataUrl, checkMinOrder,
   buildProformaShareData, addedVatRate, amountToWords,
@@ -41,12 +41,6 @@ function specString(item: CartItem): string {
   if (s.certification && s.certification.length > 0) parts.push(s.certification.join(', '));
   return parts.join(' · ');
 }
-
-const DELIVERY_MODE_LABEL: Record<DeliveryMode, string> = {
-  supplier: 'Supplier rate',
-  platform: 'Platform rate',
-  none: 'No delivery',
-};
 
 const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   cart,
@@ -456,32 +450,6 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           {/* ============================= SUMMARY ============================= */}
           <div className="pf-summary-wrap">
-            {/* Per-supplier delivery breakdown: which lines asked for delivery and
-                which pricing rule paid for it. */}
-            {supplierGroups.length > 0 && (
-              <div className="pf-delivery-box">
-                <div className="pf-delivery-head">
-                  <span className="pf-delivery-icon">🚚</span>
-                  <span>Delivery Breakdown</span>
-                </div>
-                {supplierGroups.map(group => (
-                  <div key={group.supplierId} className="pf-delivery-row">
-                    <div className="pf-delivery-name">
-                      {group.supplierName}
-                      <small>
-                        🚗 {group.distanceKm.toFixed(1)} km · {DELIVERY_MODE_LABEL[group.deliveryMode || 'platform']}
-                        {group.deliveryMode === 'supplier' && group.deliveryBasis ? ' · ' + group.deliveryBasis : ''}
-                      </small>
-                    </div>
-                    <strong>{formatCurrency(group.transportCost)}</strong>
-                  </div>
-                ))}
-                <div className="pf-delivery-row pf-delivery-total">
-                  <div className="pf-delivery-name">Total delivery</div>
-                  <strong>{formatCurrency(report.transportCost)}</strong>
-                </div>
-              </div>
-            )}
             <div className="pf-summary">
               <div className="pf-sum-row">
                 <span>Amount Before VAT</span>

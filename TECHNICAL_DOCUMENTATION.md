@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices: desktop, tablet, mobile)
-> **Previous:** 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI), 6.11 (the product page's exact KM carries into cart & checkout, Sample Layout cart UI)
+> **Version:** 6.15 (one consistent 0.1 km everywhere — search, product page, cart, proforma, map and orders; no separate delivery breakdown)
+> **Previous:** 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices: desktop, tablet, mobile), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI), 6.11 (the product page's exact KM carries into cart & checkout)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
@@ -217,7 +217,7 @@ supply-chain1/
 1. Cart → `1 To Purchase` / `2 To Proforma` / `3 To Preview` → `confirmOrder()` / `handlePrintProforma()` / `handlePreviewProforma()`. All three price the same cart with VAT (`true`); only the destination differs.
 2. `priceCartItems(cart, applyVat, origin?)` builds the **whole-cart** `CartReport`: net subtotal, **one aggregate VAT** (`vatOnSubtotal`) only when `applyVat` is true, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox → supplier's `startFee + perKm × km` → platform fallback), grouped by supplier with distance, mode and fee each. A cart holds one supplier (§10.23), so the report normally has a single group.
 3. The report is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched) and `showProforma` is set. `To Preview` also clears `proformaAutoPrint`; `To Proforma` sets it, which makes `ProformaInvoice` fire `window.print()` once the modal has painted.
-4. `ProformaInvoice` renders from `proformaDetails` — every item, the supplier, the delivery breakdown and the supplier's signature block beside the buyer's.
+4. `ProformaInvoice` renders from `proformaDetails` — every item, the supplier, one **Delivery Cost** total and the supplier's signature block beside the buyer's.
 5. `buildProformaShareData` + `generateProformaQrDataUrl` encode the compact summary into the QR, which is a fixed top-right cell of the **document header** grid regardless of item count; the payload is capped at `MAX_QR_LINE_ITEMS` with the true count in `tc`, and `PublicProforma` renders it on scan.
 6. The buyer presses **🛒 Back to To Purchase** → `handleBackToPurchase()` closes the document and re-enters the cart at step 1 (§10.5). Nothing is lost: the proforma never mutates the cart.
 
@@ -306,8 +306,10 @@ alter a cart the buyer already priced.
 // ProformaShareData      { v, n (proforma no), d (date), b (buyer name),
 //                          s: {n,c}[] (suppliers),
 //                          i: {n,u,q,p,d?}[] (items, d = 1 delivery / 0 none),
-//                          f?: {n,k,c}[] (per-supplier delivery breakdown:
-//                                          name, km, cost),
+//                          f?: {n,k,c}[] (legacy per-supplier delivery data:
+//                                          name, km, cost; still encoded for
+//                                          old QR readers but no longer shown
+//                                          as a breakdown anywhere),
 //                          tc?: number (true item count when the QR list is
 //                                        truncated at MAX_QR_LINE_ITEMS),
 //                          sub, vat, del, tot, c: 'ETB' }
@@ -519,10 +521,10 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 ### 10.7 Proforma Invoice (NEW)
 - **File:** `src/components/ProformaInvoice.tsx`.
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
-- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), the per-supplier **delivery breakdown**, financial summary (**Amount Before VAT** → **VAT (x% added)** → **Delivery Cost** → **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines. The QR “public proforma” shows the same VAT-exclusive breakdown.
+- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), financial summary (**Amount Before VAT** → **VAT (x% added)** → **Delivery Cost** → **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines. The QR “public proforma” shows the same VAT-exclusive totals; the old per-supplier delivery breakdown was removed in v6.15.
 - **Layout (v5.4, extended in v5.5):** supplier and buyer blocks stay **side by side** everywhere — desktop, phones (`≤760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be ≤760px). Only the terms block still stacks — it is prose and needs the full width.
 - **Signature grid (changed in v5.2):** `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))`, so each party gets its own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
-- **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v5.2 `.pf-delivery-box` sits above them in that same column and shares the width so all three align.
+- **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v6.15 document no longer renders the old `.pf-delivery-box`, so the money summary is the first block in that column.
 - **Header is a 3-column grid (v5.6):** `.pf-header` is `display: grid` with `grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto` — `.pf-brand` column 1, `.pf-meta` column 2, `.pf-header-qr` column 3, all pinned to `grid-row: 1`. **Do not change it back to flex.** With flex, the long `.pf-tagline` plus `.pf-meta` could not shrink far enough on a mid-width screen, and the QR — which must never shrink — was pushed out of the row and wrapped onto a new line at the left. The grid makes "always top-right" structural, and the `≤760px` and `@media print` blocks only re-declare columns 1/2/3; they must keep `align-self: start` and `justify-self: end` on `.pf-header-qr` so it stays hard against the top-right corner, opposite the logo, whether the items table is 2 lines or 400.
 - Accessible from the cart summary modal via `2 To Proforma` (prints) and `3 To Preview` (screen only), both covering the **whole cart** — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56) and [10.5](#105-cart--checkout).
 - **Action bar (v5.7):** two buttons — `🖨️ Print Proforma` and `🛒 Back to To Purchase`. The second fires `onBackToPurchase` when the host supplies it (falling back to `onClose`) and returns the buyer to step 1 of the cart; see [10.5](#105-cart--checkout). The bar is `.proforma-actions.no-print`, so neither button is printed.
@@ -626,9 +628,9 @@ One proforma covers **every selected item** in the cart. The v5.1 "choose one su
 - **QR never moves (v5.2, hardened in v5.6):** the verification QR is rendered in `.pf-header-qr`, pinned to column 3 of the `.pf-header` **grid** so its position is independent of the item count. This was the point of the change — a longer items table must not push the QR down the page. In v5.6 the header was converted from flex to grid precisely so a long brand tagline or supplier name could never wrap the QR onto a new line; see [10.7](#107-proforma-invoice-new).
 - **Legacy mixed carts:** a cart persisted by a pre-v5.6 build can still hold more than one supplier. Nothing auto-clears it. `priceCartItems` keeps grouping by supplier and `ProformaInvoice` keeps rendering `SUPPLIER DETAILS (N)` with a signature block each, so such a cart still produces a correct document instead of silently dropping lines. The buyer is expected to clear it and start again.
 - **Payload vs document:** `buildProformaShareData` (`src/utils.ts`) truncates the QR item list at `MAX_QR_LINE_ITEMS = 12` so the code stays scannable, and records the true count in `tc` when it does. `PublicProforma` shows "Showing the first 12 of 40 line items — the printed proforma lists every item." The **printed document is never truncated.**
-- **Document (`ProformaInvoice.tsx`):** `suppliers: Company[]` replaced the old `supplier` + `ProformaSupplier[]` props. It renders every supplier in `SUPPLIER DETAILS (N)`, a `Delivery` column (`🚚 Included` / `—`) per line, the supplier name under the item description (`.pf-line-supplier`), a **Delivery Breakdown** block (`.pf-delivery-box`: distance + `DeliveryMode` label + the `deliveryBasis` text) above the money summary, and a note under the delivery terms explaining how each line was priced. `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))` so each party gets a signature line. `autoPrint?: boolean` (default `false`) fires `window.print()` 350 ms after mount, guarded by a `useRef` so a re-render cannot open a second dialog.
+- **Document (`ProformaInvoice.tsx`):** `suppliers: Company[]` replaced the old `supplier` + `ProformaSupplier[]` props. It renders every supplier in `SUPPLIER DETAILS (N)`, a `Delivery` column (`🚚 Included` / `—`) per line, the supplier name under the item description (`.pf-line-supplier`), the money summary with one **Delivery Cost** total, and a note under the delivery terms explaining how each line was priced. The v5.2 **Delivery Breakdown** block (`.pf-delivery-box`) and the public-proforma delivery lines were removed in v6.15. `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))` so each party gets a signature line. `autoPrint?: boolean` (default `false`) fires `window.print()` 350 ms after mount, guarded by a `useRef` so a re-render cannot open a second dialog.
 - **Columns:** the item table's `pf-col-*` widths were re-balanced to make room for `pf-col-deliv` (12%) — the descriptions and specs give up the space.
-- **No double counting:** the delivery breakdown totals must equal `report.transportCost`, which is why a manual fee override is still scaled across suppliers in `priceCartItems` rather than applied afterwards.
+- **No double counting:** the per-line delivery fees must add up to `report.transportCost`, which is why a manual fee override is still scaled across suppliers in `priceCartItems` rather than applied afterwards. The document shows only that one total.
 
 ### 10.22 Per-line delivery pricing (NEW in v5.2)
 A supplier can offer to deliver an item themselves, and the buyer decides per line whether they want that.
@@ -950,7 +952,7 @@ The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders
 3. **Supplier & Buyer Details** (`.cart-new-parties`): two side-by-side rounded cards — Supplier Details and Buyer Details — each with key:value rows (Company Name, Address, TIN, VAT No., Phone, Email for supplier; plus Contact Person for buyer).
 4. **Item Details Banner** (`.cart-new-product-banner`): per-line card with product thumbnail, name, price/unit, description, and stacked **GPS MAP** + **Auto Refresh** buttons.
 5. **Order Items Table** (`.cart-new-items-section` / `.cart-new-table`): No., Item Name, Description, Unit, Qty (with `−` / `+` stepper), Unit Price.
-6. **Delivery Cost** (`.cart-new-delivery-section`): header with 📍 Delivery Cost label + GPS MAP / Refresh buttons, then Starting Point / Destination / Total Distance / Delivery Cost rows.
+6. **Delivery Cost** (`.cart-new-delivery-section`): header with 📍 Delivery Cost label + GPS MAP / Refresh buttons, then Starting Point / Destination / Total Distance / Delivery Cost rows. The distance is the same 0.1 km value used by the product page and proforma (v6.15).
 7. **Financial Summary** (`.cart-new-financial`): Amount Before VAT, VAT (%), Delivery Cost, Grand Total (highlighted dark-blue row).
 8. **Amount in Words** (`.cart-new-words`): light-blue bar with the total spelled out.
 9. **Terms & Payment** (`.cart-new-bottom`): two side-by-side boxes — Terms, Conditions, Delivery & Remarks (left) and Payment Methods (right, with wallet/bank/cash radio options).
@@ -1056,7 +1058,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.2` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.6` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1127,7 +1129,7 @@ npm test
 | File                  | What it covers                                                       |
 | --------------------- | -------------------------------------------------------------------- |
 | `src/settings.test.ts` | Defaults, round-trip persistence, corrupted-JSON repair, number sanitising, admin seed |
-| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode→decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, delivery breakdown, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation) |
+| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode→decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, legacy delivery data, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation), **`roundKm`** (0.1 km rounding used by every buyer-facing view and by `stageCartLine`) |
 
 41 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
 
@@ -1181,7 +1183,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.14.2`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.14.6`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1203,6 +1205,31 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.15 - one KM everywhere, map fix shared with the app, delivery breakdown removed
+- **Single source of truth for distance.** `roundKm` in `utils.ts` rounds every
+  measured road distance to the 0.1 km shown to buyers. `stageCartLine`,
+  `priceCartItems`, `confirmOrder`, the product-page preview and search all store
+  or display that same value, so the KM read on a result row, the product page,
+  the cart, the proforma and the placed order can no longer differ.
+- **Search no longer invents an Addis fallback.** `performSearch` measures only
+  when the buyer has a real pin (its old `9.0320/38.7469` fallback could show a
+  KM the product page refused to produce). Without a location the row shows `—`.
+- **The map's GPS fix flows back to the app.** `MapComponent` accepts
+  `onLocationFix` and reports the first real fix, then only meaningful moves
+  (≈50 m) or much better accuracy. `App` persists that pin as the buyer origin,
+  so the map, product page, cart and proforma measure from the same point.
+- **Saved carts re-measure when the origin moves.** A new effect compares
+  `currentUser.lat/lng` with the origin the lines were measured from and updates
+  `CartItem.distanceKm` (then re-prices the open cart), covering a fresh GPS fix
+  from the map, the cart's Refresh button, and a reload after moving.
+- **Delivery breakdown removed.** `ProformaInvoice` no longer renders the
+  `.pf-delivery-box` "Delivery Breakdown", and `PublicProforma` no longer lists
+  the per-supplier delivery lines. The one **Delivery Cost** row in the summary
+  remains the authoritative total. The legacy `f` payload field is still encoded
+  for old QR readers but is not shown.
+- **Release.** `versionCode 18` / `versionName "1.9.8"`, `sw.js` `VERSION`
+  `e-scon-v1.14.6`.
 
 ### v6.13 - accurate map pins, live cart delivery block, shared amount in words
 - **Supplier pins resolve to their real addresses.** `utils.ts` now carries a

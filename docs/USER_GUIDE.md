@@ -67,8 +67,9 @@ On the **Search** page:
 - Narrow results with the filters: **Department**, **Supplier**, **City**,
   **Max price** and **Sort** (price up/down, rating, newest).
 - Each product row shows a **🚗 distance** badge from your location to the
-  supplier. Guests use a default location (Addis Ababa) marked *"(default
-  location – login to use yours)"*.
+  supplier. If you have not set a location (for example, before signing in) the
+  badge shows **—** instead of inventing a distance; sign in or set **My
+  Location** to see it.
 - Tap a product row to **open the map with the driving route** to that supplier,
   including the distance in km and estimated driving time. Use **View Route on
   Map** from the product details for the same thing.
@@ -167,15 +168,17 @@ In the cart you can:
 - Toggle a manual delivery-fee override where offered.
 - Press **View** or **Map** on an item card to re-open the product or its route.
 
-The totals update automatically, and the **Delivery Cost** row shows the exact
-road distance the product page measured (for example `(11.7 km × 25.01
-ETB/km)`) — the same figure you saw before adding the item, never a new
-measurement. The cart only asks your device for a location when a line has no
-measured distance yet; if permission is denied, the cart keeps every line and
-shows **Use my current location** or **Retry calculating** instead of spinning
-forever. The Financial Summary shows the goods subtotal, the pending VAT note
-(**"Added when you place the order"**) and the **Grand Total** — the
-VAT-inclusive payable that is what the wallet balance must cover.
+The totals update automatically, and the **Delivery Cost** row shows the same
+road distance as the product page (for example `11.7 km × 25.01 ETB/km`), rounded
+to one decimal in every view. If you move, the cart re-measures its saved lines
+from your new position (from the map's live GPS fix, the cart's **Refresh**
+button, or after a reload) so the cart, proforma and order never keep an old KM.
+The cart only asks your device for a location when a line has no measured
+distance yet; if permission is denied, the cart keeps every line and shows **Use
+my current location** or **Retry calculating** instead of spinning forever. The
+Financial Summary shows the goods subtotal, the pending VAT note (**"Added when
+you place the order"**) and the **Grand Total** — the VAT-inclusive payable that
+is what the wallet balance must cover.
 
 ### Three order actions, in order
 
@@ -199,7 +202,7 @@ can never disagree about the total.
 ### The proforma invoice
 
 The **proforma is your order document**. It contains your details and the
-supplier's, the item table, a delivery breakdown, the **Amount Before VAT**, the
+supplier's, the item table, one **Delivery Cost** total, the **Amount Before VAT**, the
 VAT **added** on top of the goods subtotal, delivery cost and the grand total, the
 amount in words and the terms & conditions. It carries a **QR code** in the
 top-right corner. The document automatically scales to fit **one A4 page** when
@@ -345,7 +348,7 @@ Installing is optional — the app works the same in a normal browser tab.
 | --- | --- |
 | Distance says "Unable to calculate" | The route service is busy — retry in a moment; the app falls back to a straight-line estimate |
 | Order says my location is unavailable | Your items are already saved in the cart. Allow location/GPS access for E-SCON, then use **Use my current location** in the cart (or press **Place Order** again). Without permission the app can only use a saved location, if one exists |
-| Distance didn't change after I moved | The distance is measured once and then kept, so the cart can never quote a different number than you saw. To measure again from your new position, move the pin in **My Location** and reopen the product |
+| Distance didn't change after I moved | Open the map once so it can lock a GPS fix, or press **Refresh** in the cart's Delivery Cost block; the saved cart lines are then re-measured from the new position and every view shows the same 0.1 km value |
 | Order Summary keeps saying "Calculating…" | It prices 250 ms after you change something, so wait a beat. If it cannot finish, the block on screen says why and gives you **📍 Use my current location** when you have no pin, **Retry calculating** for a failed quote, or **Clear cart & order this product** when the cart holds another supplier's goods |
 | "Please select a valid user" although the details are right | The account list was still loading. Close the form and try again — the list loads without waiting on location any more |
 | Map opens without a route | Re-select the supplier; the route redraws from your current GPS position |
