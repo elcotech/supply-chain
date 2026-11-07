@@ -44,6 +44,10 @@ const accuracyCircleOptions: L.CircleOptions = {
   radius: 100,
 };
 
+const hasRealPosition = (user: User | null): user is User & { lat: number; lng: number } =>
+  !!user && Number.isFinite(user.lat) && Number.isFinite(user.lng) &&
+  !(user.lat === 0 && user.lng === 0);
+
 const cityCoords: Record<string, [number, number]> = {
   'Addis Ababa': [9.0320, 38.7469],
   'Adama': [8.5400, 39.2700],
@@ -128,11 +132,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const userMarkerRef = useRef<L.Marker | null>(null);
   const accuracyCircleRef = useRef<L.Circle | null>(null);
   const supplierMarkersRef = useRef<Map<string, L.Marker>>(new Map());
-  const userPositionRef = useRef<{ lat: number; lng: number; accuracy: number }>({
-    lat: currentUser?.lat || 9.0320,
-    lng: currentUser?.lng || 38.7469,
-    accuracy: 0,
-  });
+  // True only once the map has a trustworthy origin: the saved buyer pin or a
+  // live GPS fix. Without it we refuse to invent an Addis distance, because the
+  // search list and product page show "—" instead of that fake measurement.
+  const hasOriginRef = useRef(hasRealPosition(currentUser));
+  const userPositionRef = useRef<{ lat: number; lng: number; accuracy: number }>(
+    hasRealPosition(currentUser)
+      ? { lat: currentUser.lat, lng: currentUser.lng, accuracy: 0 }
+      : { lat: 9.0320, lng: 38.7469, accuracy: 0 }
+  );
   // Tells the parent about real GPS fixes so the product page, cart and proforma
   // all re-measure from the same origin the map uses. The callback lives in a ref
   // because the watcher is installed once (empty deps) and must not go stale.
@@ -202,6 +210,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       (position) => {
         const { latitude, longitude, accuracy } = position.coords;
         userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
+        hasOriginRef.current = true;
         setGeoLocationStatus('granted');
         reportLocationFix(latitude, longitude, accuracy);
 
@@ -281,6 +290,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     setIsRouteLoading(true);
     setIsDistanceLoading(true);
+    setLocateMeMsg(null);
 
     // Step 1: CLEAR ALL previous overlays
     clearAllOverlays();
@@ -289,6 +299,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     const origin = getUserPosition();
     const dest = getCoords(company);
+
+    // No saved pin and no GPS fix yet: measure nothing rather than charging from
+    // the Addis default. The watcher redraws automatically on the first fix.
+    if (!hasOriginRef.current) {
+      setIsRouteLoading(false);
+      setIsDistanceLoading(false);
+      setDistance(null);
+      setRouteInfo(null);
+      setLocateMeMsg('📍 Set your location to measure the road distance (tap Locate Me).');
+      return;
+    }
 
     // Step 2: Add fresh user location marker
     const uMarker = L.marker([origin.lat, origin.lng], { icon: userIcon })
@@ -400,6 +421,24 @@ const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     drawRouteRef.current = drawRouteForSupplier;
   }, [drawRouteForSupplier]);
+
+  // The search list and product page measure from the saved buyer pin. Whenever
+  // that pin changes — a location refresh, a manual pin, a login — move the
+  // map's origin to the same point and redraw, so pre-click and post-click
+  // distances agree. Live GPS fixes take precedence over a saved pin.
+  useEffect(() => {
+    if (hasGpsFixRef.current) return;
+    if (!hasRealPosition(currentUser)) return;
+    const next = { lat: currentUser.lat, lng: currentUser.lng, accuracy: 0 };
+    const prev = userPositionRef.current;
+    if (hasOriginRef.current &&
+      Math.abs(prev.lat - next.lat) < 1e-9 &&
+      Math.abs(prev.lng - next.lng) < 1e-9) return;
+    userPositionRef.current = next;
+    hasOriginRef.current = true;
+    const active = selectedCompanyRef.current;
+    if (active) void drawRouteRef.current?.(active);
+  }, [currentUser]);
 
   // Marker clicks are wired up in the mount effect (empty deps), so they go
   // through this ref to always reach the current selection logic.
@@ -532,6 +571,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         userPositionRef.current = { lat: latitude, lng: longitude, accuracy };
+        hasOriginRef.current = true;
+        hasGpsFixRef.current = true;
         setGeoLocationStatus('granted');
         reportLocationFix(latitude, longitude, accuracy);
         if (leafletMap.current) {
@@ -568,9 +609,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
             <span style={{ fontSize: 12, opacity: 0.6 }}>
               {geoLocationStatus === 'granted' && '🟢 GPS Active'}
               {geoLocationStatus === 'requesting' && '🟡 Requesting GPS…'}
-              {geoLocationStatus === 'denied' && '🔴 GPS Denied — using default position'}
-              {geoLocationStatus === 'error' && '🔴 GPS Error — using default position'}
-              {geoLocationStatus === 'timeout' && '🟠 GPS Timed Out — using default position'}
+              {(geoLocationStatus === 'denied' || geoLocationStatus === 'error' || geoLocationStatus === 'timeout') &&
+                (hasRealPosition(currentUser)
+                  ? '🟠 Using your saved location'
+                  : '🔴 Set your location to measure')}
               {geoLocationStatus === 'unsupported' && '⚪ GPS Unsupported'}
             </span>
             <button

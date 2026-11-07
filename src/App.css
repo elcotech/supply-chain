@@ -7831,18 +7831,30 @@ a:focus-visible {
 
 .cart-sample-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
   background: linear-gradient(90deg, #0b3d73 0%, #005baa 100%);
   color: #fff;
   padding: 6px 12px;
   flex-shrink: 0;
 }
 
+.cart-sample-head-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
 .cart-sample-brand {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  min-width: 0;
   gap: 10px;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -7858,15 +7870,12 @@ a:focus-visible {
   opacity: 0.9;
 }
 
-.cart-sample-head-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .cart-sample-clock {
+  display: block;
   font-size: 0.82rem;
   opacity: 0.95;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .cart-sample-modal .modal-close {
@@ -8267,5 +8276,36 @@ a:focus-visible {
 
   .cart-sample-remove {
     margin-left: 0;
+  }
+}
+
+/* Desktop/tablet only: show the cart as a centred A4-width sheet instead of
+   stretching across the whole monitor. The sheet hugs its content (no dead
+   space at the bottom) and scrolls inside when the review is taller than the
+   viewport. Phones keep the full-screen layout defined above. */
+@media (min-width: 641px) {
+  .cart-overlay-single {
+    padding: 24px;
+  }
+
+  .cart-overlay-single .cart-sample-modal {
+    width: 794px;
+    max-width: calc(100vw - 48px);
+    height: auto;
+    max-height: calc(100vh - 48px);
+    padding: 0;
+    border: 1px solid rgba(11, 61, 115, 0.12);
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(8, 22, 40, 0.45);
+  }
+
+  .cart-single-header {
+    margin-bottom: 0;
+  }
+
+  .cart-single-body {
+    min-height: 0;
+    padding: 10px 14px 14px;
   }
 }

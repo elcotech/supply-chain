@@ -3039,15 +3039,15 @@ function App() {
       <div className="modal-overlay cart-overlay-single" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal cart-sample-modal cart-single-page" onClick={e => e.stopPropagation()}>
           <div className="modal-header cart-sample-head cart-single-header">
-            <div className="cart-sample-brand">
-              <span className="cart-sample-brand-name">☰ E-SCON</span>
-              <span className="cart-sample-brand-divider">|</span>
-              <span className="cart-sample-brand-title">SHOPPING CART</span>
-            </div>
-            <div className="cart-sample-head-right">
-              <span className="cart-sample-clock"><LiveClock /></span>
+            <div className="cart-sample-head-top">
+              <div className="cart-sample-brand">
+                <span className="cart-sample-brand-name">☰ E-SCON</span>
+                <span className="cart-sample-brand-divider">|</span>
+                <span className="cart-sample-brand-title">SHOPPING CART</span>
+              </div>
               <button className="modal-close" onClick={() => setShowCartSummary(false)}>✕</button>
             </div>
+            <div className="cart-sample-clock"><LiveClock /></div>
           </div>
           <div className="modal-body cart-single-body">
             {cart.length === 0 ? (

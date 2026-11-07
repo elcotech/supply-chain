@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.15 (one consistent 0.1 km everywhere — search, product page, cart, proforma, map and orders; no separate delivery breakdown)
-> **Previous:** 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices: desktop, tablet, mobile), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI), 6.11 (the product page's exact KM carries into cart & checkout)
+> **Version:** 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart before and after a refresh)
+> **Previous:** 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices: desktop, tablet, mobile), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
@@ -947,7 +947,7 @@ The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders
 
 **Layout sections (in order, matching the reference image):**
 
-1. **Header** (`.cart-sample-head`): dark-blue gradient bar with `☰ E-SCON | SHOPPING CART` brand, live clock (`LiveClock`), and ✕ close.
+1. **Header** (`.cart-sample-head`): dark-blue gradient bar with `☰ E-SCON | SHOPPING CART` and ✕ close on the first line, and the live clock (`LiveClock`) on its own single line so the brand never wraps. The blue bar is inset by the modal's page padding only on phones; on desktop the sheet has no outer padding.
 2. **Steps** (`.cart-new-steps` / `.cart-order-step`): three tabs — `1 To Purchase` (solid dark blue, white text), `2 To Proforma`, `3 To Review` (light-blue fill, dark-blue text).
 3. **Supplier & Buyer Details** (`.cart-new-parties`): two side-by-side rounded cards — Supplier Details and Buyer Details — each with key:value rows (Company Name, Address, TIN, VAT No., Phone, Email for supplier; plus Contact Person for buyer).
 4. **Item Details Banner** (`.cart-new-product-banner`): per-line card with product thumbnail, name, price/unit, description, and stacked **GPS MAP** + **Auto Refresh** buttons.
@@ -963,7 +963,7 @@ The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders
 
 | Breakpoint | Width | Behavior |
 | --- | --- | --- |
-| Desktop | > 900px | Full two-column parties, two-column bottom (terms + payment), 4-column delivery row, side-by-side product banner with stacked actions |
+| Desktop | ≥ 641px | Centred A4-width sheet (794px, A4 at 96 dpi) with the modal padding removed; full two-column parties, two-column bottom (terms + payment), 4-column delivery row, side-by-side product banner with stacked actions. The sheet hugs its content and only scrolls inside when taller than the viewport |
 | Tablet landscape | 768–900px | Parties stack to 1fr, delivery row 2-col, product banner keeps thumbnail + info + stacked actions |
 | Phone | ≤ 640px | Everything single-column, compact font sizes (0.6–0.75rem), full-width action buttons stacked vertically, delivery row 1-col, signatures stacked |
 | Small phone | ≤ 400px | Extra compact (0.55–0.7rem), 35px thumbnails, tighter spacing |
@@ -1205,6 +1205,26 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.16 - centred A4-width cart on desktop, map measures from the same buyer pin
+- **Desktop cart is a centred A4-width sheet.** At `min-width: 641px` the cart
+  modal is capped at 794 px (A4 width at 96 dpi) and centred by the overlay,
+  instead of stretching to `99vw`. The sheet hugs its content (`height: auto`,
+  `max-height: calc(100vh - 48px)`) with no dead space at the bottom, the modal
+  padding is removed so the document fills the page, and the header clock sits
+  on its own line. The cart body scrolls inside when the review is taller than
+  the screen. Phones (≤640 px) are unchanged and stay full-screen.
+- **The map now uses the same origin as search and the product page.** The
+  `MapComponent` origin is seeded from the saved buyer pin and a new effect
+  follows `currentUser.lat/lng` changes until a live GPS fix arrives, so the
+  pre-click search KM, the product page and the route card cannot disagree.
+- **No fake Addis measurement.** Without a saved pin or GPS fix the map no
+  longer draws a distance from the `9.0320/38.7469` default; it shows
+  "Set your location to measure" and redraws automatically on the first fix.
+  The status line now distinguishes "using your saved location" from "set your
+  location", and `Locate Me` marks the position as trustworthy.
+- **Release.** `versionCode 19` / `versionName "1.9.9"`, `sw.js` `VERSION`
+  `e-scon-v1.14.7`.
 
 ### v6.15 - one KM everywhere, map fix shared with the app, delivery breakdown removed
 - **Single source of truth for distance.** `roundKm` in `utils.ts` rounds every

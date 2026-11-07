@@ -156,10 +156,13 @@ Open the cart from the **🛒 icon** in the header (desktop) or the **floating c
 button** in the mobile tab bar. There are only these two ways in.
 
 The cart follows the app's shopping-cart layout: a dark-blue **E-SCON |
-SHOPPING CART** header with the **live date and time**, the three order steps
-below it, one photo card per item (with **View** to open the product page and
-**Map** to draw the route), the quantity controls with the **With delivery**
-choice, then a numbered **Financial Summary** and the **Payment Method** block.
+SHOPPING CART** header with the **live date and time** on its own line, the
+three order steps below it, one photo card per item (with **View** to open the
+product page and **Map** to draw the route), the quantity controls with the
+**With delivery** choice, then a numbered **Financial Summary** and the
+**Payment Method** block. On a computer or tablet the cart opens as a centred
+A4-width sheet instead of stretching across the whole screen; on a phone it
+stays full-screen.
 
 In the cart you can:
 
@@ -176,6 +179,10 @@ button, or after a reload) so the cart, proforma and order never keep an old KM.
 The cart only asks your device for a location when a line has no measured
 distance yet; if permission is denied, the cart keeps every line and shows **Use
 my current location** or **Retry calculating** instead of spinning forever. The
+map measures from the same saved pin as search and the product page, so the KM
+you see before opening a product matches the route and the value after a
+refresh. If no location is saved, the map asks you to set one instead of
+inventing an Addis distance. The
 Financial Summary shows the goods subtotal, the pending VAT note (**"Added when
 you place the order"**) and the **Grand Total** — the VAT-inclusive payable that
 is what the wallet balance must cover.
