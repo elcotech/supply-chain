@@ -19,7 +19,7 @@ This guide is for the people who *use* the app. For how it is built, see
 | **Admin** | Configure platform-wide delivery fees, zones and the minimum-order rule |
 
 You can use E-SCON in a normal browser, or install it as an app on your phone
-(see §8).
+(see §9).
 
 ---
 
@@ -299,7 +299,63 @@ admins see everything.
 
 ---
 
-## 7. Platform settings (admin only)
+## 7. Marketplace, analytics and Copilot (everyone)
+
+### Marketplace
+
+Open **Marketplace** from the top navigation, the footer, the mobile bottom bar
+(**Market**) or the **New in E-SCON** card on Home.
+
+- Search the whole catalogue in the hero box, then narrow it with **category**
+  and **city** chips and the **sort** list (relevance, price up/down, rating,
+  newest).
+- Tap a **supplier storefront** to see their city, rating, catalogue size,
+  delivery-rate summary and a **View route** button that opens the same map and
+  distance used by Search, product details and the cart.
+- Product cards work like the rest of the app: ♡ saves a favourite, the compare
+  icon adds up to four items, and **Add** stages the item in the same cart. The
+  button changes to **In cart** once added.
+- Use **Load more** to see the next page of results.
+
+### Analytics & Insights
+
+Open **Insights** (or **Analytics**) from the navigation, footer, mobile **More**
+sheet or the Home card.
+
+- Pick a period: **30 days**, **90 days**, **365 days** or **All time**.
+- The figures always match your account:
+  - **Admin** sees the whole platform.
+  - **Supplier** sees only their own company's products and orders.
+  - **Customer** sees only their own orders and spending.
+- Cards summarise revenue/GMV, orders, average order value, delivery and VAT,
+  stock value and low-stock items. Charts show the six-month trend, order
+  status, category and city mix; tables rank top products, suppliers and
+  customers; the price board shows each product's current price and forecast.
+- The coloured insight strip explains the most important movement in plain
+  language (for example, revenue up or down versus the previous period).
+- **Export CSV** is available to suppliers and admins. Customers do not export
+  data.
+
+### Copilot
+
+Open **Copilot** from the navigation, footer, mobile bottom bar (**🤖 Copilot**)
+or any **Ask Copilot** button.
+
+- Tap a suggested question or type your own, for example **"How is revenue this
+  month?"**, **"What should I restock?"**, **"Who are my top customers?"** or
+  **"Compare category performance"**.
+- Answers are built **only from your own role-scoped data** and show metric
+  cards, mini-charts and bullet explanations. Copilot runs on the device, so it
+  works offline and never sends your business data to a server.
+- Follow-up chips suggest the next useful question. The sidebar shows the live
+  context (role, period, orders, catalog size) and shortcuts back to
+  Marketplace and Insights.
+- **Clear chat** removes the conversation. History is kept for the current
+  browser tab only.
+
+---
+
+## 8. Platform settings (admin only)
 
 Sign in as an admin (`admin@escon.et`) and open the **⚙️ Settings** page to
 configure, without any code changes:
@@ -314,7 +370,7 @@ automatically if it is ever removed.
 
 ---
 
-## 8. Install E-SCON on your phone
+## 9. Install E-SCON on your phone
 
 E-SCON is an **installable app** (PWA) and works offline for the app shell.
 
@@ -338,7 +394,7 @@ Installing is optional — the app works the same in a normal browser tab.
 
 ---
 
-## 9. Appearance
+## 10. Appearance
 
 - Toggle the **☀️/🌙** button to switch between two light-blue themes (nothing
   dark).
@@ -349,7 +405,7 @@ Installing is optional — the app works the same in a normal browser tab.
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Problem | What to do |
 | --- | --- |

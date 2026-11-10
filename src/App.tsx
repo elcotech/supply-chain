@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
+import './escon-v7.css';
 import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload, DeliveryMode, MaterialDelivery } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS
@@ -24,6 +25,9 @@ import PublicProforma from './components/PublicProforma';
 import InstallGuide from './components/InstallGuide';
 import AdminSettings from './components/AdminSettings';
 import OrderTimeline from './components/OrderTimeline';
+import AnalyticsPage from './components/AnalyticsPage';
+import MarketplacePage from './components/MarketplacePage';
+import CopilotPage from './components/CopilotPage';
 import { Sparkline, StarRatingDisplay, StarRatingInput } from './components/Charts';
 import useIsMobile from './hooks/useIsMobile';
 
@@ -349,6 +353,7 @@ function App() {
   const [adminCompanyTarget, setAdminCompanyTarget] = useState<{ company: Company; user: User } | null>(null);
   const [adminEditingMaterial, setAdminEditingMaterial] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
+  const [copilotSeed, setCopilotSeed] = useState<string>('');
   const [darkMode, setDarkMode] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
@@ -566,6 +571,13 @@ function App() {
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Open Copilot and optionally pre-ask a question. The seed is cleared once the
+  // page consumes it so the same prompt can be sent again later.
+  const openCopilot = useCallback((prompt?: string): void => {
+    setCopilotSeed(prompt || '');
+    navigateTo('copilot');
+  }, [navigateTo]);
 
   // Every page heading greets the signed-in user by name, so the word the
   // requirement asks for ("Welcome") is present on every heading, on desktop
@@ -2889,7 +2901,10 @@ function App() {
   const renderGuestNav = () => (
     <>
       <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
+      <button className={'nav-link ' + (currentPage === 'marketplace' ? 'active' : '')} onClick={() => navigateTo('marketplace')}>Marketplace</button>
       <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>Search</button>
+      <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
+      <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>🤖 Copilot</button>
       <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>Map</button>
       <button className={'nav-link ' + (currentPage === 'login' ? 'active' : '')} onClick={() => navigateTo('login')}>Login</button>
       <button className={'nav-link ' + (currentPage === 'register' ? 'active' : '')} onClick={() => navigateTo('register')}>Register</button>
@@ -2902,7 +2917,10 @@ function App() {
     return (
       <>
         <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
+        <button className={'nav-link ' + (currentPage === 'marketplace' ? 'active' : '')} onClick={() => navigateTo('marketplace')}>Marketplace</button>
         <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>Search</button>
+        <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
+        <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>🤖 Copilot</button>
         {isCompany ? (
           <>
             <button className={'nav-link ' + (currentPage === 'company-dashboard' ? 'active' : '')} onClick={() => navigateTo('company-dashboard')}>Dashboard</button>
@@ -3351,6 +3369,33 @@ function App() {
           <div className="stat-card glass"><div className="stat-icon">🏢</div><div className="stat-value">{stats.totalCompanies}</div><div className="stat-label">Suppliers</div></div>
           <div className="stat-card glass"><div className="stat-icon">📊</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
           <div className="stat-card glass"><div className="stat-icon">⭐</div><div className="stat-value">{stats.avgRating}/5</div><div className="stat-label">Rating</div></div>
+        </div>
+        <h2 className="section-title">🚀 New in E-SCON</h2>
+        <div className="home-modules">
+          <button type="button" className="home-module marketplace" onClick={() => navigateTo('marketplace')}>
+            <span className="home-module-icon">🛍️</span>
+            <span className="home-module-body">
+              <strong>Marketplace</strong>
+              <small>Search {materials.length} products from {companies.length} verified suppliers, compare prices and order in one place.</small>
+            </span>
+            <span className="home-module-cta">Browse →</span>
+          </button>
+          <button type="button" className="home-module analytics" onClick={() => navigateTo('analytics')}>
+            <span className="home-module-icon">📊</span>
+            <span className="home-module-body">
+              <strong>Analytics &amp; Insights</strong>
+              <small>Live KPIs, revenue trends, category charts, price forecasts and CSV export — scoped to your role.</small>
+            </span>
+            <span className="home-module-cta">View report →</span>
+          </button>
+          <button type="button" className="home-module copilot" onClick={() => openCopilot('Give me an executive summary')}>
+            <span className="home-module-icon">🤖</span>
+            <span className="home-module-body">
+              <strong>Copilot AI</strong>
+              <small>Ask plain-language questions about orders, stock, suppliers and prices. Answers come from your live data.</small>
+            </span>
+            <span className="home-module-cta">Ask now →</span>
+          </button>
         </div>
         <h2 className="section-title">✨ Key Features</h2>
         <div className="features-grid">
@@ -4234,7 +4279,7 @@ function App() {
       <footer className="footer glass">
         <div className="footer-content">
           <div className="footer-section"><h3>E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
-          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button><button onClick={() => setShowInstallGuide(true)}>📲 Install App</button></div>
+          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('marketplace')}>Marketplace</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => navigateTo('analytics')}>Analytics &amp; Insights</button><button onClick={() => openCopilot()}>🤖 Copilot</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button><button onClick={() => setShowInstallGuide(true)}>📲 Install App</button></div>
           <div className="footer-section"><h3>Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>{c}</span>)}</div></div>
           <div className="footer-section"><h3>Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
         </div>
@@ -4248,6 +4293,9 @@ function App() {
     const titles: Record<string, string> = {
       home: 'E-SCON',
       'search-materials': 'Find Products',
+      marketplace: 'Marketplace',
+      analytics: 'Analytics & Insights',
+      copilot: 'Copilot AI',
       'company-dashboard': 'Supplier Dashboard',
       'customer-dashboard': 'My Dashboard',
       orders: 'Orders',
@@ -4322,13 +4370,16 @@ function App() {
         {!currentUser ? (
           <>
             <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon="🏠" label="Home" />
-            <TabLink active={currentPage === 'search-materials'} onClick={() => navigateTo('search-materials')} icon="🔍" label="Search" />
+            <TabLink active={currentPage === 'marketplace'} onClick={() => navigateTo('marketplace')} icon="🛍️" label="Market" />
             <button className="m-fab" onClick={() => navigateTo('login')} aria-label="Login">
               <span className="m-fab-icon">🔑</span>
               <span className="m-fab-label">Login</span>
             </button>
-            <TabLink active={false} onClick={() => setShowSupplierMap(true)} icon="🗺️" label="Map" />
-            <TabLink active={false} onClick={() => setShowInstallGuide(true)} icon="📲" label="Install" />
+            <TabLink active={currentPage === 'copilot'} onClick={() => openCopilot()} icon="🤖" label="Copilot" />
+            <button className={'m-tab' + (mobileMenuOpen ? ' active' : '')} onClick={() => setMobileMenuOpen(true)}>
+              <span className="m-tab-icon">☰</span>
+              <span className="m-tab-label">More</span>
+            </button>
           </>
         ) : (
           <>
@@ -4389,15 +4440,24 @@ function App() {
             </div>
           )}
           <div className="m-sheet-actions">
-            <Action
-              icon="📊"
-              label="Dashboard"
-              sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : 'Customer'}
-              onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard'); }}
-            />
+            <Action icon="🛍️" label="Marketplace" sub="Browse every verified product" onClick={() => { setMobileMenuOpen(false); navigateTo('marketplace'); }} />
+            <Action icon="📊" label="Analytics & Insights" sub="KPIs, charts and CSV export" onClick={() => { setMobileMenuOpen(false); navigateTo('analytics'); }} />
+            <Action icon="🤖" label="Copilot AI" sub="Ask about your live data" onClick={() => { setMobileMenuOpen(false); openCopilot(); }} />
+            {currentUser && (
+              <Action
+                icon="📊"
+                label="Dashboard"
+                sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : 'Customer'}
+                onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard'); }}
+              />
+            )}
             <Action icon="🗺️" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
-            <Action icon="💳" label="E-SCON Wallet" sub={currentUser ? 'Balance ' + formatCurrency(walletBalance(currentUser.id)) : 'Top up & pay with wallet'} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
-            <Action icon="🔔" label="Notifications" sub={unreadNotifications() > 0 ? unreadNotifications() + ' unread' : 'All caught up'} onClick={() => { setMobileMenuOpen(false); setShowNotifications(true); }} />
+            {currentUser && (
+              <Action icon="💳" label="E-SCON Wallet" sub={'Balance ' + formatCurrency(walletBalance(currentUser.id))} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
+            )}
+            {currentUser && (
+              <Action icon="🔔" label="Notifications" sub={unreadNotifications() > 0 ? unreadNotifications() + ' unread' : 'All caught up'} onClick={() => { setMobileMenuOpen(false); setShowNotifications(true); }} />
+            )}
             <Action
               icon="⚖️"
               label="Compare Products"
@@ -4555,7 +4615,10 @@ function App() {
 
         {!currentUser && (
           <div className="m-quick-grid">
+            <Quick icon="🛍️" label="Marketplace" sub="All products" onClick={() => navigateTo('marketplace')} />
             <Quick icon="🔍" label="Browse" sub="Compare prices" onClick={() => navigateTo('search-materials')} />
+            <Quick icon="📊" label="Insights" sub="Live analytics" onClick={() => navigateTo('analytics')} />
+            <Quick icon="🤖" label="Copilot" sub="Ask anything" onClick={() => openCopilot('What products are trending?')} />
             <Quick icon="🗺️" label="Supplier Map" sub="Nearby suppliers" onClick={() => setShowSupplierMap(true)} />
             <Quick icon="📲" label="Install App" sub="Offline access" onClick={() => setShowInstallGuide(true)} />
             <Quick icon="👤" label="Sign in" sub="Track orders" onClick={() => navigateTo('login')} />
@@ -4564,7 +4627,10 @@ function App() {
 
         {currentUser && isCustomer && (
           <div className="m-quick-grid">
+            <Quick icon="🛍️" label="Market" sub="All products" onClick={() => navigateTo('marketplace')} />
             <Quick icon="🔍" label="Find" sub="Materials" onClick={() => navigateTo('search-materials')} />
+            <Quick icon="📊" label="Insights" sub="My spending" onClick={() => navigateTo('analytics')} />
+            <Quick icon="🤖" label="Copilot" sub="Ask my data" onClick={() => openCopilot('How much have I spent?')} />
             <Quick icon="📦" label="Orders" sub={myOrders.length + ' total'} onClick={() => navigateTo('orders')} />
             <Quick icon="🗺️" label="Map" sub="Suppliers" onClick={() => setShowSupplierMap(true)} />
           </div>
@@ -4573,6 +4639,9 @@ function App() {
           <div className="m-quick-grid">
             <Quick icon="📦" label="Products" sub={materials.filter(m => m.companyId === getCompanyByUserId(currentUser.id)?.id).length + ' listed'} onClick={() => navigateTo('company-dashboard')} />
             <Quick icon="➕" label="Add Product" sub="List new item" onClick={() => navigateTo('add-material')} />
+            <Quick icon="🛍️" label="Market" sub="All products" onClick={() => navigateTo('marketplace')} />
+            <Quick icon="📊" label="Insights" sub="My performance" onClick={() => navigateTo('analytics')} />
+            <Quick icon="🤖" label="Copilot" sub="Ask my data" onClick={() => openCopilot('What should I restock?')} />
             <Quick icon="📦" label="Orders" sub={myOrders.length + ' total'} onClick={() => navigateTo('orders')} />
             <Quick icon="🗺️" label="Map" sub="Suppliers" onClick={() => setShowSupplierMap(true)} />
           </div>
@@ -4656,6 +4725,9 @@ function App() {
               <button className="m-section-more" onClick={() => navigateTo('settings')}>Settings</button>
             </div>
             <div className="m-quick-grid">
+              <Quick icon="🛍️" label="Marketplace" sub="All products" onClick={() => navigateTo('marketplace')} />
+              <Quick icon="📊" label="Insights" sub="Platform analytics" onClick={() => navigateTo('analytics')} />
+              <Quick icon="🤖" label="Copilot" sub="Ask platform data" onClick={() => openCopilot('Give me an executive summary')} />
               <Quick icon="🔍" label="Search" sub="All materials" onClick={() => navigateTo('search-materials')} />
               <Quick icon="📦" label="Orders" sub="Platform orders" onClick={() => navigateTo('orders')} />
             </div>
@@ -4937,6 +5009,55 @@ function App() {
       case 'add-material': return renderAddMaterial();
       case 'edit-material': return renderEditMaterial();
       case 'search-materials': return renderSearchMaterials();
+      case 'marketplace': return (
+        <MarketplacePage
+          materials={materials}
+          companies={companies}
+          reviews={reviews}
+          currentUser={currentUser}
+          favorites={favorites}
+          compareItems={compareItems}
+          cartMaterialIds={cart.map(item => item.materialId)}
+          canSeeStock={canSeeStock}
+          onOpenProduct={setSelectedMaterial}
+          onAddToCart={material => { addToCart(material, material.minOrder || 1, false); }}
+          onToggleFavorite={toggleFavorite}
+          onToggleCompare={toggleCompare}
+          onOpenMap={handleOpenMapWithRoute}
+          onOpenAnalytics={() => navigateTo('analytics')}
+          onAskCopilot={openCopilot}
+        />
+      );
+      case 'analytics': return (
+        <AnalyticsPage
+          user={currentUser}
+          materials={materials}
+          companies={companies}
+          orders={orders}
+          users={users}
+          reviews={reviews}
+          settings={systemSettings}
+          onOpenProduct={setSelectedMaterial}
+          onOpenMarketplace={() => navigateTo('marketplace')}
+          onAskCopilot={openCopilot}
+          onNotify={showAlert}
+        />
+      );
+      case 'copilot': return (
+        <CopilotPage
+          user={currentUser}
+          materials={materials}
+          companies={companies}
+          orders={orders}
+          users={users}
+          reviews={reviews}
+          settings={systemSettings}
+          seedPrompt={copilotSeed}
+          onSeedConsumed={() => setCopilotSeed('')}
+          onOpenAnalytics={() => navigateTo('analytics')}
+          onOpenMarketplace={() => navigateTo('marketplace')}
+        />
+      );
       case 'orders': return renderOrders();
       case 'settings': return (
         currentUser?.userType === 'admin' ? (

@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart before and after a refresh)
-> **Previous:** 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices: desktop, tablet, mobile), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
+> **Version:** 6.17 (Marketplace, role-aware Analytics & Insights, and data-grounded Copilot AI — all presented in the same Sample-Layout document shell on desktop, tablet and phone)
+> **Previous:** 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart), 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
@@ -21,7 +21,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65), plus [10.27 Cart-first ordering](#1027-cart-first-ordering-v610)
+10. [Key Features & How They Work](#10-key-features--how-they-work) — including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65), plus [10.27 Cart-first ordering](#1027-cart-first-ordering-v610), [10.30 Marketplace](#1030-marketplace-v617), [10.31 Analytics & Insights](#1031-analytics--insights-v617) and [10.32 Copilot AI](#1032-copilot-ai-v617)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -148,19 +148,23 @@ supply-chain1/
 ├── src/
 │   ├── index.tsx           # React root — registers the service worker (production only)
 │   ├── index.css           # Minimal global styles
-│   ├── App.tsx             # Main application (state, routing, ALL pages)
-│   ├── App.css             # All styles (theming, layout, components, responsive, animations)
+│   ├── App.tsx             # Main application (state, routing, pages, new-page wiring)
+│   ├── App.css             # Core styles (theming, layout, cart, components, responsive, animations)
+│   ├── escon-v7.css        # v6.17 sheet/Analytics/Marketplace/Copilot styles
 │   ├── types.ts            # TypeScript interfaces (User, Company, Material, SystemSettings, …)
 │   ├── constants.ts        # City/unit/department reference lists (business data lives in Supabase / seed.sql)
 │   ├── settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
 │   ├── utils.ts            # Helpers: current GPS position, distance, fees, per-line delivery pricing, formatting
 │   ├── lib/
 │   │   ├── cloudStore.ts   # Supabase sync module (only settings pushes in v6.0)
+│   │   ├── analytics.ts    # Pure role-aware BI engine (KPIs, trends, forecasts, insights)
+│   │   ├── copilot.ts      # Deterministic, on-device Q&A over the analytics engine
 │   │   └── supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
 │   ├── hooks/
 │   │   └── useIsMobile.ts  # Reactive isMobile flag from matchMedia("(max-width: 768px)")
 │   ├── components/
 │   │   ├── ProformaInvoice.tsx, PublicProforma.tsx, AdminSettings.tsx,
+│   │   ├── AnalyticsPage.tsx, MarketplacePage.tsx, CopilotPage.tsx (v6.17),
 │   │   ├── InstallGuide.tsx, OrderTimeline.tsx, MapComponent.tsx (lazy) … see §10
 │   └── *.test.ts           # Jest unit tests (fees, formatting, settings, QR payloads)
 ├── android/                # Capacitor Android project (see docs/ANDROID_BUILD.md)
@@ -820,6 +824,91 @@ only when a pin actually moved, and the cart's **Refresh** action calls
 `refreshCartDelivery` to take one fresh high-accuracy fix, re-measure every line
 with `calculateDistance` and re-price through `priceCartItems`.
 
+### 10.30 Marketplace (v6.17)
+
+The **Marketplace** (`currentPage === 'marketplace'`, rendered by
+[`MarketplacePage.tsx`](../src/components/MarketplacePage.tsx)) is a storefront
+view of the same catalogue used by Search, with no duplicate data:
+
+- **Hero search** filters name, description, brand, category and supplier name;
+  category and city chips, a sort selector (relevance, price up/down, rating,
+  newest) and a result count refine the grid live.
+- **Supplier storefronts** group products by `companyId`. A storefront modal
+  shows the supplier's city, compliance status, rating, catalogue size and
+  delivery-rate summary. **View route** reuses `handleOpenMapWithRoute` so the
+  distance shown here is exactly the distance used by search, product details
+  and the cart.
+- **Product cards** reuse the normal cart actions: favourites
+  (`toggleFavorite`), compare (`toggleCompare`, maximum four) and
+  `addToCart(material, material.minOrder || 1, false)`. The button reads
+  **In cart** once staged, driven by `cart` state rather than local UI state.
+- **Load more** paginates in steps of 12; changing a filter resets the page.
+  The **Ask Copilot** banner calls `openCopilot('best suppliers')` with a seed
+  prompt.
+- Desktop/tablet PDF-like pages are wrapped in `.escon-sheet`; the phone
+  breakpoint turns the same markup into stacked cards. All styling lives in
+  `src/escon-v7.css`.
+
+### 10.31 Analytics & Insights (v6.17)
+
+[`src/lib/analytics.ts`](../src/lib/analytics.ts) is a **pure, side-effect-free
+BI engine**. `buildAnalytics(input)` accepts `{ user, materials, companies,
+orders, users, reviews, settings, days? }` and returns the complete view model
+consumed by both Analytics and Copilot. There is no network call and no stored
+derived data.
+
+**Role scoping.** `analyticsRole(user)` returns `admin | company | customer |
+guest`. `scopedOrders` gives admins every order, suppliers only
+`companyId === their company.id`, customers only `customerId === user.id`, and
+guests an empty list. `scopedMaterials` similarly limits a supplier catalogue to
+their own products. Cancelled orders stay in status breakdowns but are excluded
+from money and unit totals.
+
+**Periods.** `days` is `0` (all time), `30`, `90` or `365`. Orders are compared
+with the immediately preceding window of the same length;
+`growthPct = (currentGmv - previousGmv) / previousGmv * 100` (or `null` when the
+previous window has no revenue). The six-month `monthlyRevenue` series is always
+built from the role-scoped orders.
+
+**Outputs.** `AnalyticsResult` carries `orderCount`, `gmv`, `activeOrders`,
+`activeOrderValue`, `deliveredRevenue`, `avgOrderValue`, `deliveredRatePct`,
+`unitsSold`, `deliveryFees`, `vatCollected`, stock units/value, low-stock and
+out-of-stock counts, `avgRating`, `reviewCount`, `productCount`,
+`supplierCount`, `customerCount`, `cityCount`, a role-specific `kpis` array,
+`statuses`, category/city chart data (`categoryBasis` and `cityBasis` explain
+whether the chart is revenue- or catalogue-based), `topProducts` (eight by
+revenue), `topSuppliers`, `topCustomers`, a `priceBoard` with
+`forecastPrice(priceHistory, price)` badges, and narrative `insights`.
+
+[`AnalyticsPage.tsx`](../src/components/AnalyticsPage.tsx) renders the period
+chips, KPI grid, revenue and status charts, category/city charts, top-product
+table, supplier/customer lists, price board and restock advisory. **Export CSV**
+uses `exportToCSV` and the page notifies through the shared `onNotify` toast.
+
+### 10.32 Copilot AI (v6.17)
+
+[`src/lib/copilot.ts`](../src/lib/copilot.ts) is a **deterministic, on-device
+assistant**, not a remote LLM. `answerQuestion(question, input)` normalises the
+text, detects intent (overview, revenue, orders, stock, products, suppliers,
+customers, prices, categories, logistics, VAT, payments, reviews, growth,
+recommendations, greetings and help) and composes an answer **exclusively from
+`buildAnalytics(input)`**. It therefore works offline, leaks no data, handles
+each role's scope automatically, and can never invent a number.
+
+`CopilotAnswer` is `{ title, summary, bullets, metrics?, chart?,
+chartLabel?, followUps? }`. Answers render metric cards, a `MiniBarChart` where
+a series helps, bullet explanations and follow-up prompt chips.
+`copilotSuggestions(role)` provides role-aware starters and
+`copilotGreeting(input)` is the first message.
+
+[`CopilotPage.tsx`](../src/components/CopilotPage.tsx) keeps the conversation
+in `sessionStorage` under `escon-copilot-chat-v1` (per-tab, cleared on tab
+close), shows a typing indicator, supports **Clear chat**, and displays a live
+context sidebar built from the same analytics snapshot with shortcuts to
+Marketplace/Insights. `App.tsx` adds a `copilotSeed` state; `openCopilot(prompt?)`
+navigates to the page and optionally auto-asks that prompt. Marketplace,
+Analytics and the home module cards use this entry point.
+
 ---
 
 ## 11. Third-Party Integrations
@@ -1028,6 +1117,9 @@ No router library — `currentPage` switch in `App.tsx`:
 | `add-material`       | `renderAddMaterial`         | Product form (+ photos)        |
 | `edit-material`      | `renderEditMaterial`        | Product edit (+ photos)        |
 | `orders`             | `renderOrders`              | Order management (Export button is supplier-only, v5.7) |
+| `marketplace`        | `MarketplacePage`           | Storefront grid, supplier profiles, filters, cart/favourites/compare (v6.17) |
+| `analytics`          | `AnalyticsPage`             | Role-scoped KPIs, charts, price board, CSV export (v6.17) |
+| `copilot`            | `CopilotPage`               | Data-grounded on-device Q&A, seeded prompts, session history (v6.17) |
 | `settings`           | `AdminSettings` (admin only) | Delivery fee, zones, min order |
 | (mobile shell)       | `renderMobileTopBar`, `renderMobileBottomNav`, `renderMobileMoreSheet` | Rendered only when `isMobile`; desktop header/footer replaced |
 | (mobile home)        | `renderHomeMobile`      | Welcome hero, quick actions, trending carousel, saved strip, recent orders |
@@ -1058,7 +1150,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.6` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.8` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1116,7 +1208,7 @@ Common extension points:
 
 ## 18. Testing (NEW in v4)
 
-Tests target **pure logic only** — the map components and `App.tsx` rely on Leaflet/DOM APIs that jsdom cannot run reliably.
+Tests target **pure logic only** — the map components and `App.tsx` rely on Leaflet/DOM APIs that jsdom cannot run reliably. The analytics engine, Copilot and all pricing helpers are deliberately pure so they are covered here.
 
 ```bash
 # Run once (non-watch) — recommended for CI
@@ -1129,6 +1221,7 @@ npm test
 | File                  | What it covers                                                       |
 | --------------------- | -------------------------------------------------------------------- |
 | `src/settings.test.ts` | Defaults, round-trip persistence, corrupted-JSON repair, number sanitising, admin seed |
+| `src/lib/analytics.test.ts` | Role scoping (admin/company/customer/guest), cancelled-order exclusion, period filtering and previous-period growth, KPI keys and insights, and Copilot revenue/stock/customer/fallback/greeting answers |
 | `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode→decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, legacy delivery data, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation), **`roundKm`** (0.1 km rounding used by every buyer-facing view and by `stageCartLine`) |
 
 41 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
@@ -1205,6 +1298,33 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.17 - Marketplace, Analytics & Insights, and Copilot AI
+- **Marketplace page.** A new `marketplace` route renders a filterable
+  storefront grid with hero search, category/city chips, sorting, supplier
+  storefront modals, route shortcuts, favourites, compare and add-to-cart. It
+  reuses the existing catalogue and cart actions, so there is no duplicate data
+  or pricing path.
+- **Analytics & Insights.** `src/lib/analytics.ts` is a pure, role-aware BI
+  engine: admin, supplier, customer and guest scopes; 30/90/365/all-time
+  windows with previous-period growth; revenue, GMV, units, active orders,
+  delivery/VAT, stock value, low-stock counts, six-month series, status mix,
+  category/city charts, top products/suppliers/customers, price forecasts and
+  narrative insights. `AnalyticsPage` renders them in the Sample-Layout sheet
+  and exports CSV.
+- **Copilot AI.** `src/lib/copilot.ts` answers natural-language questions
+  deterministically from the analytics snapshot. It is fully on-device (no API
+  key, no data sent anywhere), scoped to the signed-in role, renders metrics,
+  charts and follow-ups, and persists a per-tab conversation.
+- **Navigation & home.** Desktop top nav, footer quick links, mobile bottom nav
+  (guest: Home / Market / Login / Copilot / More), mobile More sheet, mobile page
+  titles and the home **New in E-SCON** modules/quick tiles all expose the three
+  pages. `openCopilot(prompt?)` seeds a question from Marketplace/Analytics.
+- **Styling.** New `src/escon-v7.css` (imported after `App.css`) provides the
+  centred `.escon-sheet` document layout on desktop and responsive card/table
+  layouts on tablet and phone.
+- **Release.** `versionCode 20` / `versionName "1.9.10"`, `sw.js` `VERSION`
+  `e-scon-v1.14.8`.
 
 ### v6.16 - centred A4-width cart on desktop, map measures from the same buyer pin
 - **Desktop cart is a centred A4-width sheet.** At `min-width: 641px` the cart

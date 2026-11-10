@@ -1,0 +1,417 @@
+// ===== src/components/AnalyticsPage.tsx =====
+// Role-aware business intelligence, laid out like the Sample Layout document:
+// a centred, A4-inspired sheet on desktop that becomes a full-width report on
+// phones. The calculations live in src/lib/analytics.ts so the Copilot can use
+// exactly the same figures.
+import React, { useMemo, useState } from 'react';
+import { Company, Material, Order, ProductReview, SystemSettings, User } from '../types';
+import { buildAnalytics } from '../lib/analytics';
+import { exportToCSV, formatCurrency } from '../utils';
+import { DonutChart, MiniBarChart, Sparkline } from './Charts';
+
+export interface AnalyticsPageProps {
+  user: User | null;
+  materials: Material[];
+  companies: Company[];
+  orders: Order[];
+  users: User[];
+  reviews: ProductReview[];
+  settings: SystemSettings;
+  onOpenProduct: (material: Material) => void;
+  onOpenMarketplace: () => void;
+  onAskCopilot: (prompt?: string) => void;
+  onNotify: (message: string, type?: 'success' | 'danger' | 'warning' | 'info') => void;
+}
+
+const PERIODS = [
+  { label: '30 days', value: 30 },
+  { label: '90 days', value: 90 },
+  { label: '1 year', value: 365 },
+  { label: 'All time', value: 0 },
+];
+
+const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
+  user,
+  materials,
+  companies,
+  orders,
+  users,
+  reviews,
+  settings,
+  onOpenProduct,
+  onOpenMarketplace,
+  onAskCopilot,
+  onNotify,
+}) => {
+  const [days, setDays] = useState(90);
+  const analytics = useMemo(
+    () => buildAnalytics({ user, materials, companies, orders, users, reviews, settings, days }),
+    [user, materials, companies, orders, users, reviews, settings, days]
+  );
+
+  const company = user?.userType === 'company' ? companies.find(c => c.userId === user.id) : undefined;
+  const stockMaterials = user?.userType === 'company'
+    ? materials.filter(m => m.companyId === company?.id)
+    : user?.userType === 'admin' ? materials : [];
+  const criticalStock = stockMaterials
+    .filter(m => (m.quantity || 0) <= 10)
+    .sort((a, b) => (a.quantity || 0) - (b.quantity || 0))
+    .slice(0, 6);
+
+  const exportAnalytics = (): void => {
+    const rows = analytics.topProducts.length > 0
+      ? analytics.topProducts.map(p => ({
+          Product: p.name,
+          Category: p.category,
+          Supplier: p.supplierName,
+          Units: p.units,
+          Orders: p.orders,
+          RevenueETB: p.revenue,
+          PriceETB: p.price,
+          Rating: p.rating,
+        }))
+      : analytics.priceBoard.map(p => ({
+          Product: p.name,
+          Category: p.category,
+          PriceETB: p.price,
+          MarginPercent: Math.round(p.marginPct),
+          Forecast: p.forecast ? p.forecast.trend : 'tracking',
+          ForecastChangePercent: p.forecast ? p.forecast.changePct.toFixed(1) : '',
+        }));
+    if (rows.length === 0) {
+      onNotify('Nothing to export yet — add products or place an order first.', 'warning');
+      return;
+    }
+    exportToCSV(rows, `escon-analytics-${analytics.role}-${new Date().toISOString().slice(0, 10)}`);
+    onNotify('Analytics exported as CSV', 'success');
+  };
+
+  const periodChip = (value: number, label: string) => (
+    <button
+      key={value}
+      type="button"
+      className={'escon-period-chip' + (days === value ? ' active' : '')}
+      onClick={() => setDays(value)}
+    >
+      {label}
+    </button>
+  );
+
+  const categoryFormatter = (value: number): string =>
+    analytics.categoryBasis === 'revenue' ? formatCurrency(value) : String(value);
+
+  return (
+    <main className="main-content">
+      <div className="escon-sheet analytics-sheet">
+        <header className="escon-sheet-head">
+          <div className="escon-sheet-brand">
+            <span className="escon-sheet-logo">🏗️</span>
+            <div>
+              <span className="escon-kicker">E-SCON · Business Intelligence</span>
+              <h1 className="escon-sheet-title">Analytics &amp; Insights</h1>
+              <p className="escon-sheet-sub">{analytics.scopeLabel} · {analytics.periodLabel}</p>
+            </div>
+          </div>
+          <div className="escon-sheet-meta">
+            <span className={'escon-role-chip role-' + analytics.role}>{analytics.role === 'company' ? 'Supplier' : analytics.role === 'customer' ? 'Buyer' : analytics.role === 'admin' ? 'Administrator' : 'Visitor'} view</span>
+            <span>Generated {new Date(analytics.generatedAt).toLocaleString()}</span>
+            <span>{analytics.orderCount} orders · {analytics.productCount} products</span>
+          </div>
+        </header>
+
+        <div className="escon-toolbar">
+          <div className="escon-period-group" role="group" aria-label="Analytics period">
+            {PERIODS.map(p => periodChip(p.value, p.label))}
+          </div>
+          <div className="escon-toolbar-actions">
+            <button type="button" className="escon-btn ghost" onClick={onOpenMarketplace}>🛍️ Marketplace</button>
+            <button type="button" className="escon-btn ghost" onClick={() => onAskCopilot('Give me an executive summary')}>🤖 Ask Copilot</button>
+            <button type="button" className="escon-btn" onClick={exportAnalytics}>📥 Export CSV</button>
+          </div>
+        </div>
+
+        {analytics.insights.length > 0 && (
+          <section className="escon-insights" aria-label="Key insights">
+            <div className="escon-insights-head">
+              <span className="escon-insights-icon">✨</span>
+              <h2>AI insights</h2>
+              <span className="escon-insights-live">Live data</span>
+            </div>
+            <ul>
+              {analytics.insights.map((insight, index) => <li key={index}>{insight}</li>)}
+            </ul>
+          </section>
+        )}
+
+        <section className="kpi-grid" aria-label="Key performance indicators">
+          {analytics.kpis.map(kpi => (
+            <div key={kpi.key} className={'kpi-card' + (kpi.tone ? ' kpi-' + kpi.tone : '')}>
+              <span className="kpi-icon">{kpi.icon}</span>
+              <span className="kpi-label">{kpi.label}</span>
+              <strong className="kpi-value">{kpi.value}</strong>
+              {kpi.sub && <span className="kpi-sub">{kpi.sub}</span>}
+            </div>
+          ))}
+        </section>
+
+        <div className="chart-grid">
+          <section className="escon-chart-card">
+            <div className="escon-section-head">
+              <h2>Revenue trend</h2>
+              <span className="escon-badge">Last 6 months</span>
+            </div>
+            <MiniBarChart
+              data={analytics.monthlyRevenue}
+              height={150}
+              valueFormatter={value => formatCurrency(value)}
+            />
+          </section>
+          <section className="escon-chart-card">
+            <div className="escon-section-head">
+              <h2>Order status</h2>
+              <span className="escon-badge">{analytics.orderCount} orders</span>
+            </div>
+            <DonutChart
+              data={analytics.statuses}
+              size={150}
+              centerLabel={analytics.orderCount > 0 ? String(analytics.orderCount) : '0'}
+            />
+          </section>
+        </div>
+
+        <div className="chart-grid">
+          <section className="escon-chart-card">
+            <div className="escon-section-head">
+              <h2>{analytics.categoryBasis === 'revenue' ? 'Revenue by category' : 'Catalogue by category'}</h2>
+              <span className="escon-badge">{analytics.categoryBasis === 'revenue' ? 'Sales' : 'Products'}</span>
+            </div>
+            <MiniBarChart
+              data={analytics.categoryData}
+              height={150}
+              valueFormatter={categoryFormatter}
+            />
+          </section>
+          <section className="escon-chart-card">
+            <div className="escon-section-head">
+              <h2>{analytics.cityBasis === 'orders' ? 'Demand by city' : 'Supplier coverage'}</h2>
+              <span className="escon-badge">{analytics.cityBasis === 'orders' ? 'Order value' : 'Suppliers'}</span>
+            </div>
+            <MiniBarChart
+              data={analytics.cityData}
+              height={150}
+              valueFormatter={value => analytics.cityBasis === 'orders' ? formatCurrency(value) : String(value)}
+            />
+          </section>
+        </div>
+
+        <section className="escon-section">
+          <div className="escon-section-head">
+            <h2>Top products</h2>
+            <button type="button" className="escon-link" onClick={() => onAskCopilot('What are my top-selling products?')}>
+              Ask Copilot about products →
+            </button>
+          </div>
+          {analytics.topProducts.length === 0 ? (
+            <div className="escon-empty">
+              <span>📊</span>
+              <p>No product sales in this period yet. Place an order or switch to “All time”.</p>
+              <button type="button" className="escon-btn ghost" onClick={onOpenMarketplace}>Browse the marketplace</button>
+            </div>
+          ) : (
+            <div className="escon-table-wrap">
+              <table className="escon-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th>Supplier</th>
+                    <th className="num">Units</th>
+                    <th className="num">Orders</th>
+                    <th className="num">Revenue</th>
+                    <th className="num">Rating</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.topProducts.map((product, index) => {
+                    const material = materials.find(m => m.id === product.id);
+                    return (
+                      <tr key={product.id}>
+                        <td className="escon-rank">{index + 1}</td>
+                        <td>
+                          <button type="button" className="escon-product-link" onClick={() => material && onOpenProduct(material)} disabled={!material}>
+                            {product.name}
+                          </button>
+                        </td>
+                        <td>{product.category}</td>
+                        <td>{product.supplierName}</td>
+                        <td className="num">{product.units}</td>
+                        <td className="num">{product.orders}</td>
+                        <td className="num strong">{formatCurrency(product.revenue)}</td>
+                        <td className="num">⭐ {product.rating.toFixed(1)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <div className="analytics-two-col">
+          <section className="escon-section">
+            <div className="escon-section-head">
+              <h2>Top suppliers</h2>
+              <span className="escon-badge">{analytics.supplierCount}</span>
+            </div>
+            {analytics.topSuppliers.length === 0 ? (
+              <div className="escon-empty compact"><p>No supplier orders in this period.</p></div>
+            ) : (
+              <div className="escon-list">
+                {analytics.topSuppliers.map((supplier, index) => (
+                  <div key={supplier.id} className="escon-list-row">
+                    <span className="escon-rank">{index + 1}</span>
+                    <div className="escon-list-main">
+                      <strong>{supplier.name}</strong>
+                      <small>{supplier.city} · {supplier.products} products · ⭐ {supplier.rating.toFixed(1)}</small>
+                    </div>
+                    <div className="escon-list-figure">
+                      <strong>{formatCurrency(supplier.revenue)}</strong>
+                      <small>{supplier.orders} orders</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="escon-section">
+            <div className="escon-section-head">
+              <h2>{analytics.role === 'company' || analytics.role === 'admin' ? 'Top customers' : 'Best suppliers to try'}</h2>
+              <span className="escon-badge">{analytics.role === 'company' || analytics.role === 'admin' ? analytics.customerCount : analytics.supplierCount}</span>
+            </div>
+            {analytics.role === 'company' || analytics.role === 'admin' ? (
+              analytics.topCustomers.length === 0 ? (
+                <div className="escon-empty compact"><p>No buyer activity in this period.</p></div>
+              ) : (
+                <div className="escon-list">
+                  {analytics.topCustomers.map((customer, index) => (
+                    <div key={customer.id} className="escon-list-row">
+                      <span className="escon-rank">{index + 1}</span>
+                      <div className="escon-list-main">
+                        <strong>{customer.name}</strong>
+                        <small>{customer.city} · {customer.orders} orders</small>
+                      </div>
+                      <div className="escon-list-figure">
+                        <strong>{formatCurrency(customer.spend)}</strong>
+                        <small>lifetime</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="escon-list">
+                {[...companies]
+                  .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                  .slice(0, 5)
+                  .map((supplier, index) => (
+                    <div key={supplier.id} className="escon-list-row">
+                      <span className="escon-rank">{index + 1}</span>
+                      <div className="escon-list-main">
+                        <strong>{supplier.name}</strong>
+                        <small>{supplier.city || '—'} · {materials.filter(m => m.companyId === supplier.id).length} products</small>
+                      </div>
+                      <div className="escon-list-figure">
+                        <strong>⭐ {(supplier.rating || 0).toFixed(1)}</strong>
+                        <small>{supplier.complianceStatus || 'pending'}</small>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <section className="escon-section">
+          <div className="escon-section-head">
+            <h2>Price intelligence</h2>
+            <button type="button" className="escon-link" onClick={() => onAskCopilot('Show price forecasts')}>
+              Open Copilot forecast →
+            </button>
+          </div>
+          {analytics.priceBoard.length === 0 ? (
+            <div className="escon-empty compact"><p>No products to analyse yet.</p></div>
+          ) : (
+            <div className="price-board">
+              {analytics.priceBoard.map(product => {
+                const forecast = product.forecast;
+                const tone = forecast ? forecast.trend : 'flat';
+                return (
+                  <div key={product.id} className="price-card">
+                    <div className="price-card-top">
+                      <div>
+                        <strong>{product.name}</strong>
+                        <small>{product.category}</small>
+                      </div>
+                      <Sparkline points={product.history} width={86} height={32} />
+                    </div>
+                    <div className="price-card-price">{formatCurrency(product.price)}</div>
+                    <div className="price-card-foot">
+                      <span className={'price-trend ' + tone}>
+                        {forecast
+                          ? `${tone === 'up' ? '▲' : tone === 'down' ? '▼' : '■'} ${Math.abs(forecast.changePct).toFixed(1)}%`
+                          : 'Tracking'}
+                      </span>
+                      {product.marginPct > 0 && <span className="price-margin">{product.marginPct.toFixed(0)}% margin</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {(analytics.role === 'company' || analytics.role === 'admin') && criticalStock.length > 0 && (
+          <section className="escon-section">
+            <div className="escon-section-head">
+              <h2>Restock advisory</h2>
+              <span className="escon-badge warn">{criticalStock.length} at risk</span>
+            </div>
+            <div className="restock-grid">
+              {criticalStock.map(material => (
+                <div key={material.id} className={'restock-card' + ((material.quantity || 0) <= 0 ? ' out' : '')}>
+                  <span className="restock-icon">{(material.quantity || 0) <= 0 ? '🚫' : '⚠️'}</span>
+                  <div>
+                    <strong>{material.name}</strong>
+                    <small>{material.quantity || 0} {material.unit || 'units'} left · {formatCurrency((material.quantity || 0) * material.price)}</small>
+                  </div>
+                  <button type="button" className="escon-link" onClick={() => onOpenProduct(material)}>View</button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="escon-ask">
+          <div>
+            <h2>Turn these numbers into decisions</h2>
+            <p>Copilot reads the same live records and answers in plain language.</p>
+          </div>
+          <div className="escon-ask-actions">
+            <button type="button" className="escon-btn" onClick={() => onAskCopilot('Give me an executive summary')}>Executive summary</button>
+            <button type="button" className="escon-btn ghost" onClick={() => onAskCopilot('What should I improve next?')}>What should I improve?</button>
+            <button type="button" className="escon-btn ghost" onClick={() => onAskCopilot('Show price forecasts')}>Price forecast</button>
+          </div>
+        </section>
+
+        <footer className="escon-sheet-foot">
+          <span>E-SCON · Ethio-Supply Chain Optimization Network</span>
+          <span>{analytics.role === 'guest' ? 'Public catalogue data' : 'Private to this account'} · Generated on this device</span>
+        </footer>
+      </div>
+    </main>
+  );
+};
+
+export default AnalyticsPage;

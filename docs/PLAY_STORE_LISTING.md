@@ -25,7 +25,7 @@ Everything below is based on the app's actual behaviour; adjust wording to taste
 ### Short description (max 80 characters)
 
 ```
-Connect Ethiopian suppliers and customers: search, compare, order, proforma.
+Ethiopian supply chain: shop, compare, order, proforma and AI insights.
 ```
 
 ### Full description (max 4000 characters)
@@ -39,7 +39,7 @@ and place an order in minutes — then get a professional proforma invoice you c
 print or share.
 
 FOR CUSTOMERS
-• Search the catalogue with live filtering by department, supplier, city and price.
+• Browse the Marketplace or search the catalogue with live filtering by department, supplier, city and price.
 • See each supplier on a map with the driving route, distance and delivery cost.
 • Compare up to four products side by side.
 • Save favourites and reorder past purchases in one tap.
@@ -47,6 +47,8 @@ FOR CUSTOMERS
 • Print or preview a professional proforma invoice — or scan its QR code to open a mobile-friendly view.
 
 FOR SUPPLIERS
+• See role-scoped Analytics: revenue, orders, growth, stock value, low-stock alerts, top products and customers, and price forecasts.
+• Ask the on-device Copilot questions such as "What should I restock?" and get answers from your own data.
 • List your products with up to six photos each.
 • Manage your stock with units on hand, stock value and low-stock alerts.
 • Set your own delivery rate (price per km plus a starting fee) and let buyers choose it per item.
@@ -54,6 +56,8 @@ FOR SUPPLIERS
 • Pick your exact business location on the map.
 
 FOR EVERYONE
+• A filterable Marketplace with supplier storefronts, favourites, compare and one-tap cart.
+• A data-grounded Copilot that works offline and never sends your business data to a server.
 • A clean, fast, touch-friendly interface with light-blue themes.
 • Installable as an app and works offline for the app shell.
 • Sign in securely (accounts are locked for 30 seconds after 3 failed attempts).
@@ -143,7 +147,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current build: **16 / "1.9.6"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **20 / "1.9.10"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console

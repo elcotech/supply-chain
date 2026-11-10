@@ -2,7 +2,7 @@
   "id": "e-scon-supply-chain",
   "short_name": "E-SCON",
   "name": "E-SCON — Supply Chain & Order Management",
-  "description": "Ethio-Supply Chain Optimization Network: product catalogue, supplier mapping, cart, proforma invoices and order management for Ethiopia.",
+  "description": "Ethio-Supply Chain Optimization Network: marketplace, supplier mapping, cart, proforma invoices, role-aware analytics, on-device Copilot and order management for Ethiopia.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
