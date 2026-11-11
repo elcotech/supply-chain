@@ -97,15 +97,7 @@ export const refreshSettings = (): void => {
   cached = null;
 };
 
-export const ADMIN_EMAIL = 'admin@escon.et';
-export const ADMIN_PASSWORD = 'admin123';
-
-export const ADMIN_USER: User = {
-  id: 'user-admin',
-  name: 'E-SCON Administrator',
-  email: ADMIN_EMAIL,
-  password: ADMIN_PASSWORD,
-  phone: '+251900000000',
+const adminAccount = (overrides: Pick<User, 'id' | 'name' | 'email' | 'password' | 'phone'>): User => ({
   address: 'Head Office, Addis Ababa',
   city: 'Addis Ababa',
   userType: 'admin',
@@ -119,4 +111,40 @@ export const ADMIN_USER: User = {
   businessLicense: '',
   vatRegistered: false,
   vatNumber: '',
-};
+  ...overrides,
+});
+
+export const ADMIN_EMAIL = 'admin@escon.et';
+export const ADMIN_PASSWORD = 'admin123';
+
+export const ADMIN_USER: User = adminAccount({
+  id: 'user-admin',
+  name: 'E-SCON Administrator',
+  email: ADMIN_EMAIL,
+  password: ADMIN_PASSWORD,
+  phone: '+251900000000',
+});
+
+export const SECONDARY_ADMIN_EMAIL = 'naodmyb@gmail.com';
+export const SECONDARY_ADMIN_PASSWORD = '0909';
+
+/** Retired built-in admin e-mails that are renamed during startup migration. */
+export const LEGACY_ADMIN_EMAILS: string[] = ['meharinageb@gmail.com'];
+
+export const SECONDARY_ADMIN_USER: User = adminAccount({
+  // Keep the original id so an existing signed-in admin session survives the
+  // e-mail change; only the login address and display name are updated.
+  id: 'user-admin-meharinageb',
+  name: 'Naod Administrator',
+  email: SECONDARY_ADMIN_EMAIL,
+  password: SECONDARY_ADMIN_PASSWORD,
+  phone: '+251900000001',
+});
+
+/** Every built-in administrator account, seeded on first run and after upgrades. */
+export const ADMIN_USERS: User[] = [ADMIN_USER, SECONDARY_ADMIN_USER];
+
+export const ADMIN_EMAILS: string[] = ADMIN_USERS.map(account => account.email.toLowerCase());
+
+export const isBuiltInAdminEmail = (email: string): boolean =>
+  ADMIN_EMAILS.includes((email || '').toLowerCase());

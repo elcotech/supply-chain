@@ -463,6 +463,21 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                 <span>Delivery Cost</span>
                 <span>{formatCurrency(report.transportCost)}</span>
               </div>
+              {(report.suppliers || [])
+                .filter(group => (group.transportCost || 0) > 0)
+                .map(group => {
+                  const km = group.distanceKm || 0;
+                  const rate = km > 0 ? group.transportCost / km : 0;
+                  return (
+                    <div className="pf-sum-row pf-delivery-breakdown" key={group.supplierId}>
+                      <span>
+                        {(report.suppliers || []).length > 1 ? group.supplierName + ': ' : ''}
+                        Delivery {km.toFixed(1)} km x {rate.toFixed(2)} ETB/km
+                      </span>
+                      <span>= {formatCurrency(group.transportCost)}</span>
+                    </div>
+                  );
+                })}
               <div className="pf-sum-row pf-grand">
                 <span>Grand Total</span>
                 <span>{formatCurrency(report.total)}</span>

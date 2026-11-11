@@ -618,6 +618,28 @@ export const isUserLocked = (user: any) => {
   return user.lockUntil && user.lockUntil > Date.now();
 };
 
+export const normalizeEmail = (value: string): string =>
+  (value || '').trim().toLowerCase();
+
+const userRoleWeight = (user: { userType?: string }): number => {
+  if (user.userType === 'admin') return 3;
+  if (user.userType === 'company') return 2;
+  return 1;
+};
+
+export const findLoginUser = <T extends { email?: string; password?: string; userType?: string }>(
+  users: T[],
+  email: string,
+  password: string
+): T | undefined => {
+  const target = normalizeEmail(email);
+  if (!target) return undefined;
+  const matches = users
+    .filter(user => normalizeEmail(user.email || '') === target)
+    .sort((a, b) => userRoleWeight(b) - userRoleWeight(a));
+  return matches.find(user => user.password === password) || matches[0];
+};
+
 export const exportToCSV = (data: any[], filename: string) => {
   if (!data.length) return;
   const headers = Object.keys(data[0]);

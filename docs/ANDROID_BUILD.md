@@ -170,17 +170,17 @@ An **Android App Bundle** (`.aab`) is what Google Play requires.
 
 ## 7. Versioning
 
-The shipped build is currently **`versionCode 20` / `versionName "1.9.10"`**
+The shipped build is currently **`versionCode 21` / `versionName "1.9.11"`**
 (`android/app/build.gradle`). Before each Play Store upload, bump both:
 
 ```gradle
-versionCode 20         // integer, must increase every upload
-versionName "1.9.10"   // human-readable
+versionCode 21         // integer, must increase every upload
+versionName "1.9.11"   // human-readable
 ```
 
 Also bump `VERSION` at the top of [`public/sw.js`](../public/sw.js) so installed
 PWA clients purge their cached assets (this does **not** touch user data). Current
-value: `e-scon-v1.14.8`.
+value: `e-scon-v1.14.11`.
 
 ---
 
@@ -205,8 +205,8 @@ Only do this once; reuse the same keystore forever.
 
 - [ ] `npm run build` succeeds (`.env.local` is optional; without it the app stays local-only).
 - [ ] `npx cap sync android` run.
-- [ ] `versionCode` / `versionName` bumped (this release: 20 / "1.9.10").
-- [ ] `public/sw.js` `VERSION` bumped (e-scon-v1.14.8).
+- [ ] `versionCode` / `versionName` bumped (this release: 21 / "1.9.11").
+- [ ] `public/sw.js` `VERSION` bumped (e-scon-v1.14.11).
 - [ ] Launcher icons still match `public/logo512.png` (§10).
 - [ ] `bundleRelease` succeeds.
 - [ ] `.aab` signature verified.

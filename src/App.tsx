@@ -13,9 +13,10 @@ import {
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
-  stageCartLine, vatOnSubtotal, allocateVat, cartGrandTotal
+  stageCartLine, vatOnSubtotal, allocateVat, cartGrandTotal,
+  normalizeEmail, findLoginUser
 } from './utils';
-import { loadSettings, saveSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
+import { loadSettings, saveSettings, ADMIN_USERS, ADMIN_EMAIL, LEGACY_ADMIN_EMAILS } from './settings';
 import { cloudPush, cloudPushNow, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
 import EditCompany from './components/EditCompany';
 import MapPicker from './components/MapPicker';
@@ -29,7 +30,10 @@ import AnalyticsPage from './components/AnalyticsPage';
 import MarketplacePage from './components/MarketplacePage';
 import CopilotPage from './components/CopilotPage';
 import { Sparkline, StarRatingDisplay, StarRatingInput } from './components/Charts';
+import CommandPalette, { CommandItem } from './components/CommandPalette';
 import useIsMobile from './hooks/useIsMobile';
+
+const THEME_KEY = 'escon_theme';
 
 // Live date & time shown on the shopping cart. The cart is a transient view so
 // a ticking clock here is desirable (unlike the proforma, which freezes a
@@ -350,12 +354,23 @@ function App() {
   const [showSupplierMap, setShowSupplierMap] = useState(false);
   const [showEditCompany, setShowEditCompany] = useState(false);
   const [showMyLocationPicker, setShowMyLocationPicker] = useState(false);
-  const [adminCompanyTarget, setAdminCompanyTarget] = useState<{ company: Company; user: User } | null>(null);
+  const [adminCompanyTarget, setAdminCompanyTarget] = useState<{ company: Company; user: User; isNew?: boolean } | null>(null);
   const [adminEditingMaterial, setAdminEditingMaterial] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
   const [copilotSeed, setCopilotSeed] = useState<string>('');
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const saved = safeLocalStorage.getItem(THEME_KEY);
+    if (saved === 'dark' || saved === 'light') return saved === 'dark';
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return true;
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
   const [autoRouteSupplierId, setAutoRouteSupplierId] = useState<string | null>(null);
   // Bumped on every explicit route request so the map redraws the route even when
   // the same supplier is clicked twice in a row.
@@ -371,6 +386,7 @@ function App() {
   // cart can pulse its "To Purchase" step and make clear where they landed.
   const [highlightPurchaseStep, setHighlightPurchaseStep] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [navMoreOpen, setNavMoreOpen] = useState(false);
   const [compareItems, setCompareItems] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -506,7 +522,58 @@ function App() {
   // ---------- Dark mode & Fullscreen ----------
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
+    safeLocalStorage.setItem(THEME_KEY, darkMode ? 'dark' : 'light');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', darkMode ? '#0f2b3d' : '#cbe0f8');
   }, [darkMode]);
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setShowCommandPalette(open => !open);
+      }
+      if (event.key === 'Escape') {
+        setShowCommandPalette(false);
+        setNavMoreOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!navMoreOpen) return;
+    const closeOnOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Element | null;
+      if (!target || !target.closest('.nav-more')) setNavMoreOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutside);
+    document.addEventListener('touchstart', closeOnOutside);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside);
+      document.removeEventListener('touchstart', closeOnOutside);
+    };
+  }, [navMoreOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [mobileMenuOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -569,6 +636,7 @@ function App() {
   const navigateTo = useCallback((page: string): void => {
     setCurrentPage(page);
     setMobileMenuOpen(false);
+    setNavMoreOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -901,11 +969,45 @@ function App() {
       const savedOrders = safeLocalStorage.getItem('orders');
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
-      const parsedUsers: User[] = savedUsers ? JSON.parse(savedUsers) : [];
-      // Guarantee the platform administrator always exists, even for
-      // installations that predate the admin role.
-      if (!parsedUsers.some(u => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase())) {
-        parsedUsers.push(ADMIN_USER);
+      let parsedUsers: User[] = savedUsers ? JSON.parse(savedUsers) : [];
+      // Rename retired built-in administrator e-mails in place so an existing
+      // installation does not keep the old login alongside the replacement.
+      for (const legacyEmail of LEGACY_ADMIN_EMAILS) {
+        const legacyAccounts = parsedUsers.filter(
+          u => u.email.toLowerCase() === legacyEmail.toLowerCase()
+        );
+        if (legacyAccounts.length === 0) continue;
+        const replacement = ADMIN_USERS.find(
+          a => !LEGACY_ADMIN_EMAILS.some(e => e.toLowerCase() === a.email.toLowerCase())
+        );
+        if (!replacement) continue;
+        const targetExists = parsedUsers.some(
+          u => u.email.toLowerCase() === replacement.email.toLowerCase()
+        );
+        const legacyIds = new Set(legacyAccounts.map(u => u.id));
+        if (targetExists) {
+          parsedUsers = parsedUsers.filter(u => !legacyIds.has(u.id));
+        } else {
+          const legacy = legacyAccounts[0];
+          parsedUsers = parsedUsers
+            .filter(u => !legacyIds.has(u.id) || u.id === legacy.id)
+            .map(u => u.id === legacy.id ? { ...u, ...replacement, id: legacy.id } : u);
+        }
+      }
+      // Guarantee every built-in administrator always exists, even for
+      // installations that predate the admin role. Existing administrator
+      // records are left untouched so their saved passwords remain valid.
+      for (const account of ADMIN_USERS) {
+        const existing = parsedUsers.find(
+          u => u.email.toLowerCase() === account.email.toLowerCase()
+        );
+        if (!existing) {
+          parsedUsers.push(account);
+        } else if (existing.userType !== 'admin') {
+          parsedUsers = parsedUsers.map(u => u.id === existing.id
+            ? { ...u, userType: 'admin', password: account.password }
+            : u);
+        }
       }
 
       // Saved data is the authoritative copy after first run. Seed demo
@@ -1165,16 +1267,12 @@ function App() {
   const handleLogin = (e: React.FormEvent): void => {
     e.preventDefault();
     const { loginPassword, selectedUser } = formData;
-    const user = users.find(u => u.email === selectedUser);
+    const user = findLoginUser(users, selectedUser, loginPassword);
     if (!user) {
-      // The account list is hydrated from local data and then refreshed from the
-      // cloud; on a slow start the form can be on screen before it arrives. Say
-      // that instead of telling a buyer with correct credentials they are not a
-      // valid user.
       showAlert(
         users.length === 0
           ? 'Your account list is still loading — please try again in a moment.'
-          : 'Please select a valid user',
+          : 'No account matches that e-mail address.',
         'danger'
       );
       return;
@@ -1202,13 +1300,14 @@ function App() {
   const handleRegister = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered } = formData;
-    if (users.find(u => u.email === registerEmail)) { showAlert('User with this email already exists', 'danger'); return; }
+    const email = normalizeEmail(registerEmail);
+    if (users.some(u => normalizeEmail(u.email) === email)) { showAlert('An account with this e-mail already exists. Try logging in instead.', 'danger'); return; }
     // Geocode the address the user typed so distances are measured from their
     // real location instead of a random point near Addis Ababa. They can refine
     // it later from Dashboard -> My Location (or on the map picker).
     const coords = await geocodeAddress(registerAddress, registerCity);
     const newUser: User = {
-      id: genId('user'), name: registerFullName, email: registerEmail, password: registerPassword || '0909',
+      id: genId('user'), name: registerFullName.trim(), email, password: registerPassword || '0909',
       phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as 'customer' | 'company',
       companyName: registerUserType === 'company' ? registerCompanyName : '',
       lat: coords?.lat ?? 9.0320, lng: coords?.lng ?? 38.7469,
@@ -1275,7 +1374,7 @@ function App() {
     setShowEditCompany(true);
   };
 
-  const handleSaveCompany = (updatedCompany: Company, updatedUser: User) => {
+  const handleSaveCompany = (updatedCompany: Company, updatedUser: User, successMessage = 'Company profile updated successfully! ✅') => {
     const nextCompanies = companies.some(c => c.id === updatedCompany.id)
       ? companies.map(c => c.id === updatedCompany.id ? updatedCompany : c)
       : [...companies, updatedCompany];
@@ -1290,7 +1389,7 @@ function App() {
     safeLocalStorage.setItem('companies', JSON.stringify(nextCompanies));
     safeLocalStorage.setItem('users', JSON.stringify(nextUsers));
     setShowEditCompany(false);
-    showAlert('Company profile updated successfully! ✅', 'success');
+    showAlert(successMessage, 'success');
   };
 
   // ---------- Admin: edit/delete any account, supplier or product ----------
@@ -1303,8 +1402,85 @@ function App() {
     setAdminCompanyTarget({ company, user: owner });
   };
 
+  const handleAdminAddSupplier = () => {
+    const userId = genId('user');
+    const today = new Date().toISOString().split('T')[0];
+    const draftUser: User = {
+      id: userId,
+      name: '',
+      email: '',
+      password: '',
+      phone: '',
+      address: '',
+      city: 'Addis Ababa',
+      userType: 'company',
+      companyName: '',
+      lat: 9.032,
+      lng: 38.7469,
+      registered: today,
+      loginAttempts: 0,
+      lockUntil: 0,
+      tinNumber: '',
+      businessLicense: '',
+      vatRegistered: false,
+      vatNumber: '',
+    };
+    const draftCompany: Company = {
+      id: genId('comp'),
+      userId,
+      name: '',
+      description: '',
+      location: '',
+      city: 'Addis Ababa',
+      lat: 9.032,
+      lng: 38.7469,
+      rating: 0,
+      totalOrders: 0,
+      established: today.slice(0, 4),
+      tinNumber: '',
+      businessLicense: '',
+      vatNumber: '',
+      tradeLicenseExpiry: '',
+      complianceStatus: 'pending',
+    };
+    setAdminCompanyTarget({ company: draftCompany, user: draftUser, isNew: true });
+  };
+
   const handleAdminSaveCompany = (updatedCompany: Company, updatedUser: User) => {
-    handleSaveCompany(updatedCompany, updatedUser);
+    const isNew = !users.some(u => u.id === updatedUser.id);
+    const email = normalizeEmail(updatedUser.email);
+    if (!email) {
+      showAlert('Enter the supplier login e-mail.', 'danger');
+      return;
+    }
+    if (users.some(u => u.id !== updatedUser.id && normalizeEmail(u.email) === email)) {
+      showAlert('An account with this e-mail already exists.', 'danger');
+      return;
+    }
+    if (!updatedCompany.name.trim()) {
+      showAlert('Enter the supplier or company name.', 'danger');
+      return;
+    }
+    if (isNew && updatedUser.password.trim().length < 4) {
+      showAlert('Set a password of at least 4 characters for the new supplier.', 'danger');
+      return;
+    }
+    const nextUser: User = {
+      ...updatedUser,
+      userType: 'company',
+      email,
+      companyName: updatedCompany.name.trim(),
+    };
+    const nextCompany: Company = {
+      ...updatedCompany,
+      name: updatedCompany.name.trim(),
+      userId: nextUser.id,
+    };
+    handleSaveCompany(
+      nextCompany,
+      nextUser,
+      isNew ? 'Supplier account created successfully! ✅' : 'Supplier profile updated successfully! ✅'
+    );
     setAdminCompanyTarget(null);
   };
 
@@ -2570,7 +2746,13 @@ function App() {
     showAlert('Materials exported! 📊', 'success');
   };
   const handleExportOrders = () => {
-    const userOrders = currentUser ? orders.filter(o => o.customerId === currentUser.id) : orders;
+    let userOrders = orders;
+    if (currentUser?.userType === 'company') {
+      const comp = getCompanyByUserId(currentUser.id);
+      userOrders = comp ? orders.filter(o => o.companyId === comp.id) : [];
+    } else if (currentUser?.userType === 'customer') {
+      userOrders = orders.filter(o => o.customerId === currentUser.id);
+    }
     if (userOrders.length === 0) { showAlert('No orders to export.', 'warning'); return; }
     exportOrdersToCSV(userOrders, materials, companies);
     showAlert('Orders exported! 📦', 'success');
@@ -2755,7 +2937,7 @@ function App() {
   const handleDatalistInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setFormData(prev => ({ ...prev, selectedUser: value }));
-    const user = users.find(u => u.email === value);
+    const user = findLoginUser(users, value, '');
     if (user && isUserLocked(user)) {
       const remainingTime = Math.ceil((user.lockUntil! - Date.now()) / 1000);
       showAlert('Account locked. Try again in ' + remainingTime + ' seconds.', 'warning', 3000);
@@ -2862,7 +3044,10 @@ function App() {
             {mobileMenuOpen ? '✕' : '☰'}
           </button>
           <div className={'header-actions' + (mobileMenuOpen ? ' open' : '')}>
-            <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle Theme">
+            <button className="icon-btn command-trigger" onClick={() => setShowCommandPalette(true)} title="Quick search (Ctrl+K)" aria-label="Open quick search">
+              🔎<span className="command-trigger-hint">Ctrl K</span>
+            </button>
+            <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme">
               {darkMode ? '☀️' : '🌙'}
             </button>
             <button className="icon-btn" onClick={toggleFullscreen} title="Fullscreen">
@@ -2898,43 +3083,88 @@ function App() {
     );
   };
 
+  const NavMore = ({ active, items }: {
+    active: boolean;
+    items: { label: string; icon?: string; active?: boolean; onClick: () => void }[];
+  }) => (
+    <div className="nav-more">
+      <button
+        type="button"
+        className={'nav-link nav-more-toggle' + (active ? ' active' : '')}
+        onClick={() => setNavMoreOpen(open => !open)}
+        aria-expanded={navMoreOpen}
+        aria-haspopup="menu"
+      >
+        More <span className="nav-more-caret">▾</span>
+      </button>
+      {navMoreOpen && (
+        <div className="nav-more-panel" role="menu">
+          {items.map(item => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={'nav-more-link' + (item.active ? ' active' : '')}
+              onClick={() => { setNavMoreOpen(false); item.onClick(); }}
+            >
+              {item.icon && <span className="nav-more-icon">{item.icon}</span>}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const renderGuestNav = () => (
     <>
       <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
       <button className={'nav-link ' + (currentPage === 'marketplace' ? 'active' : '')} onClick={() => navigateTo('marketplace')}>Marketplace</button>
-      <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>Search</button>
       <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
-      <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>🤖 Copilot</button>
-      <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>Map</button>
-      <button className={'nav-link ' + (currentPage === 'login' ? 'active' : '')} onClick={() => navigateTo('login')}>Login</button>
-      <button className={'nav-link ' + (currentPage === 'register' ? 'active' : '')} onClick={() => navigateTo('register')}>Register</button>
+      <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>{'\u{1F916}'} Copilot</button>
+      <NavMore
+        active={['search-materials', 'supplier-map', 'login', 'register'].includes(currentPage)}
+        items={[
+          { label: 'Find Products', icon: '\u{1F50D}', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
+          { label: 'Supplier Map', icon: '\u{1F4CD}', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+          { label: 'Login', icon: '\u{1F510}', active: currentPage === 'login', onClick: () => navigateTo('login') },
+          { label: 'Create Account', icon: '\u{1F464}', active: currentPage === 'register', onClick: () => navigateTo('register') },
+        ]}
+      />
     </>
   );
 
   const renderUserNav = () => {
     const isCompany = currentUser?.userType === 'company';
     const isAdmin = currentUser?.userType === 'admin';
+    const dashboardPage = isCompany ? 'company-dashboard' : isAdmin ? 'analytics' : 'customer-dashboard';
+    const dashboardLabel = isCompany ? 'Supplier Dashboard' : isAdmin ? 'Admin Control Room' : 'Dashboard';
+    const secondary = [
+      { label: 'Find Products', icon: '\u{1F50D}', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
+      { label: 'Supplier Map', icon: '\u{1F4CD}', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+      ...(isCompany ? [
+        { label: 'Add Product', icon: '+', active: currentPage === 'add-material', onClick: () => navigateTo('add-material') },
+        { label: 'Company Profile', icon: '\u{1F3E2}', active: currentPage === 'edit-company', onClick: handleEditCompany },
+      ] : []),
+      ...(isAdmin ? [
+        { label: 'Add Supplier', icon: '\u{1F3E2}', active: false, onClick: handleAdminAddSupplier },
+        { label: 'Platform Settings', icon: '\u2699\uFE0F', active: currentPage === 'settings', onClick: () => navigateTo('settings') },
+      ] : []),
+    ];
     return (
       <>
         <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
         <button className={'nav-link ' + (currentPage === 'marketplace' ? 'active' : '')} onClick={() => navigateTo('marketplace')}>Marketplace</button>
-        <button className={'nav-link ' + (currentPage === 'search-materials' ? 'active' : '')} onClick={() => navigateTo('search-materials')}>Search</button>
         <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
-        <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>🤖 Copilot</button>
-        {isCompany ? (
-          <>
-            <button className={'nav-link ' + (currentPage === 'company-dashboard' ? 'active' : '')} onClick={() => navigateTo('company-dashboard')}>Dashboard</button>
-            <button className={'nav-link ' + (currentPage === 'add-material' ? 'active' : '')} onClick={() => navigateTo('add-material')}>+ Add</button>
-            <button className={'nav-link ' + (currentPage === 'edit-company' ? 'active' : '')} onClick={handleEditCompany}>Profile</button>
-          </>
-        ) : (
-          <button className={'nav-link ' + (currentPage === 'customer-dashboard' ? 'active' : '')} onClick={() => navigateTo('customer-dashboard')}>Dashboard</button>
-        )}
+        <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>{'\u{1F916}'} Copilot</button>
         <button className={'nav-link ' + (currentPage === 'orders' ? 'active' : '')} onClick={() => navigateTo('orders')}>Orders</button>
-        <button className={'nav-link ' + (currentPage === 'supplier-map' ? 'active' : '')} onClick={() => setShowSupplierMap(true)}>Map</button>
-        {isAdmin && (
-          <button className={'nav-link ' + (currentPage === 'settings' ? 'active' : '')} onClick={() => navigateTo('settings')}>⚙️ Settings</button>
-        )}
+        <NavMore
+          active={['search-materials', 'supplier-map', 'add-material', 'edit-company', 'settings', 'company-dashboard', 'customer-dashboard'].includes(currentPage)}
+          items={[
+            { label: dashboardLabel, icon: '\u{1F4CA}', active: currentPage === dashboardPage, onClick: () => navigateTo(dashboardPage) },
+            ...secondary,
+          ]}
+        />
         <div className="user-info">
           <div className="user-avatar">{currentUser?.name?.charAt(0).toUpperCase()}</div>
           <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{isAdmin ? 'Admin' : isCompany ? 'Supplier' : 'Customer'}</div></div>
@@ -3053,6 +3283,39 @@ function App() {
     const effectiveRate = primarySupplier && primarySupplier.distanceKm > 0
       ? cartDetails.transportCost / primarySupplier.distanceKm
       : supplierRate;
+    // Show the arithmetic behind every delivery charge, not just the final fee.
+    // The supplier's published per-km rate is preferred when it reproduces the
+    // quoted fee; otherwise the effective rate keeps the equation exact.
+    const deliveryFormulaRows = supplierGroups
+      .filter(sup => sup.items.some(item => item.includeDelivery !== false))
+      .map(sup => {
+        const deliveryItem = sup.items.find(item => item.includeDelivery !== false);
+        const publishedRate = deliveryItem?.deliveryRate?.offered
+          ? Number(deliveryItem.deliveryRate.perKm) || 0
+          : 0;
+        const startFee = deliveryItem?.deliveryRate?.offered
+          ? Number(deliveryItem.deliveryRate.startFee) || 0
+          : 0;
+        const distanceKm = Number.isFinite(sup.distanceKm) ? sup.distanceKm : 0;
+        const publishedTotal = distanceKm * publishedRate + startFee;
+        const usePublishedRate = publishedRate > 0 &&
+          Math.abs(publishedTotal - sup.transportCost) <= Math.max(0.5, sup.transportCost * 0.01);
+        const rate = usePublishedRate
+          ? publishedRate
+          : distanceKm > 0 ? sup.transportCost / distanceKm : 0;
+        const formula = sup.transportCost > 0
+          ? `${distanceKm.toFixed(1)} km × ${rate.toFixed(2)} ETB/km`
+            + (usePublishedRate && startFee > 0 ? ` + ${formatCurrency(startFee)} start` : '')
+            + ` = ${formatCurrency(sup.transportCost)}`
+          : distanceKm > 0
+            ? `${distanceKm.toFixed(1)} km — no delivery charge`
+            : 'No delivery charge';
+        return {
+          id: sup.supplierId,
+          label: supplierGroups.length > 1 ? `${sup.supplierName}: ` : '',
+          formula,
+        };
+      });
     return (
       <div className="modal-overlay cart-overlay-single" onClick={() => setShowCartSummary(false)}>
         <div className="modal-content cart-modal cart-sample-modal cart-single-page" onClick={e => e.stopPropagation()}>
@@ -3267,6 +3530,12 @@ function App() {
                   <div className="cart-new-fin-row"><span>Amount Before VAT</span><span>ETB {cartDetails.subtotal.toFixed(2)}</span></div>
                   {systemSettings.vat.enabled && <div className="cart-new-fin-row"><span>VAT ({expectedVat.rate}%)</span><span>ETB {expectedVat.vatAmount.toFixed(2)}</span></div>}
                   <div className="cart-new-fin-row"><span>Delivery Cost</span><span>ETB {cartDetails.transportCost.toFixed(2)}</span></div>
+                  {deliveryFormulaRows.map(row => (
+                    <div key={row.id} className="cart-new-fin-breakdown">
+                      <span>{row.label}Delivery</span>
+                      <span>{row.formula}</span>
+                    </div>
+                  ))}
                   <div className="cart-new-fin-row grand"><span>Grand Total</span><span>ETB {payableTotal.toFixed(2)}</span></div>
                 </div>
 
@@ -3409,17 +3678,19 @@ function App() {
   };
 
   const renderLogin = () => {
-    const selectedUser = users.find(u => u.email === formData.selectedUser);
+    const selectedUser = findLoginUser(users, formData.selectedUser, '');
     const isLocked = selectedUser ? isUserLocked(selectedUser) : false;
     return (
       <main className="main-content">
         <div className="auth-container">
           <div className="auth-card glass">
-            <div className="auth-header"><span className="auth-icon">🔑</span><h2>Welcome Back</h2><p>Login with email & password (0909)</p></div>
+            <div className="auth-header"><span className="auth-icon">🔑</span><h2>Welcome Back</h2><p>Sign in with the e-mail address registered with E-SCON.</p></div>
             <div className="auth-body">
               <form onSubmit={handleLogin}>
-                <div className="form-group"><label className="form-label">📧 Email</label><input list="userList" className="form-input" name="selectedUser" value={formData.selectedUser} onChange={handleDatalistInputChange} required disabled={isLocked} /><datalist id="userList">{users.map(user => <option key={user.id} value={user.email}>{user.name} - {user.email}</option>)}</datalist></div>
-                {formData.selectedUser && !isLocked && (<><div className="form-group"><label className="form-label">🔒 Password</label><input type="password" className="form-input" name="loginPassword" value={formData.loginPassword} onChange={handleInputChange} required /></div><button type="submit" className="btn-submit">🔐 Login</button></>)}
+                <div className="form-group"><label className="form-label" htmlFor="login-email">📧 Email</label><input id="login-email" type="email" className="form-input" name="selectedUser" value={formData.selectedUser} onChange={handleDatalistInputChange} autoComplete="username" inputMode="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" required disabled={isLocked} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="login-password">🔒 Password</label><input id="login-password" type="password" className="form-input" name="loginPassword" value={formData.loginPassword} onChange={handleInputChange} autoComplete="current-password" required disabled={isLocked} /></div>
+                {isLocked && <p className="auth-locked" role="status">This account is temporarily locked. Try again in a moment.</p>}
+                <button type="submit" className="btn-submit" disabled={isLocked}>🔐 Login</button>
               </form>
               <div className="text-center"><p>Don't have an account? <button className="link-btn" onClick={() => navigateTo('register')}>Register here</button></p></div>
             </div>
@@ -3605,7 +3876,32 @@ function App() {
     </div>
   );
 
-  const renderAddMaterial = () => (
+  const renderAddMaterial = () => {
+    if (currentUser?.userType !== 'company') {
+      const isAdmin = currentUser?.userType === 'admin';
+      return (
+        <main className="main-content">
+          <div className="admin-settings glass">
+            <h2>🔒 Products belong to suppliers</h2>
+            <p>
+              {isAdmin
+                ? 'Administrators onboard suppliers; the supplier account then publishes its own products.'
+                : 'Sign in with a supplier account to list products in the marketplace.'}
+            </p>
+            {isAdmin ? (
+              <button type="button" className="btn btn-primary" onClick={handleAdminAddSupplier}>
+                ➕ Add Supplier
+              </button>
+            ) : (
+              <button type="button" className="btn btn-primary" onClick={() => navigateTo(currentUser ? 'marketplace' : 'login')}>
+                {currentUser ? '🛍️ Browse Marketplace' : '🔐 Sign In'}
+              </button>
+            )}
+          </div>
+        </main>
+      );
+    }
+    return (
     <main className="main-content"><div className="form-container glass"><h2>{welcomeTitle('Add New Product')}</h2>
       <form onSubmit={handleAddMaterial}>
         <div className="form-group"><label>📦 Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
@@ -3619,7 +3915,8 @@ function App() {
         <div className="form-actions"><button type="submit" className="btn-submit">✅ Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}>❌ Cancel</button></div>
       </form>
     </div></main>
-  );
+    );
+  };
 
   const renderEditMaterial = () => (
     <main className="main-content"><div className="form-container glass"><h2>{welcomeTitle('Edit Product')}</h2>
@@ -3786,34 +4083,37 @@ function App() {
   const renderOrders = () => {
     if (isMobile) return renderOrdersMobile();
     const isCompany = currentUser?.userType === 'company';
-    const userOrders = isCompany ? orders.filter(o => {
+    const isAdmin = currentUser?.userType === 'admin';
+    const canManage = isCompany || isAdmin;
+    const userOrders = isAdmin ? orders : isCompany ? orders.filter(o => {
       const comp = getCompanyByUserId(currentUser!.id);
       return comp && o.companyId === comp.id;
     }) : orders.filter(o => o.customerId === currentUser?.id);
     const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{welcomeTitle(isCompany ? 'Order Management' : 'My Orders')}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span>{isCompany && <button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button>}</div></div>
-        {userOrders.length === 0 ? <div className="no-orders glass">No orders yet</div> : (
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">🛒</span><h1>{welcomeTitle(isAdmin ? 'Platform Orders' : isCompany ? 'Order Management' : 'My Orders')}</h1></div><div className="order-summary"><span>📊 Total: {userOrders.length} orders</span><span>💰 Value: {formatCurrency(totalValue)}</span>{canManage && <button className="btn btn-secondary" onClick={handleExportOrders}>📥 Export</button>}</div></div>
+        {userOrders.length === 0 ? <div className="no-orders glass">{isAdmin ? 'No orders on the platform yet' : 'No orders yet'}</div> : (
           <ScrollableTable minWidth="900px">
-            <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{isCompany && <th>Actions</th>}</tr></thead><tbody>
+            <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th>{isAdmin && <th>Buyer</th>}<th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{canManage && <th>Actions</th>}</tr></thead><tbody>
               {userOrders.map(order => {
                 const m = getMaterialById(order.materialId);
                 return (
                   <tr key={order.id}>
                     <td>{order.id}</td>
                     <td>{m?.name}</td>
+                    {isAdmin && <td>{getUserById(order.customerId)?.name || 'Unknown buyer'}</td>}
                     <td>{order.quantity}</td>
                     <td className="price-cell">{formatCurrency(order.unitPrice)}</td>
                     <td className="price-cell">{formatCurrency(order.transportCost)}</td>
                     <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
                     <td>{order.status === 'delivered' ? '✅' : order.status === 'pending' ? '⏳' : '🚚'} {order.status}</td>
                     <td>{formatDate(order.orderDate)}</td>
-                    {!isCompany && (
+                    {!canManage && (
                       <td><button className="btn-icon" title="Quick Reorder" onClick={() => handleQuickReorder(order.materialId)}>🔄</button></td>
                     )}
-                    {isCompany && order.status === 'pending' && (
-                      <td><button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button></td>
+                    {canManage && (
+                      <td>{order.status === 'pending' ? <button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button> : '—'}</td>
                     )}
                   </tr>
                 );
@@ -3823,6 +4123,66 @@ function App() {
         )}
       </main>
     );
+  };
+
+  const handleMapSupplierProducts = (company: Company): void => {
+    setShowSupplierMap(false);
+    setAutoRouteSupplierId(company.id);
+    navigateTo('search-materials');
+    setFormData(prev => ({
+      ...prev,
+      searchQuery: '',
+      searchCategory: 'all',
+      searchCity: 'all',
+      searchSupplier: company.id,
+    }));
+  };
+
+  // A product clicked on the supplier map should become a proforma line, not
+  // just text. The line is staged into the cart first so the document, the cart
+  // and any later purchase all share the same pricing path.
+  const handleMapProductProforma = async (material: Material): Promise<void> => {
+    setShowSupplierMap(false);
+    if (!currentUser) {
+      showAlert('Please login to create a proforma', 'danger');
+      navigateTo('login');
+      return;
+    }
+    if (currentUser.userType !== 'customer') {
+      setSelectedMaterial(material);
+      return;
+    }
+    if (material.quantity <= 0) {
+      showAlert('This product is currently unavailable.', 'danger');
+      return;
+    }
+    const company = getCompanyById(material.companyId);
+    if (!company) {
+      showAlert('The supplier for this product is unavailable.', 'danger');
+      return;
+    }
+    const measuredKm = await measureDistanceForMaterial(material);
+    const lines = stageCartLine(cart, material, 1, true, company.name, 'set', measuredKm);
+    if (!lines) {
+      const foreign = otherSupplierInCart(material.companyId, material.id);
+      showAlert(
+        'Your cart can only contain items from one supplier. It currently holds ' +
+        (foreign ? foreign.supplierName : 'another supplier') +
+        ' — clear the cart before creating a proforma for ' + material.name + '.',
+        'warning'
+      );
+      return;
+    }
+    setCart(lines);
+    setSelectedMaterial(null);
+    const totals = await priceCartItems(lines, true);
+    if (!totals) {
+      setShowCartSummary(true);
+      return;
+    }
+    setProformaDetails(totals);
+    setProformaAutoPrint(false);
+    setShowProforma(true);
   };
 
   const renderSupplierMap = () => {
@@ -3837,7 +4197,8 @@ function App() {
           materials={materials}
           currentUser={currentUser}
           onClose={() => setShowSupplierMap(false)}
-          onSelectSupplier={(company) => console.log('Selected supplier:', company)}
+          onSelectSupplier={handleMapSupplierProducts}
+          onSelectProduct={material => { void handleMapProductProforma(material); }}
           autoRouteSupplierId={routeId}
           routeRequestId={routeRequestId}
           onRouteShown={(companyId) => setAutoRouteSupplierId(companyId)}
@@ -4345,9 +4706,12 @@ function App() {
     if (currentPage === 'splash') return null;
     const isCustomer = currentUser?.userType === 'customer';
     const isCompany = currentUser?.userType === 'company';
+    const isAdmin = currentUser?.userType === 'admin';
+    const boardPage = isCompany ? 'company-dashboard' : 'analytics';
 
     const myOrders = currentUser
       ? orders.filter(o => {
+          if (currentUser.userType === 'admin') return true;
           if (currentUser.userType === 'company') {
             const comp = getCompanyByUserId(currentUser.id);
             return comp && o.companyId === comp.id;
@@ -4385,12 +4749,17 @@ function App() {
           <>
             <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon="🏠" label="Home" />
             {isCustomer && <TabLink active={currentPage === 'search-materials'} onClick={() => navigateTo('search-materials')} icon="🔍" label="Search" />}
-            {!isCustomer && <TabLink active={currentPage === (isCompany ? 'company-dashboard' : 'customer-dashboard')} onClick={() => navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard')} icon="📊" label="Board" />}
+            {!isCustomer && <TabLink active={currentPage === boardPage} onClick={() => navigateTo(boardPage)} icon="📊" label={isAdmin ? 'Admin' : 'Board'} />}
             {isCustomer ? (
               <button className="m-fab m-fab-cart" onClick={handleCheckout} aria-label="Open cart">
                 <span className="m-fab-icon">🛒</span>
                 <span className="m-fab-label">Cart</span>
                 {cart.length > 0 && <span className="m-fab-badge">{cart.reduce((s, i) => s + i.quantity, 0)}</span>}
+              </button>
+            ) : isAdmin ? (
+              <button className="m-fab" onClick={handleAdminAddSupplier} aria-label="Add supplier">
+                <span className="m-fab-icon">🏢</span>
+                <span className="m-fab-label">Supplier</span>
               </button>
             ) : (
               <button className="m-fab" onClick={() => navigateTo('add-material')} aria-label="Add product">
@@ -4440,16 +4809,20 @@ function App() {
             </div>
           )}
           <div className="m-sheet-actions">
+            <Action icon="🔎" label="Quick Search" sub="Jump to a page or product" onClick={() => { setMobileMenuOpen(false); setShowCommandPalette(true); }} />
             <Action icon="🛍️" label="Marketplace" sub="Browse every verified product" onClick={() => { setMobileMenuOpen(false); navigateTo('marketplace'); }} />
             <Action icon="📊" label="Analytics & Insights" sub="KPIs, charts and CSV export" onClick={() => { setMobileMenuOpen(false); navigateTo('analytics'); }} />
             <Action icon="🤖" label="Copilot AI" sub="Ask about your live data" onClick={() => { setMobileMenuOpen(false); openCopilot(); }} />
             {currentUser && (
               <Action
                 icon="📊"
-                label="Dashboard"
+                label={isCompany ? 'Supplier Dashboard' : isAdmin ? 'Admin Control Room' : 'Dashboard'}
                 sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : 'Customer'}
-                onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : 'customer-dashboard'); }}
+                onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : isAdmin ? 'analytics' : 'customer-dashboard'); }}
               />
+            )}
+            {isAdmin && (
+              <Action icon="🏢" label="Add Supplier" sub="Create a supplier login & company profile" onClick={() => { setMobileMenuOpen(false); handleAdminAddSupplier(); }} />
             )}
             <Action icon="🗺️" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
             {currentUser && (
@@ -4607,7 +4980,6 @@ function App() {
             </div>
           ) : (
             <div className="m-hero-cta">
-              <button className="m-hero-btn primary" onClick={() => navigateTo('register')}>Create Account</button>
               <button className="m-hero-btn ghost" onClick={() => navigateTo('login')}>Login</button>
             </div>
           )}
@@ -4620,8 +4992,6 @@ function App() {
             <Quick icon="📊" label="Insights" sub="Live analytics" onClick={() => navigateTo('analytics')} />
             <Quick icon="🤖" label="Copilot" sub="Ask anything" onClick={() => openCopilot('What products are trending?')} />
             <Quick icon="🗺️" label="Supplier Map" sub="Nearby suppliers" onClick={() => setShowSupplierMap(true)} />
-            <Quick icon="📲" label="Install App" sub="Offline access" onClick={() => setShowInstallGuide(true)} />
-            <Quick icon="👤" label="Sign in" sub="Track orders" onClick={() => navigateTo('login')} />
           </div>
         )}
 
@@ -4739,7 +5109,9 @@ function App() {
 
   const renderOrdersMobile = () => {
     const isCompany = currentUser?.userType === 'company';
-    const userOrders = isCompany ? orders.filter(o => {
+    const isAdmin = currentUser?.userType === 'admin';
+    const canManage = isCompany || isAdmin;
+    const userOrders = isAdmin ? orders : isCompany ? orders.filter(o => {
       const comp = getCompanyByUserId(currentUser!.id);
       return comp && o.companyId === comp.id;
     }) : orders.filter(o => o.customerId === currentUser?.id);
@@ -4748,11 +5120,11 @@ function App() {
     return (
       <main className="main-content mobile-orders">
         <div className="mobile-page-head">
-          <h2>{welcomeTitle(isCompany ? 'Order Management' : 'My Orders')}</h2>
+          <h2>{welcomeTitle(isAdmin ? 'Platform Orders' : isCompany ? 'Order Management' : 'My Orders')}</h2>
           <p>{userOrders.length} orders · {formatCurrency(totalValue)}</p>
         </div>
         {userOrders.length === 0 ? (
-          <div className="no-orders glass">No orders yet</div>
+          <div className="no-orders glass">{isAdmin ? 'No orders on the platform yet' : 'No orders yet'}</div>
         ) : (
           <div className="m-order-list">
             {userOrders.map(order => {
@@ -4773,7 +5145,7 @@ function App() {
                     </span>
                   </div>
                   <OrderTimeline status={order.status} size="sm" />
-                  {isCompany && customer && (
+                  {canManage && customer && (
                     <div className="m-order-customer">👤 {customer.name} · 📍 {customer.city}</div>
                   )}
                   <div className="m-order-meta">
@@ -4789,25 +5161,25 @@ function App() {
                     <span className="pay-method">{order.paymentMethod}</span>
                   </div>
                   <div className="m-order-actions">
-                    {!isCompany && (
+                    {!canManage && (
                       <button className="m-order-btn" onClick={() => handleQuickReorder(order.materialId)}>🔄 Reorder</button>
                     )}
-                    {!isCompany && order.status === 'delivered' && m && (
+                    {!canManage && order.status === 'delivered' && m && (
                       <button className="m-order-btn primary" onClick={() => setSelectedMaterial(m)}>⭐ Rate product</button>
                     )}
-                    {isCompany && order.status === 'pending' && (
+                    {canManage && order.status === 'pending' && (
                       <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>✅ Confirm</button>
                     )}
-                    {isCompany && order.status === 'confirmed' && (
+                    {canManage && order.status === 'confirmed' && (
                       <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'shipped')}>🚚 Ship</button>
                     )}
-                    {isCompany && order.status === 'shipped' && (
+                    {canManage && order.status === 'shipped' && (
                       <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'delivered')}>📦 Delivered</button>
                     )}
-                    {isCompany && (order.status === 'pending' || order.status === 'confirmed') && (
+                    {canManage && (order.status === 'pending' || order.status === 'confirmed') && (
                       <button className="m-order-btn danger" onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}>🚫 Cancel</button>
                     )}
-                    {isCompany && <button className="m-order-btn" onClick={handleExportOrders}>📥 Export</button>}
+                    {canManage && <button className="m-order-btn" onClick={handleExportOrders}>📥 Export</button>}
                   </div>
                 </div>
               );
@@ -4995,6 +5367,7 @@ function App() {
         <EditCompany
           company={adminCompanyTarget.company}
           user={adminCompanyTarget.user}
+          mode={adminCompanyTarget.isNew ? 'create' : 'edit'}
           onSave={handleAdminSaveCompany}
           onClose={() => setAdminCompanyTarget(null)}
         />
@@ -5039,6 +5412,8 @@ function App() {
           settings={systemSettings}
           onOpenProduct={setSelectedMaterial}
           onOpenMarketplace={() => navigateTo('marketplace')}
+          onOpenSettings={() => navigateTo('settings')}
+          onOpenSupplierMap={() => setShowSupplierMap(true)}
           onAskCopilot={openCopilot}
           onNotify={showAlert}
         />
@@ -5071,6 +5446,7 @@ function App() {
             onUpdateUser={handleAdminUpdateUser}
             onDeleteCompany={handleAdminDeleteCompany}
             onEditCompany={handleAdminEditCompany}
+            onAddSupplier={handleAdminAddSupplier}
             onEditMaterial={handleAdminEditMaterial}
             onDeleteMaterial={handleDeleteMaterial}
           />
@@ -5082,10 +5458,69 @@ function App() {
     }
   };
 
+  const commandItems: CommandItem[] = [
+    { id: 'nav-home', group: 'Navigate', label: 'Home', hint: 'Dashboard, trends and quick actions', icon: '🏠', keywords: 'start overview dashboard', run: () => navigateTo('home') },
+    { id: 'nav-market', group: 'Navigate', label: 'Marketplace', hint: 'Browse, compare and order verified materials', icon: '🛍️', keywords: 'shop catalogue products store', run: () => navigateTo('marketplace') },
+    { id: 'nav-search', group: 'Navigate', label: 'Find Products', hint: 'Search by material, supplier, city or price', icon: '🔍', keywords: 'search filter catalogue', run: () => navigateTo('search-materials') },
+    { id: 'nav-analytics', group: 'Navigate', label: 'Analytics & Insights', hint: 'Role-scoped KPIs, charts and reports', icon: '📊', keywords: 'insights reports charts analytics', run: () => navigateTo('analytics') },
+    { id: 'nav-copilot', group: 'Navigate', label: 'Copilot AI', hint: 'Ask questions about your live supply-chain data', icon: '🤖', keywords: 'ai assistant ask forecast', run: () => openCopilot() },
+    { id: 'nav-map', group: 'Navigate', label: 'Supplier Map', hint: 'Explore suppliers, pins and delivery routes', icon: '🗺️', keywords: 'gps route location map', run: () => setShowSupplierMap(true) },
+    { id: 'nav-install', group: 'Navigate', label: 'Install App', hint: 'Add E-SCON to your home screen', icon: '📲', keywords: 'pwa offline home screen', run: () => setShowInstallGuide(true) },
+    { id: 'pref-theme', group: 'Preferences', label: darkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme', hint: 'Theme is saved on this device', icon: darkMode ? '☀️' : '🌙', keywords: 'appearance dark light mode', run: () => setDarkMode(value => !value) },
+  ];
+  if (currentUser) {
+    commandItems.push(
+      { id: 'nav-orders', group: 'Navigate', label: 'Orders', hint: 'Track, inspect and manage orders', icon: '📦', keywords: 'purchase delivery status', run: () => navigateTo('orders') },
+      { id: 'nav-wallet', group: 'Account', label: 'E-SCON Wallet', hint: `Balance ${formatCurrency(walletBalance(currentUser.id))}`, icon: '💳', keywords: 'money balance payment', run: () => setShowWallet(true) },
+      { id: 'nav-notifications', group: 'Account', label: 'Notifications', hint: unreadNotifications() > 0 ? `${unreadNotifications()} unread` : 'All caught up', icon: '🔔', keywords: 'alerts messages inbox', run: () => setShowNotifications(true) },
+      { id: 'nav-data', group: 'Account', label: 'Data Center', hint: 'Back up or restore your data', icon: '🛡️', keywords: 'backup restore export json', run: () => setShowDataCenter(true) }
+    );
+  }
+  if (currentUser?.userType === 'customer') {
+    commandItems.push({ id: 'nav-cart', group: 'Account', label: 'Open Cart', hint: 'Review delivery, VAT and your proforma', icon: '🛒', keywords: 'basket checkout order', run: () => handleCheckout() });
+  }
+  if (currentUser?.userType === 'company') {
+    commandItems.push(
+      { id: 'nav-add-product', group: 'Supplier', label: 'Add Product', hint: 'List a new material for buyers', icon: '➕', keywords: 'new listing material', run: () => navigateTo('add-material') },
+      { id: 'nav-company', group: 'Supplier', label: 'Company Profile', hint: 'Update your supplier profile and location', icon: '🏢', keywords: 'supplier profile company edit', run: () => handleEditCompany() }
+    );
+  }
+  if (currentUser?.userType === 'admin') {
+    commandItems.push(
+      { id: 'nav-dashboard', group: 'Admin', label: 'Admin Control Room', hint: 'Platform health, compliance and accounts', icon: '📈', keywords: 'dashboard overview admin analytics', run: () => navigateTo('analytics') },
+      { id: 'admin-add-supplier', group: 'Admin', label: 'Add Supplier', hint: 'Create a supplier login and company profile', icon: '🏢', keywords: 'supplier vendor onboard create account', run: handleAdminAddSupplier },
+      { id: 'nav-settings', group: 'Admin', label: 'Platform Settings', hint: 'Delivery, VAT, users and catalogue controls', icon: '⚙️', keywords: 'configuration admin delivery vat', run: () => navigateTo('settings') }
+    );
+  }
+  if (!currentUser) {
+    commandItems.push(
+      { id: 'auth-login', group: 'Account', label: 'Login', hint: 'Sign in to your E-SCON account', icon: '🔑', keywords: 'sign in account', run: () => navigateTo('login') },
+      { id: 'auth-register', group: 'Account', label: 'Create Account', hint: 'Register as a buyer or supplier', icon: '👤', keywords: 'register sign up new', run: () => navigateTo('register') }
+    );
+  }
+  materials.forEach(material => {
+    const company = getCompanyById(material.companyId);
+    commandItems.push({
+      id: 'product-' + material.id,
+      group: 'Products',
+      label: material.name,
+      hint: `${company?.name || 'Supplier'}${company?.city ? ' · ' + company.city : ''} · ${formatCurrency(material.price)} / ${material.unit}`,
+      icon: '📦',
+      keywords: `${material.category} ${material.brand || ''} ${company?.name || ''} ${company?.city || ''}`,
+      run: () => setSelectedMaterial(material),
+    });
+  });
+
   // ---------- Main render ----------
   return (
     <div className={'app-container ' + (darkMode ? 'dark-mode' : '') + (isMobile ? ' mobile-view' : '')}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       {isMobile ? renderMobileTopBar() : renderHeader()}
+      {!isOnline && (
+        <div className="offline-banner" role="status">
+          <span>📡 You are offline. Saved data stays available; reconnect to sync with the cloud.</span>
+        </div>
+      )}
       {renderAlert()}
 
       {/* PWA Install Banner */}
@@ -5133,7 +5568,7 @@ function App() {
         />
       )}
 
-      <div className={'page-transition ' + (pageAnimating ? 'page-enter' : '')}>
+      <div id="main-content" tabIndex={-1} className={'page-transition ' + (pageAnimating ? 'page-enter' : '')}>
       {renderCurrentPage()}
       {renderMaterialDetails()}
       {renderCartSummary()}
@@ -5350,6 +5785,16 @@ function App() {
           </div>
         </div>
       )}
+
+      <CommandPalette
+        open={showCommandPalette}
+        items={commandItems}
+        onClose={() => setShowCommandPalette(false)}
+        onSearch={(term) => {
+          navigateTo('search-materials');
+          setFormData(prev => ({ ...prev, searchQuery: term }));
+        }}
+      />
     </div>
   );
 }

@@ -19,6 +19,8 @@ export interface AnalyticsPageProps {
   settings: SystemSettings;
   onOpenProduct: (material: Material) => void;
   onOpenMarketplace: () => void;
+  onOpenSettings: () => void;
+  onOpenSupplierMap: () => void;
   onAskCopilot: (prompt?: string) => void;
   onNotify: (message: string, type?: 'success' | 'danger' | 'warning' | 'info') => void;
 }
@@ -40,6 +42,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   settings,
   onOpenProduct,
   onOpenMarketplace,
+  onOpenSettings,
+  onOpenSupplierMap,
   onAskCopilot,
   onNotify,
 }) => {
@@ -57,6 +61,94 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     .filter(m => (m.quantity || 0) <= 10)
     .sort((a, b) => (a.quantity || 0) - (b.quantity || 0))
     .slice(0, 6);
+
+  const accountMix = [
+    { label: 'Customers', value: users.filter(u => u.userType === 'customer').length, color: '#2ecc71' },
+    { label: 'Suppliers', value: users.filter(u => u.userType === 'company').length, color: '#e67e22' },
+    { label: 'Admins', value: users.filter(u => u.userType === 'admin').length, color: '#8b5cf6' },
+  ];
+  const complianceMix = [
+    { label: 'Compliant', value: companies.filter(c => c.complianceStatus === 'compliant').length, color: '#2ecc71' },
+    { label: 'Pending', value: companies.filter(c => c.complianceStatus === 'pending').length, color: '#f1c40f' },
+    { label: 'Non-compliant', value: companies.filter(c => c.complianceStatus === 'non-compliant').length, color: '#e74c3c' },
+  ];
+  const pendingOrders = orders.filter(o => o.status === 'pending').length;
+  const missingLocations = users.filter(u => {
+    const lat = Number(u.lat);
+    const lng = Number(u.lng);
+    return !Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0);
+  }).length;
+  const unverifiedSuppliers = companies.filter(c => !c.tinNumber || c.complianceStatus !== 'compliant').length;
+
+  const exportAccounts = (): void => {
+    if (users.length === 0) {
+      onNotify('No accounts to export yet.', 'warning');
+      return;
+    }
+    exportToCSV(users.map(u => ({
+      Name: u.name,
+      Email: u.email,
+      Role: u.userType,
+      Company: u.companyName || '',
+      Phone: u.phone,
+      City: u.city,
+      Address: u.address,
+      Registered: u.registered,
+      Latitude: u.lat,
+      Longitude: u.lng,
+      VATRegistered: u.vatRegistered ? 'yes' : 'no',
+    })), `escon-accounts-${new Date().toISOString().slice(0, 10)}`);
+    onNotify('Account report exported as CSV', 'success');
+  };
+
+  const exportSuppliers = (): void => {
+    if (companies.length === 0) {
+      onNotify('No suppliers to export yet.', 'warning');
+      return;
+    }
+    exportToCSV(companies.map(company => {
+      const supplierOrders = orders.filter(o => o.companyId === company.id && o.status !== 'cancelled');
+      return {
+        Supplier: company.name,
+        City: company.city,
+        Rating: company.rating || 0,
+        Products: materials.filter(m => m.companyId === company.id).length,
+        Orders: supplierOrders.length,
+        RevenueETB: supplierOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+        Compliance: company.complianceStatus || 'pending',
+        TIN: company.tinNumber || '',
+        VAT: company.vatNumber || '',
+      };
+    }), `escon-suppliers-${new Date().toISOString().slice(0, 10)}`);
+    onNotify('Supplier report exported as CSV', 'success');
+  };
+
+  const exportAdminOrders = (): void => {
+    if (orders.length === 0) {
+      onNotify('No orders to export yet.', 'warning');
+      return;
+    }
+    exportToCSV(orders.map(order => {
+      const customer = users.find(u => u.id === order.customerId);
+      const supplier = companies.find(c => c.id === order.companyId);
+      const product = materials.find(m => m.id === order.materialId);
+      return {
+        Order: order.id,
+        Date: order.orderDate,
+        Customer: customer?.name || order.customerId,
+        Supplier: supplier?.name || order.companyId,
+        Product: product?.name || order.materialId,
+        Quantity: order.quantity,
+        UnitPriceETB: order.unitPrice,
+        DeliveryETB: order.transportCost,
+        VATETB: order.vatAmount,
+        TotalETB: order.totalAmount,
+        Status: order.status,
+        Payment: order.paymentStatus,
+      };
+    }), `escon-orders-${new Date().toISOString().slice(0, 10)}`);
+    onNotify('Order book exported as CSV', 'success');
+  };
 
   const exportAnalytics = (): void => {
     const rows = analytics.topProducts.length > 0
@@ -153,6 +245,62 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </div>
           ))}
         </section>
+
+        {analytics.role === 'admin' && (
+          <section className="escon-section admin-control" aria-label="Administrator controls">
+            <div className="escon-section-head">
+              <h2>Platform control room</h2>
+              <span className="escon-badge">{users.length} accounts | {companies.length} suppliers</span>
+            </div>
+            <div className="admin-control-grid">
+              <div className="admin-control-cards">
+                <div className="admin-control-card">
+                  <span className="admin-control-icon">CU</span>
+                  <div><strong>{accountMix.find(a => a.label === 'Customers')?.value || 0}</strong><small>Customer accounts</small></div>
+                </div>
+                <div className="admin-control-card">
+                  <span className="admin-control-icon">SU</span>
+                  <div><strong>{accountMix.find(a => a.label === 'Suppliers')?.value || 0}</strong><small>Supplier accounts</small></div>
+                </div>
+                <div className="admin-control-card">
+                  <span className="admin-control-icon">PO</span>
+                  <div><strong>{pendingOrders}</strong><small>Pending orders</small></div>
+                </div>
+                <div className={'admin-control-card' + (missingLocations > 0 ? ' warn' : '')}>
+                  <span className="admin-control-icon">GPS</span>
+                  <div><strong>{missingLocations}</strong><small>Accounts without GPS pin</small></div>
+                </div>
+                <div className={'admin-control-card' + (unverifiedSuppliers > 0 ? ' warn' : '')}>
+                  <span className="admin-control-icon">TIN</span>
+                  <div><strong>{unverifiedSuppliers}</strong><small>Suppliers needing compliance review</small></div>
+                </div>
+              </div>
+              <div className="admin-control-actions">
+                <button type="button" className="escon-btn" onClick={onOpenSettings}>Open Data Manager</button>
+                <button type="button" className="escon-btn ghost" onClick={onOpenSupplierMap}>Supplier Map</button>
+                <button type="button" className="escon-btn ghost" onClick={exportAccounts}>Accounts CSV</button>
+                <button type="button" className="escon-btn ghost" onClick={exportSuppliers}>Suppliers CSV</button>
+                <button type="button" className="escon-btn ghost" onClick={exportAdminOrders}>Order Book CSV</button>
+              </div>
+            </div>
+            <div className="chart-grid admin-control-charts">
+              <section className="escon-chart-card">
+                <div className="escon-section-head">
+                  <h2>Accounts by role</h2>
+                  <span className="escon-badge">{users.length} total</span>
+                </div>
+                <DonutChart data={accountMix} size={142} centerLabel={String(users.length)} />
+              </section>
+              <section className="escon-chart-card">
+                <div className="escon-section-head">
+                  <h2>Supplier compliance</h2>
+                  <span className="escon-badge">{companies.length} profiles</span>
+                </div>
+                <DonutChart data={complianceMix} size={142} centerLabel={String(companies.length)} />
+              </section>
+            </div>
+          </section>
+        )}
 
         <div className="chart-grid">
           <section className="escon-chart-card">

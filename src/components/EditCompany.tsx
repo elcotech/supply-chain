@@ -10,11 +10,14 @@ interface EditCompanyProps {
   onClose: () => void;
   /** Render inline (inside the My Business page) instead of as a modal. */
   embedded?: boolean;
+  /** Create mode asks for the login credentials of a brand-new supplier. */
+  mode?: 'create' | 'edit';
 }
 
 const MAX_LOGO_BYTES = 1.5 * 1024 * 1024; // 1.5 MB
 
-const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClose, embedded = false }) => {
+const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClose, embedded = false, mode = 'edit' }) => {
+  const isCreate = mode === 'create';
   const [formData, setFormData] = useState({
     name: company.name || '',
     description: company.description || '',
@@ -77,9 +80,23 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const name = formData.name.trim();
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.newPassword;
+
+    if (isCreate) {
+      if (!name) { flash('Enter the supplier or company name.', 'danger'); return; }
+      if (!formData.fullName.trim()) { flash('Enter the contact person\'s full name.', 'danger'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { flash('Enter a valid supplier login e-mail.', 'danger'); return; }
+      if (password.trim().length < 4) { flash('Set a password of at least 4 characters.', 'danger'); return; }
+    } else if (password && password.trim().length < 4) {
+      flash('The new password must be at least 4 characters.', 'danger');
+      return;
+    }
+
     const updatedCompany: Company = {
       ...company,
-      name: formData.name,
+      name,
       description: formData.description,
       location: formData.location,
       city: formData.city,
@@ -91,16 +108,20 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
       tradeLicenseExpiry: formData.tradeLicenseExpiry,
       website: formData.website,
       workingHours: formData.workingHours,
+      phone: formData.phone,
+      email,
       logo: logo || undefined,
     };
 
     const updatedUser: User = {
       ...user,
+      userType: 'company',
       name: formData.fullName.trim() || user.name,
-      // Blank means "keep the current password".
-      password: formData.newPassword ? formData.newPassword : user.password,
+      companyName: name,
+      // Blank means "keep the current password" (create mode requires one above).
+      password: password ? password : user.password,
       phone: formData.phone,
-      email: formData.email,
+      email,
       address: formData.location,
       city: formData.city,
       lat: formData.lat,
@@ -116,9 +137,15 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
         <h2 className="myb-form-title">🏢 Business profile, location &amp; account</h2>
       ) : (
         <div className="modal-header">
-          <h2>✏️ Edit Company Profile</h2>
+          <h2>{isCreate ? '🏢 Add Supplier Account' : '✏️ Edit Company Profile'}</h2>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
+      )}
+
+      {isCreate && (
+        <p className="form-hint" style={{ margin: '0 0 12px' }}>
+          Create the supplier&apos;s login and company profile. They can list products after signing in.
+        </p>
       )}
 
       {alert && (
@@ -187,8 +214,8 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
               <input type="tel" name="phone" value={formData.phone} onChange={handleChange} />
             </div>
             <div className="form-group">
-              <label>Email</label>
-              <input type="email" name="email" value={formData.email} onChange={handleChange} />
+              <label>Email{isCreate ? ' *' : ''}</label>
+              <input type="email" name="email" value={formData.email} onChange={handleChange} required={isCreate} autoComplete="email" />
             </div>
           </div>
           <div className="form-row">
@@ -231,18 +258,18 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
           <h3>🔐 Account</h3>
           <div className="form-row">
             <div className="form-group">
-              <label>Full Name</label>
-              <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} />
+              <label>{isCreate ? 'Contact Person *' : 'Full Name'}</label>
+              <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} required={isCreate} autoComplete="name" />
             </div>
             <div className="form-group">
-              <label>New Password <small className="form-hint">(leave blank to keep current)</small></label>
-              <input type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} placeholder="••••••••" autoComplete="new-password" />
+              <label>{isCreate ? 'Password *' : 'New Password'} <small className="form-hint">{isCreate ? '(first sign-in password)' : '(leave blank to keep current)'}</small></label>
+              <input type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} placeholder="••••••••" autoComplete="new-password" required={isCreate} minLength={isCreate ? 4 : undefined} />
             </div>
           </div>
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn-submit">💾 Save changes</button>
+          <button type="submit" className="btn-submit">{isCreate ? '✅ Create supplier' : '💾 Save changes'}</button>
           {!embedded && <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>}
         </div>
       </form>

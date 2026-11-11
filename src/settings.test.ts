@@ -1,5 +1,14 @@
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings';
-import { refreshSettings, ADMIN_USER, ADMIN_EMAIL } from './settings';
+import {
+  refreshSettings,
+  ADMIN_USER,
+  ADMIN_EMAIL,
+  ADMIN_USERS,
+  ADMIN_EMAILS,
+  SECONDARY_ADMIN_EMAIL,
+  SECONDARY_ADMIN_USER,
+  isBuiltInAdminEmail,
+} from './settings';
 
 describe('system settings persistence', () => {
   beforeEach(() => {
@@ -72,9 +81,18 @@ describe('system settings persistence', () => {
     expect(loaded.minOrder.amount).toBe(DEFAULT_SETTINGS.minOrder.amount);
   });
 
-  it('seeds a usable admin account', () => {
+  it('seeds the primary and secondary administrators', () => {
     expect(ADMIN_USER.email).toBe(ADMIN_EMAIL);
     expect(ADMIN_USER.userType).toBe('admin');
     expect(ADMIN_USER.password.length).toBeGreaterThanOrEqual(6);
+    expect(SECONDARY_ADMIN_USER.email).toBe(SECONDARY_ADMIN_EMAIL);
+    expect(SECONDARY_ADMIN_USER.email).toBe('naodmyb@gmail.com');
+    expect(SECONDARY_ADMIN_USER.password).toBe('0909');
+    expect(SECONDARY_ADMIN_USER.userType).toBe('admin');
+    expect(ADMIN_USERS).toHaveLength(2);
+    expect(ADMIN_EMAILS).toContain('naodmyb@gmail.com');
+    expect(isBuiltInAdminEmail('NAODMYB@GMAIL.COM')).toBe(true);
+    expect(isBuiltInAdminEmail('meharinageb@gmail.com')).toBe(false);
+    expect(isBuiltInAdminEmail('someone@example.com')).toBe(false);
   });
 });

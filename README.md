@@ -25,11 +25,12 @@ npm run build    # production build → ./build
 
 ### Demo login
 
-| Role     | Email example                     | Password |
-| -------- | --------------------------------- | -------- |
-| Admin    | `admin@escon.et`                  | `admin123` |
-| Supplier | `zhiruyanduamlak062@gmail.com`    | `0909`   |
-| Customer | pick any user from the login list | `0909`   |
+| Role          | Email example                     | Password |
+| ------------- | --------------------------------- | -------- |
+| Admin         | `admin@escon.et`                  | `admin123` |
+| Admin (owner) | `naodmyb@gmail.com`               | `0909`   |
+| Supplier      | `zhiruyanduamlak062@gmail.com`    | `0909`   |
+| Customer      | pick any seeded user              | `0909`   |
 
 The **Admin** account configures the delivery-fee model, delivery zones, free-delivery threshold, minimum-order rule and VAT rate on the ⚙️ Settings page, and can edit or delete accounts, suppliers and products there. A fresh install starts with only the admin account; to load the demo suppliers, products and orders into Supabase, run `supabase/schema.sql` and then `supabase/seed.sql` in the Supabase SQL editor (see [docs/CLOUD_DATABASE.md](./docs/CLOUD_DATABASE.md)). The seed is an upsert, so edits and deletions made in the app are never re-seeded by the build.
 
@@ -57,6 +58,13 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🛍️ **Marketplace (v6.17)** — a storefront view of the same catalogue: hero search, category/city chips, price/rating/newest sorting, supplier storefront profiles, route shortcuts, favourites, compare and one-tap cart. Adding an item uses the existing cart and pricing path, so there is no duplicate data.
 - 📊 **Analytics & Insights (v6.17)** — role-scoped KPIs and charts for admins (whole platform), suppliers (own company) and customers (own orders): 30/90/365-day and all-time periods, growth vs the previous period, revenue/GMV, active and delivered orders, delivery and VAT, stock value and low-stock counts, six-month trends, status/category/city charts, top products/suppliers/customers, price forecasts and plain-language insights. Suppliers and admins can export CSV.
 - 🤖 **Copilot AI (v6.17)** — ask questions in natural language ("How is revenue this month?", "What should I restock?") and get answers built only from your own role-scoped analytics. It is deterministic and on-device (no API key, no data leaves the phone), renders metric cards and mini-charts, suggests follow-ups and keeps a per-tab conversation history.
+- ⌨️ **Quick Search command palette (v6.18)** — press **Ctrl/⌘ + K**, the 🔎 header button, or **More → Quick Search** on a phone to jump to any page, action or product. It learns your most-used commands, ranks by relevance, supports ↑/↓/Enter/Esc, and adds a one-tap **Search all products for "…"** hand-off to the catalogue.
+- 📡 **Online/offline awareness (v6.18)** — a clear banner appears while the device is offline, explaining that saved data stays available and cloud sync resumes on reconnect. The theme choice now persists and updates the mobile browser theme colour.
+- 🛠️ **Admin control room (v6.18)** — the Insights page gains an admin-only panel with account/role counts, pending orders, accounts missing a GPS pin, suppliers needing compliance review, one-tap jumps to the data manager and supplier map, plus Accounts / Suppliers / Order-book CSV exports.
+- 🏢 **Role-scoped actions (v6.18)** — admins onboard suppliers from Settings, the header/More menu, the mobile FAB and Quick Search; product creation is supplier-only. Admin and supplier order pages now show their real order book, and CSV export follows the signed-in role.
+- 🧾 **Delivery arithmetic on every document (v6.18)** — the cart and proforma print the exact delivery equation per supplier (`12.4 km × 25.00 ETB/km + start fee = …`) instead of only a final fee, so the charge is always auditable.
+- 🗺️ **Map products open into the ordering flow (v6.18)** — product rows on the supplier map are now buttons: clicking one stages the item, measures the route and opens the proforma, while the supplier card can filter the catalogue to that supplier.
+- 🔐 **Smarter sign-in (v6.18)** — e-mail matching is case- and whitespace-insensitive, duplicate e-mails resolve to the account whose password matches (highest privilege when reporting a failure), and the login form no longer exposes the account list. The built-in administrators are re-seeded safely on upgrade, including the renamed owner account.
 - **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors
 - 🗺️ **Automatic supplier routing** — the map always draws the route from the customer's real GPS position to the selected supplier, and re-draws it the moment GPS locks in; selecting another supplier (marker, list or re-opening) replaces the previous route instead of leaving it on screen
 - 🧾 **Three order actions in the cart, in order** — `1 To Purchase` places the order, `2 To Proforma` opens the proforma ready to print or save as PDF, `3 To Preview` reads the identical document on screen; the Sample Layout bottom row repeats the primary action as a **To Purchase** pill beside **Clear**, through the same code path. Cart CSV export and the old "Print Report" are gone: the proforma is the buyer's only order document

@@ -2,8 +2,8 @@
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.17 (Marketplace, role-aware Analytics & Insights, and data-grounded Copilot AI — all presented in the same Sample-Layout document shell on desktop, tablet and phone)
-> **Previous:** 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart), 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
+> **Version:** 6.18 (Quick Search command palette, offline awareness, admin control room, auditable delivery arithmetic, map-to-order product links and smarter sign-in)
+> **Previous:** 6.17 (Marketplace, role-aware Analytics & Insights, and data-grounded Copilot AI — all presented in the same Sample-Layout document shell on desktop, tablet and phone), 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart), 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
 > **Purpose:** This document is the single source of truth for recreating, running, extending, and deploying the entire project. Anyone with this file and the project source can rebuild the application from scratch.
@@ -150,7 +150,7 @@ supply-chain1/
 │   ├── index.css           # Minimal global styles
 │   ├── App.tsx             # Main application (state, routing, pages, new-page wiring)
 │   ├── App.css             # Core styles (theming, layout, cart, components, responsive, animations)
-│   ├── escon-v7.css        # v6.17 sheet/Analytics/Marketplace/Copilot styles
+│   ├── escon-v7.css        # v6.17+ sheet/Analytics/Marketplace/Copilot/admin-control styles
 │   ├── types.ts            # TypeScript interfaces (User, Company, Material, SystemSettings, …)
 │   ├── constants.ts        # City/unit/department reference lists (business data lives in Supabase / seed.sql)
 │   ├── settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
@@ -159,13 +159,15 @@ supply-chain1/
 │   │   ├── cloudStore.ts   # Supabase sync module (only settings pushes in v6.0)
 │   │   ├── analytics.ts    # Pure role-aware BI engine (KPIs, trends, forecasts, insights)
 │   │   ├── copilot.ts      # Deterministic, on-device Q&A over the analytics engine
+│   │   ├── commandSearch.ts # Pure ranking/recent-list helpers for Quick Search (v6.18)
 │   │   └── supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
 │   ├── hooks/
-│   │   └── useIsMobile.ts  # Reactive isMobile flag from matchMedia("(max-width: 768px)")
+│   │   └── useIsMobile.ts  # Reactive isMobile flag from matchMedia("(max-width: 900px)…")
 │   ├── components/
 │   │   ├── ProformaInvoice.tsx, PublicProforma.tsx, AdminSettings.tsx,
 │   │   ├── AnalyticsPage.tsx, MarketplacePage.tsx, CopilotPage.tsx (v6.17),
-│   │   ├── InstallGuide.tsx, OrderTimeline.tsx, MapComponent.tsx (lazy) … see §10
+│   │   ├── CommandPalette.tsx (v6.18), InstallGuide.tsx, OrderTimeline.tsx,
+│   │   ├── MapComponent.tsx (lazy) … see §10
 │   └── *.test.ts           # Jest unit tests (fees, formatting, settings, QR payloads)
 ├── android/                # Capacitor Android project (see docs/ANDROID_BUILD.md)
 │   └── app/src/main/
@@ -909,6 +911,58 @@ Marketplace/Insights. `App.tsx` adds a `copilotSeed` state; `openCopilot(prompt?
 navigates to the page and optionally auto-asks that prompt. Marketplace,
 Analytics and the home module cards use this entry point.
 
+### 10.33 Quick Search, offline awareness & admin control room (v6.18)
+
+**Quick Search.** [`CommandPalette.tsx`](../src/components/CommandPalette.tsx)
+is a global command palette opened with **Ctrl/⌘ + K**, the header 🔎 button or
+the mobile **More → Quick Search** action. `App.tsx` builds the `CommandItem[]`
+from the signed-in role: navigation pages, account actions (wallet,
+notifications, data centre), supplier/admin actions and every catalogue product.
+[`src/lib/commandSearch.ts`](../src/lib/commandSearch.ts) holds the pure
+ranking helpers: `scoreCommand` (exact → prefix → substring → keyword →
+multi-term), `rankCommands` (relevance or, with an empty query, a **Recent**
+group from `localStorage` under `escon_command_recent`), `parseRecentIds` and
+`recordRecentId`. Typing also prepends a **Search all products for "…"** item
+whose `onSearch` callback navigates to `search-materials` with the query already
+applied. Keyboard support covers ↑/↓/Enter/Esc and ARIA combobox/listbox roles;
+the palette traps page scroll while open.
+
+**Offline awareness.** `App` listens to `online`/`offline` and renders a
+`.offline-banner` explaining that saved data remains available and cloud sync
+resumes on reconnect. The theme effect persists the choice (`escon_theme`) and
+updates the `theme-color` meta tag so the mobile browser chrome matches.
+
+**Admin control room.** `AnalyticsPage` receives `onOpenSettings` and
+`onOpenSupplierMap`. For admins it renders a `.admin-control` panel with role
+counts, pending orders, accounts missing a GPS pin, suppliers needing compliance
+review, quick links into the data manager and supplier map, and three CSV
+exports (accounts, suppliers, order book) built with `exportToCSV`.
+
+**Auditable delivery and map-to-order.** The cart shows a
+`.cart-new-fin-breakdown` line per supplier with the exact equation (km × rate +
+start fee = fee), and `ProformaInvoice` prints the same arithmetic. Supplier-map
+product rows are buttons that call `onSelectProduct`, which stages the line,
+measures the route and opens the proforma; the supplier card calls
+`onSelectSupplier` to filter the catalogue.
+
+**Role-scoped actions.** Admins onboard suppliers rather than listing products.
+`AdminSettings` exposes **Add Supplier**, which opens `EditCompany` in
+`mode="create"`; `handleAdminSaveCompany` validates a unique normalised e-mail,
+a company name and a 4-character password before persisting the new user/company
+pair. `renderAddMaterial` refuses non-supplier users (admins are pointed to
+supplier onboarding, buyers to the marketplace), the admin mobile FAB, More
+sheet, header menu and command palette target the control room and supplier
+onboarding, and admin/supplier order pages show the role's real order book with
+role-aware CSV export.
+
+**Sign-in hardening.** `utils.ts` adds `normalizeEmail` and `findLoginUser`
+(case/whitespace-insensitive; picks the password-matching duplicate, falling
+back to the highest-privilege account for lockout reporting). `settings.ts`
+exports `ADMIN_USERS`, `ADMIN_EMAILS`, `isBuiltInAdminEmail`,
+`SECONDARY_ADMIN_USER` and `LEGACY_ADMIN_EMAILS`; startup migrates the retired
+owner e-mail in place and re-seeds missing built-in admins without overwriting
+saved passwords.
+
 ---
 
 ## 11. Third-Party Integrations
@@ -1298,6 +1352,45 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.18 - Quick Search, offline awareness, admin control room & auditable delivery
+- **Quick Search command palette.** `CommandPalette.tsx` opens with
+  **Ctrl/⌘ + K**, the header 🔎 button or mobile **More → Quick Search**. It
+  lists role-aware pages, account actions, supplier/admin actions and every
+  product; `src/lib/commandSearch.ts` provides relevance scoring, a persisted
+  **Recent** group (`escon_command_recent`), safe parsing and de-duplication.
+  Typing prepends **Search all products for "…"**, which navigates to the
+  catalogue with the query applied. Full keyboard and ARIA support.
+- **Online/offline awareness.** `App` tracks `navigator.onLine` and the
+  `online`/`offline` events, shows a `.offline-banner` while disconnected, and
+  persists the theme plus the mobile `theme-color` meta tag.
+- **Admin control room.** `AnalyticsPage` gains an admin-only `.admin-control`
+  panel: role counts, pending orders, accounts without a GPS pin, suppliers
+  needing compliance review, quick links to Settings/Supplier Map and Accounts,
+  Suppliers and Order-book CSV exports.
+- **Auditable delivery arithmetic.** The cart and proforma print the exact
+  per-supplier delivery equation (km × rate + start fee = fee), using the
+  published supplier rate when it reproduces the quoted total.
+- **Map-to-order product links.** Supplier-map product rows are buttons that
+  stage the product, measure the route and open the proforma; the supplier card
+  filters the catalogue to that supplier.
+- **Role-scoped admin & supplier actions.** Admins create suppliers from
+  `AdminSettings`, the header menu, mobile More sheet, mobile FAB and command
+  palette; `EditCompany` gains a create mode with credential validation.
+  Product creation is supplier-only (other roles get an explanatory panel).
+  Admin/supplier order pages now show their real order book, and CSV export is
+  role-scoped instead of always filtering by buyer id.
+- **Smarter sign-in and admin seeding.** `normalizeEmail` / `findLoginUser`
+  match e-mails case- and whitespace-insensitively and resolve duplicate
+  addresses by password (highest privilege on failure). `ADMIN_USERS`,
+  `SECONDARY_ADMIN_USER` and `LEGACY_ADMIN_EMAILS` migrate the retired owner
+  e-mail and re-seed built-in admins without overwriting saved passwords.
+- **Responsive & accessibility polish.** The mobile breakpoint is now
+  `max-width: 900px` (plus short coarse-pointer landscape), with Safari
+  `addListener` fallbacks; a skip link, `#main-content` focus target, `aria`
+  labels and reduced-motion/print rules cover the new surfaces.
+- **Release.** `versionCode 21` / `versionName "1.9.11"`, `sw.js` `VERSION`
+  `e-scon-v1.14.11`.
 
 ### v6.17 - Marketplace, Analytics & Insights, and Copilot AI
 - **Marketplace page.** A new `marketplace` route renders a filterable

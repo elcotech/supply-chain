@@ -44,7 +44,7 @@ path-based request, configure a single-page-app fallback to `index.html`.
 `public/sw.js` is a **custom** service worker. To push a new version to every
 installed user without touching their data:
 
-1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v1.14.4` after this release).
+1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v1.14.11` after this release).
 2. Deploy the new `build/`.
 
 On `activate` the worker deletes old cache buckets, and `skipWaiting()` /
@@ -64,7 +64,7 @@ Summary:
 ```powershell
 npm run build
 npx cap sync android
-# bump versionCode/versionName + sw.js VERSION, then (current release targets versionCode 16 / 1.9.6 + sw.js e-scon-v1.14.4):
+# bump versionCode/versionName + sw.js VERSION, then (current release targets versionCode 21 / 1.9.11 + sw.js e-scon-v1.14.11):
 gradle bundleRelease --no-daemon --init-script "...\builddir-init.gradle"
 ```
 
@@ -91,8 +91,8 @@ For a quick internal install, build a debug APK and use `adb install`
 - [ ] `CI=true npm test -- --watchAll=false` passing.
 - [ ] `npm run build` succeeds.
 - [ ] `.env.local` is either absent or contains the intended Supabase URL/anon key (never committed); `supabase/schema.sql` has been run so the table and Realtime publication exist.
-- [ ] `public/sw.js` `VERSION` bumped (e-scon-v1.14.4).
-- [ ] Android `versionCode` / `versionName` bumped (for Play uploads; this release is 16 / "1.9.6").
+- [ ] `public/sw.js` `VERSION` bumped (e-scon-v1.14.11).
+- [ ] Android `versionCode` / `versionName` bumped (for Play uploads; this release is 21 / "1.9.11").
 - [ ] Web `build/` deployed over HTTPS.
 - [ ] Signed `.aab` uploaded and tested on the internal track.
 - [ ] Privacy policy URL live and pasted into the Play Console.

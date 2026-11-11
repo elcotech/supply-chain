@@ -4,7 +4,7 @@
 // stays completely unchanged.
 import { useEffect, useState } from 'react';
 
-const QUERY = '(max-width: 768px)';
+const QUERY = '(max-width: 900px), (max-height: 520px) and (pointer: coarse)';
 
 export const useIsMobile = (): boolean => {
   const [isMobile, setIsMobile] = useState<boolean>(() => {
@@ -16,10 +16,19 @@ export const useIsMobile = (): boolean => {
     if (!window.matchMedia) return;
     const mql = window.matchMedia(QUERY);
     const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    onChange as unknown; // keep linters quiet on Safari's addListener path
-    mql.addEventListener('change', onChange);
+    if (mql.addEventListener) {
+      mql.addEventListener('change', onChange);
+    } else {
+      mql.addListener(onChange);
+    }
     setIsMobile(mql.matches);
-    return () => mql.removeEventListener('change', onChange);
+    return () => {
+      if (mql.removeEventListener) {
+        mql.removeEventListener('change', onChange);
+      } else {
+        mql.removeListener(onChange);
+      }
+    };
   }, []);
 
   return isMobile;

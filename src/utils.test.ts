@@ -22,6 +22,8 @@ import {
   amountToWords,
   lookupKnownPlace,
   isGenericCoordinate,
+  normalizeEmail,
+  findLoginUser,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -690,5 +692,29 @@ describe('roundKm (one decimal everywhere)', () => {
     } as any;
     const lines = stageCartLine([], material, 50, true, 'Nati Building Supplies', 'set', 11.749);
     expect(lines![0].distanceKm).toBe(11.7);
+  });
+});
+
+describe('account matching', () => {
+  const users = [
+    { id: 'c1', email: 'Buyer@Example.com ', password: 'buyer-pass', userType: 'customer' },
+    { id: 'a1', email: 'owner@example.com', password: 'admin-pass', userType: 'admin' },
+    { id: 'c2', email: 'owner@example.com', password: 'customer-pass', userType: 'customer' },
+  ];
+
+  it('normalises surrounding whitespace and case before comparing e-mails', () => {
+    expect(normalizeEmail('  Owner@Example.COM ')).toBe('owner@example.com');
+    expect(findLoginUser(users, '  BUYER@example.com ', 'buyer-pass')?.id).toBe('c1');
+  });
+
+  it('selects the account whose password matches, even when e-mails are duplicated', () => {
+    expect(findLoginUser(users, 'owner@example.com', 'customer-pass')?.id).toBe('c2');
+    expect(findLoginUser(users, 'owner@example.com', 'admin-pass')?.id).toBe('a1');
+  });
+
+  it('prefers the highest-privilege account for failure and lockout reporting', () => {
+    expect(findLoginUser(users, 'OWNER@example.com', 'wrong')?.id).toBe('a1');
+    expect(findLoginUser(users, 'missing@example.com', 'anything')).toBeUndefined();
+    expect(findLoginUser(users, '   ', 'anything')).toBeUndefined();
   });
 });

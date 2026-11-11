@@ -17,6 +17,7 @@ interface AdminSettingsProps {
   onUpdateUser?: (user: User) => void;
   onDeleteCompany?: (companyId: string) => void;
   onEditCompany?: (company: Company) => void;
+  onAddSupplier?: () => void;
   onEditMaterial?: (material: Material) => void;
   onDeleteMaterial?: (materialId: string) => void;
 }
@@ -36,6 +37,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   onUpdateUser,
   onDeleteCompany,
   onEditCompany,
+  onAddSupplier,
   onEditMaterial,
   onDeleteMaterial,
 }) => {
@@ -407,9 +409,16 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
           </div>
 
           <div className="settings-card">
-            <h2>Suppliers</h2>
+            <div className="settings-card-head">
+              <h2>Suppliers</h2>
+              {onAddSupplier && (
+                <button type="button" className="btn btn-primary btn-sm" onClick={onAddSupplier}>
+                  ➕ Add Supplier
+                </button>
+              )}
+            </div>
             <p className="settings-hint">
-              Edit a supplier profile or delete it together with its products.
+              Create a supplier account, edit a supplier profile, or delete one together with its products.
             </p>
             {companies.length === 0 && <p className="settings-empty">No supplier profiles yet.</p>}
             <div className="admin-data-list">

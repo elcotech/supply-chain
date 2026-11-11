@@ -83,6 +83,8 @@ interface MapComponentProps {
   currentUser: User | null;
   onClose: () => void;
   onSelectSupplier?: (company: Company) => void;
+  /** Open a listed product, e.g. straight into the proforma flow. */
+  onSelectProduct?: (material: Material) => void;
   autoRouteSupplierId?: string | null;
   /**
    * Bumped by the parent every time a route is explicitly requested. It lets the
@@ -106,6 +108,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   currentUser,
   onClose,
   onSelectSupplier,
+  onSelectProduct,
   autoRouteSupplierId,
   routeRequestId = 0,
   onRouteShown,
@@ -731,13 +734,29 @@ const MapComponent: React.FC<MapComponentProps> = ({
             {companyMaterials.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <strong style={{ fontSize: 13 }}>Available Products:</strong>
-                <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
-                  {companyMaterials.slice(0, 5).map((m) => (
+                <ul className="map-product-list">
+                  {companyMaterials.slice(0, 6).map((m) => (
                     <li key={m.id}>
-                      {m.name} — {m.price.toLocaleString()} ETB/{m.unit}
+                      <button
+                        type="button"
+                        className="map-product-link"
+                        onClick={() => {
+                          onSelectProduct?.(m);
+                          onClose();
+                        }}
+                        title={'Open ' + m.name + ' in the proforma flow'}
+                      >
+                        <span className="map-product-name">{m.name}</span>
+                        <span className="map-product-price">
+                          {m.price.toLocaleString()} ETB/{m.unit}
+                          <span aria-hidden="true">›</span>
+                        </span>
+                      </button>
                     </li>
                   ))}
-                  {companyMaterials.length > 5 && <li>+{companyMaterials.length - 5} more</li>}
+                  {companyMaterials.length > 6 && (
+                    <li className="map-product-more">+{companyMaterials.length - 6} more products</li>
+                  )}
                 </ul>
               </div>
             )}
