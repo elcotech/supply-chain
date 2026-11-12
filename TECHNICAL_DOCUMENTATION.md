@@ -222,7 +222,7 @@ supply-chain1/
 
 1. Cart → `1 To Purchase` / `2 To Proforma` / `3 To Preview` → `confirmOrder()` / `handlePrintProforma()` / `handlePreviewProforma()`. All three price the same cart with VAT (`true`); only the destination differs.
 2. `priceCartItems(cart, applyVat, origin?)` builds the **whole-cart** `CartReport`: net subtotal, **one aggregate VAT** (`vatOnSubtotal`) only when `applyVat` is true, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox → supplier's `startFee + perKm × km` → platform fallback), grouped by supplier with distance, mode and fee each. A cart holds one supplier (§10.23), so the report normally has a single group.
-3. The report is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched) and `showProforma` is set. `To Preview` also clears `proformaAutoPrint`; `To Proforma` sets it, which makes `ProformaInvoice` fire `window.print()` once the modal has painted.
+3. The report is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched) and `showProforma` is set. `To Proforma` clears `proformaAutoPrint` and shows the document on screen; `To Preview` sets it, which makes `ProformaInvoice` fire `window.print()` once the modal has painted.
 4. `ProformaInvoice` renders from `proformaDetails` — every item, the supplier, one **Delivery Cost** total and the supplier's signature block beside the buyer's.
 5. `buildProformaShareData` + `generateProformaQrDataUrl` encode the compact summary into the QR, which is a fixed top-right cell of the **document header** grid regardless of item count; the payload is capped at `MAX_QR_LINE_ITEMS` with the true count in `tc`, and `PublicProforma` renders it on scan.
 6. The buyer presses **🛒 Back to To Purchase** → `handleBackToPurchase()` closes the document and re-enters the cart at step 1 (§10.5). Nothing is lost: the proforma never mutates the cart.
@@ -460,7 +460,7 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 
 Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`; older sample rows are normalised on load), so VAT is never extracted from the entered price. `priceCartItems` sums the net line totals into `subtotal`. With `applyVat` false (cart, re-price, back-to-purchase, delivery-fee reset) `vatAmount` is `0`; with `applyVat` true (both proforma actions and `confirmOrder`) it calls **`vatOnSubtotal(subtotal, settings.vat.rate, settings.vat.enabled)` once** for the whole cart and sets `total = subtotal + vatAmount + transportCost`. VAT is therefore never rounded per line. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item; `allocateVat` splits the single cart VAT across those rows by their net value (last row absorbs the rounding remainder), so the orders always sum to the proforma total. The cart shows a pending-VAT note and a VAT-inclusive payable figure (used for the wallet check); the proforma shows the VAT amount. The cart then resets and the Orders page opens. A **single** proforma invoice covers the whole cart — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
 
-**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF); `3 To Preview` → `handlePreviewProforma()` opens the identical document read on screen. All three call the same `calculateCartTotals(true)`, so the figures cannot disagree (the cart modal itself prices with `calculateCartTotals(false)`). Since v6.11 the bottom of the modal follows `Sample Layout.jpg` again: an outlined **Clear** pill on the left and a solid dark-blue **To Purchase** pill on the right (`.cart-sample-actions`), both committing through the same `confirmOrder()` as step 1 — two entry points, one code path, so they can never disagree about the total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
+**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` → `confirmOrder()` places the order; `2 To Proforma` → `handlePrintProforma()` opens the proforma on screen (it clears `proformaAutoPrint`); `3 To Preview` → `handlePreviewProforma()` opens the identical document and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF). All three call the same `calculateCartTotals(true)`, so the figures cannot disagree (the cart modal itself prices with `calculateCartTotals(false)`). Since v6.11 the bottom of the modal follows `Sample Layout.jpg` again: an outlined **Clear** pill on the left and a solid dark-blue **To Purchase** pill on the right (`.cart-sample-actions`), both committing through the same `confirmOrder()` as step 1 — two entry points, one code path, so they can never disagree about the total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
 
 **Sample Layout cart UI (v6.11):** `renderCartSummary` now rebuilds the cart modal against `Sample Layout.jpg`, inside the `cart-sample-*` class family (styles at the end of `App.css`):
 - **Header** (`.cart-sample-head`): dark-blue bar with the `E-SCON | SHOPPING CART` brand on the left, a **live date/time** (`LiveClock`, a 1 s `setInterval` in `App.tsx` — deliberately ticking here, unlike the proforma which freezes its timestamp) and the ✕ close button on the right.
@@ -477,7 +477,7 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`;
 - The **Delivery Cost** row in the cart, the proforma's per-supplier distance and the placed orders therefore all show the same KM the product page displayed. Unit tests: `stageCartLine` distance snapshots, `computeDeliveryFee` reusing `distanceKm` without calling the router.
 
 **Back to "To Purchase" (v5.7):** the proforma is a **full-screen overlay**, and its old `← Back to Cart` button only called `setShowProforma(false)` — which left the buyer on whatever page was behind it with no cart open. Anyone who opened "To Proforma" to check a figure and then wanted to order had to hunt for the 🛒 icon again, and a buyer who had just reviewed a delivery total had no obvious way to commit to it. The proforma's second button is now **🛒 Back to To Purchase** and takes the optional `onBackToPurchase` prop, wired in `App.tsx` to `handleBackToPurchase()`:
-- It clears `showProforma` **and** `proformaAutoPrint` — a later "To Preview" must not inherit a queued print.
+- It clears `showProforma` **and** `proformaAutoPrint` — a later "To Preview" must not inherit a queued print until it explicitly requests one.
 - It **re-prices** the cart with `calculateCartTotals()` before reopening the modal. Delivery is priced from a live OSRM distance, so a cart left open behind the proforma can legitimately cost a few birr more now; the buyer must land on the real current total, not a stale one. If pricing fails it returns early and the cart stays closed.
 - It sets `showCartSummary` and writes `cartSignature(cart) + '|' + deliveryFeeOverride` into `repricedCart`, exactly like `handleCheckout`, so the live re-pricing `useEffect` does not immediately recalculate what was just calculated.
 - It sets `highlightPurchaseStep`, which adds `is-returned` to the "To Purchase" button and swaps its hint to *"Tap here to place your order"*. `.cart-order-step.is-returned` pulses a 6 px ring (`@keyframes purchaseStepPulse`, 4 iterations) and a `useEffect` clears the flag after 8 s; `prefers-reduced-motion: reduce` replaces the animation with a static outline. The flag is **presentation only** — never gate `confirmOrder` on it.
@@ -532,7 +532,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 - **Signature grid (changed in v5.2):** `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))`, so each party gets its own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
 - **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v6.15 document no longer renders the old `.pf-delivery-box`, so the money summary is the first block in that column.
 - **Header is a 3-column grid (v5.6):** `.pf-header` is `display: grid` with `grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto` — `.pf-brand` column 1, `.pf-meta` column 2, `.pf-header-qr` column 3, all pinned to `grid-row: 1`. **Do not change it back to flex.** With flex, the long `.pf-tagline` plus `.pf-meta` could not shrink far enough on a mid-width screen, and the QR — which must never shrink — was pushed out of the row and wrapped onto a new line at the left. The grid makes "always top-right" structural, and the `≤760px` and `@media print` blocks only re-declare columns 1/2/3; they must keep `align-self: start` and `justify-self: end` on `.pf-header-qr` so it stays hard against the top-right corner, opposite the logo, whether the items table is 2 lines or 400.
-- Accessible from the cart summary modal via `2 To Proforma` (prints) and `3 To Preview` (screen only), both covering the **whole cart** — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56) and [10.5](#105-cart--checkout).
+- Accessible from the cart summary modal via `2 To Proforma` (on screen) and `3 To Preview` (print preview), both covering the **whole cart** — see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56) and [10.5](#105-cart--checkout).
 - **Action bar (v5.7):** two buttons — `🖨️ Print Proforma` and `🛒 Back to To Purchase`. The second fires `onBackToPurchase` when the host supplies it (falling back to `onClose`) and returns the buyer to step 1 of the cart; see [10.5](#105-cart--checkout). The bar is `.proforma-actions.no-print`, so neither button is printed.
 - **Print-ready**: `@media print` styles hide action buttons and format for A4.
 
@@ -630,7 +630,7 @@ All money values (search results, product cards, cart summary, proforma, order e
 ### 10.21 Whole-cart proforma invoice (NEW in v5.2, single supplier again from v5.6)
 One proforma covers **every selected item** in the cart. The v5.1 "choose one supplier first" **picker** is still gone — it was removed from the state (`showProformaSupplierPicker`), the helper (`renderProformaSupplierPicker`) and `src/utils.ts` (`buildSingleSupplierReport`) in v5.2 and has not come back. What v5.6 changed is the **cart** instead of the proforma: a cart can no longer contain a second supplier, so the document is naturally a single-seller invoice again without any picker or re-scoping step. See [10.23](#1023-single-supplier-cart-v56).
 
-- **Rule:** `handlePrintProforma` and `handlePreviewProforma` both price the whole cart and open the same document; the only difference is `proformaAutoPrint`. No picker, so a buyer never has to invoice N times to see N proformas.
+- **Rule:** `handlePrintProforma` and `handlePreviewProforma` both price the whole cart and open the same document; `handlePrintProforma` clears `proformaAutoPrint` for on-screen review, while `handlePreviewProforma` sets it for print preview. No picker, so a buyer never has to invoice N times to see N proformas.
 - **QR never moves (v5.2, hardened in v5.6):** the verification QR is rendered in `.pf-header-qr`, pinned to column 3 of the `.pf-header` **grid** so its position is independent of the item count. This was the point of the change — a longer items table must not push the QR down the page. In v5.6 the header was converted from flex to grid precisely so a long brand tagline or supplier name could never wrap the QR onto a new line; see [10.7](#107-proforma-invoice-new).
 - **Legacy mixed carts:** a cart persisted by a pre-v5.6 build can still hold more than one supplier. Nothing auto-clears it. `priceCartItems` keeps grouping by supplier and `ProformaInvoice` keeps rendering `SUPPLIER DETAILS (N)` with a signature block each, so such a cart still produces a correct document instead of silently dropping lines. The buyer is expected to clear it and start again.
 - **Payload vs document:** `buildProformaShareData` (`src/utils.ts`) truncates the QR item list at `MAX_QR_LINE_ITEMS = 12` so the code stays scannable, and records the true count in `tc` when it does. `PublicProforma` shows "Showing the first 12 of 40 line items — the printed proforma lists every item." The **printed document is never truncated.**
@@ -1091,7 +1091,7 @@ The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders
 **Layout sections (in order, matching the reference image):**
 
 1. **Header** (`.cart-sample-head`): dark-blue gradient bar with `☰ E-SCON | SHOPPING CART` and ✕ close on the first line, and the live clock (`LiveClock`) on its own single line so the brand never wraps. The blue bar is inset by the modal's page padding only on phones; on desktop the sheet has no outer padding.
-2. **Steps** (`.cart-new-steps` / `.cart-order-step`): three tabs — `1 To Purchase` (solid dark blue, white text), `2 To Proforma`, `3 To Review` (light-blue fill, dark-blue text).
+2. **Steps** (`.cart-new-steps` / `.cart-order-step`): three tabs — `1 To Purchase` (solid dark blue, white text), `2 To Proforma` (on screen), `3 To Preview` (print preview; light-blue fill, dark-blue text).
 3. **Supplier & Buyer Details** (`.cart-new-parties`): two side-by-side rounded cards — Supplier Details and Buyer Details — each with key:value rows (Company Name, Address, TIN, VAT No., Phone, Email for supplier; plus Contact Person for buyer).
 4. **Item Details Banner** (`.cart-new-product-banner`): per-line card with product thumbnail, name, price/unit, description, and stacked **GPS MAP** + **Auto Refresh** buttons.
 5. **Order Items Table** (`.cart-new-items-section` / `.cart-new-table`): No., Item Name, Description, Unit, Qty (with `−` / `+` stepper), Unit Price.
@@ -1237,7 +1237,7 @@ For the install prompt to work:
 | Big cart → "Showing the first 12 of 40" | Expected: the QR payload is capped at `MAX_QR_LINE_ITEMS` for scannability and the true count is in `tc`. The printed document still lists everything (§10.21) |
 | Adding a second supplier wiped the cart | `findOtherCartSupplier` must `return false` **before** `setCart` and never clear or replace anything. The check belongs in both `addToCartLogic` and the updater (§10.23) |
 | Product details closes even though nothing was added | `addToCart` must return `boolean`; `DetailsOrderBox` awaits `onOrder()` and the App handler (`handleDetailsOrder`) refreshes GPS, adds the line and opens the cart only on success. An already-carted line skips the duplicate add but still refreshes the position (§10.23, v6.7) |
-| "To Proforma" opens but does not print | `handlePrintProforma` must set `proformaAutoPrint`, and `ProformaInvoice`'s `autoPrint` effect must not be blocked by its `useRef` guard firing early (§10.5) |
+| "To Preview" opens but does not print | `handlePreviewProforma` must set `proformaAutoPrint`, and `ProformaInvoice`'s `autoPrint` effect must not be blocked by its `useRef` guard firing early (§10.5) |
 | "Back to To Purchase" drops the buyer on a bare page | `handleBackToPurchase` must set `showCartSummary` **and** `setShowProforma(false)` — the old `← Back to Cart` only closed the proforma. It must also re-price via `calculateCartTotals()` and seed `repricedCart` (§10.5) |
 | Buyer cannot leave the proforma / cart not re-priced on return | Check `onBackToPurchase` is passed to `ProformaInvoice` and that the handler does not reuse the stale `cartDetails`; delivery fees are computed from a live OSRM distance |
 | A customer can still export orders | Every export surface must be role-gated: header `userType !== 'customer'`, orders page + mobile order card `{isCompany && …}`, mobile More sheet `userType !== 'customer'` (§10.5) |
@@ -1352,6 +1352,32 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.19 - Map ordering, guest-safe analytics & print-preview split
+- **Map no longer closes on selection.** `MapComponent.handleSupplierSelect`
+  stopped calling `onSelectSupplier`; choosing a supplier draws the route and
+  opens the product drawer instead of navigating away. Explicit **View All
+  Products** still hands off to the catalogue.
+- **Map products add to cart with route km.** Product rows call
+  `onSelectProduct(material, distanceKm)`; `handleMapProductToCart` validates the
+  buyer and stock, reuses the measured route distance (or measures on demand),
+  stages the line with `stageCartLine`, sets `distanceToSelected` and opens the
+  cart summary. Rows show a km/measuring pill and disable while distance loads.
+- **Guest analytics are public-only.** The Insights page gives guests catalogue
+  products, suppliers, cities, rating mix, price bands and category price
+  ranges. Revenue, orders, customers, margin, stock, forecasts, CSV export and
+  Copilot are hidden; `buildAnalytics` also strips guest price history, margin
+  and forecasts.
+- **Richer role-scoped charts.** Added `LineChart`/`LineSeries` and
+  `HorizontalBarChart`; customers/suppliers/admins get revenue or spend trends,
+  order volume, status/cost-mix donuts and category/city bars.
+- **Proforma vs Preview.** `2 To Proforma` now opens the document on screen
+  (`proformaAutoPrint=false`); `3 To Preview` opens the same document with the
+  browser print preview (`proformaAutoPrint=true`).
+- **Readability and responsive polish.** Larger chart/table labels, mobile bar
+  wrapping, scroll-safe tables and map-product rows.
+- **Release.** `versionCode 22` / `versionName "1.9.12"`, `sw.js` `VERSION`
+  `e-scon-v1.14.12`.
 
 ### v6.18 - Quick Search, offline awareness, admin control room & auditable delivery
 - **Quick Search command palette.** `CommandPalette.tsx` opens with

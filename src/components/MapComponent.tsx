@@ -83,8 +83,8 @@ interface MapComponentProps {
   currentUser: User | null;
   onClose: () => void;
   onSelectSupplier?: (company: Company) => void;
-  /** Open a listed product, e.g. straight into the proforma flow. */
-  onSelectProduct?: (material: Material) => void;
+  /** Add a listed product to the cart, carrying the measured route distance. */
+  onSelectProduct?: (material: Material, distanceKm: number | null) => void;
   autoRouteSupplierId?: string | null;
   /**
    * Bumped by the parent every time a route is explicitly requested. It lets the
@@ -416,9 +416,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     // Draw fresh route (clears everything first)
     await drawRouteForSupplier(company);
 
-    if (onSelectSupplier) onSelectSupplier(company);
+    // Selecting a supplier only opens its route and product drawer. Navigating
+    // away is reserved for the explicit "View All Products" action; doing it
+    // here made the map close itself as soon as the auto-route completed.
     if (onRouteShown) onRouteShown(company.id);
-  }, [materials, drawRouteForSupplier, onSelectSupplier, onRouteShown]);
+  }, [materials, drawRouteForSupplier, onRouteShown]);
 
   // Keep the latest drawer reachable from the geolocation watcher.
   useEffect(() => {
@@ -740,13 +742,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
                       <button
                         type="button"
                         className="map-product-link"
+                        disabled={isDistanceLoading}
                         onClick={() => {
-                          onSelectProduct?.(m);
+                          onSelectProduct?.(m, distance);
                           onClose();
                         }}
-                        title={'Open ' + m.name + ' in the proforma flow'}
+                        title={'Add ' + m.name + ' to cart' + (distance !== null ? ' with ' + distance.toFixed(1) + ' km delivery' : '')}
                       >
                         <span className="map-product-name">{m.name}</span>
+                        <span className="map-product-distance">
+                          {distance !== null ? distance.toFixed(1) + ' km' : isDistanceLoading ? 'Measuring…' : 'Add to cart'}
+                        </span>
                         <span className="map-product-price">
                           {m.price.toLocaleString()} ETB/{m.unit}
                           <span aria-hidden="true">›</span>

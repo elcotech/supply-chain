@@ -432,7 +432,10 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     .sort((a, b) => b.revenue - a.revenue || (b.material.rating || 0) - (a.material.rating || 0))
     .slice(0, 6);
   const priceBoard: PriceInsight[] = priceRanked.map(({ material }) => {
-    const history = (material.priceHistory || [])
+    // Guests get public catalogue prices only: no supplier margin, price
+    // history or forecast is exposed before sign-in.
+    const isGuest = role === 'guest';
+    const history = isGuest ? [] : (material.priceHistory || [])
       .filter(point => typeof point.price === 'number' && isFinite(point.price))
       .sort((a, b) => a.date - b.date)
       .slice(-12)
@@ -444,8 +447,8 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
       category: material.category,
       price: material.price,
       history,
-      forecast: forecastPrice(material.priceHistory, material.price),
-      marginPct: rawMargin > 0 && rawMargin <= 1 ? rawMargin * 100 : rawMargin,
+      forecast: isGuest ? null : forecastPrice(material.priceHistory, material.price),
+      marginPct: isGuest ? 0 : rawMargin > 0 && rawMargin <= 1 ? rawMargin * 100 : rawMargin,
     };
   });
 
@@ -492,7 +495,7 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     );
   } else {
     kpis.push(
-      { key: 'products', icon: '🧾', label: 'Products', value: String(input.materials.length), sub: `${input.materials.reduce((s, m) => s + (m.quantity || 0), 0)} units listed` },
+      { key: 'products', icon: '🧾', label: 'Products', value: String(input.materials.length), sub: `${new Set(input.materials.map(m => m.category)).size} categories` },
       { key: 'suppliers', icon: '🏢', label: 'Suppliers', value: String(input.companies.length), sub: `${cityCount} cities covered` },
       { key: 'categories', icon: '🗂️', label: 'Categories', value: String(new Set(input.materials.map(m => m.category)).size), sub: 'Across the marketplace' },
       { key: 'rating', icon: '⭐', label: 'Avg rating', value: `${avgRating.toFixed(1)}/5`, sub: `${input.reviews.length} reviews` },
@@ -506,7 +509,7 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
   if (role === 'guest') {
     insights.push(`The marketplace lists ${input.materials.length} products from ${input.companies.length} suppliers across ${cityCount} cities.`);
     insights.push(`Average catalogue rating is ${avgRating.toFixed(1)}/5 from ${input.reviews.length} buyer reviews.`);
-    insights.push('Sign in to unlock revenue, order, margin and stock intelligence.');
+    insights.push('Sign in to unlock your own orders, spending and forecasts.');
   } else {
     if (growthPct != null) {
       insights.push(`Revenue is ${growthPct >= 0 ? 'up' : 'down'} ${Math.abs(growthPct).toFixed(1)}% versus the previous ${days}-day period (${money(previousGmv)} → ${money(gmv)}).`);

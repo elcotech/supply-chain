@@ -217,6 +217,11 @@ describe('analytics role scoping', () => {
     expect(result.productCount).toBe(2);
     expect(result.supplierCount).toBe(2);
     expect(result.priceBoard).toHaveLength(2);
+    expect(result.priceBoard.every(product => product.marginPct === 0)).toBe(true);
+    expect(result.priceBoard.every(product => product.forecast === null)).toBe(true);
+    expect(result.priceBoard.every(product => product.history.length === 0)).toBe(true);
+    const productsKpi = result.kpis.find(kpi => kpi.key === 'products');
+    expect(productsKpi?.sub).not.toMatch(/units/i);
   });
 });
 

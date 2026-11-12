@@ -192,9 +192,10 @@ is what the wallet balance must cover.
 The cart shows three buttons:
 
 1. **1 To Purchase** — places the order for every item in the cart.
-2. **2 To Proforma** — opens the proforma invoice **ready to print or save as
-   PDF**.
-3. **3 To Preview** — shows the same document on screen without printing.
+2. **2 To Proforma** — opens the proforma invoice on screen, ready to review or
+   share.
+3. **3 To Preview** — opens the same document with the browser print preview so
+   it can be printed or saved as PDF.
 
 The bottom row of the cart holds **Clear** (empties the cart) and **To
 Purchase** — the same action as step 1, through the same code path, so the two

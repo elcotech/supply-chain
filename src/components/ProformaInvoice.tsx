@@ -13,9 +13,9 @@ interface ProformaInvoiceProps {
   /** Every supplier appearing on the proforma — one entry per cart group. */
   suppliers: Company[];
   /**
-   * "To Proforma" opens the document with the browser print dialog queued, so the
-   * buyer goes straight to print / save-as-PDF. "To Preview" leaves it false and
-   * the document is just read on screen. Either way the figures are identical.
+   * "To Proforma" leaves this false and opens the document for reading.
+   * "To Preview" sets it true so the browser print preview is queued, ready to
+   * print or save as PDF. Either way the figures are identical.
    */
   autoPrint?: boolean;
   onClose: () => void;
@@ -205,7 +205,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     };
   }, [fitToPage]);
 
-  // "To Proforma" — fire the print dialog once the modal has actually painted,
+  // "To Preview" — fire the print dialog once the modal has actually painted,
   // otherwise the browser prints the page behind the overlay. One shot per open
   // (the ref is set immediately) so a re-render cannot open a second dialog.
   const autoPrintFired = useRef(false);

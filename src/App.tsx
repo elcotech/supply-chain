@@ -376,8 +376,8 @@ function App() {
   // the same supplier is clicked twice in a row.
   const [routeRequestId, setRouteRequestId] = useState(0);
   const [showProforma, setShowProforma] = useState(false);
-  // "To Proforma" opens the document and queues the browser print dialog;
-  // "To Preview" opens the same document read-only on screen.
+  // "To Proforma" opens the document on screen. "To Preview" opens the same
+  // document and queues the browser print preview. Both use identical figures.
   const [proformaAutoPrint, setProformaAutoPrint] = useState(false);
   // Report the proforma is rendered from. Kept apart from cartDetails because a
   // proforma always covers the whole cart - one supplier, every selected line.
@@ -2511,27 +2511,26 @@ function App() {
     repricedCart.current = cartPriceSignature(cart);
   };
 
-  // "To Proforma" — open the proforma straight in its printable form. The buyer
-  // lands on the document with the print dialog already queued, which is what
-  // they want when they are ordering: a proforma to print, sign or save as PDF.
+  // "To Proforma" — open the proforma document on screen so the buyer can read
+  // every line. Printing is an explicit action from the document itself.
   // The verification QR stays in the document header (§10.21).
   const handlePrintProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
     const totals = await calculateCartTotals(true);
     if (!totals) return;
     setProformaDetails(totals);
+    setProformaAutoPrint(false);
     setShowProforma(true);
-    setProformaAutoPrint(true);
   };
 
-  // "To Preview" — the same proforma, but read on screen. Identical figures to
-  // the printed document; the only difference is that nothing auto-prints.
+  // "To Preview" — the same proforma figures, opened with the browser print
+  // preview queued so the buyer can print or save it as a PDF immediately.
   const handlePreviewProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
     const totals = await calculateCartTotals(true);
     if (!totals) return;
     setProformaDetails(totals);
-    setProformaAutoPrint(false);
+    setProformaAutoPrint(true);
     setShowProforma(true);
   }; 
 
@@ -3350,7 +3349,7 @@ function App() {
                   </button>
                   <button className="cart-new-step" onClick={handlePreviewProforma}>
                     <span className="cart-new-step-num">3</span>
-                    <span>To Review</span>
+                    <span>To Preview</span>
                   </button>
                 </div>
 
@@ -4138,13 +4137,16 @@ function App() {
     }));
   };
 
-  // A product clicked on the supplier map should become a proforma line, not
-  // just text. The line is staged into the cart first so the document, the cart
-  // and any later purchase all share the same pricing path.
-  const handleMapProductProforma = async (material: Material): Promise<void> => {
+  // A product clicked on the supplier map goes straight into the cart with the
+  // exact road distance shown by the map, so the cart summary and later checkout
+  // price the same delivery result the buyer just saw.
+  const handleMapProductToCart = async (
+    material: Material,
+    routeKm: number | null,
+  ): Promise<void> => {
     setShowSupplierMap(false);
     if (!currentUser) {
-      showAlert('Please login to create a proforma', 'danger');
+      showAlert('Please login to add items to cart', 'danger');
       navigateTo('login');
       return;
     }
@@ -4161,28 +4163,31 @@ function App() {
       showAlert('The supplier for this product is unavailable.', 'danger');
       return;
     }
-    const measuredKm = await measureDistanceForMaterial(material);
+    const measuredKm = routeKm !== null && Number.isFinite(routeKm) && routeKm > 0
+      ? roundKm(routeKm)
+      : await measureDistanceForMaterial(material);
     const lines = stageCartLine(cart, material, 1, true, company.name, 'set', measuredKm);
     if (!lines) {
       const foreign = otherSupplierInCart(material.companyId, material.id);
       showAlert(
         'Your cart can only contain items from one supplier. It currently holds ' +
         (foreign ? foreign.supplierName : 'another supplier') +
-        ' — clear the cart before creating a proforma for ' + material.name + '.',
+        ' — clear the cart before adding ' + material.name + '.',
         'warning'
       );
       return;
     }
     setCart(lines);
-    setSelectedMaterial(null);
-    const totals = await priceCartItems(lines, true);
-    if (!totals) {
-      setShowCartSummary(true);
-      return;
+    if (measuredKm !== undefined && Number.isFinite(measuredKm)) {
+      setDistanceToSelected(measuredKm);
     }
-    setProformaDetails(totals);
-    setProformaAutoPrint(false);
-    setShowProforma(true);
+    setSelectedMaterial(null);
+    setShowCartSummary(true);
+    showAlert(
+      material.name + ' added to cart' +
+      (measuredKm !== undefined ? ' with ' + measuredKm.toFixed(1) + ' km delivery' : ''),
+      'success'
+    );
   };
 
   const renderSupplierMap = () => {
@@ -4198,7 +4203,7 @@ function App() {
           currentUser={currentUser}
           onClose={() => setShowSupplierMap(false)}
           onSelectSupplier={handleMapSupplierProducts}
-          onSelectProduct={material => { void handleMapProductProforma(material); }}
+          onSelectProduct={(material, distanceKm) => { void handleMapProductToCart(material, distanceKm); }}
           autoRouteSupplierId={routeId}
           routeRequestId={routeRequestId}
           onRouteShown={(companyId) => setAutoRouteSupplierId(companyId)}

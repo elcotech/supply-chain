@@ -1757,6 +1757,22 @@ body {
 .map-product-name {
   font-weight: 700;
   min-width: 0;
+  flex: 1 1 auto;
+}
+.map-product-distance {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(26, 111, 181, 0.1);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.map-product-link:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
 }
 .map-product-price {
   display: inline-flex;
@@ -6628,10 +6644,10 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   Cart: the three order actions (v5.6)
-   "To Purchase" (place the order) / "To Proforma" (printable invoice) /
-   "To Preview" (on-screen preview). One numbered row so the order of the
-   three steps is self-evident, kept above the fold on phones.
+   Cart: the three order actions (v5.6)"To Purchase" (place the order) / "To Proforma" (printable invoice) /
+    "To Review" (on-screen proforma read-only). One numbered row so the order of the
+
+    three steps is self-evident, kept above the fold on phones.
    ===================================================================== */
 .cart-order-steps {
   display: grid;
@@ -8882,5 +8898,25 @@ body {
   .command-overlay,
   .command-trigger {
     display: none !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .map-product-link {
+    flex-wrap: wrap;
+    row-gap: 5px;
+    padding: 8px 10px;
+  }
+  .map-product-name {
+    flex: 1 1 100%;
+    font-size: 13px;
+  }
+  .map-product-distance {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  .map-product-price {
+    margin-left: auto;
+    font-size: 12px;
   }
 }

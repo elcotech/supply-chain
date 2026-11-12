@@ -71,6 +71,146 @@ export const MiniBarChart: React.FC<{
   );
 };
 
+// ---------- LineChart ----------
+// Responsive multi-series trend chart. Used for revenue / spend and order
+// volume so each role gets a readable time-series instead of one tiny bar row.
+export interface LineSeries {
+  label: string;
+  color: string;
+  data: SeriesPoint[];
+}
+
+export const LineChart: React.FC<{
+  series: LineSeries[];
+  height?: number;
+  valueFormatter?: (v: number) => string;
+  showArea?: boolean;
+}> = ({ series, height = 170, valueFormatter, showArea = true }) => {
+  const nonEmpty = series.filter(s => s.data.length > 0);
+  if (nonEmpty.length === 0 || nonEmpty.every(s => s.data.every(p => p.value === 0))) {
+    return <div className="chart-empty">No data yet</div>;
+  }
+  const labels = nonEmpty[0].data.map(p => p.label);
+  const max = Math.max(...nonEmpty.flatMap(s => s.data.map(p => p.value)), 1);
+  const width = 360;
+  const left = 6;
+  const right = 6;
+  const top = 12;
+  const bottom = height - 24;
+  const plotWidth = width - left - right;
+  const plotHeight = bottom - top;
+  const step = labels.length > 1 ? plotWidth / (labels.length - 1) : plotWidth;
+  const fmt = valueFormatter || ((v: number) => String(Math.round(v)));
+  const gridLines = [0, 0.25, 0.5, 0.75, 1];
+
+  return (
+    <div className="chart-line">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Trend chart">
+        {gridLines.map((g, i) => {
+          const y = top + plotHeight * g;
+          return (
+            <line
+              key={i}
+              x1={left}
+              x2={width - right}
+              y1={y}
+              y2={y}
+              className="chart-line-grid"
+            />
+          );
+        })}
+        {nonEmpty.map(seriesItem => {
+          const points = seriesItem.data.map((p, i) => ({
+            x: left + (labels.length > 1 ? i * step : plotWidth / 2),
+            y: bottom - (p.value / max) * plotHeight,
+            value: p.value,
+            label: p.label,
+          }));
+          const path = points
+            .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+            .join(' ');
+          const areaPath = `${path} L${points[points.length - 1].x.toFixed(1)},${bottom} L${points[0].x.toFixed(1)},${bottom} Z`;
+          return (
+            <g key={seriesItem.label}>
+              {showArea && (
+                <path d={areaPath} fill={seriesItem.color} opacity={0.12} />
+              )}
+              <path
+                d={path}
+                fill="none"
+                stroke={seriesItem.color}
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {points.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={3.2} fill={seriesItem.color}>
+                  <title>{`${seriesItem.label} · ${p.label}: ${fmt(p.value)}`}</title>
+                </circle>
+              ))}
+            </g>
+          );
+        })}
+        {labels.map((label, i) => {
+          const x = left + (labels.length > 1 ? i * step : plotWidth / 2);
+          return (
+            <text key={label + i} x={x} y={height - 6} textAnchor="middle" className="chart-line-label">
+              {label}
+            </text>
+          );
+        })}
+      </svg>
+      {nonEmpty.length > 1 && (
+        <div className="chart-line-legend">
+          {nonEmpty.map(s => (
+            <span key={s.label}>
+              <i style={{ background: s.color }} />
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------- HorizontalBarChart ----------
+// Label-first bars are much easier to scan than rotated vertical bars when the
+// categories are long (city names, product categories, supplier names).
+export const HorizontalBarChart: React.FC<{
+  data: SeriesPoint[];
+  valueFormatter?: (v: number) => string;
+  color?: string;
+  maxItems?: number;
+}> = ({ data, valueFormatter, color = 'var(--secondary)', maxItems = 8 }) => {
+  if (!data || data.length === 0) {
+    return <div className="chart-empty">No data yet</div>;
+  }
+  const rows = data.slice(0, maxItems);
+  const max = Math.max(...rows.map(d => d.value), 1);
+  const fmt = valueFormatter || ((v: number) => String(Math.round(v)));
+  return (
+    <div className="chart-hbars">
+      {rows.map((d, i) => (
+        <div key={d.label + i} className="chart-hbar-row">
+          <span className="chart-hbar-label" title={d.label}>{d.label}</span>
+          <span className="chart-hbar-track">
+            <span
+              className="chart-hbar-fill"
+              style={{
+                width: `${Math.max((d.value / max) * 100, 2)}%`,
+                background: color,
+                transitionDelay: `${i * 35}ms`,
+              }}
+            />
+          </span>
+          <strong className="chart-hbar-value">{fmt(d.value)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ---------- DonutChart ----------
 // Small circular status breakdown with a center total.
 export const DonutChart: React.FC<{
