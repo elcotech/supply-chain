@@ -63,8 +63,8 @@
 //   -> Compiled successfully; main 256 kB gzip, CSS 44.23 kB gzip.
 // - Android debug + signed release APK + signed release AAB built after
 //   `npx cap copy android`.
-// - `aapt dump badging E-SCON-release.apk` -> versionCode 24, versionName 2.0.0.
-// - Embedded `assets/public/sw.js` -> `e-scon-v2.0.0`.
+// - `aapt dump badging E-SCON-release.apk` -> versionCode 25, versionName 2.0.0.
+// - Embedded `assets/public/sw.js` -> `e-scon-v3.0.0`.
 //
 // Artifact SHA-256
 // - E-SCON-debug.apk    cb4ec7ece2465226de28e8ab5e853a88e1ec5d6ae0dc194a9c1949d03b17a0c7
@@ -74,7 +74,7 @@
 // Versioning
 // - package.json / package-lock.json 1.10.0 -> 2.0.0
 // - android versionCode 23 -> 24, versionName 1.10.0 -> 2.0.0
-// - public/sw.js VERSION e-scon-v1.15.0 -> e-scon-v2.0.0
+// - public/sw.js VERSION e-scon-v1.15.0 -> e-scon-v3.0.0
 //
 // Working notes for the next person
 // - Order already had transportCost/deliveryIncluded; all new transport fields
@@ -95,3 +95,31 @@
 //   wrapper files, src/utils.test.ts, smoke scripts/screenshots/logs, the spec
 //   .doc, src/__mocks__, or build logs.
 // - Keep versionCode/versionName/sw VERSION in lockstep on every release.
+
+// ===== v3.0.0 — Role workspaces, all device support =====
+// Released: 2026-11-14
+// versionCode 25 / versionName "3.0.0" / sw.js VERSION "e-scon-v3.0.0"
+// Source of truth: "ESCON WEB & App Design & Feature.doc" (all five role menus).
+//
+// New deliverables
+// - src/lib/i18n.ts: bilingual EN/AM dictionary + useLanguage hook.
+// - src/lib/menu.ts: the five role menus exactly as spec §8.
+// - src/hooks/useLocalCollection.ts: persisted, cloud-mirrored collections.
+// - src/components/workspace/*: UI kit, shell, Admin/Supplier/Customer workspaces.
+// - src/components/SupplierDirectory.tsx, LanguagePage.tsx.
+// - src/escon-workspace.css: responsive workspace design system.
+// - src/version.ts: APP_VERSION = '3.0.0'.
+//
+// Collections added: projects, rfqs, quotations, complaints, audit_events (local),
+// platform_profile (shared). cloudStore.ts SHARED_KEYS extended.
+//
+// APKs (rebuilt 2026-11-14)
+// - E-SCON-debug.apk  SHA-256: ce4fb38cf045980b23b8b84688ec143287a745ac846d4f662f68609beb190bdb
+// - E-SCON-release.apk SHA-256: 8e9ae4d2bf3298388e3cec239370f567d70fa832d16616db70b79da9bbce01e
+// - E-SCON-release.aab SHA-256: f76611fec5d1e11303b92f7173925ceecfe5e169cbb0dabcc0b159cf56705ff4
+//
+// Verification
+// - npx tsc --noEmit: clean
+// - CI=false npm run build: compiled with warnings (resolved to none)
+// - npm test: 113 passed (5 suites)
+// - Capacitor sync + Gradle assembleDebug/assembleRelease/bundleRelease: BUILD SUCCESSFUL

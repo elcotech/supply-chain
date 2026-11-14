@@ -1,4 +1,4 @@
-# E-SCON 2.0 — Ethio-Supply Chain Optimization Network
+# E-SCON 3.0 — Ethio-Supply Chain Optimization Network
 
 > **AI-Powered Integrated Supply Chain Network** — Mobile App + Web Platform + Global Network
 >

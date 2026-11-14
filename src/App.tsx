@@ -864,7 +864,7 @@ function App() {
         if (uid && key === `cart_${uid}`) setCart(asArray<CartItem>(data));
         if (uid && key === `favs_${uid}`) setFavorites(asArray<string>(data));
     }
-  }, []);
+  }, [setProjects, setRfqs, setQuotations, setComplaints, setPlatform]);
 
   // ---------- v6 core helpers: notifications, wallet, reviews ----------
   const pushNotification = useCallback((userId: string, type: AppNotification['type'], title: string, message: string): void => {
@@ -1002,7 +1002,7 @@ function App() {
       }
     };
     reader.readAsText(file);
-  }, [showAlert, navigateTo]);
+  }, [showAlert, navigateTo, setProjects, setRfqs, setQuotations, setComplaints, setPlatform]);
 
   // ---------- Geocoding helpers ----------
   // Seeded suppliers historically carried an approximate pin near the city
