@@ -1,4 +1,4 @@
-# E-SCON — User Guide
+# E-SCON 2.0 — User Guide
 
 **E-SCON** (Ethio-Supply Chain Optimization Network) connects **suppliers** with
 **customers** in Ethiopia. You can search for products, see suppliers on a map,
@@ -16,6 +16,7 @@ This guide is for the people who *use* the app. For how it is built, see
 | --- | --- |
 | **Customer** | Search products, compare, order, print a proforma, track orders |
 | **Supplier** | List products, manage stock and orders, set your own delivery rate |
+| **Transporter** | Claim delivery jobs, dispatch vehicles and drivers, record proof of delivery and track transport earnings |
 | **Admin** | Configure platform-wide delivery fees, zones and the minimum-order rule |
 
 You can use E-SCON in a normal browser, or install it as an app on your phone
@@ -27,7 +28,9 @@ You can use E-SCON in a normal browser, or install it as an app on your phone
 
 1. Open the app. After a short splash screen you land on the **Home** page.
 2. Tap **Login** (or **Register** to create an account).
-3. Choose your account type on the register page: **Customer** or **Supplier**.
+3. Choose your account type on the register page: **Customer**, **Supplier** or
+   **Transporter**. Transporters also enter their business licence number and
+   service areas.
 4. Enter your address and city. E-SCON geocodes them so your account starts with
    a real location; you can refine it at any time:
    - **Customers:** **Dashboard → My Location → Edit / use current location**, then
@@ -328,6 +331,8 @@ sheet or the Home card.
   - **Admin** sees the whole platform.
   - **Supplier** sees only their own company's products and orders.
   - **Customer** sees only their own orders and spending.
+  - **Transporter** sees only assigned delivery jobs, transport earnings,
+    active/completed trips and cargo value.
 - Cards summarise revenue/GMV, orders, average order value, delivery and VAT,
   stock value and low-stock items. Charts show the six-month trend, order
   status, category and city mix; tables rank top products, suppliers and
@@ -336,6 +341,37 @@ sheet or the Home card.
   language (for example, revenue up or down versus the previous period).
 - **Export CSV** is available to suppliers and admins. Customers do not export
   data.
+
+### Transporter dashboard
+
+Sign in with a **Transporter** account and open **Transport** from the navigation,
+the mobile **More** sheet, the Home transport card or Quick Search.
+
+- **Overview** shows available requests, active trips, completed deliveries,
+  earnings and verification status.
+- **Requests** are confirmed orders that need transport. Search, sort and filter
+  them; matching service areas and suitable vehicle capacity are highlighted.
+  Claim a request to assign it to your company.
+- **Dispatch** lets you advance a job through **accepted → picked up → in
+  transit → delivered**, choose a vehicle and driver, and record who received
+  the goods as proof of delivery.
+- **Vehicles** and **Drivers** are your own fleet records. Vehicles track plate,
+  capacity and service status; drivers track licence and duty status.
+- **Pricing** previews the start fee, per-km and per-tonne charges; **Earnings**
+  lists completed transport work.
+- **Company** shows your business details, service areas, rating and completion
+  history for verification.
+
+### About and help pages
+
+Open **About & Help** from the header/footer, the mobile **More** sheet, the Home
+transport card or Quick Search. The page has four tabs:
+
+- **About E-SCON** — what the platform does and who it serves.
+- **How it works** — search, compare, order, deliver and track.
+- **Transport services** — how transport companies join and operate.
+- **Help & support** — common questions and shortcuts to browse, register, sign
+  in, open the map or install the app.
 
 ### Copilot
 

@@ -1121,6 +1121,7 @@ export const validateBackup = (raw: unknown): BackupPayload | null => {
       transactions: Array.isArray(obj.transactions) ? obj.transactions : [],
       reviews: Array.isArray(obj.reviews) ? obj.reviews : [],
       settings: obj.settings || null,
+      transporterProfiles: Array.isArray(obj.transporterProfiles) ? obj.transporterProfiles : [],
     };
   } catch (e) {
     console.warn('Backup validation failed', e);

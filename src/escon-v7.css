@@ -2,6 +2,7 @@
    E-SCON v7 · Sample-Layout sheets, Analytics, Marketplace & Copilot
    Desktop shows a centred document-width sheet; phones render the same
    content full-width with sticky chat controls and horizontal scroll strips.
+   Brand: Deep navy, professional blue, white and restrained gold.
    ===================================================================== */
 
 /* ---------- Shared document sheet (matches the cart/Proforma layout) ---------- */
@@ -26,6 +27,17 @@
   padding-bottom: 16px;
   border-bottom: 2px solid #0f4c81;
   margin-bottom: 16px;
+  position: relative;
+}
+.escon-sheet-head::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 120px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+  opacity: 0.6;
 }
 
 .escon-sheet-brand {
@@ -63,6 +75,7 @@
   line-height: 1.2;
   color: #0f4c81;
   margin: 2px 0 3px;
+  font-weight: 700;
 }
 
 .escon-sheet-sub {
@@ -98,6 +111,7 @@
 .escon-role-chip.role-company { background: #fff3e0; color: #9a4b00; border-color: #f6d5a8; }
 .escon-role-chip.role-customer { background: #e6f9ef; color: #147a4b; border-color: #b7e8ce; }
 .escon-role-chip.role-guest { background: #eef4fa; color: #4a6b8a; border-color: #d3e3f1; }
+.escon-role-chip.role-transporter { background: #fff8e6; color: #8a6d20; border-color: #f0dca0; }
 
 .escon-toolbar {
   display: flex;
@@ -374,7 +388,7 @@
 }
 .kpi-card.kpi-up { border-top-color: #2ecc71; }
 .kpi-card.kpi-down { border-top-color: #e74c3c; }
-.kpi-card.kpi-flat { border-top-color: #f1c40f; }
+.kpi-card.kpi-flat { border-top-color: var(--gold-light); }
 .kpi-card.kpi-neutral { border-top-color: #6d89a6; }
 .kpi-icon { position: absolute; right: 10px; top: 8px; font-size: 1rem; opacity: 0.75; }
 .kpi-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #6d89a6; padding-right: 20px; }
@@ -1063,7 +1077,7 @@
   border: 1px solid rgba(15, 76, 129, 0.12);
   backdrop-filter: blur(4px);
 }
-.market-pill.gold { background: #fff4d6; color: #8a5a00; border-color: #f2d789; }
+.market-pill.gold { background: #fff4d6; color: #8a5a00; border-color: var(--gold-light); font-weight: 700; }
 .market-pill.danger { background: #fff1ef; color: #b93b2d; border-color: #f3c0ba; }
 .market-card-tools { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 5px; }
 .market-tool {

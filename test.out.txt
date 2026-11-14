@@ -1,0 +1,86 @@
+PASS src/settings.test.ts (8.428 s)
+  ● Console
+
+    console.warn
+      Failed to load system settings, using defaults SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+          at JSON.parse (<anonymous>)
+          at loadSettings (F:\Tutorial 1\Supplychain\supply-chain1\src\settings.ts:46:25)
+          at Object.<anonymous> (F:\Tutorial 1\Supplychain\supply-chain1\src\settings.test.ts:56:24)
+          at Promise.then.completed (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\utils.js:391:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\utils.js:316:10)
+          at _callCircusTest (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:218:40)
+          at processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at _runTest (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:155:3)
+          at _runTestsForDescribeBlock (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:66:9)
+          at _runTestsForDescribeBlock (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:60:9)
+          at run (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:25:3)
+          at runAndTransformResultsToJestFormat (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:170:21)
+          at jestAdapter (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:82:19)
+          at runTestInternal (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-runner\build\runTest.js:389:16)
+          at runTest (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-runner\build\runTest.js:475:34)
+          at Object.worker (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-runner\build\testWorker.js:133:12)
+
+    [0m [90m 68 |[39m     }[33m;[39m
+     [90m 69 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 70 |[39m     console[33m.[39mwarn([32m'Failed to load system settings, using defaults'[39m[33m,[39m error)[33m;[39m
+     [90m    |[39m             [31m[1m^[22m[39m
+     [90m 71 |[39m     [36mreturn[39m [33mDEFAULT_SETTINGS[39m[33m;[39m
+     [90m 72 |[39m   }
+     [90m 73 |[39m }[33m;[39m[0m
+
+      at loadSettings (src/settings.ts:70:13)
+      at Object.<anonymous> (src/settings.test.ts:56:24)
+
+PASS src/utils.test.ts (12.806 s)
+  ● Console
+
+    console.warn
+      Invalid proforma payload DOMException {}
+
+    [0m [90m 530 |[39m     [36mreturn[39m data[33m;[39m
+     [90m 531 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 532 |[39m     console[33m.[39mwarn([32m'Invalid proforma payload'[39m[33m,[39m error)[33m;[39m
+     [90m     |[39m             [31m[1m^[22m[39m
+     [90m 533 |[39m     [36mreturn[39m [36mnull[39m[33m;[39m
+     [90m 534 |[39m   }
+     [90m 535 |[39m }[33m;[39m[0m
+
+      at decodeProformaPayload (src/utils.ts:532:13)
+      at Object.<anonymous> (src/utils.test.ts:331:33)
+
+    console.warn
+      Road routing failed for https://router.project-osrm.org/route/v1/driving Error: primary down
+          at Object.<anonymous> (F:\Tutorial 1\Supplychain\supply-chain1\src\utils.test.ts:575:30)
+          at Promise.then.completed (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\utils.js:391:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\utils.js:316:10)
+          at _callCircusTest (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:218:40)
+          at processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at _runTest (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:155:3)
+          at _runTestsForDescribeBlock (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:66:9)
+          at _runTestsForDescribeBlock (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:60:9)
+          at run (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\run.js:25:3)
+          at runAndTransformResultsToJestFormat (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:170:21)
+          at jestAdapter (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:82:19)
+          at runTestInternal (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-runner\build\runTest.js:389:16)
+          at runTest (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-runner\build\runTest.js:475:34)
+          at Object.worker (F:\Tutorial 1\Supplychain\supply-chain1\node_modules\jest-runner\build\testWorker.js:133:12)
+
+    [0m [90m 198 |[39m       [36mreturn[39m dist[33m;[39m
+     [90m 199 |[39m     } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 200 |[39m       console[33m.[39mwarn([32m'Road routing failed for '[39m [33m+[39m endpoint[33m,[39m error)[33m;[39m
+     [90m     |[39m               [31m[1m^[22m[39m
+     [90m 201 |[39m     }
+     [90m 202 |[39m   }
+     [90m 203 |[39m[0m
+
+      at calculateDistance (src/utils.ts:200:15)
+      at Object.<anonymous> (src/utils.test.ts:580:5)
+
+
+Test Suites: 2 passed, 2 total
+Tests:       65 passed, 65 total
+Snapshots:   0 total
+Time:        35.717 s
+Ran all test suites.

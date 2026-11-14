@@ -114,7 +114,7 @@ coordinates for a route). We do not control their practices.
   anonymous key with permissive access rules suitable for a demo or closed
   pilot — see the security note in
   [CLOUD_DATABASE.md](./CLOUD_DATABASE.md) before using real customer data.
-- The **Android app allows screenshots and screen recordings** in v6.0 (it no
+- The **Android app allows screenshots and screen recordings** in v2.0 (it no
   longer sets the Android `FLAG_SECURE` window flag). You can capture prices,
   proformas and account screens; treat those images as sensitive business
   documents and avoid sharing them publicly.

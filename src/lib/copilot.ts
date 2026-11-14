@@ -44,7 +44,8 @@ const roleName = (role: AnalyticsRole): string =>
   role === 'admin' ? 'platform administrator'
     : role === 'company' ? 'supplier'
       : role === 'customer' ? 'buyer'
-        : 'marketplace visitor';
+        : role === 'transporter' ? 'transporter'
+          : 'marketplace visitor';
 
 export const copilotSuggestions = (role: AnalyticsRole): string[] => {
   if (role === 'admin') {
@@ -75,6 +76,16 @@ export const copilotSuggestions = (role: AnalyticsRole): string[] => {
       'Show my active orders',
       'Find the best-rated supplier',
       'What should I buy next?',
+    ];
+  }
+  if (role === 'transporter') {
+    return [
+      'Give me an executive summary',
+      'How much have I earned from transport?',
+      'How many delivery jobs are active?',
+      'Which supplier gives me the most work?',
+      'How are my deliveries performing?',
+      'What should I improve next?',
     ];
   }
   return [

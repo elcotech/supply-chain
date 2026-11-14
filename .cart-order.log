@@ -1,0 +1,17 @@
+cloud writes: BLOCKED
+splash cleared: true
+
+=== PHASE A — location available ===
+email field: ok
+password: submitted
+logged in as: null
+LOGIN FAILED — cannot test
+
+=== PHASE B — location denied, no saved pin ===
+email field: ok
+password: submitted
+logged in as: null
+LOGIN FAILED — cannot test
+
+--- ALL CONSOLE ERRORS ---
+(none)

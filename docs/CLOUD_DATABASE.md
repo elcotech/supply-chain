@@ -1,4 +1,4 @@
-# E-SCON — Cloud Database (Supabase)
+# E-SCON 2.0 — Cloud Database (Supabase)
 
 E-SCON keeps its data in the browser's `localStorage` so it works offline and
 starts instantly. When Supabase credentials are configured, the cloud module

@@ -1,3 +1,5 @@
+export type UserRole = 'customer' | 'company' | 'admin' | 'transporter';
+
 export interface User {
   id: string;
   name: string;
@@ -6,7 +8,7 @@ export interface User {
   phone: string;
   address: string;
   city: string;
-  userType: 'customer' | 'company' | 'admin';
+  userType: UserRole;
   companyName?: string;
   lat: number;
   lng: number;
@@ -126,6 +128,82 @@ export interface Order {
   walletPayment?: boolean;
   /** True once the supplier's wallet has been credited for a paid order. */
   revenueCredited?: boolean;
+  /** Transporter account currently responsible for the delivery. */
+  transporterId?: string;
+  /** Operational delivery state, separate from the commercial order status. */
+  transportStatus?: TransportJobStatus;
+  /** Fee quoted/accepted for the transport job (ETB). */
+  transportFee?: number;
+  transportAcceptedAt?: string;
+  transportDeliveredAt?: string;
+  assignedVehicleId?: string;
+  assignedDriverId?: string;
+  /** Proof-of-delivery captured when the transporter completes the job. */
+  transportPod?: TransportProof;
+}
+
+export type TransportJobStatus =
+  | 'requested'
+  | 'accepted'
+  | 'picked_up'
+  | 'in_transit'
+  | 'delivered';
+
+export interface TransportProof {
+  receivedBy: string;
+  note: string;
+  deliveredAt: string;
+}
+
+export interface TransportVehicle {
+  id: string;
+  plate: string;
+  type: string;
+  capacityTons: number;
+  makeModel: string;
+  year: string;
+  status: 'available' | 'in_service' | 'maintenance';
+}
+
+export interface TransportDriver {
+  id: string;
+  name: string;
+  phone: string;
+  licenseNumber: string;
+  licenseExpiry: string;
+  status: 'available' | 'on_trip' | 'off_duty';
+}
+
+/**
+ * Operational profile for a verified transport company. Kept separate from
+ * `Company` because transporters are not product suppliers and must not appear
+ * in the supplier directory or marketplace.
+ */
+export interface TransporterProfile {
+  id: string;
+  userId: string;
+  companyName: string;
+  description: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  lat: number;
+  lng: number;
+  tinNumber: string;
+  licenseNumber: string;
+  serviceAreas: string[];
+  verified: boolean;
+  rating: number;
+  completedJobs: number;
+  /** Starting fee charged once per job (ETB). */
+  startFee: number;
+  /** Charge per road kilometre (ETB). */
+  ratePerKm: number;
+  /** Charge per tonne carried (ETB). */
+  ratePerTon: number;
+  vehicles: TransportVehicle[];
+  drivers: TransportDriver[];
 }
 
 export interface Alert {
@@ -147,6 +225,8 @@ export interface FormData {
   registerLng: number;
   registerCompanyName: string;
   registerUserType: string;
+  registerServiceAreas: string;
+  registerLicenseNumber: string;
   tinNumber: string;
   businessLicense: string;
   vatNumber: string;
@@ -391,6 +471,7 @@ export interface BackupPayload {
   companies: Company[];
   materials: Material[];
   orders: Order[];
+  transporterProfiles?: TransporterProfile[];
   notifications: AppNotification[];
   wallets: Record<string, number>;
   transactions: WalletTx[];

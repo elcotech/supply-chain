@@ -46,6 +46,7 @@ const SHARED_KEYS = new Set<string>([
   'wallet_transactions',
   'reviews',
   'system_settings',
+  'transporter_profiles',
 ]);
 
 // Per-user keys (`cart_<uid>`, `favs_<uid>`) travel with the account.

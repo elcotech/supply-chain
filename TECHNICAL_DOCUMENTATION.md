@@ -1,8 +1,9 @@
-# E-SCON — Ethio-Supply Chain Optimization Network
+# E-SCON 2.0 — Ethio-Supply Chain Optimization Network
 
 ## 📘 Technical Documentation
 
-> **Version:** 6.18 (Quick Search command palette, offline awareness, admin control room, auditable delivery arithmetic, map-to-order product links and smarter sign-in)
+> **Version:** 2.0.0 (full spec compliance: E-SCON 5.0 MAIN MENU structure, design standards with deep navy/professional blue/white/restrained gold, English+Amharic language support hooks, all-device cross-compatibility)
+> **Previous:** 6.20 (dedicated Transporter role, dispatch/fleet/POD dashboard, public information pages and all-device responsive polish)
 > **Previous:** 6.17 (Marketplace, role-aware Analytics & Insights, and data-grounded Copilot AI — all presented in the same Sample-Layout document shell on desktop, tablet and phone), 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart), 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
 > **Stack:** React 18 + TypeScript + Leaflet (Create React App)
@@ -860,11 +861,14 @@ consumed by both Analytics and Copilot. There is no network call and no stored
 derived data.
 
 **Role scoping.** `analyticsRole(user)` returns `admin | company | customer |
-guest`. `scopedOrders` gives admins every order, suppliers only
-`companyId === their company.id`, customers only `customerId === user.id`, and
-guests an empty list. `scopedMaterials` similarly limits a supplier catalogue to
-their own products. Cancelled orders stay in status breakdowns but are excluded
-from money and unit totals.
+transporter | guest`. `scopedOrders` gives admins every order, suppliers only
+`companyId === their company.id`, customers only `customerId === user.id`,
+transporters only jobs where `transporterId === user.id`, and guests an empty
+list. Transporters get transport earnings, active/completed jobs, average job
+fee, cargo value and VAT KPIs, plus their top suppliers and customers.
+`scopedMaterials` similarly limits a supplier catalogue to their own products.
+Cancelled orders stay in status breakdowns but are excluded from money and unit
+totals.
 
 **Periods.** `days` is `0` (all time), `30`, `90` or `365`. Orders are compared
 with the immediately preceding window of the same length;
@@ -997,7 +1001,9 @@ Everything is styled in **`src/App.css`** (~6,100 lines, organized in comment se
 ### CSS variables
 `:root` defines the base palette; `[data-theme="dark"]` (set on `<html>` by `App.tsx`) overrides it. A `.dark-mode` class on the app container also applies targeted overrides.
 
-Key tokens: `--bg`, `--bg-alt`, `--surface`, `--surface-alt`, `--card-bg`, `--text`, `--text-light`, `--text-muted`, `--border`, `--shadow`, `--glass-bg`, `--glass-border`, `--primary` (#0f4c81), `--primary-light`, `--secondary` (orange #e67e22), `--accent` (green), `--danger`, `--warning`, `--info`, `--radius`, `--transition`, `--font`.
+Key tokens: `--bg`, `--bg-alt`, `--surface`, `--surface-alt`, `--card-bg`, `--text`, `--text-light`, `--text-muted`, `--border`, `--shadow`, `--glass-bg`, `--glass-border`, `--primary` (#0f4c81), `--primary-light`, `--secondary` (gold #d4a017 / #c5a35a), `--accent` (green), `--danger`, `--warning`, `--info`, `--gold` (#c5a35a), `--gold-light` (#e5c175), `--gold-dark` (#a08030), `--radius`, `--transition`, `--font`.
+
+**Brand palette:** Deep navy, professional blue, white and restrained gold. `--primary` is deep navy blue (#0f4c81), `--secondary` is gold (#d4a017), and `--gold` / `--gold-light` / `--gold-dark` provide restrained gold accents for highlights, badges and subtle gradients.
 
 `--bg-alt`, `--surface`, `--surface-alt` and `--text-muted` used to be **used but never defined**, which left every rule that referenced them (cart quantity field, delivery-fee field, cart meta text, settings/admin helper text) with a transparent background or a grey fallback. They are now part of both palettes — keep them defined.
 
@@ -1204,7 +1210,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force refresh. Current value: `e-scon-v1.14.8` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v2.0.0` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1275,7 +1281,8 @@ npm test
 | File                  | What it covers                                                       |
 | --------------------- | -------------------------------------------------------------------- |
 | `src/settings.test.ts` | Defaults, round-trip persistence, corrupted-JSON repair, number sanitising, admin seed |
-| `src/lib/analytics.test.ts` | Role scoping (admin/company/customer/guest), cancelled-order exclusion, period filtering and previous-period growth, KPI keys and insights, and Copilot revenue/stock/customer/fallback/greeting answers |
+| `src/lib/analytics.test.ts` | Role scoping (admin/company/customer/transporter/guest), cancelled-order exclusion, period filtering and previous-period growth, KPI keys and insights, and Copilot revenue/stock/customer/fallback/greeting answers |
+| `src/lib/transport.test.ts` | Transport fees, service-area matching, job scoping, claim/advance guards, proof of delivery and transporter profile creation |
 | `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode→decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, legacy delivery data, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation), **`roundKm`** (0.1 km rounding used by every buyer-facing view and by `stageCartLine`) |
 
 41 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
@@ -1330,7 +1337,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently `e-scon-v1.14.6`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v2.0.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1352,6 +1359,34 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v6.20 - Transporter network, public information pages & all-device polish
+- **Dedicated Transporter role.** Registration supports transport companies
+  with business name, licence number and service areas. New
+  `TransporterProfile`, `TransportVehicle`, `TransportDriver`, `TransportProof`
+  and job status types live in `src/types.ts`; `src/lib/transport.ts` owns fee
+  calculation, service-area matching, job scoping and guarded status
+  transitions, covered by `src/lib/transport.test.ts`.
+- **Transporter dashboard.** `TransporterDashboard.tsx` provides overview
+  metrics, searchable/filterable delivery requests with service-area and
+  capacity matching, job claiming and status advance, proof-of-delivery
+  capture, vehicle and driver management, pricing preview, earnings history and
+  company/verification details.
+- **Public information pages.** `InfoPage.tsx` adds About E-SCON, How it works,
+  Transport services and Help & support tabs, reachable from the guest/user
+  menu, mobile More sheet, footer, home module and Quick Search.
+- **Data portability and sync.** Transporter profiles are included in
+  localStorage, Supabase KV sync (`transporter_profiles`), backup export,
+  restore validation and migration.
+- **Transporter analytics.** Insights and Copilot now understand the transporter
+  role and scope jobs, earnings, suppliers and customers to the signed-in
+  transporter.
+- **All-device polish.** `src/escon-transport.css` adds responsive layouts for
+  desktop, tablet, phone, landscape phone and 380px screens, touch targets,
+  reduced-motion support and transporter-role styling; the home page promotes
+  the transport network and responsive-device support.
+- **Release.** `versionCode 24` / `versionName "2.0.0"`, `sw.js` `VERSION`
+  `e-scon-v2.0.0`.
 
 ### v6.19 - Map ordering, guest-safe analytics & print-preview split
 - **Map no longer closes on selection.** `MapComponent.handleSupplierSelect`

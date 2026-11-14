@@ -286,7 +286,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </div>
           </div>
           <div className="escon-sheet-meta">
-            <span className={'escon-role-chip role-' + analytics.role}>{analytics.role === 'company' ? 'Supplier' : analytics.role === 'customer' ? 'Buyer' : analytics.role === 'admin' ? 'Administrator' : 'Visitor'} view</span>
+            <span className={'escon-role-chip role-' + analytics.role}>{analytics.role === 'company' ? 'Supplier' : analytics.role === 'customer' ? 'Buyer' : analytics.role === 'admin' ? 'Administrator' : analytics.role === 'transporter' ? 'Transporter' : 'Visitor'} view</span>
             <span>Generated {new Date(analytics.generatedAt).toLocaleString()}</span>
             <span>{isGuest ? `${analytics.productCount} products · ${analytics.supplierCount} suppliers` : `${analytics.orderCount} orders · ${analytics.productCount} products`}</span>
           </div>
@@ -700,10 +700,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
             <section className="escon-section">
               <div className="escon-section-head">
-                <h2>{analytics.role === 'company' || analytics.role === 'admin' ? 'Top customers' : 'Best suppliers to try'}</h2>
-                <span className="escon-badge">{analytics.role === 'company' || analytics.role === 'admin' ? analytics.customerCount : analytics.supplierCount}</span>
+                <h2>{analytics.role === 'company' || analytics.role === 'admin' || analytics.role === 'transporter' ? 'Top customers' : 'Best suppliers to try'}</h2>
+                <span className="escon-badge">{analytics.role === 'company' || analytics.role === 'admin' || analytics.role === 'transporter' ? analytics.customerCount : analytics.supplierCount}</span>
               </div>
-              {analytics.role === 'company' || analytics.role === 'admin' ? (
+              {analytics.role === 'company' || analytics.role === 'admin' || analytics.role === 'transporter' ? (
                 analytics.topCustomers.length === 0 ? (
                   <div className="escon-empty compact"><p>No buyer activity in this period.</p></div>
                 ) : (

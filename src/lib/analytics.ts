@@ -11,7 +11,7 @@
 import { User, Company, Material, Order, ProductReview, SystemSettings } from '../types';
 import { formatCurrency, forecastPrice, effectiveRating, ForecastResult } from '../utils';
 
-export type AnalyticsRole = 'admin' | 'company' | 'customer' | 'guest';
+export type AnalyticsRole = 'admin' | 'company' | 'customer' | 'transporter' | 'guest';
 
 export interface AnalyticsInput {
   user: User | null;
@@ -152,6 +152,7 @@ export const analyticsRole = (user: User | null): AnalyticsRole => {
   if (!user) return 'guest';
   if (user.userType === 'admin') return 'admin';
   if (user.userType === 'company') return 'company';
+  if (user.userType === 'transporter') return 'transporter';
   return 'customer';
 };
 
@@ -172,6 +173,9 @@ export const scopedOrders = (input: AnalyticsInput): Order[] => {
   if (role === 'company') {
     const company = analyticsCompany(input);
     return company ? input.orders.filter(o => o.companyId === company.id) : [];
+  }
+  if (role === 'transporter') {
+    return input.orders.filter(o => o.transporterId === input.user!.id);
   }
   return input.orders.filter(o => o.customerId === input.user!.id);
 };
@@ -305,6 +309,13 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
   const unitsSold = valid.reduce((sum, o) => sum + (o.quantity || 0), 0);
   const deliveryFees = valid.reduce((sum, o) => sum + (o.transportCost || 0), 0);
   const vatCollected = valid.reduce((sum, o) => sum + (o.vatAmount || 0), 0);
+  const transportEarningsTotal = valid.reduce(
+    (sum, o) => sum + (o.transportFee || o.transportCost || 0), 0
+  );
+  const transportActiveValue = activeList.reduce(
+    (sum, o) => sum + (o.transportFee || o.transportCost || 0), 0
+  );
+  const transportAvgFee = valid.length > 0 ? transportEarningsTotal / valid.length : 0;
   const avgOrderValue = valid.length > 0 ? gmv / valid.length : 0;
   const deliveredRatePct = valid.length > 0 ? (deliveredOrders.length / valid.length) * 100 : 0;
   const growthPct = days > 0 && previousGmv > 0 ? ((gmv - previousGmv) / previousGmv) * 100 : null;
@@ -314,7 +325,7 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
   const supplierCount = new Set(catalog.map(m => m.companyId)).size;
   const customerCount = role === 'admin'
     ? input.users.filter(u => u.userType === 'customer').length
-    : role === 'company'
+    : role === 'company' || role === 'transporter'
       ? new Set(valid.map(o => o.customerId)).size
       : role === 'customer' ? 1 : 0;
   const cityCount = new Set(input.companies.map(c => c.city).filter(Boolean)).size;
@@ -322,7 +333,9 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     ? input.reviews.filter(r => catalog.some(m => m.id === r.materialId))
     : role === 'customer'
       ? input.reviews.filter(r => r.userId === input.user!.id)
-      : input.reviews;
+      : role === 'transporter'
+        ? input.reviews.filter(r => valid.some(o => o.materialId === r.materialId))
+        : input.reviews;
   const avgRating = catalog.length > 0
     ? catalog.reduce((sum, m) => sum + effectiveRating(m.rating || 0, input.reviews.filter(r => r.materialId === m.id)), 0) / catalog.length
     : 0;
@@ -407,7 +420,7 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     current.spend += order.totalAmount || 0;
     customerAgg.set(order.customerId, current);
   });
-  const topCustomers: AnalyticsCustomer[] = role === 'admin' || role === 'company'
+  const topCustomers: AnalyticsCustomer[] = role === 'admin' || role === 'company' || role === 'transporter'
     ? Array.from(customerAgg.entries())
         .map(([id, agg]) => {
           const customer = input.users.find(u => u.id === id);
@@ -493,6 +506,17 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
       { key: 'suppliers', icon: '🏢', label: 'Suppliers used', value: String(new Set(valid.map(o => o.companyId)).size), sub: `${input.companies.length} on the marketplace` },
       { key: 'reviews', icon: '⭐', label: 'Reviews written', value: String(scopedReviewList.length), sub: `Catalogue rating ${avgRating.toFixed(1)}/5` },
     );
+  } else if (role === 'transporter') {
+    kpis.push(
+      { key: 'earnings', icon: '💰', label: 'Transport earnings', value: money(transportEarningsTotal), sub: growthSub, tone: toneFromGrowth },
+      { key: 'jobs', icon: '🚚', label: 'Delivery jobs', value: String(valid.length), sub: `${activeList.length} active · ${cancelledOrders} cancelled` },
+      { key: 'active', icon: '⏳', label: 'Active trips', value: String(activeList.length), sub: money(transportActiveValue) + ' in progress' },
+      { key: 'delivered', icon: '✅', label: 'Completed', value: String(deliveredOrders.length), sub: `${deliveredRatePct.toFixed(0)}% completion rate` },
+      { key: 'avg', icon: '📈', label: 'Avg job fee', value: money(transportAvgFee), sub: `${unitsSold} units moved` },
+      { key: 'customers', icon: '👥', label: 'Customers served', value: String(customerCount), sub: `${new Set(valid.map(o => o.companyId)).size} suppliers` },
+      { key: 'value', icon: '📦', label: 'Cargo value moved', value: money(gmv), sub: `${productCount} product lines` },
+      { key: 'vat', icon: '🧮', label: 'VAT on cargo', value: money(vatCollected), sub: `Rate ${input.settings.vat.rate}%` },
+    );
   } else {
     kpis.push(
       { key: 'products', icon: '🧾', label: 'Products', value: String(input.materials.length), sub: `${new Set(input.materials.map(m => m.category)).size} categories` },
@@ -555,6 +579,17 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
       insights.push(`Price forecast: ${falling[0].name} may fall ${Math.abs(falling[0].forecast!.changePct).toFixed(1)}% — a later order could cost less.`);
     }
 
+    if (role === 'transporter') {
+      insights.unshift(
+        `${periodLabel}: ${money(transportEarningsTotal)} in transport earnings across ${valid.length} delivery job${valid.length === 1 ? '' : 's'} (avg ${money(transportAvgFee)}).`
+      );
+      if (activeList.length > 0) {
+        insights.push(`${activeList.length} trip${activeList.length === 1 ? '' : 's'} worth ${money(transportActiveValue)} still need dispatch or proof of delivery.`);
+      }
+      if (topSuppliers.length > 0) {
+        insights.push(`Most of your work originates from ${topSuppliers[0].name} in ${topSuppliers[0].city} (${topSuppliers[0].orders} jobs).`);
+      }
+    }
     if (role === 'company' && topCustomers.length > 0) {
       insights.push(`${topCustomers[0].name || 'Your top buyer'} is your largest buyer with ${money(topCustomers[0].spend)} across ${topCustomers[0].orders} orders.`);
     }
@@ -569,7 +604,9 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
       ? (company?.name || 'Your supplier account')
       : role === 'customer'
         ? 'Your buyer account'
-        : 'Public marketplace';
+        : role === 'transporter'
+          ? 'Your transport operation'
+          : 'Public marketplace';
 
   return {
     role,

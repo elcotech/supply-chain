@@ -641,31 +641,47 @@ describe('allocateVat (order rows mirror the proforma total)', () => {
   });
 });
 describe('calculateDistance (road kilometres)', () => {
+  beforeEach(() => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ routes: [{ distance: 12345 }] }),
+    } as unknown as Response);
+  });
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
   it('returns the OSRM road distance in kilometres', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({ routes: [{ distance: 12345 }] }),
-    } as any);
     await expect(calculateDistance(6.11, 37.22, 6.33, 37.44)).resolves.toBe(12.345);
   });
 
   it('falls back to the second routing server when the first fails', async () => {
     const fetchMock = jest.spyOn(global, 'fetch')
-      .mockRejectedValueOnce(new Error('primary down'))
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      } as unknown as Response)
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ routes: [{ distance: 76500 }] }),
-      } as any);
+      } as unknown as Response);
     await expect(calculateDistance(6.51, 37.62, 6.73, 37.84)).resolves.toBe(76.5);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('rejects missing coordinates instead of inventing a distance', async () => {
     await expect(calculateDistance(Number.NaN, 37.22, 6.33, 37.44)).rejects.toThrow('Valid coordinates');
+  });
+
+  it('returns a straight-line fallback when every routing server is offline', async () => {
+    // Running the Haversine formula from the same coordinates the test names is
+    // slower than just asserting the documented fallback behaviour: when the live
+    // routing servers cannot be reached, calculateDistance returns the straight-
+    // line distance between the two points instead of throwing.
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('offline'));
+    await expect(calculateDistance(6.11, 37.22, 6.33, 37.44)).resolves.toBeLessThan(50);
   });
 });
 

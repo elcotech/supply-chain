@@ -1,0 +1,6 @@
+2026/11/14-10:15:16.192 1ac4 Reusing MANIFEST F:\Tutorial 1\Supplychain\supply-chain1\.chrome-smoke\Default\shared_proto_db/MANIFEST-000001
+2026/11/14-10:15:16.194 1ac4 Recovering log #4
+2026/11/14-10:15:16.230 1ac4 Reusing old log F:\Tutorial 1\Supplychain\supply-chain1\.chrome-smoke\Default\shared_proto_db/000004.log 
+2026/11/14-10:15:16.248 2cf0 Level-0 table #8: started
+2026/11/14-10:15:16.327 2cf0 Level-0 table #8: 133480 bytes OK
+2026/11/14-10:15:16.343 2cf0 Delete type=0 #4

@@ -20,11 +20,14 @@
   --glass-border: rgba(255, 255, 255, 0.75);
   --primary: #0f4c81;
   --primary-light: #1a6fb5;
-  --secondary: #e67e22;
-  --secondary-light: #f39c12;
+  --secondary: #d4a017;
+  --secondary-light: #f0c040;
   --accent: #2ecc71;
   --danger: #e74c3c;
   --warning: #f1c40f;
+  --gold: #c5a35a;
+  --gold-light: #e5c175;
+  --gold-dark: #a08030;
   --info: #3498db;
   --radius: 16px;
   --radius-sm: 10px;
@@ -48,6 +51,11 @@
   --glass-border: rgba(255, 255, 255, 0.85);
   --primary: #0b3f6d;
   --primary-light: #12588f;
+  --secondary: #a08030;
+  --secondary-light: #c5a35a;
+  --gold: #d4a017;
+  --gold-light: #e5c175;
+  --gold-dark: #8a6d20;
 }
 
 /* ---------- Base ---------- */
@@ -380,6 +388,10 @@ body {
 }
 .logo span {
   color: var(--secondary);
+  text-shadow: 0 0 8px rgba(197, 163, 90, 0.3);
+}
+.logo:hover span {
+  color: var(--gold-light);
 }
 .header-actions {
   display: flex;
@@ -605,21 +617,36 @@ body {
 
 /* ---------- Search ---------- */
 .search-hero {
-  background: linear-gradient(135deg, var(--primary), var(--primary-light), var(--primary)) !important;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light), var(--gold-dark)) !important;
   background-size: 300% 300% !important;
-  animation: gradientShift 6s ease-in-out infinite;
+  animation: gradientShift 8s ease-in-out infinite;
   color: #fff;
   border-radius: var(--radius);
   padding: 32px 28px;
   margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.search-hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 60%;
+  height: 200%;
+  background: radial-gradient(ellipse at center, rgba(197, 163, 90, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  animation: shimmer 6s ease-in-out infinite;
 }
 .search-hero h1 {
   font-size: 2rem;
   margin-bottom: 8px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 .search-hero p {
-  opacity: 0.8;
+  opacity: 0.9;
   margin-bottom: 20px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 .search-form {
   display: flex;
@@ -651,15 +678,18 @@ body {
   padding: 14px 28px;
   border: none;
   border-radius: 40px;
-  background: var(--secondary);
+  background: linear-gradient(135deg, var(--secondary), var(--gold-light));
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all var(--transition);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .search-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 14px rgba(230, 126, 34, 0.4);
+  box-shadow: 0 4px 20px rgba(197, 163, 90, 0.4);
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
 }
 .search-filters {
   display: flex;
@@ -1227,10 +1257,23 @@ body {
 .home-hero {
   text-align: center;
   padding: 40px 20px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  background: linear-gradient(135deg, var(--primary), var(--primary-light), var(--gold-dark));
   border-radius: var(--radius);
   color: #fff;
   animation: fadeInUp 0.6s ease;
+  position: relative;
+  overflow: hidden;
+}
+.home-hero::before {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 80px;
+  background: radial-gradient(ellipse at center, rgba(197, 163, 90, 0.12) 0%, transparent 70%);
+  pointer-events: none;
 }
 .home-hero .hero-badge {
   display: inline-block;
@@ -1278,15 +1321,17 @@ body {
   padding: 14px 28px;
   border: none;
   border-radius: 40px;
-  background: var(--secondary);
+  background: linear-gradient(135deg, var(--secondary), var(--gold-light));
   color: #fff;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition);
+  box-shadow: 0 4px 16px rgba(197, 163, 90, 0.3);
 }
 .search-center-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 14px rgba(230, 126, 34, 0.4);
+  box-shadow: 0 6px 24px rgba(197, 163, 90, 0.4);
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
 }
 .cta-buttons {
   display: flex;

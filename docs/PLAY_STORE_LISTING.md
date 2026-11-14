@@ -55,6 +55,12 @@ FOR SUPPLIERS
 • Confirm and manage incoming orders.
 • Pick your exact business location on the map.
 
+FOR TRANSPORTERS
+- Register your transport company with a business licence and service areas.
+- Claim confirmed delivery requests that match your coverage and fleet capacity.
+- Dispatch vehicles and drivers, advance job status, and capture proof of delivery.
+- Track transport earnings, average job fee and completed deliveries in Analytics.
+
 FOR EVERYONE
 • A filterable Marketplace with supplier storefronts, favourites, compare and one-tap cart.
 • A data-grounded Copilot that works offline and never sends your business data to a server.
@@ -86,6 +92,8 @@ Prepare and upload in the Play Console:
 > In-app screenshots are **allowed** in the v6.1 Android build. Capture the
 > six suggested shots directly from a debug or release install. See
 > [ANDROID_BUILD.md §11](./ANDROID_BUILD.md#11-screenshots).
+>
+> **E-SCON 2.0 brand**: Deep navy, professional blue, white and restrained gold. Clean, modern, professional and consistent across all devices.
 
 Suggested screenshots:
 
@@ -147,7 +155,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current build: **22 / "1.9.12"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **24 / "2.0.0"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console

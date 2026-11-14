@@ -1,7 +1,8 @@
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
 import './escon-v7.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload, DeliveryMode, MaterialDelivery } from './types';
+import './escon-transport.css';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload, DeliveryMode, MaterialDelivery, TransporterProfile, TransportProof } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS
 } from './constants';
@@ -29,7 +30,13 @@ import OrderTimeline from './components/OrderTimeline';
 import AnalyticsPage from './components/AnalyticsPage';
 import MarketplacePage from './components/MarketplacePage';
 import CopilotPage from './components/CopilotPage';
+import TransporterDashboard from './components/TransporterDashboard';
+import InfoPage, { InfoTab } from './components/InfoPage';
 import { Sparkline, StarRatingDisplay, StarRatingInput } from './components/Charts';
+import {
+  canClaimTransportJob, computeTransportFee, createTransporterProfile, jobStatus, nextTransportStatus,
+  orderWeightTons,
+} from './lib/transport';
 import CommandPalette, { CommandItem } from './components/CommandPalette';
 import useIsMobile from './hooks/useIsMobile';
 
@@ -120,6 +127,7 @@ const CLOUD_MERGE_KEY = 'escon_cloud_merge_v2';
 const MIGRATED_COLLECTIONS = [
   'users', 'companies', 'materials', 'orders', 'notifications',
   'wallets', 'wallet_transactions', 'reviews', 'system_settings',
+  'transporter_profiles',
 ];
 
 const mergeById = <T extends { id: string }>(local: T[], cloud: T[]): T[] => {
@@ -291,6 +299,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [transporterProfiles, setTransporterProfiles] = useState<TransporterProfile[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -357,6 +366,7 @@ function App() {
   const [adminCompanyTarget, setAdminCompanyTarget] = useState<{ company: Company; user: User; isNew?: boolean } | null>(null);
   const [adminEditingMaterial, setAdminEditingMaterial] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
+  const [infoTab, setInfoTab] = useState<InfoTab>('about');
   const [copilotSeed, setCopilotSeed] = useState<string>('');
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = safeLocalStorage.getItem(THEME_KEY);
@@ -495,6 +505,7 @@ function App() {
     loginEmail: '', loginPassword: '', selectedUser: '',
     registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '',
     registerAddress: '', registerCity: 'Addis Ababa', registerLat: 0, registerLng: 0, registerCompanyName: '', registerUserType: 'customer',
+    registerServiceAreas: '', registerLicenseNumber: '',
     tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false,
     materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '',
     materialMinOrder: '', materialDescription: '', searchQuery: '', searchCategory: 'all',
@@ -647,6 +658,11 @@ function App() {
     navigateTo('copilot');
   }, [navigateTo]);
 
+  const openInfo = useCallback((tab: InfoTab = 'about'): void => {
+    setInfoTab(tab);
+    navigateTo('info');
+  }, [navigateTo]);
+
   // Every page heading greets the signed-in user by name, so the word the
   // requirement asks for ("Welcome") is present on every heading, on desktop
   // and mobile alike.
@@ -736,6 +752,9 @@ function App() {
         setEditingMaterial(prev => prev ? (list.find(m => m.id === prev.id) || prev) : prev);
         break;
       }
+      case 'transporter_profiles':
+        setTransporterProfiles(asArray<TransporterProfile>(data));
+        break;
       case 'orders':
         setOrders(asArray<Order>(data));
         break;
@@ -844,9 +863,9 @@ function App() {
       app: 'ESCON', version: 6, exportedAt: new Date().toISOString(),
       users, companies, materials, orders,
       notifications, wallets, transactions, reviews,
-      settings: systemSettings,
+      settings: systemSettings, transporterProfiles,
     };
-  }, [currentUser, users, companies, materials, orders, notifications, wallets, transactions, reviews, systemSettings]);
+  }, [currentUser, users, companies, materials, orders, notifications, wallets, transactions, reviews, systemSettings, transporterProfiles]);
 
   const handleBackupExport = useCallback((): void => {
     const payload = buildBackupPayload();
@@ -865,6 +884,7 @@ function App() {
         setUsers(parsed.users); setCompanies(parsed.companies); setMaterials(parsed.materials);
         setOrders(parsed.orders); setNotifications(parsed.notifications);
         setWallets(parsed.wallets); setTransactions(parsed.transactions); setReviews(parsed.reviews);
+        setTransporterProfiles(Array.isArray(parsed.transporterProfiles) ? parsed.transporterProfiles : []);
         if (parsed.settings) {
           // Older backups predate the VAT block; save then re-load through the
           // normaliser so the restored settings always contain every field.
@@ -967,6 +987,7 @@ function App() {
       const savedCompanies = safeLocalStorage.getItem('companies');
       const savedMaterials = safeLocalStorage.getItem('materials');
       const savedOrders = safeLocalStorage.getItem('orders');
+      const savedTransporterProfiles = safeLocalStorage.getItem('transporter_profiles');
       const savedCurrentUser = safeLocalStorage.getItem('currentUser');
 
       let parsedUsers: User[] = savedUsers ? JSON.parse(savedUsers) : [];
@@ -1057,6 +1078,13 @@ function App() {
       const parsedOrders: Order[] = savedOrders ? JSON.parse(savedOrders) : [];
       setOrders(parsedOrders);
       if (!savedOrders) safeLocalStorage.setItem('orders', JSON.stringify(parsedOrders));
+      const parsedTransporterProfiles: TransporterProfile[] = savedTransporterProfiles
+        ? JSON.parse(savedTransporterProfiles)
+        : [];
+      setTransporterProfiles(parsedTransporterProfiles);
+      if (!savedTransporterProfiles) {
+        safeLocalStorage.setItem('transporter_profiles', JSON.stringify(parsedTransporterProfiles));
+      }
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
 
       // These were initialised before the cloud pull ran; reload them now so a
@@ -1117,6 +1145,12 @@ function App() {
       cloudPush('orders', orders);
     }
   }, [orders, isInitialized]);
+  useEffect(() => {
+    if (isInitialized) {
+      safeLocalStorage.setItem('transporter_profiles', JSON.stringify(transporterProfiles));
+      cloudPush('transporter_profiles', transporterProfiles);
+    }
+  }, [transporterProfiles, isInitialized]);
   useEffect(() => {
     if (currentUser && isInitialized) safeLocalStorage.setItem('currentUser', JSON.stringify(currentUser));
     else if (!currentUser) safeLocalStorage.removeItem('currentUser');
@@ -1299,25 +1333,40 @@ function App() {
 
   const handleRegister = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered } = formData;
+    const { registerFullName, registerEmail, registerPassword, registerPhone, registerAddress, registerCity, registerCompanyName, registerUserType, tinNumber, businessLicense, vatNumber, vatRegistered, registerServiceAreas, registerLicenseNumber } = formData;
     const email = normalizeEmail(registerEmail);
     if (users.some(u => normalizeEmail(u.email) === email)) { showAlert('An account with this e-mail already exists. Try logging in instead.', 'danger'); return; }
+    const isBusiness = registerUserType === 'company' || registerUserType === 'transporter';
+    if (isBusiness && !registerCompanyName.trim()) {
+      showAlert('Please enter your business name.', 'warning');
+      return;
+    }
     // Geocode the address the user typed so distances are measured from their
     // real location instead of a random point near Addis Ababa. They can refine
     // it later from Dashboard -> My Location (or on the map picker).
     const coords = await geocodeAddress(registerAddress, registerCity);
     const newUser: User = {
       id: genId('user'), name: registerFullName.trim(), email, password: registerPassword || '0909',
-      phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as 'customer' | 'company',
-      companyName: registerUserType === 'company' ? registerCompanyName : '',
+      phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as User['userType'],
+      companyName: isBusiness ? registerCompanyName : '',
       lat: coords?.lat ?? 9.0320, lng: coords?.lng ?? 38.7469,
       registered: new Date().toISOString().split('T')[0], loginAttempts: 0, lockUntil: 0,
-      tinNumber: registerUserType === 'company' ? tinNumber : '',
-      businessLicense: registerUserType === 'company' ? businessLicense : '',
-      vatRegistered: registerUserType === 'company' ? vatRegistered : false,
-      vatNumber: registerUserType === 'company' ? vatNumber : ''
+      tinNumber: isBusiness ? tinNumber : '',
+      businessLicense: isBusiness ? (businessLicense || registerLicenseNumber) : '',
+      vatRegistered: isBusiness ? vatRegistered : false,
+      vatNumber: isBusiness ? vatNumber : ''
     };
     setUsers(prev => [...prev, newUser]);
+    if (registerUserType === 'transporter') {
+      setTransporterProfiles(prev => [
+        ...prev,
+        createTransporterProfile(newUser, {
+          tinNumber,
+          serviceAreas: registerServiceAreas.split(',').map(area => area.trim()).filter(Boolean),
+          licenseNumber: registerLicenseNumber || businessLicense,
+        }),
+      ]);
+    }
     if (registerUserType === 'company') {
       const newCompany: Company = {
         id: genId('comp'), userId: newUser.id, name: registerCompanyName, description: '',
@@ -1331,8 +1380,115 @@ function App() {
     }
     showAlert('Registration successful! Please login. ✅', 'success');
     setCurrentPage('login');
-    setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false }));
+    setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false, registerServiceAreas: '', registerLicenseNumber: '' }));
   };
+
+  const transporterProfileFor = useCallback((userId: string): TransporterProfile | undefined =>
+    transporterProfiles.find(profile => profile.userId === userId), [transporterProfiles]);
+
+  const handleSaveTransporterProfile = useCallback((profile: TransporterProfile, message?: string): void => {
+    setTransporterProfiles(prev => prev.some(item => item.id === profile.id)
+      ? prev.map(item => item.id === profile.id ? profile : item)
+      : [...prev, profile]);
+    if (message) showAlert(message, 'success');
+  }, [showAlert]);
+
+  // Claiming a delivery request assigns the transporter, freezes the quoted fee
+  // and moves the job to "accepted" so no other company can take it.
+  const handleClaimTransportJob = useCallback(async (orderId: string): Promise<void> => {
+    if (!currentUser || currentUser.userType !== 'transporter') {
+      showAlert('Only a transporter account can accept delivery requests.', 'danger');
+      return;
+    }
+    const order = orders.find(item => item.id === orderId);
+    const profile = transporterProfileFor(currentUser.id);
+    if (!order || !profile) {
+      showAlert('This delivery request is no longer available.', 'warning');
+      return;
+    }
+    if (!canClaimTransportJob(order, currentUser.id)) {
+      showAlert('This job cannot be accepted in its current state.', 'warning');
+      return;
+    }
+    const company = companies.find(item => item.id === order.companyId);
+    const customer = users.find(item => item.id === order.customerId);
+    let distanceKm = 0;
+    if (company && customer
+      && [company.lat, company.lng, customer.lat, customer.lng].every(Number.isFinite)) {
+      try {
+        distanceKm = roundKm(await calculateDistance(company.lat, company.lng, customer.lat, customer.lng));
+      } catch {
+        distanceKm = 0;
+      }
+    }
+    const material = materials.find(item => item.id === order.materialId);
+    const fee = computeTransportFee(profile, distanceKm, orderWeightTons(material, order.quantity));
+    const acceptedAt = new Date().toISOString();
+    setOrders(prev => prev.map(item => item.id === orderId ? {
+      ...item,
+      transporterId: currentUser.id,
+      transportStatus: 'accepted',
+      transportFee: fee,
+      transportAcceptedAt: acceptedAt,
+    } : item));
+    const label = `${profile.companyName} accepted delivery for order ${order.invoiceNumber}`;
+    pushNotification(order.customerId, 'order', 'Delivery accepted', `${label} — fee ${formatCurrency(fee)}.`);
+    const supplierUser = getUserById(company?.userId || '');
+    if (supplierUser) pushNotification(supplierUser.id, 'order', 'Delivery accepted', label);
+    pushNotification(currentUser.id, 'order', 'Job accepted', `${order.invoiceNumber} is now in your dispatch list.`);
+    showAlert(`Job accepted — transport fee ${formatCurrency(fee)}.`, 'success');
+  }, [companies, currentUser, getUserById, materials, orders, pushNotification, showAlert, transporterProfileFor, users]);
+
+  const handleAssignTransportAsset = useCallback((orderId: string, vehicleId: string, driverId: string): void => {
+    if (!currentUser) return;
+    setOrders(prev => prev.map(order => (
+      order.id === orderId && order.transporterId === currentUser.id
+        ? { ...order, assignedVehicleId: vehicleId || undefined, assignedDriverId: driverId || undefined }
+        : order
+    )));
+  }, [currentUser]);
+
+  const handleAdvanceTransportJob = useCallback((orderId: string, proof?: TransportProof): void => {
+    if (!currentUser || currentUser.userType !== 'transporter') return;
+    const order = orders.find(item => item.id === orderId);
+    if (!order || order.transporterId !== currentUser.id) {
+      showAlert('This delivery job is not assigned to you.', 'warning');
+      return;
+    }
+    const next = nextTransportStatus(jobStatus(order));
+    if (!next) {
+      showAlert('This delivery is already complete.', 'info');
+      return;
+    }
+    const now = new Date().toISOString();
+    setOrders(prev => prev.map(item => {
+      if (item.id !== orderId) return item;
+      const updated: Order = { ...item, transportStatus: next };
+      if (next === 'in_transit') updated.status = 'shipped';
+      if (next === 'delivered') {
+        updated.status = 'delivered';
+        updated.deliveryDate = now;
+        updated.transportDeliveredAt = now;
+        updated.transportPod = proof || {
+          receivedBy: item.address || 'Customer',
+          note: 'Delivered by transporter',
+          deliveredAt: now,
+        };
+      }
+      return updated;
+    }));
+    if (next === 'delivered') {
+      setTransporterProfiles(prev => prev.map(profile => profile.userId === currentUser.id
+        ? { ...profile, completedJobs: (profile.completedJobs || 0) + 1 }
+        : profile));
+    }
+    if (next === 'in_transit') {
+      notifyOrderParties(order, 'Delivery in transit', `Order ${order.invoiceNumber} is on the way to ${order.address}.`, 'order');
+    } else if (next === 'delivered') {
+      notifyOrderParties(order, 'Delivery completed', `Order ${order.invoiceNumber} was delivered.`, 'order');
+    }
+    showAlert(next === 'delivered' ? 'Delivery completed ✅' : 'Delivery status updated.', 'success');
+  }, [currentUser, notifyOrderParties, orders, showAlert]);
 
   const handleLogout = (): void => {
     setCurrentUser(null);
@@ -3122,10 +3278,11 @@ function App() {
       <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
       <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>{'\u{1F916}'} Copilot</button>
       <NavMore
-        active={['search-materials', 'supplier-map', 'login', 'register'].includes(currentPage)}
+        active={['search-materials', 'supplier-map', 'login', 'register', 'info'].includes(currentPage)}
         items={[
           { label: 'Find Products', icon: '\u{1F50D}', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
           { label: 'Supplier Map', icon: '\u{1F4CD}', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+          { label: 'About & Help', icon: '\u2139\uFE0F', active: currentPage === 'info', onClick: () => openInfo('about') },
           { label: 'Login', icon: '\u{1F510}', active: currentPage === 'login', onClick: () => navigateTo('login') },
           { label: 'Create Account', icon: '\u{1F464}', active: currentPage === 'register', onClick: () => navigateTo('register') },
         ]}
@@ -3136,11 +3293,13 @@ function App() {
   const renderUserNav = () => {
     const isCompany = currentUser?.userType === 'company';
     const isAdmin = currentUser?.userType === 'admin';
-    const dashboardPage = isCompany ? 'company-dashboard' : isAdmin ? 'analytics' : 'customer-dashboard';
-    const dashboardLabel = isCompany ? 'Supplier Dashboard' : isAdmin ? 'Admin Control Room' : 'Dashboard';
+    const isTransporter = currentUser?.userType === 'transporter';
+    const dashboardPage = isCompany ? 'company-dashboard' : isAdmin ? 'analytics' : isTransporter ? 'transporter-dashboard' : 'customer-dashboard';
+    const dashboardLabel = isCompany ? 'Supplier Dashboard' : isAdmin ? 'Admin Control Room' : isTransporter ? 'Transporter Dashboard' : 'Dashboard';
     const secondary = [
       { label: 'Find Products', icon: '\u{1F50D}', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
       { label: 'Supplier Map', icon: '\u{1F4CD}', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+      { label: 'About & Help', icon: '\u2139\uFE0F', active: currentPage === 'info', onClick: () => openInfo('about') },
       ...(isCompany ? [
         { label: 'Add Product', icon: '+', active: currentPage === 'add-material', onClick: () => navigateTo('add-material') },
         { label: 'Company Profile', icon: '\u{1F3E2}', active: currentPage === 'edit-company', onClick: handleEditCompany },
@@ -3158,7 +3317,7 @@ function App() {
         <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>{'\u{1F916}'} Copilot</button>
         <button className={'nav-link ' + (currentPage === 'orders' ? 'active' : '')} onClick={() => navigateTo('orders')}>Orders</button>
         <NavMore
-          active={['search-materials', 'supplier-map', 'add-material', 'edit-company', 'settings', 'company-dashboard', 'customer-dashboard'].includes(currentPage)}
+          active={['search-materials', 'supplier-map', 'add-material', 'edit-company', 'settings', 'company-dashboard', 'customer-dashboard', 'transporter-dashboard', 'info'].includes(currentPage)}
           items={[
             { label: dashboardLabel, icon: '\u{1F4CA}', active: currentPage === dashboardPage, onClick: () => navigateTo(dashboardPage) },
             ...secondary,
@@ -3166,7 +3325,7 @@ function App() {
         />
         <div className="user-info">
           <div className="user-avatar">{currentUser?.name?.charAt(0).toUpperCase()}</div>
-          <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{isAdmin ? 'Admin' : isCompany ? 'Supplier' : 'Customer'}</div></div>
+          <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{isAdmin ? 'Admin' : isCompany ? 'Supplier' : isTransporter ? 'Transporter' : 'Customer'}</div></div>
           <button className="btn-logout" onClick={handleLogout}>Logout</button>
         </div>
       </>
@@ -3664,6 +3823,18 @@ function App() {
             </span>
             <span className="home-module-cta">Ask now →</span>
           </button>
+          <button
+            type="button"
+            className="home-module transport"
+            onClick={() => currentUser?.userType === 'transporter' ? navigateTo('transporter-dashboard') : openInfo('transport')}
+          >
+            <span className="home-module-icon">🚛</span>
+            <span className="home-module-body">
+              <strong>Transport network</strong>
+              <small>Verified transport companies receive confirmed delivery requests, dispatch their fleet and build a delivery record.</small>
+            </span>
+            <span className="home-module-cta">{currentUser?.userType === 'transporter' ? 'Open dashboard →' : 'Learn more →'}</span>
+          </button>
         </div>
         <h2 className="section-title">✨ Key Features</h2>
         <div className="features-grid">
@@ -3671,6 +3842,8 @@ function App() {
           <div className="feature-card glass"><div className="feature-icon">🗺️</div><h3>GIS Supplier Mapping</h3><p>Interactive map with cost calculation</p></div>
           <div className="feature-card glass"><div className="feature-icon">🚚</div><h3>Logistics Optimization</h3><p>Smart routing & cost minimization</p></div>
           <div className="feature-card glass"><div className="feature-icon">📋</div><h3>Business Compliance</h3><p>Full TIN & VAT support</p></div>
+          <div className="feature-card glass"><div className="feature-icon">🚛</div><h3>Dedicated Transporters</h3><p>Dispatch, fleet, drivers & proof of delivery</p></div>
+          <div className="feature-card glass"><div className="feature-icon">📱</div><h3>Every Device</h3><p>Responsive phone, tablet and desktop layouts</p></div>
         </div>
       </main>
     );
@@ -3705,11 +3878,12 @@ function App() {
         <div className="auth-card glass">
           <div className="auth-header"><span className="auth-icon">📝</span><h2>Welcome — Create Account</h2><p>Join E-SCON Platform</p></div>
           <div className="auth-body">
-            <div className="auth-tabs"><button className={'auth-tab ' + (formData.registerUserType === 'customer' ? 'active' : '')} onClick={() => switchUserType('customer')}>👤 Customer</button><button className={'auth-tab ' + (formData.registerUserType === 'company' ? 'active' : '')} onClick={() => switchUserType('company')}>🏢 Supplier</button></div>
+            <div className="auth-tabs"><button className={'auth-tab ' + (formData.registerUserType === 'customer' ? 'active' : '')} onClick={() => switchUserType('customer')}>👤 Customer</button><button className={'auth-tab ' + (formData.registerUserType === 'company' ? 'active' : '')} onClick={() => switchUserType('company')}>🏢 Supplier</button><button className={'auth-tab ' + (formData.registerUserType === 'transporter' ? 'active' : '')} onClick={() => switchUserType('transporter')}>🚛 Transporter</button></div>
             <form onSubmit={handleRegister}>
-              {formData.registerUserType === 'company' && (<>
-                <div className="form-group"><label className="form-label">🏢 Company Name *</label><input type="text" className="form-input" name="registerCompanyName" value={formData.registerCompanyName} onChange={handleInputChange} required /></div>
+              {formData.registerUserType !== 'customer' && (<>
+                <div className="form-group"><label className="form-label">🏢 {formData.registerUserType === 'transporter' ? 'Transport Company Name' : 'Company Name'} *</label><input type="text" className="form-input" name="registerCompanyName" value={formData.registerCompanyName} onChange={handleInputChange} required /></div>
                 <div className="form-row"><div className="form-group"><label className="form-label">📋 TIN Number *</label><input type="text" className="form-input" name="tinNumber" value={formData.tinNumber} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">📄 Business License *</label><input type="text" className="form-input" name="businessLicense" value={formData.businessLicense} onChange={handleInputChange} required /></div></div>
+                {formData.registerUserType === 'transporter' && (<div className="form-row"><div className="form-group"><label className="form-label">🪪 Transport Licence Number</label><input type="text" className="form-input" name="registerLicenseNumber" value={formData.registerLicenseNumber} onChange={handleInputChange} /></div><div className="form-group"><label className="form-label">🗺️ Service Areas</label><input type="text" className="form-input" name="registerServiceAreas" value={formData.registerServiceAreas} onChange={handleInputChange} placeholder="Addis Ababa, Adama, Hawassa" /></div></div>)}
                 <div className="form-group"><label className="checkbox-label"><input type="checkbox" name="vatRegistered" checked={formData.vatRegistered} onChange={handleInputChange} /> ✅ VAT Registered</label></div>
                 {formData.vatRegistered && <div className="form-group"><label className="form-label">💰 VAT Number</label><input type="text" className="form-input" name="vatNumber" value={formData.vatNumber} onChange={handleInputChange} /></div>}
               </>)}
@@ -3800,6 +3974,31 @@ function App() {
         </div>
         <button className="btn btn-secondary" onClick={handleEditCompany}>✏️ Edit Company Profile</button>
       </main>
+    );
+  };
+
+  const renderTransporterDashboard = () => {
+    if (!currentUser || currentUser.userType !== 'transporter') {
+      return <main className="main-content"><div className="alert alert-danger">⚠️ Access denied.</div></main>;
+    }
+    const profile = transporterProfileFor(currentUser.id) || createTransporterProfile(currentUser, {
+      tinNumber: currentUser.tinNumber,
+    });
+    return (
+      <TransporterDashboard
+        user={currentUser}
+        profile={profile}
+        orders={orders}
+        materials={materials}
+        companies={companies}
+        onSaveProfile={handleSaveTransporterProfile}
+        onClaimJob={orderId => { void handleClaimTransportJob(orderId); }}
+        onAdvanceJob={handleAdvanceTransportJob}
+        onAssignAsset={handleAssignTransportAsset}
+        onOpenMap={() => setShowSupplierMap(true)}
+        onOpenOrders={() => navigateTo('orders')}
+        onNotify={showAlert}
+      />
     );
   };
 
@@ -4645,7 +4844,7 @@ function App() {
       <footer className="footer glass">
         <div className="footer-content">
           <div className="footer-section"><h3>E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>📍 Serving all Ethiopian cities</p><p>✅ Compliant with Ethiopian Trade Regulations</p></div>
-          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('marketplace')}>Marketplace</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => navigateTo('analytics')}>Analytics &amp; Insights</button><button onClick={() => openCopilot()}>🤖 Copilot</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button><button onClick={() => setShowInstallGuide(true)}>📲 Install App</button></div>
+          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('marketplace')}>Marketplace</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => navigateTo('analytics')}>Analytics &amp; Insights</button><button onClick={() => openCopilot()}>🤖 Copilot</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button><button onClick={() => openInfo('about')}>ℹ️ About &amp; Help</button><button onClick={() => setShowInstallGuide(true)}>📲 Install App</button></div>
           <div className="footer-section"><h3>Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>{c}</span>)}</div></div>
           <div className="footer-section"><h3>Contact</h3><p>📧 meharinageb@gmail.com</p><p>📱 +251909919154</p></div>
         </div>
@@ -4664,6 +4863,8 @@ function App() {
       copilot: 'Copilot AI',
       'company-dashboard': 'Supplier Dashboard',
       'customer-dashboard': 'My Dashboard',
+      'transporter-dashboard': 'Transporter Dashboard',
+      info: 'About & Help',
       orders: 'Orders',
       'add-material': 'New Product',
       'edit-material': 'Edit Product',
@@ -4712,7 +4913,8 @@ function App() {
     const isCustomer = currentUser?.userType === 'customer';
     const isCompany = currentUser?.userType === 'company';
     const isAdmin = currentUser?.userType === 'admin';
-    const boardPage = isCompany ? 'company-dashboard' : 'analytics';
+    const isTransporter = currentUser?.userType === 'transporter';
+    const boardPage = isCompany ? 'company-dashboard' : isAdmin ? 'analytics' : isTransporter ? 'transporter-dashboard' : 'customer-dashboard';
 
     const myOrders = currentUser
       ? orders.filter(o => {
@@ -4721,6 +4923,7 @@ function App() {
             const comp = getCompanyByUserId(currentUser.id);
             return comp && o.companyId === comp.id;
           }
+          if (currentUser.userType === 'transporter') return o.transporterId === currentUser.id;
           return o.customerId === currentUser.id;
         })
       : [];
@@ -4754,7 +4957,7 @@ function App() {
           <>
             <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon="🏠" label="Home" />
             {isCustomer && <TabLink active={currentPage === 'search-materials'} onClick={() => navigateTo('search-materials')} icon="🔍" label="Search" />}
-            {!isCustomer && <TabLink active={currentPage === boardPage} onClick={() => navigateTo(boardPage)} icon="📊" label={isAdmin ? 'Admin' : 'Board'} />}
+            {!isCustomer && <TabLink active={currentPage === boardPage} onClick={() => navigateTo(boardPage)} icon="📊" label={isAdmin ? 'Admin' : isTransporter ? 'Jobs' : 'Board'} />}
             {isCustomer ? (
               <button className="m-fab m-fab-cart" onClick={handleCheckout} aria-label="Open cart">
                 <span className="m-fab-icon">🛒</span>
@@ -4765,6 +4968,11 @@ function App() {
               <button className="m-fab" onClick={handleAdminAddSupplier} aria-label="Add supplier">
                 <span className="m-fab-icon">🏢</span>
                 <span className="m-fab-label">Supplier</span>
+              </button>
+            ) : isTransporter ? (
+              <button className="m-fab" onClick={() => navigateTo('transporter-dashboard')} aria-label="Delivery jobs">
+                <span className="m-fab-icon">🚚</span>
+                <span className="m-fab-label">Jobs</span>
               </button>
             ) : (
               <button className="m-fab" onClick={() => navigateTo('add-material')} aria-label="Add product">
@@ -4787,6 +4995,7 @@ function App() {
     if (!mobileMenuOpen) return null;
     const isCompany = currentUser?.userType === 'company';
     const isAdmin = currentUser?.userType === 'admin';
+    const isTransporter = currentUser?.userType === 'transporter';
     const favouriteMaterials = currentUser
       ? favorites.map(id => getMaterialById(id)).filter((m): m is Material => Boolean(m)).slice(0, 6)
       : [];
@@ -4821,15 +5030,16 @@ function App() {
             {currentUser && (
               <Action
                 icon="📊"
-                label={isCompany ? 'Supplier Dashboard' : isAdmin ? 'Admin Control Room' : 'Dashboard'}
-                sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : 'Customer'}
-                onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : isAdmin ? 'analytics' : 'customer-dashboard'); }}
+                label={isCompany ? 'Supplier Dashboard' : isAdmin ? 'Admin Control Room' : isTransporter ? 'Transporter Dashboard' : 'Dashboard'}
+                sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : isTransporter ? 'Transporter' : 'Customer'}
+                onClick={() => { setMobileMenuOpen(false); navigateTo(isCompany ? 'company-dashboard' : isAdmin ? 'analytics' : isTransporter ? 'transporter-dashboard' : 'customer-dashboard'); }}
               />
             )}
             {isAdmin && (
               <Action icon="🏢" label="Add Supplier" sub="Create a supplier login & company profile" onClick={() => { setMobileMenuOpen(false); handleAdminAddSupplier(); }} />
             )}
             <Action icon="🗺️" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
+            <Action icon="ℹ️" label="About & Help" sub="How E-SCON works, transport and support" onClick={() => { setMobileMenuOpen(false); openInfo('about'); }} />
             {currentUser && (
               <Action icon="💳" label="E-SCON Wallet" sub={'Balance ' + formatCurrency(walletBalance(currentUser.id))} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
             )}
@@ -5384,6 +5594,18 @@ function App() {
       case 'register': return renderRegister();
       case 'company-dashboard': return renderCompanyDashboard();
       case 'customer-dashboard': return renderCustomerDashboard();
+      case 'transporter-dashboard': return renderTransporterDashboard();
+      case 'info': return (
+        <InfoPage
+          initialTab={infoTab}
+          onOpenMarketplace={() => navigateTo('marketplace')}
+          onOpenSupplierMap={() => setShowSupplierMap(true)}
+          onOpenAnalytics={() => navigateTo('analytics')}
+          onRegister={() => navigateTo('register')}
+          onLogin={() => navigateTo('login')}
+          onOpenInstallGuide={() => setShowInstallGuide(true)}
+        />
+      );
       case 'add-material': return renderAddMaterial();
       case 'edit-material': return renderEditMaterial();
       case 'search-materials': return renderSearchMaterials();
@@ -5470,6 +5692,7 @@ function App() {
     { id: 'nav-analytics', group: 'Navigate', label: 'Analytics & Insights', hint: 'Role-scoped KPIs, charts and reports', icon: '📊', keywords: 'insights reports charts analytics', run: () => navigateTo('analytics') },
     { id: 'nav-copilot', group: 'Navigate', label: 'Copilot AI', hint: 'Ask questions about your live supply-chain data', icon: '🤖', keywords: 'ai assistant ask forecast', run: () => openCopilot() },
     { id: 'nav-map', group: 'Navigate', label: 'Supplier Map', hint: 'Explore suppliers, pins and delivery routes', icon: '🗺️', keywords: 'gps route location map', run: () => setShowSupplierMap(true) },
+    { id: 'nav-info', group: 'Navigate', label: 'About & Help', hint: 'How E-SCON works, transport services and support', icon: 'ℹ️', keywords: 'about help faq how it works transport support', run: () => openInfo('about') },
     { id: 'nav-install', group: 'Navigate', label: 'Install App', hint: 'Add E-SCON to your home screen', icon: '📲', keywords: 'pwa offline home screen', run: () => setShowInstallGuide(true) },
     { id: 'pref-theme', group: 'Preferences', label: darkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme', hint: 'Theme is saved on this device', icon: darkMode ? '☀️' : '🌙', keywords: 'appearance dark light mode', run: () => setDarkMode(value => !value) },
   ];
@@ -5490,6 +5713,12 @@ function App() {
       { id: 'nav-company', group: 'Supplier', label: 'Company Profile', hint: 'Update your supplier profile and location', icon: '🏢', keywords: 'supplier profile company edit', run: () => handleEditCompany() }
     );
   }
+  if (currentUser?.userType === 'transporter') {
+    commandItems.push(
+      { id: 'nav-transporter', group: 'Transport', label: 'Transporter Dashboard', hint: 'Delivery requests, dispatch, fleet and earnings', icon: '🚛', keywords: 'transport delivery jobs dispatch fleet driver earnings', run: () => navigateTo('transporter-dashboard') },
+      { id: 'nav-transport-info', group: 'Transport', label: 'Transport Services', hint: 'How delivery matching and pricing work', icon: '📦', keywords: 'transport services coverage rates truck', run: () => openInfo('transport') }
+    );
+  }
   if (currentUser?.userType === 'admin') {
     commandItems.push(
       { id: 'nav-dashboard', group: 'Admin', label: 'Admin Control Room', hint: 'Platform health, compliance and accounts', icon: '📈', keywords: 'dashboard overview admin analytics', run: () => navigateTo('analytics') },
@@ -5500,7 +5729,7 @@ function App() {
   if (!currentUser) {
     commandItems.push(
       { id: 'auth-login', group: 'Account', label: 'Login', hint: 'Sign in to your E-SCON account', icon: '🔑', keywords: 'sign in account', run: () => navigateTo('login') },
-      { id: 'auth-register', group: 'Account', label: 'Create Account', hint: 'Register as a buyer or supplier', icon: '👤', keywords: 'register sign up new', run: () => navigateTo('register') }
+      { id: 'auth-register', group: 'Account', label: 'Create Account', hint: 'Register as a buyer, supplier or transporter', icon: '👤', keywords: 'register sign up new transporter supplier buyer', run: () => navigateTo('register') }
     );
   }
   materials.forEach(material => {
