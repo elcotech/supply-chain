@@ -67,9 +67,9 @@
 // - Embedded `assets/public/sw.js` -> `e-scon-v2.0.0`.
 //
 // Artifact SHA-256
-// - E-SCON-debug.apk    (to be regenerated after rebuild)
-// - E-SCON-release.apk  (to be regenerated after rebuild)
-// - E-SCON-release.aab  (to be regenerated after rebuild)
+// - E-SCON-debug.apk    cb4ec7ece2465226de28e8ab5e853a88e1ec5d6ae0dc194a9c1949d03b17a0c7
+// - E-SCON-release.apk  1201db5d3eb15591b215ef89f854ab97e4985f123f6a33b995e0037bbf3003fb
+// - E-SCON-release.aab  1fb574ca0aaf2f7dd0506dea2a50fdf2df9aaacc76205337bc9440bc9dc3e4f8
 //
 // Versioning
 // - package.json / package-lock.json 1.10.0 -> 2.0.0
