@@ -462,6 +462,103 @@ export interface ProductReview {
   orderId?: string;
 }
 
+/**
+ * A customer construction project. Groups material requirements, budget and a
+ * delivery site so procurement can be tracked per project (spec §4.3).
+ */
+export interface Project {
+  id: string;
+  customerId: string;
+  name: string;
+  description: string;
+  budget: number;
+  siteAddress: string;
+  city: string;
+  lat?: number;
+  lng?: number;
+  managerName: string;
+  managerPhone: string;
+  startDate: string;
+  endDate: string;
+  status: 'planning' | 'active' | 'on_hold' | 'completed';
+  notes?: string;
+}
+
+/** A request for quotation sent by a customer to one or more suppliers. */
+export interface Rfq {
+  id: string;
+  customerId: string;
+  customerName: string;
+  /** Set when the request targets a catalogue product. */
+  materialId?: string;
+  materialName: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  siteAddress: string;
+  city: string;
+  requiredBy: string;
+  notes: string;
+  supplierIds: string[];
+  status: 'open' | 'quoted' | 'closed' | 'cancelled';
+  createdAt: number;
+}
+
+/** A supplier's priced response to an RFQ. */
+export interface Quotation {
+  id: string;
+  rfqId: string;
+  supplierId: string;
+  supplierName: string;
+  unitPrice: number;
+  quantity: number;
+  deliveryFee: number;
+  validUntil: string;
+  notes: string;
+  status: 'submitted' | 'accepted' | 'declined';
+  createdAt: number;
+}
+
+/** Complaint or dispute raised by any platform role (spec §2.14, §4.18). */
+export interface Complaint {
+  id: string;
+  userId: string;
+  userName: string;
+  role: UserRole;
+  category: 'product' | 'delivery' | 'payment' | 'quotation' | 'service';
+  subject: string;
+  message: string;
+  againstId?: string;
+  againstName?: string;
+  orderId?: string;
+  status: 'open' | 'investigating' | 'resolved' | 'rejected';
+  response?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Append-only security/audit entry shown in Administration → Security & Audit. */
+export interface AuditEvent {
+  id: string;
+  at: number;
+  actorId: string;
+  actorName: string;
+  action: string;
+  detail: string;
+}
+
+/** Platform-level localisation and support configuration (spec §2.17). */
+export interface PlatformProfile {
+  country: string;
+  defaultLanguage: 'en' | 'am';
+  currency: string;
+  taxLabel: string;
+  supportPhone: string;
+  supportEmail: string;
+  /** Security policy surfaced in Administration → Security & Audit. */
+  mfaRequired: boolean;
+}
+
 /** Snapshot serialized to JSON by the Data Center backup/restore. */
 export interface BackupPayload {
   app: 'ESCON';
@@ -477,4 +574,9 @@ export interface BackupPayload {
   transactions: WalletTx[];
   reviews: ProductReview[];
   settings: SystemSettings | null;
+  projects?: Project[];
+  rfqs?: Rfq[];
+  quotations?: Quotation[];
+  complaints?: Complaint[];
+  platform?: PlatformProfile;
 }

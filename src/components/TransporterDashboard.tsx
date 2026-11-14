@@ -27,9 +27,40 @@ import {
   transporterJobs,
 } from '../lib/transport';
 import { formatCurrency, formatDate, genId } from '../utils';
+import useLocalCollection from '../hooks/useLocalCollection';
 import { StarRatingDisplay } from './Charts';
+import { BarList } from './workspace/ui';
 
-type Tab = 'overview' | 'requests' | 'dispatch' | 'vehicles' | 'drivers' | 'pricing' | 'earnings' | 'profile';
+type Tab =
+  | 'overview'
+  | 'profile'
+  | 'vehicles'
+  | 'drivers'
+  | 'requests'
+  | 'pricing'
+  | 'routes'
+  | 'gps'
+  | 'dispatch'
+  | 'pod'
+  | 'earnings'
+  | 'analytics';
+
+interface PlannedRoute {
+  id: string;
+  from: string;
+  to: string;
+  distanceKm: number;
+  cargoTons: number;
+  fee: number;
+  at: number;
+}
+
+interface GpsState {
+  sharing: boolean;
+  lat: number | null;
+  lng: number | null;
+  updatedAt: number;
+}
 
 export interface TransporterDashboardProps {
   user: User;
@@ -44,17 +75,25 @@ export interface TransporterDashboardProps {
   onOpenMap: (companyId: string) => void;
   onOpenOrders: () => void;
   onNotify: (message: string, type?: 'success' | 'danger' | 'warning' | 'info') => void;
+  /** Active submenu id from the Transporter menu; keeps deep links working. */
+  section?: string;
+  onSection?: (section: string) => void;
 }
 
+// Order and labels follow the specification's transporter menu exactly.
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'overview', label: 'Dashboard', icon: '📊' },
-  { id: 'requests', label: 'Delivery requests', icon: '📥' },
+  { id: 'profile', label: 'Company Profile', icon: '🏢' },
+  { id: 'vehicles', label: 'Vehicle Management', icon: '🚛' },
+  { id: 'drivers', label: 'Driver Management', icon: '🪪' },
+  { id: 'requests', label: 'Delivery Requests', icon: '📥' },
+  { id: 'pricing', label: 'Transport Pricing', icon: '💵' },
+  { id: 'routes', label: 'Route Management', icon: '🗺️' },
+  { id: 'gps', label: 'GPS Tracking', icon: '📍' },
   { id: 'dispatch', label: 'Dispatch', icon: '🚚' },
-  { id: 'vehicles', label: 'Vehicles', icon: '🚛' },
-  { id: 'drivers', label: 'Drivers', icon: '🪪' },
-  { id: 'pricing', label: 'Transport pricing', icon: '💵' },
-  { id: 'earnings', label: 'Earnings', icon: '💰' },
-  { id: 'profile', label: 'Company & verification', icon: '🏢' },
+  { id: 'pod', label: 'Proof of Delivery', icon: '✍️' },
+  { id: 'earnings', label: 'Financial Records', icon: '💰' },
+  { id: 'analytics', label: 'Performance Analytics', icon: '📈' },
 ];
 
 const statusTone = (order: Order): string => {
@@ -77,8 +116,11 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
   onOpenMap,
   onOpenOrders,
   onNotify,
+  section,
+  onSection,
 }) => {
-  const [tab, setTab] = useState<Tab>('overview');
+  const initialTab = (TABS.some(item => item.id === section) ? section : 'overview') as Tab;
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [profileDraft, setProfileDraft] = useState(profile);
   const [pricingDraft, setPricingDraft] = useState({
     startFee: String(profile.startFee),
@@ -95,9 +137,25 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
     orderId: '', receivedBy: '', note: '',
   });
   const [quoteDraft, setQuoteDraft] = useState({ distanceKm: '12.4', weightTons: '2' });
+  const [routeDraft, setRouteDraft] = useState({ from: '', to: '', distanceKm: '', cargoTons: '2' });
+  const [plannedRoutes, setPlannedRoutes] = useLocalCollection<PlannedRoute[]>(`transporter_routes_${user.id}`, []);
+  const [gps, setGps] = useLocalCollection<GpsState>(`transporter_gps_${user.id}`, {
+    sharing: false, lat: null, lng: null, updatedAt: 0,
+  });
   const [requestQuery, setRequestQuery] = useState('');
   const [requestArea, setRequestArea] = useState('all');
   const [requestSort, setRequestSort] = useState<'newest' | 'fee' | 'weight'>('newest');
+
+  // Keep the tab in sync when the header menu opens a specific transporter page.
+  useEffect(() => {
+    if (section && TABS.some(item => item.id === section) && section !== tab) setTab(section as Tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  const changeTab = (next: Tab) => {
+    setTab(next);
+    onSection?.(next);
+  };
 
   useEffect(() => {
     setProfileDraft(profile);
@@ -444,7 +502,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
             role="tab"
             aria-selected={tab === item.id}
             className={'transport-tab' + (tab === item.id ? ' active' : '')}
-            onClick={() => setTab(item.id)}
+            onClick={() => changeTab(item.id)}
           >
             <span>{item.icon}</span> {item.label}
           </button>
@@ -460,7 +518,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
             <div className="dashboard-card glass"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(earnings)}</div><div className="stat-label">Transport earnings</div></div>
           </div>
           <div className="card glass">
-            <div className="card-header"><h3>🚛 Fleet &amp; dispatch readiness</h3><button className="btn btn-secondary" onClick={() => setTab('vehicles')}>Manage fleet</button></div>
+            <div className="card-header"><h3>🚛 Fleet &amp; dispatch readiness</h3><button className="btn btn-secondary" onClick={() => changeTab('vehicles')}>Manage fleet</button></div>
             <div className="stock-summary-grid">
               <div className="stock-summary-tile"><span className="stock-tile-icon">🚛</span><strong>{profile.vehicles.length}</strong><small>Vehicles</small></div>
               <div className="stock-summary-tile"><span className="stock-tile-icon">✅</span><strong>{availableVehicles}</strong><small>Vehicles ready</small></div>
@@ -471,7 +529,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
             </div>
           </div>
           <div className="card glass">
-            <div className="card-header"><h3>🕒 Latest open requests</h3><button className="btn btn-primary" onClick={() => setTab('requests')}>View all</button></div>
+            <div className="card-header"><h3>🕒 Latest open requests</h3><button className="btn btn-primary" onClick={() => changeTab('requests')}>View all</button></div>
             {requests.length === 0 ? <p className="transport-empty">No unclaimed delivery requests right now.</p> : (
               <div className="transport-grid">{visibleRequests.slice(0, 4).map(renderRequestCard)}</div>
             )}
@@ -670,6 +728,254 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
         </>
       )}
 
+      {tab === 'routes' && (
+        <>
+          <form
+            className="card glass"
+            onSubmit={event => {
+              event.preventDefault();
+              const km = Math.max(0, parseFloat(routeDraft.distanceKm) || 0);
+              const tons = Math.max(0, parseFloat(routeDraft.cargoTons) || 0);
+              if (!routeDraft.from.trim() || !routeDraft.to.trim() || km <= 0) {
+                onNotify('Enter an origin, a destination and the route distance.', 'warning');
+                return;
+              }
+              const fee = computeTransportFee(profile, km, tons);
+              setPlannedRoutes(prev => [
+                { id: genId('route'), from: routeDraft.from.trim(), to: routeDraft.to.trim(), distanceKm: km, cargoTons: tons, fee, at: Date.now() },
+                ...prev,
+              ].slice(0, 100));
+              onNotify(`Route saved · quoted ${formatCurrency(fee)}`, 'success');
+              setRouteDraft({ from: '', to: '', distanceKm: '', cargoTons: '2' });
+            }}
+          >
+            <div className="card-header">
+              <h3>🗺️ Plan a route</h3>
+              <span className="stock-summary-hint">Distance, estimated time and the quoted job fee</span>
+            </div>
+            <div className="form-row">
+              <div className="form-group"><label>Origin *</label><input className="form-input" value={routeDraft.from} onChange={e => setRouteDraft(prev => ({ ...prev, from: e.target.value }))} placeholder="Kality, Addis Ababa" required /></div>
+              <div className="form-group"><label>Destination *</label><input className="form-input" value={routeDraft.to} onChange={e => setRouteDraft(prev => ({ ...prev, to: e.target.value }))} placeholder="Bole site, Addis Ababa" required /></div>
+            </div>
+            <div className="form-row">
+              <div className="form-group"><label>Route distance (km) *</label><input type="number" min="0" step="0.1" className="form-input" value={routeDraft.distanceKm} onChange={e => setRouteDraft(prev => ({ ...prev, distanceKm: e.target.value }))} required /></div>
+              <div className="form-group"><label>Cargo (tonnes)</label><input type="number" min="0" step="0.1" className="form-input" value={routeDraft.cargoTons} onChange={e => setRouteDraft(prev => ({ ...prev, cargoTons: e.target.value }))} /></div>
+            </div>
+            <p className="transport-quote">
+              Estimate: {formatCurrency(computeTransportFee(profile, parseFloat(routeDraft.distanceKm) || 0, parseFloat(routeDraft.cargoTons) || 0))}
+              {' · '}{Math.max(1, Math.round(((parseFloat(routeDraft.distanceKm) || 0) / 45) * 60))} min driving at 45 km/h
+            </p>
+            <button type="submit" className="btn btn-primary">💾 Save route</button>
+          </form>
+          <div className="card glass">
+            <div className="card-header">
+              <h3>🗺️ Planned routes</h3>
+              <span className="stock-summary-hint">{plannedRoutes.length} saved on this device</span>
+            </div>
+            {plannedRoutes.length === 0 ? (
+              <p className="transport-empty">No routes planned yet. Save a route to reuse its distance and quote.</p>
+            ) : (
+              <div className="table-scroll-container">
+                <table className="data-table">
+                  <thead><tr><th>From</th><th>To</th><th>Distance</th><th>Cargo</th><th>Est. time</th><th>Quote</th></tr></thead>
+                  <tbody>
+                    {plannedRoutes.map(route => (
+                      <tr key={route.id}>
+                        <td>{route.from}</td>
+                        <td>{route.to}</td>
+                        <td>{route.distanceKm} km</td>
+                        <td>{route.cargoTons} t</td>
+                        <td>{Math.max(1, Math.round((route.distanceKm / 45) * 60))} min</td>
+                        <td className="price-cell">{formatCurrency(route.fee)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div className="card glass">
+            <div className="card-header"><h3>🛣️ Current trips</h3></div>
+            {activeJobs.length === 0 ? (
+              <p className="transport-empty">No trips in progress.</p>
+            ) : (
+              <ul className="transport-route-list">
+                {activeJobs.map(order => (
+                  <li key={order.id}>
+                    <div>
+                      <strong>{order.invoiceNumber}</strong>
+                      <small>{companyById.get(order.companyId)?.city || 'Origin'} → {order.address}</small>
+                    </div>
+                    <span>{TRANSPORT_STATUS_LABELS[jobStatus(order)]}</span>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenMap(order.companyId)}>🗺️ Open route</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+
+      {tab === 'gps' && (
+        <>
+          <div className="card glass">
+            <div className="card-header">
+              <h3>📍 GPS tracking</h3>
+              <span className="stock-summary-hint">Share your vehicle position with authorised buyers and suppliers</span>
+            </div>
+            <div className="transport-verification">
+              <div><strong>Sharing</strong><span>{gps.sharing ? '🟢 On — position visible to your active customers' : '⚪ Off'}</span></div>
+              <div><strong>Last position</strong><span>{gps.lat !== null && gps.lng !== null ? `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}` : 'Not captured'}</span></div>
+              <div><strong>Updated</strong><span>{gps.updatedAt ? formatDate(new Date(gps.updatedAt).toISOString()) : '—'}</span></div>
+              <div><strong>Active trips</strong><span>{activeJobs.length}</span></div>
+            </div>
+            <div className="transport-card-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  if (!('geolocation' in navigator)) {
+                    onNotify('This device does not expose a GPS sensor.', 'warning');
+                    return;
+                  }
+                  navigator.geolocation.getCurrentPosition(
+                    position => {
+                      setGps({ sharing: true, lat: position.coords.latitude, lng: position.coords.longitude, updatedAt: Date.now() });
+                      onNotify('Position shared', 'success');
+                    },
+                    () => onNotify('Could not read the device location. Check permissions.', 'danger'),
+                    { enableHighAccuracy: true, timeout: 10000 }
+                  );
+                }}
+              >
+                📡 Update my position
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setGps(prev => ({ ...prev, sharing: !prev.sharing }));
+                  onNotify(gps.sharing ? 'Location sharing stopped' : 'Location sharing enabled', 'info');
+                }}
+              >
+                {gps.sharing ? '⏹️ Stop sharing' : '▶️ Start sharing'}
+              </button>
+            </div>
+            <p className="transport-empty">Positions are stored on this device and shown to buyers tracking an active delivery.</p>
+          </div>
+          <div className="card glass">
+            <div className="card-header"><h3>🚚 Delivery progress</h3></div>
+            {activeJobs.length === 0 ? (
+              <p className="transport-empty">No active deliveries to track.</p>
+            ) : (
+              <ul className="transport-route-list">
+                {activeJobs.map(order => (
+                  <li key={order.id}>
+                    <div>
+                      <strong>{order.invoiceNumber}</strong>
+                      <small>{materialById.get(order.materialId)?.name || 'Cargo'} → {order.address}</small>
+                    </div>
+                    <span>{TRANSPORT_STATUS_LABELS[jobStatus(order)]}</span>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => changeTab('dispatch')}>Update status</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+
+      {tab === 'pod' && (
+        <>
+          <div className="card glass">
+            <div className="card-header">
+              <h3>✍️ Awaiting proof of delivery</h3>
+              <span className="stock-summary-hint">Capture the receiver name and note to close the job</span>
+            </div>
+            {activeJobs.filter(order => jobStatus(order) === 'in_transit').length === 0 ? (
+              <p className="transport-empty">No deliveries waiting for confirmation.</p>
+            ) : (
+              <ul className="transport-route-list">
+                {activeJobs.filter(order => jobStatus(order) === 'in_transit').map(order => (
+                  <li key={order.id}>
+                    <div><strong>{order.invoiceNumber}</strong><small>{order.address}</small></div>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={() => changeTab('dispatch')}>✅ Complete delivery</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="card glass">
+            <div className="card-header"><h3>📄 Delivery confirmations</h3></div>
+            {completedJobs.filter(order => order.transportPod).length === 0 ? (
+              <p className="transport-empty">No proofs of delivery captured yet.</p>
+            ) : (
+              <div className="table-scroll-container">
+                <table className="data-table">
+                  <thead><tr><th>Order</th><th>Delivered</th><th>Received by</th><th>Note</th><th>Fee</th></tr></thead>
+                  <tbody>
+                    {completedJobs.filter(order => order.transportPod).map(order => (
+                      <tr key={order.id}>
+                        <td>{order.invoiceNumber}</td>
+                        <td>{order.transportDeliveredAt ? formatDate(order.transportDeliveredAt) : '—'}</td>
+                        <td>{order.transportPod?.receivedBy || '—'}</td>
+                        <td>{order.transportPod?.note || '—'}</td>
+                        <td className="price-cell">{formatCurrency(transportJobFee(order))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {tab === 'analytics' && (
+        <>
+          <div className="dashboard-grid">
+            <div className="dashboard-card glass"><div className="card-icon">✅</div><div className="stat-value">{jobs.length ? Math.round((completedJobs.length / jobs.length) * 100) : 0}%</div><div className="stat-label">Delivery reliability</div></div>
+            <div className="dashboard-card glass"><div className="card-icon">🚛</div><div className="stat-value">{profile.vehicles.length ? Math.round((availableVehicles / profile.vehicles.length) * 100) : 0}%</div><div className="stat-label">Fleet availability</div></div>
+            <div className="dashboard-card glass"><div className="card-icon">💰</div><div className="stat-value">{formatCurrency(completedJobs.length ? earnings / completedJobs.length : 0)}</div><div className="stat-label">Average job fee</div></div>
+            <div className="dashboard-card glass"><div className="card-icon">📦</div><div className="stat-value">{completedJobs.reduce((sum, order) => sum + orderWeightTons(materialById.get(order.materialId), order.quantity), 0).toFixed(1)} t</div><div className="stat-label">Cargo delivered</div></div>
+          </div>
+          <div className="card glass">
+            <div className="card-header"><h3>📈 Earnings by month</h3></div>
+            {completedJobs.length === 0 ? (
+              <p className="transport-empty">Complete a delivery to unlock analytics.</p>
+            ) : (
+              <BarList
+                items={(() => {
+                  const buckets = new Map<string, number>();
+                  completedJobs.forEach(order => {
+                    const stamp = order.transportDeliveredAt || order.orderDate;
+                    const date = new Date(stamp);
+                    const label = date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+                    buckets.set(label, (buckets.get(label) || 0) + transportJobFee(order));
+                  });
+                  return Array.from(buckets.entries()).map(([label, value]) => ({ label, value: Math.round(value) }));
+                })()}
+                format={formatCurrency}
+              />
+            )}
+          </div>
+          <div className="card glass">
+            <div className="card-header"><h3>🚛 Vehicle utilisation</h3></div>
+            {profile.vehicles.length === 0 ? (
+              <p className="transport-empty">Register vehicles to see utilisation.</p>
+            ) : (
+              <BarList
+                items={profile.vehicles.map(vehicle => ({
+                  label: vehicle.plate,
+                  value: jobs.filter(order => order.assignedVehicleId === vehicle.id).length,
+                  hint: `${vehicle.type} · ${vehicle.capacityTons} t`,
+                }))}
+              />
+            )}
+          </div>
+        </>
+      )}
+
       {tab === 'earnings' && (
         <>
           <div className="dashboard-grid">
@@ -740,7 +1046,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
             </div>
           </div>
           <div className="card glass">
-            <div className="card-header"><h3>🧾 Recent transport records</h3><button className="btn btn-secondary" onClick={() => setTab('earnings')}>Earnings</button></div>
+            <div className="card-header"><h3>🧾 Recent transport records</h3><button className="btn btn-secondary" onClick={() => changeTab('earnings')}>Earnings</button></div>
             {jobs.length === 0 ? <p className="transport-empty">No transport jobs yet.</p> : (
               <div className="transport-grid">{jobs.slice(0, 3).map(renderDispatchCard)}</div>
             )}

@@ -47,6 +47,12 @@ const SHARED_KEYS = new Set<string>([
   'reviews',
   'system_settings',
   'transporter_profiles',
+  // v7 workspace collections (spec §2-§6).
+  'projects',
+  'rfqs',
+  'quotations',
+  'complaints',
+  'platform_profile',
 ]);
 
 // Per-user keys (`cart_<uid>`, `favs_<uid>`) travel with the account.
