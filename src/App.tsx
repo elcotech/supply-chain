@@ -6175,15 +6175,18 @@ function App() {
               </div>
             </div>
             <div className="notifications-body">
-              {notifications.filter(n => n.userId === currentUser.id).length === 0 ? (
+              {notifications.filter(n => currentUser.userType === 'admin' || n.userId === currentUser.id).length === 0 ? (
                 <div className="notif-empty"><span>🔕</span><p>You're all caught up — no notifications yet.</p></div>
               ) : (
-                notifications.filter(n => n.userId === currentUser.id).map(n => (
+                notifications.filter(n => currentUser.userType === 'admin' || n.userId === currentUser.id).slice().sort((a, b) => b.createdAt - a.createdAt).map(n => (
                   <button key={n.id} className={'notif-item' + (n.read ? '' : ' unread')} onClick={() => markNotificationRead(n.id)}>
                     <span className="notif-icon">
                       {n.type === 'order' ? '📦' : n.type === 'payment' ? '💳' : n.type === 'stock' ? '⚠️' : n.type === 'rating' ? '⭐' : 'ℹ️'}
                     </span>
                     <span className="notif-content">
+                      {currentUser.userType === 'admin' && n.userId !== currentUser.id && (
+                        <span className="notif-recipient">To: {users.find(u => u.id === n.userId)?.name || n.userId}</span>
+                      )}
                       <span className="notif-title">{n.title}</span>
                       <span className="notif-msg">{n.message}</span>
                       <span className="notif-time">{timeAgo(n.createdAt)}</span>

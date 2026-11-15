@@ -1055,7 +1055,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
   };
 
   const renderMessages = () => {
-    const mine = notifications.filter(n => n.userId === user.id);
+    const mine = notifications.filter(n => n.userId === user.id).slice().sort((a, b) => b.createdAt - a.createdAt);
     const buyers = Array.from(new Set([...ownOrders.map(o => o.customerId), ...visibleRfqs.map(r => r.customerId)]))
       .map(id => buyerFor(id))
       .filter((u): u is User => Boolean(u));

@@ -32,6 +32,9 @@
   color: var(--ws-ink);
   text-align: left;
 }
+.ws-shell.ws-shell-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
+.ws-shell.ws-shell-collapsed .ws-sidebar-head p,
+.ws-shell.ws-shell-collapsed .ws-sidebar-head strong { display: none; }
 
 .dark-mode .ws-shell,
 .dark-mode .ws-public {
@@ -146,6 +149,35 @@
   align-items: center;
   justify-content: center;
 }
+
+/* ---------- Sidebar collapse toggle ---------- */
+.ws-sidebar-collapse {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ws-sidebar-collapse:hover { background: rgba(255, 255, 255, 0.22); }
+.ws-sidebar-head { position: relative; }
+
+/* ---------- Mobile drawer toggle ---------- */
+.ws-menu-toggle {
+  display: none;
+}
+.ws-drawer-backdrop {
+  display: none;
+}
+
+.ws-feed-clickable { cursor: pointer; }
+.ws-feed-clickable:hover { background: rgba(31, 111, 235, 0.06); }
 
 /* ---------- Main column ---------- */
 .ws-main {
@@ -1499,7 +1531,45 @@
     padding: 10px 10px 96px;
     gap: 12px;
   }
-  .ws-sidebar { display: none; }
+  .ws-shell { grid-template-columns: minmax(0, 1fr); }
+  .ws-shell.ws-shell-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .ws-sidebar {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 268px;
+    max-width: 82vw;
+    z-index: 1100;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    border-radius: 0 18px 18px 0;
+  }
+  .ws-sidebar.ws-sidebar-open { transform: translateX(0); }
+  .ws-drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 24, 46, 0.45);
+    z-index: 1090;
+  }
+  .ws-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    width: 38px;
+    height: 34px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--ws-navy);
+    color: #ffffff;
+    font-size: 18px;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+  .ws-sidebar-collapse { display: none; }
   .ws-mobile-sections {
     display: flex;
     gap: 6px;

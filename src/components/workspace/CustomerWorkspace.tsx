@@ -1230,7 +1230,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
       />
       {myOrders.length === 0 ? <Panel><EmptyState icon="🚚" title="No orders to track" /></Panel> : (
         <div className="ws-track-list">
-          {[...myOrders].reverse().map(order => {
+          {[...myOrders].sort((a, b) => Date.parse(b.orderDate) - Date.parse(a.orderDate)).map(order => {
             const steps = ['pending', 'confirmed', 'shipped', 'delivered'];
             const index = steps.indexOf(order.status);
             const transporter = transporterProfiles.find(p => p.userId === order.transporterId);
@@ -1499,7 +1499,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
   );
 
   const renderNotifications = () => {
-    const mine = notifications.filter(n => n.userId === user.id);
+    const mine = notifications.filter(n => n.userId === user.id).slice().sort((a, b) => b.createdAt - a.createdAt);
     const suppliers = Array.from(new Set(myOrders.map(o => o.companyId))).map(supplierFor).filter((c): c is Company => Boolean(c));
     return (
       <>

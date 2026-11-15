@@ -1224,8 +1224,8 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
             <EmptyState icon="🔔" title="No notifications yet" />
           ) : (
             <ul className="ws-feed">
-              {notifications.slice(0, 8).map(item => (
-                <li key={item.id}>
+              {notifications.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 8).map(item => (
+                <li key={item.id} className="ws-feed-clickable" onClick={() => onSection(item.type === 'order' ? 'orders' : item.type === 'stock' ? 'products' : item.type === 'payment' ? 'orders' : 'notifications')}>
                   <span className="ws-feed-icon">{item.type === 'order' ? '📦' : item.type === 'payment' ? '💳' : item.type === 'stock' ? '⚠️' : 'ℹ️'}</span>
                   <div><strong>{item.title}</strong><small>{item.message}</small></div>
                   <small className="ws-nowrap">{timeAgo(item.createdAt)}</small>
