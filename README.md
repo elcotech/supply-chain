@@ -1,4 +1,4 @@
-# E-SCON 3.0 — Ethio-Supply Chain Optimization Network
+# E-SCON 5.0 — Ethio-Supply Chain Optimization Network
 
 > **AI-Powered Integrated Supply Chain Network** — Mobile App + Web Platform + Global Network
 >
@@ -70,6 +70,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 - 🚛 **Dedicated Transporter network (v6.20)** — transport companies register with a business licence and service areas, then use their own dashboard to claim delivery requests, advance job status, capture proof of delivery, manage vehicles and drivers, preview pricing, track earnings and maintain verification details. Transport profiles sync to the cloud and are included in backup/restore.
 - ℹ️ **Public information pages (v6.20)** — guests and signed-in users can open About E-SCON, How it works, Transport services and Help & support from the header, mobile More sheet, footer, home page or Quick Search, with clear calls to browse, register, sign in, view the map or install the app.
 - 📱 **Polished on every device (v6.20)** — dedicated responsive styles cover desktop, tablet, phone, landscape phone and small 380px screens, with touch-friendly controls, safe-area spacing, reduced-motion support and clear empty/verification states.
+- 🧭 **Reference role dashboards (v5.0.0)** - Administration, Supplier, Customer and Guest workspaces now lead with the supplied dashboard designs: platform-wide analytics and supplier-licence approvals, sales/revenue analytics with incoming RFQs and stock alerts, purchasing analytics with marketplace/RFQ comparison and live GPS delivery tracking, and a public guest view with featured materials, price comparison, market insights and a supplier map. Values come from live app data, not hardcoded screenshot numbers.
 - 🗺️ **Map products add to cart with exact km (v6.19)** — product rows on the supplier map are buttons: clicking one measures the route, stages the item with the route distance and opens the cart summary, while the supplier card can filter the catalogue to that supplier. Selecting a supplier keeps the map open; **View All Products** is the explicit catalogue hand-off.
 - 🔐 **Smarter sign-in (v6.18)** — e-mail matching is case- and whitespace-insensitive, duplicate e-mails resolve to the account whose password matches (highest privilege when reporting a failure), and the login form no longer exposes the account list. The built-in administrators are re-seeded safely on upgrade, including the renamed owner account.
 - **Stock levels stay private** — "In stock", stock counts and low-stock warnings are visible only to suppliers and admins, never to customers or visitors

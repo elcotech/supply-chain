@@ -13,15 +13,17 @@ import {
   formatCurrency, formatDate, genId, timeAgo, exportToCSV, effectiveRating,
   forecastPrice,
 } from '../../utils';
-import { buildAnalytics } from '../../lib/analytics';
+import { buildAnalytics, monthlyTrend } from '../../lib/analytics';
 import { useLanguage } from '../../lib/i18n';
 import { jobStatus, TRANSPORT_STATUS_LABELS } from '../../lib/transport';
 import useLocalCollection from '../../hooks/useLocalCollection';
+import { LineChart } from '../Charts';
 import WorkspaceShell from './shell';
 import { WorkspaceProps } from './types';
 import {
-  BarList, DataTable, EmptyState, Field, Kpi, KpiGrid, Modal, Panel,
-  SectionHeader, StatusPill, toneFor,
+  BarList, Column, DashboardGrid, DataTable, EmptyState, Field, Kpi, KpiGrid,
+  MiniStat, Modal, Panel, RangeSelect, RouteStrip, SectionHeader,
+  StatusPill, toneFor,
 } from './ui';
 
 interface SavedSite {
@@ -68,6 +70,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
   );
 
   const [sites, setSites] = useLocalCollection<SavedSite[]>(`sites_${user.id}`, []);
+  const [dashRange, setDashRange] = useState('12');
   const [projectTarget, setProjectTarget] = useState<Project | null>(null);
   const [projectDraft, setProjectDraft] = useState<Omit<Project, 'id' | 'customerId'>>({
     name: '', description: '', budget: 0, siteAddress: '', city: '', managerName: '',
@@ -261,71 +264,255 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
   const compareRows = materials.filter(m => compare.includes(m.id));
 
   // ---------- Sections ----------
-  const renderDashboard = () => (
-    <>
-      <SectionHeader
-        eyebrow={t('Customers')}
-        title={`${t('Welcome back')}, ${user.name.split(' ')[0]}`}
-        hint={t('View active projects, material requirements, quotations, orders, deliveries, payments and saved suppliers.')}
-        actions={<><button className="btn btn-secondary btn-sm" onClick={() => onSection('search')}>🔍 {t('Smart Product Search')}</button><button className="btn btn-primary btn-sm" onClick={() => onSection('rfqs')}>📨 {t('Request for Quotation')}</button></>}
-      />
-      <KpiGrid>
-        <Kpi label={t('Active projects')} value={myProjects.filter(p => p.status === 'active').length} hint={`${myProjects.length} total`} icon="🏗️" />
-        <Kpi label={t('Open RFQs')} value={myRfqs.filter(r => r.status === 'open').length} hint={`${myQuotes.length} quotations received`} icon="📨" tone="warn" />
-        <Kpi label={t('Orders')} value={myOrders.length} hint={`${myOrders.filter(o => o.status === 'delivered').length} delivered`} icon="📋" />
-        <Kpi label={t('In transit')} value={myOrders.filter(o => o.transportStatus === 'in_transit' || o.transportStatus === 'picked_up').length} icon="🚚" />
-        <Kpi label="Total spend" value={money(spend)} hint="All confirmed orders" icon="💰" tone="accent" />
-        <Kpi label="Wallet" value={money(wallets[user.id] || 0)} hint="Available balance" icon="💳" />
-        <Kpi label="Cart" value={cart.length} hint={money(cartSubtotal)} icon="🛒" />
-        <Kpi label="Unread" value={notifications.filter(n => n.userId === user.id && !n.read).length} icon="🔔" />
-      </KpiGrid>
+  const renderDashboard = () => {
+    const months = Math.max(1, Number(dashRange) || 12);
+    const orderValueSeries = monthlyTrend(myOrders, months).revenue;
+    const spendSeries = monthlyTrend(myOrders.filter(o => o.status === 'delivered'), months).revenue;
+    const activeDeliveries = myOrders
+      .filter(o => o.status !== 'cancelled' && o.status !== 'delivered' && (o.deliveryIncluded || o.transportStatus))
+      .slice(0, 3);
+    const pendingQuotes = myQuotes.filter(q => q.status === 'submitted');
+    const marketplace = catalogue.slice(0, 5);
+    const marketplaceColumns: Column<Material>[] = [
+      {
+        key: 'product',
+        header: t('Product'),
+        value: row => row.name,
+        render: row => (
+          <span className="ws-approval-name">
+            <strong>{row.name}</strong>
+            <small>{row.category} · {row.quantity} {row.unit} available</small>
+          </span>
+        ),
+      },
+      {
+        key: 'supplier',
+        header: t('Supplier'),
+        value: row => supplierFor(row.companyId)?.name || '',
+        render: row => <span>{supplierFor(row.companyId)?.name || '—'}</span>,
+      },
+      {
+        key: 'price',
+        header: t('Offer Price'),
+        value: row => row.price,
+        render: row => <strong>{money(row.price)}<small className="ws-muted">/{row.unit}</small></strong>,
+      },
+      {
+        key: 'distance',
+        header: t('Distance'),
+        value: row => {
+          const company = supplierFor(row.companyId);
+          return company ? distanceTo(company) || 0 : 0;
+        },
+        render: row => {
+          const company = supplierFor(row.companyId);
+          const distance = company ? distanceTo(company) : null;
+          return <span>{distance !== null ? `${distance.toFixed(0)} km` : '—'}</span>;
+        },
+      },
+      {
+        key: 'delivery',
+        header: t('Delivery Cost'),
+        value: row => row.transportCost || 0,
+        render: row => <span>{row.transportCost ? money(row.transportCost) : t('Collect')}</span>,
+      },
+      {
+        key: 'action',
+        header: '',
+        noExport: true,
+        render: row => (
+          <span className="ws-pill-stack">
+            <button className="btn btn-secondary btn-sm" onClick={() => onOpenProduct(row)}>{t('View')}</button>
+            <button className="btn btn-primary btn-sm" onClick={() => openRfqFor(row)}>{t('Select for RFQ')}</button>
+          </span>
+        ),
+      },
+    ];
 
-      <div className="ws-grid-2">
-        <Panel title={t('Project budget')} subtitle="Budget vs spend per project">
-          <BarList items={myProjects.map(p => ({ label: p.name, value: Math.round(p.budget), hint: p.city }))} format={money} emptyLabel="No projects yet" />
-        </Panel>
-        <Panel title="Spend by month" subtitle="Last six months">
-          <BarList items={analytics.monthlyOrders.map(p => ({ label: p.label, value: p.value }))} emptyLabel="No orders yet" />
-        </Panel>
-      </div>
+    return (
+      <>
+        <SectionHeader
+          eyebrow={t('Customer / Contractor')}
+          title={t('Customer Dashboard')}
+          hint={`${t('Welcome back')}, ${user.name.split(' ')[0]} · ${t('Track RFQs, quotations, orders and live deliveries.')}`}
+          actions={
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => onSection('search')}>🔍 {t('Marketplace')}</button>
+              <button className="btn btn-primary btn-sm" onClick={() => onSection('rfqs')}>📨 {t('Request for Quotation')}</button>
+            </>
+          }
+        />
 
-      <Panel title={t('Orders')} subtitle="Latest purchases and their delivery state">
-        {myOrders.length === 0 ? (
-          <EmptyState icon="📦" title="No orders yet" text="Search the marketplace, compare suppliers and place your first order." action={<button className="btn btn-primary" onClick={() => onSection('search')}>Browse products</button>} />
-        ) : (
-          <ul className="ws-feed">
-            {[...myOrders].reverse().slice(0, 6).map(order => (
-              <li key={order.id}>
-                <span className="ws-feed-icon">📦</span>
-                <div>
-                  <strong>{order.invoiceNumber} · {money(order.totalAmount)}</strong>
-                  <small>{supplierFor(order.companyId)?.name || 'Supplier'} · {materialFor(order.materialId)?.name || ''} · {formatDate(order.orderDate)}</small>
+        <KpiGrid>
+          <Kpi label={t('Open RFQs')} value={myRfqs.filter(r => r.status === 'open').length} hint={`${myQuotes.length} quotations received`} icon="📨" tone="warn" />
+          <Kpi label={t('New Quotations')} value={pendingQuotes.length} hint={t('awaiting your decision')} icon="📝" />
+          <Kpi label={t('Pending Orders')} value={myOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length} hint={`${myOrders.filter(o => o.status === 'shipped').length} shipped`} icon="🕒" tone="warn" />
+          <Kpi label={t('Completed Orders')} value={myOrders.filter(o => o.status === 'delivered').length} hint={t('delivered to site')} icon="✅" tone="good" />
+          <Kpi label={t('Total Spend')} value={money(spend)} hint={`${cart.length} ${t('items in cart')}`} icon="💰" tone="accent" />
+        </KpiGrid>
+
+        <DashboardGrid
+          main={
+            <>
+              <Panel
+                title={t('Purchasing Analytics')}
+                subtitle={t('Order value and delivered spend across your projects')}
+                actions={
+                  <RangeSelect
+                    label={t('Period')}
+                    value={dashRange}
+                    onChange={setDashRange}
+                    options={[
+                      { value: '12', label: t('All Months') },
+                      { value: '6', label: t('Last 6 months') },
+                      { value: '3', label: t('Last 3 months') },
+                    ]}
+                  />
+                }
+              >
+                <div className="ws-chart-note">
+                  <span>{t('Total spend')} · {money(spend)}</span>
+                  <span className="ws-pill-stack">
+                    <StatusPill label={`● ${t('Delivered spend')}`} tone="good" />
+                    <StatusPill label={`● ${t('Order value')}`} tone="info" />
+                  </span>
                 </div>
-                <StatusPill label={t(order.status)} tone={toneFor(order.status)} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
+                <div className="ws-chart-box">
+                  <LineChart
+                    height={196}
+                    valueFormatter={money}
+                    series={[
+                      { label: t('Delivered spend'), color: '#1f6feb', data: spendSeries },
+                      { label: t('Order value'), color: '#c9a227', data: orderValueSeries },
+                    ]}
+                  />
+                </div>
+                <div className="ws-chart-note">
+                  <span>{myProjects.filter(p => p.status === 'active').length} {t('active projects')}</span>
+                  <span>{t('Wallet')} {money(wallets[user.id] || 0)}</span>
+                </div>
+              </Panel>
 
-      <Panel title="Quotations awaiting your decision" subtitle="Compare delivered cost, then accept the best offer">
-        {myQuotes.filter(q => q.status === 'submitted').length === 0 ? <EmptyState icon="📝" title="Nothing to review" text="Quotations appear here when suppliers respond to your RFQs." /> : (
-          <ul className="ws-alert-list">
-            {myQuotes.filter(q => q.status === 'submitted').slice(0, 5).map(quote => {
-              const rfq = rfqById(quote.rfqId);
-              return (
-                <li key={quote.id}>
-                  <span>📝</span>
-                  <div><strong>{quote.supplierName}</strong><small>{rfq?.materialName} · {money(quote.unitPrice)}/{rfq?.unit} · delivered {money(quote.unitPrice * quote.quantity + quote.deliveryFee)}</small></div>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onSection('quotation-compare')}>{t('Compare')}</button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Panel>
-    </>
-  );
+              <Panel
+                title={t('Material Marketplace & RFQ Comparison')}
+                subtitle={t('Compare offer price, distance and delivery before you request a quote')}
+                actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('search')}>{t('Browse all')}</button>}
+              >
+                <div className="ws-material-grid">
+                  {marketplace.slice(0, 4).map(material => (
+                    <button className="ws-material-card" key={material.id} onClick={() => onOpenProduct(material)}>
+                      <span className="ws-material-media">
+                        {material.images?.[0]
+                          ? <img src={material.images[0]} alt={material.name} loading="lazy" />
+                          : material.category.slice(0, 2).toUpperCase()}
+                      </span>
+                      <strong>{material.name}</strong>
+                      <small>{supplierFor(material.companyId)?.name || t('Supplier')} · {material.quantity} {material.unit}</small>
+                      <span className="ws-material-price">{money(material.price)}<em>/{material.unit}</em></span>
+                    </button>
+                  ))}
+                  {marketplace.length === 0 && (
+                    <EmptyState icon="🛒" title={t('Marketplace is empty')} text={t('Products will appear here as suppliers publish their catalogue.')} />
+                  )}
+                </div>
+                {marketplace.length > 0 && (
+                  <DataTable
+                    rows={marketplace}
+                    columns={marketplaceColumns}
+                    pageSize={5}
+                    exportName="rfq-comparison"
+                    searchText={row => `${row.name} ${row.category} ${supplierFor(row.companyId)?.name || ''}`}
+                  />
+                )}
+              </Panel>
+            </>
+          }
+          side={
+            <>
+              <Panel
+                title={t('GPS Real-time Delivery Tracking')}
+                subtitle={`${activeDeliveries.length} ${t('active deliveries')}`}
+                actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('tracking')}>{t('Track all')}</button>}
+              >
+                {activeDeliveries.length === 0 ? (
+                  <EmptyState icon="🚚" title={t('No active deliveries')} text={t('Live tracking appears once a supplier dispatches your order.')} />
+                ) : (
+                  <div className="ws-delivery-list">
+                    {activeDeliveries.map(order => {
+                      const profile = transporterProfiles.find(p => p.userId === order.transporterId);
+                      const driver = profile?.drivers.find(d => d.id === order.assignedDriverId);
+                      const stage = jobStatus(order);
+                      const progress = stage === 'accepted' ? 28 : stage === 'picked_up' ? 55 : stage === 'in_transit' ? 80 : 10;
+                      return (
+                        <div className="ws-delivery-card" key={order.id}>
+                          <div className="ws-delivery-head">
+                            <div>
+                              <strong>{order.invoiceNumber}</strong>
+                              <small>{materialFor(order.materialId)?.name || t('Material')} · {order.quantity} {materialFor(order.materialId)?.unit || ''}</small>
+                            </div>
+                            <StatusPill label={t(TRANSPORT_STATUS_LABELS[stage])} tone={toneFor(stage)} />
+                          </div>
+                          <RouteStrip
+                            from={supplierFor(order.companyId)?.city || t('Supplier')}
+                            to={user.city || t('Site')}
+                            progress={progress}
+                          />
+                          <div className="ws-delivery-meta">
+                            <span>{driver ? `🧑‍✈️ ${driver.name}` : `🚚 ${profile?.companyName || t('Transporter')}`}</span>
+                            <span>{driver?.phone || profile?.phone || t('Contact pending')}</span>
+                            <span>{order.deliveryDate ? `${t('ETA')} ${formatDate(order.deliveryDate)}` : t('ETA to confirm')}</span>
+                          </div>
+                          <button className="btn btn-secondary btn-sm" onClick={() => onSection('tracking')}>{t('Live map')}</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Panel>
+
+              <Panel title={t('Quotations Awaiting Decision')} subtitle={`${pendingQuotes.length} ${t('new offers')}`}>
+                {pendingQuotes.length === 0 ? (
+                  <EmptyState icon="📝" title={t('Nothing to review')} text={t('Quotations appear here when suppliers respond to your RFQs.')} />
+                ) : (
+                  <div className="ws-stat-list">
+                    {pendingQuotes.slice(0, 4).map(quote => {
+                      const rfq = rfqById(quote.rfqId);
+                      return (
+                        <div className="ws-stat-row" key={quote.id}>
+                          <div>
+                            <strong>{quote.supplierName}</strong>
+                            <small>{rfq?.materialName} · {money(quote.unitPrice)}/{rfq?.unit} · {t('delivered')} {money(quote.unitPrice * quote.quantity + quote.deliveryFee)}</small>
+                          </div>
+                          <button className="btn btn-secondary btn-sm" onClick={() => onSection('quotation-compare')}>{t('Compare')}</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Panel>
+
+              <Panel title={t('Procurement Snapshot')} subtitle={t('Budget, wallet and cart')}>
+                <div className="ws-mini-grid">
+                  <MiniStat label={t('Projects')} value={myProjects.filter(p => p.status === 'active').length} hint={`${myProjects.length} ${t('total')}`} icon="🏗️" />
+                  <MiniStat label={t('Cart')} value={cart.length} hint={money(cartSubtotal)} tone="accent" icon="🛒" />
+                  <MiniStat label={t('Wallet')} value={money(wallets[user.id] || 0)} hint={t('available balance')} tone="good" icon="💳" />
+                  <MiniStat label={t('Unread')} value={notifications.filter(n => n.userId === user.id && !n.read).length} hint={t('notifications')} icon="🔔" />
+                </div>
+              </Panel>
+
+              <Panel title={t('Project Budget')} subtitle={t('Budget per active project')}>
+                <BarList
+                  items={myProjects.filter(p => p.status === 'active').slice(0, 5).map(p => ({ label: p.name, value: Math.round(p.budget), hint: p.city }))}
+                  format={money}
+                  emptyLabel={t('No active projects')}
+                />
+              </Panel>
+            </>
+          }
+        />
+      </>
+    );
+  };
 
   const renderProfile = () => (
     <>

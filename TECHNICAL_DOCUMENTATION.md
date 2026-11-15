@@ -1,8 +1,8 @@
-# E-SCON 2.0 — Ethio-Supply Chain Optimization Network
+# E-SCON 5.0 — Ethio-Supply Chain Optimization Network
 
 ## 📘 Technical Documentation
 
-> **Version:** 3.0.0 (full spec compliance: E-SCON 5.0 MAIN MENU structure, design standards with deep navy/professional blue/white/restrained gold, English+Amharic language support hooks, all-device cross-compatibility)
+> **Version:** 5.0.0 (reference dashboard release: Administration, Supplier, Customer and Guest public dashboards, live charts, supplier-licence approvals, marketplace/RFQ comparison, GPS delivery tracking, deep navy/professional blue/white/restrained gold, English+Amharic language hooks, all-device cross-compatibility)
 > **Previous:** 6.20 (dedicated Transporter role, dispatch/fleet/POD dashboard, public information pages and all-device responsive polish)
 > **Previous:** 6.17 (Marketplace, role-aware Analytics & Insights, and data-grounded Copilot AI — all presented in the same Sample-Layout document shell on desktop, tablet and phone), 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart), 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page — matches Sample Layout.jpg on all devices), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
@@ -1210,7 +1210,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v3.0.0` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build — version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v5.0.0` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow — that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1337,7 +1337,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 — six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't — one cart, one supplier (§10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v3.0.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v5.0.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data — accounts, products and orders are in `localStorage` and are never part of that purge (§16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (§13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none — any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in ⚙️ Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (§10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1359,6 +1359,33 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v5.0.0 - Reference role dashboards, live analytics and guest public view
+- **Administration dashboard.** Rebuilt around five platform KPIs, a
+  twelve-month platform value chart, supplier-licence approvals with compliance
+  progress, a verification queue and product/category statistics. All values
+  are derived from the live users, companies, materials, orders and transporter
+  profiles.
+- **Supplier dashboard.** New Active Products, Monthly Sales, Open RFQs,
+  Pending Orders and Seller Rating tiles, delivered-vs-pipeline revenue chart,
+  incoming customer RFQ table with one-tap quotation submission, and an
+  inventory watchlist with quick price updates and restocking.
+- **Customer dashboard.** Open RFQs, New Quotations, Pending/Completed Orders
+  and Total Spend tiles, purchasing analytics, a material marketplace with
+  RFQ comparison (offer price, distance, delivery), live GPS delivery cards
+  with route strips, quotation decisions and project budget.
+- **Guest public workspace.** A new `guest-workspace` public view with featured
+  materials, market price insights, lowest-price comparison, a supplier map,
+  top-rated suppliers and registration calls to action. Reachable from the
+  guest header as **Public View**; browsing needs no account.
+- **Shared dashboard UI.** `DashboardGrid`, `MiniStat`, `RangeSelect`,
+  `ProgressBar` and `RouteStrip` live in the workspace UI kit; the 12-month
+  `monthlyTrend` helper is exported from `src/lib/analytics.ts`.
+- **Branding and release.** Header now reads **E-SCON 5.0** with the tagline
+  **Build Smarter. Source Better.** Versions are `5.0.0`,
+  `versionCode 26`, and `sw.js` `VERSION` `e-scon-v5.0.0`.
+- **Release.** `versionCode 26` / `versionName "5.0.0"`, `sw.js` `VERSION`
+  `e-scon-v5.0.0`.
 
 ### v6.20 - Transporter network, public information pages & all-device polish
 - **Dedicated Transporter role.** Registration supports transport companies
@@ -1385,8 +1412,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   desktop, tablet, phone, landscape phone and 380px screens, touch targets,
   reduced-motion support and transporter-role styling; the home page promotes
   the transport network and responsive-device support.
-- **Release.** `versionCode 25` / `versionName "3.0.0"`, `sw.js` `VERSION`
-  `e-scon-v3.0.0`.
+- **Release.** `versionCode 26` / `versionName "5.0.0"`, `sw.js` `VERSION`
+  `e-scon-v5.0.0`.
 
 ### v6.19 - Map ordering, guest-safe analytics & print-preview split
 - **Map no longer closes on selection.** `MapComponent.handleSupplierSelect`
@@ -1854,3 +1881,5 @@ this release changed an existing feature or its behaviour.
 ---
 
 *Generated by the E-SCON development workflow — September 2026.*
+
+

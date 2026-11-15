@@ -1,4 +1,4 @@
-# E-SCON 2.0 — User Guide
+# E-SCON 5.0 — User Guide
 
 **E-SCON** (Ethio-Supply Chain Optimization Network) connects **suppliers** with
 **customers** in Ethiopia. You can search for products, see suppliers on a map,
@@ -17,9 +17,10 @@ This guide is for the people who *use* the app. For how it is built, see
 | **Customer** | Search products, compare, order, print a proforma, track orders |
 | **Supplier** | List products, manage stock and orders, set your own delivery rate |
 | **Transporter** | Claim delivery jobs, dispatch vehicles and drivers, record proof of delivery and track transport earnings |
-| **Admin** | Configure platform-wide delivery fees, zones and the minimum-order rule |
+| **Admin** | Verify suppliers and vehicles, review licence approvals, monitor platform analytics and configure delivery fees, zones and the minimum-order rule |
+| **Guest** | Browse the public marketplace, price comparison, market insights and supplier map without an account |
 
-You can use E-SCON in a normal browser, or install it as an app on your phone
+A **Guest / Public View** lets anyone browse featured materials, public prices, market insights and the supplier map without registering. You can use E-SCON in a normal browser, or install it as an app on your phone
 (see §9).
 
 ---
@@ -458,3 +459,4 @@ Installing is optional — the app works the same in a normal browser tab.
 | Forgot password | This demo stores passwords locally; register again or use a demo account |
 
 For anything else, contact the E-SCON administrator.
+

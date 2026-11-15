@@ -93,7 +93,7 @@ Prepare and upload in the Play Console:
 > six suggested shots directly from a debug or release install. See
 > [ANDROID_BUILD.md §11](./ANDROID_BUILD.md#11-screenshots).
 >
-> **E-SCON 2.0 brand**: Deep navy, professional blue, white and restrained gold. Clean, modern, professional and consistent across all devices.
+> **E-SCON 5.0 brand**: Deep navy, professional blue, white and restrained gold. Clean, modern, professional and consistent across all devices.
 
 Suggested screenshots:
 
@@ -155,7 +155,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current build: **25 / "3.0.0"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **26 / "5.0.0"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console
@@ -165,3 +165,5 @@ requested.
 - [ ] Target audience and content set correctly (not for children).
 - [ ] Internal-testing track released and verified on a real device.
 - [ ] Production rollout staged (percentage or full).
+
+

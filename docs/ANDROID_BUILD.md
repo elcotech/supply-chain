@@ -170,17 +170,17 @@ An **Android App Bundle** (`.aab`) is what Google Play requires.
 
 ## 7. Versioning
 
-The shipped build is currently **`versionCode 25` / `versionName "3.0.0"`**
+The shipped build is currently **`versionCode 26` / `versionName "5.0.0"`**
 (`android/app/build.gradle`). Before each Play Store upload, bump both:
 
 ```gradle
-versionCode 25         // integer, must increase every upload
-versionName "3.0.0"   // human-readable
+versionCode 26         // integer, must increase every upload
+versionName "5.0.0"   // human-readable
 ```
 
 Also bump `VERSION` at the top of [`public/sw.js`](../public/sw.js) so installed
 PWA clients purge their cached assets (this does **not** touch user data). Current
-value: `e-scon-v3.0.0`.
+value: `e-scon-v5.0.0`.
 
 ---
 
@@ -205,8 +205,8 @@ Only do this once; reuse the same keystore forever.
 
 - [ ] `npm run build` succeeds (`.env.local` is optional; without it the app stays local-only).
 - [ ] `npx cap sync android` run.
-- [ ] `versionCode` / `versionName` bumped (this release: 24 / "2.0.0").
-- [ ] `public/sw.js` `VERSION` bumped (e-scon-v3.0.0).
+- [ ] `versionCode` / `versionName` bumped (this release: 26 / "5.0.0").
+- [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.0.0).
 - [ ] Launcher icons still match `public/logo512.png` (§10).
 - [ ] `bundleRelease` succeeds.
 - [ ] `.aab` signature verified.
@@ -286,3 +286,4 @@ Notes:
 | Release build is unsigned | `android/keystore.properties` missing or wrong `storeFile` path |
 | `adb devices` empty | Enable USB debugging and authorize the computer on the phone |
 | App icon does not change on the phone | Reinstall (not just update) after `cap sync`; launchers cache icons — §10 |
+

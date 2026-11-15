@@ -14,16 +14,18 @@ import {
   formatCurrency, formatDate, timeAgo, exportToCSV, exportOrdersToCSV,
   isUserLocked, forecastPrice, effectiveRating,
 } from '../../utils';
-import { buildAnalytics } from '../../lib/analytics';
+import { buildAnalytics, monthlyTrend } from '../../lib/analytics';
 import { isCloudEnabled } from '../../lib/supabaseClient';
 import { LANGUAGES, useLanguage } from '../../lib/i18n';
 import { jobStatus, TRANSPORT_STATUS_LABELS } from '../../lib/transport';
 import { APP_VERSION } from '../../version';
+import { LineChart } from '../Charts';
 import WorkspaceShell from './shell';
 import { WorkspaceProps } from './types';
 import {
-  BarList, Column, DataTable, EmptyState, Field, Kpi, KpiGrid, Modal, Panel,
-  SectionHeader, StatusPill, toneFor,
+  BarList, Column, DashboardGrid, DataTable, EmptyState, Field, Kpi, KpiGrid,
+  MiniStat, Modal, Panel, ProgressBar, RangeSelect, SectionHeader, StatusPill,
+  toneFor,
 } from './ui';
 
 const COMMISSION_RATE = 0.08;
@@ -46,6 +48,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
   // a different order whenever the active section changes.
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dashRange, setDashRange] = useState('12');
 
   // One analytics pass shared by the dashboard, AI and reports panels.
   const analytics = useMemo(
@@ -289,104 +292,227 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
   ];
 
   // ---------- Section renderers ----------
-  const renderDashboard = () => (
-    <>
-      <SectionHeader
-        eyebrow={t('Administration')}
-        title={t('Admin Dashboard')}
-        hint={t('View total registered users, active suppliers, customers, transporters, products, orders, revenue and system activity.')}
-        actions={
-          <>
-            <button className="btn btn-secondary btn-sm" onClick={onAddSupplier}>➕ {t('Add Supplier')}</button>
-            <button className="btn btn-primary btn-sm" onClick={() => onNavigate('analytics')}>📊 {t('Reports & Analytics')}</button>
-          </>
-        }
-      />
-      <KpiGrid>
-        <Kpi label={t('Total users')} value={users.length} hint={`${admins.length} admin · ${customers.length} customers`} icon="👥" />
-        <Kpi label={t('Verified suppliers')} value={companies.filter(c => c.complianceStatus === 'compliant').length} hint={`${companies.length} registered`} icon="🏢" tone="good" />
-        <Kpi label={t('Transporters')} value={transporterProfiles.length} hint={`${transporterProfiles.filter(p => p.verified).length} verified`} icon="🚛" />
-        <Kpi label={t('Total products')} value={materials.length} hint={`${materials.filter(m => m.quantity <= 10).length} low stock`} icon="📦" />
-        <Kpi label={t('Total orders')} value={orders.length} hint={`${orders.filter(o => o.status === 'pending').length} awaiting confirmation`} icon="📋" />
-        <Kpi label={t('Revenue')} value={money(deliveredRevenue)} hint={`${orders.filter(o => o.status === 'delivered').length} delivered orders`} icon="💰" tone="accent" />
-        <Kpi label={t('Platform commission')} value={money(commission)} hint="8% of delivered value" icon="🏦" />
-        <Kpi label={t('Open complaints')} value={openComplaints.length} hint={`${complaints.length} lifetime`} icon="⚖️" tone={openComplaints.length ? 'warn' : 'good'} />
-      </KpiGrid>
+  const renderDashboard = () => {
+    const months = Math.max(1, Number(dashRange) || 12);
+    const gmvTrend = monthlyTrend(orders, months).revenue;
+    const deliveredTrend = monthlyTrend(orders.filter(o => o.status === 'delivered'), months).revenue;
+    const unverifiedTransporters = transporterProfiles.filter(p => !p.verified);
+    const lowStock = materials.filter(m => m.quantity <= 10);
+    const verificationTotal = companies.filter(c => c.complianceStatus !== 'compliant').length
+      + unverifiedTransporters.length + lowStock.length;
+    const approvalRows = [...companies]
+      .sort((a, b) => {
+        const rank = (c: Company) => (c.complianceStatus === 'pending' ? 0 : c.complianceStatus === 'non-compliant' ? 1 : 2);
+        return rank(a) - rank(b) || a.name.localeCompare(b.name);
+      })
+      .slice(0, 6);
+    const approvalColumns: Column<Company>[] = [
+      {
+        key: 'name',
+        header: t('Business Name'),
+        value: row => row.name,
+        render: row => (
+          <span className="ws-approval-name">
+            <strong>{row.name}</strong>
+            <small>{row.city}</small>
+          </span>
+        ),
+      },
+      {
+        key: 'request',
+        header: t('Request ID'),
+        value: row => row.businessLicense || row.id,
+        render: row => <span className="ws-mono">{row.businessLicense || row.id.slice(-8).toUpperCase()}</span>,
+      },
+      {
+        key: 'date',
+        header: t('Date'),
+        value: row => row.tradeLicenseExpiry,
+        render: row => <span>{row.tradeLicenseExpiry ? formatDate(row.tradeLicenseExpiry) : '—'}</span>,
+      },
+      {
+        key: 'status',
+        header: t('Status'),
+        value: row => row.complianceStatus,
+        render: row => <StatusPill label={t(row.complianceStatus)} tone={toneFor(row.complianceStatus)} />,
+      },
+      {
+        key: 'progress',
+        header: t('Progress'),
+        value: row => (row.complianceStatus === 'compliant' ? 100 : row.complianceStatus === 'pending' ? 55 : 18),
+        render: row => {
+          const pct = row.complianceStatus === 'compliant' ? 100 : row.complianceStatus === 'pending' ? 55 : 18;
+          return (
+            <span className="ws-pill-stack">
+              <ProgressBar value={pct} tone={row.complianceStatus === 'compliant' ? 'good' : row.complianceStatus === 'pending' ? 'warn' : 'bad'} />
+              <small className="ws-muted">{pct}%</small>
+            </span>
+          );
+        },
+      },
+      {
+        key: 'action',
+        header: '',
+        noExport: true,
+        render: row => (
+          <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>
+            {row.complianceStatus === 'compliant' ? t('View') : t('Review')}
+          </button>
+        ),
+      },
+    ];
 
-      <div className="ws-grid-2">
-        <Panel title={t('Order pipeline')} subtitle="All time, by commercial status">
-          <BarList items={analytics.statuses.map(s => ({ label: t(s.label), value: s.value }))} />
-        </Panel>
-        <Panel title={t('Revenue trend')} subtitle="Last six months, delivered and active orders">
-          <BarList items={analytics.monthlyRevenue.map(p => ({ label: p.label, value: p.value }))} format={money} />
-        </Panel>
-      </div>
+    return (
+      <>
+        <SectionHeader
+          eyebrow={t('Administration')}
+          title={t('Administration Dashboard')}
+          hint={t('Platform-wide users, suppliers, fleet verification, RFQs and orders in one control centre.')}
+          actions={
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>🏢 {t('Manage suppliers')}</button>
+              <button className="btn btn-primary btn-sm" onClick={() => onNavigate('analytics')}>📊 {t('Reports & Analytics')}</button>
+            </>
+          }
+        />
 
-      <Panel
-        title={t('Alerts')}
-        subtitle="Items that need an administrator decision"
-      >
-        <ul className="ws-alert-list">
-          {companies.filter(c => c.complianceStatus !== 'compliant').slice(0, 4).map(c => (
-            <li key={c.id}>
-              <span>🏢</span>
-              <div><strong>{c.name}</strong><small>{t('Supplier')} · {c.city} · {t(c.complianceStatus)}</small></div>
-              <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{t('Review')}</button>
-            </li>
-          ))}
-          {materials.filter(m => m.quantity <= 10).slice(0, 3).map(m => (
-            <li key={m.id}>
-              <span>⚠️</span>
-              <div><strong>{m.name}</strong><small>{t('Low stock')} · {m.quantity} {m.unit}</small></div>
-              <button className="btn btn-secondary btn-sm" onClick={() => onSection('products')}>{t('View')}</button>
-            </li>
-          ))}
-          {openComplaints.slice(0, 3).map(c => (
-            <li key={c.id}>
-              <span>⚖️</span>
-              <div><strong>{c.subject}</strong><small>{c.userName} · {timeAgo(c.createdAt)}</small></div>
-              <button className="btn btn-secondary btn-sm" onClick={() => onSection('complaints')}>{t('Investigate')}</button>
-            </li>
-          ))}
-          {companies.every(c => c.complianceStatus === 'compliant') && materials.every(m => m.quantity > 10) && openComplaints.length === 0 && (
-            <li><span>✅</span><div><strong>No pending decisions</strong><small>Platform is healthy.</small></div></li>
-          )}
-        </ul>
-      </Panel>
+        <KpiGrid>
+          <Kpi label={t('Active Users')} value={users.filter(u => !isUserLocked(u)).length} hint={`${customers.length} customers · ${admins.length} admins`} icon="👥" />
+          <Kpi label={t('Registered Suppliers')} value={companies.length} hint={`${companies.filter(c => c.complianceStatus === 'compliant').length} compliant`} icon="🏢" tone="good" />
+          <Kpi label={t('Verified Vehicles')} value={transporterProfiles.filter(p => p.verified).length} hint={`${transporterProfiles.length} transporter profiles`} icon="🚛" />
+          <Kpi label={t('RFQs')} value={orders.filter(o => o.status === 'pending').length} hint="Awaiting supplier quotations" icon="📝" />
+          <Kpi label={t('Total Orders')} value={orders.length} hint={`${orders.filter(o => o.status === 'delivered').length} delivered`} icon="📋" tone="accent" />
+        </KpiGrid>
 
-      <Panel title={t('Recent activity')} subtitle="Newest orders and account events">
-        <ul className="ws-feed">
-          {[...orders].sort((a, b) => b.orderDate.localeCompare(a.orderDate)).slice(0, 6).map(o => (
-            <li key={o.id}>
-              <span className="ws-feed-icon">📦</span>
-              <div>
-                <strong>{o.invoiceNumber} · {money(o.totalAmount)}</strong>
-                <small>{customerFor(o.customerId)?.name || 'Customer'} → {supplierFor(o.companyId)?.name || 'Supplier'} · {formatDate(o.orderDate)}</small>
-              </div>
-              <StatusPill label={t(o.status)} tone={toneFor(o.status)} />
-            </li>
-          ))}
-          {audit.slice(0, 4).map(event => (
-            <li key={event.id}>
-              <span className="ws-feed-icon">🔐</span>
-              <div><strong>{event.action}</strong><small>{event.detail} · {event.actorName} · {timeAgo(event.at)}</small></div>
-            </li>
-          ))}
-        </ul>
-      </Panel>
+        <DashboardGrid
+          main={
+            <>
+              <Panel
+                title={t('Platform-wide Real-time Analytics')}
+                subtitle={t('Revenue and order value across every registered supplier')}
+                actions={
+                  <RangeSelect
+                    label={t('Period')}
+                    value={dashRange}
+                    onChange={setDashRange}
+                    options={[
+                      { value: '12', label: t('All Months') },
+                      { value: '6', label: t('Last 6 months') },
+                      { value: '3', label: t('Last 3 months') },
+                    ]}
+                  />
+                }
+              >
+                <div className="ws-chart-note">
+                  <span>{t('Total platform value')} · {money(gmv)}</span>
+                  <span className="ws-pill-stack">
+                    <StatusPill label={`● ${t('Delivered')}`} tone="good" />
+                    <StatusPill label={`● ${t('All orders')}`} tone="info" />
+                  </span>
+                </div>
+                <div className="ws-chart-box">
+                  <LineChart
+                    height={196}
+                    valueFormatter={money}
+                    series={[
+                      { label: t('Delivered'), color: '#1f6feb', data: deliveredTrend },
+                      { label: t('All orders'), color: '#c9a227', data: gmvTrend },
+                    ]}
+                  />
+                </div>
+                <div className="ws-chart-note">
+                  <span>{analytics.periodLabel} · {orders.length} {t('orders')}</span>
+                  <span>{t('GMV')} {money(gmv)}</span>
+                </div>
+              </Panel>
 
-      <Panel title={t('Quick actions')}>
-        <div className="ws-quick-grid">
-          <button className="ws-quick" onClick={onAddSupplier}><span>🏢</span>{t('Add Supplier')}</button>
-          <button className="ws-quick" onClick={() => onSection('notifications')}><span>📣</span>{t('Send announcement')}</button>
-          <button className="ws-quick" onClick={() => onSection('complaints')}><span>⚖️</span>{t('Complaints & Disputes')}</button>
-          <button className="ws-quick" onClick={onEditSettings}><span>⚙️</span>{t('Platform Settings')}</button>
-          <button className="ws-quick" onClick={onOpenDataCenter}><span>🛡️</span>Data Center</button>
-          <button className="ws-quick" onClick={() => onNavigate('analytics')}><span>📈</span>{t('Reports')}</button>
-        </div>
-      </Panel>
-    </>
-  );
+              <Panel
+                title={t('Supplier License Approvals')}
+                subtitle={t('Trade licences, compliance status and onboarding progress')}
+                actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{t('View all')}</button>}
+              >
+                <DataTable
+                  rows={approvalRows}
+                  columns={approvalColumns}
+                  pageSize={6}
+                  exportName="supplier-license-approvals"
+                  searchText={row => `${row.name} ${row.city} ${row.businessLicense} ${row.complianceStatus}`}
+                  emptyTitle={t('No suppliers yet')}
+                />
+              </Panel>
+            </>
+          }
+          side={
+            <>
+              <Panel
+                title={`${t('Verification Queue')} (${verificationTotal})`}
+                subtitle={t('Items waiting for an administrator decision')}
+              >
+                <div className="ws-mini-grid">
+                  <MiniStat label={t('Licences')} value={companies.filter(c => c.complianceStatus === 'pending').length} hint={t('pending review')} tone="warn" icon="📄" />
+                  <MiniStat label={t('Vehicles')} value={unverifiedTransporters.length} hint={t('awaiting verification')} tone="bad" icon="🚚" />
+                  <MiniStat label={t('Low stock')} value={lowStock.length} hint={t('products')} tone="accent" icon="📦" />
+                  <MiniStat label={t('Complaints')} value={openComplaints.length} hint={t('open cases')} tone={openComplaints.length ? 'warn' : 'good'} icon="⚖️" />
+                </div>
+                <div className="ws-stat-list">
+                  {companies.filter(c => c.complianceStatus !== 'compliant').slice(0, 3).map(c => (
+                    <div className="ws-stat-row" key={c.id}>
+                      <span aria-hidden="true">🏢</span>
+                      <div><strong>{c.name}</strong><small>{t('Licence')} · {c.city}</small></div>
+                      <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{t('Review')}</button>
+                    </div>
+                  ))}
+                  {unverifiedTransporters.slice(0, 2).map(p => (
+                    <div className="ws-stat-row" key={p.id}>
+                      <span aria-hidden="true">🚛</span>
+                      <div><strong>{p.companyName}</strong><small>{t('Fleet verification')} · {p.serviceAreas?.[0] || p.city || '—'}</small></div>
+                      <button className="btn btn-secondary btn-sm" onClick={() => onSection('transporters')}>{t('Verify')}</button>
+                    </div>
+                  ))}
+                  {lowStock.slice(0, 2).map(m => (
+                    <div className="ws-stat-row" key={m.id}>
+                      <span aria-hidden="true">⚠️</span>
+                      <div><strong>{m.name}</strong><small>{t('Low stock')} · {m.quantity} {m.unit}</small></div>
+                      <button className="btn btn-secondary btn-sm" onClick={() => onSection('products')}>{t('View')}</button>
+                    </div>
+                  ))}
+                  {verificationTotal === 0 && (
+                    <div className="ws-stat-row">
+                      <span aria-hidden="true">✅</span>
+                      <div><strong>{t('Queue is clear')}</strong><small>{t('Every supplier, vehicle and product is in good standing.')}</small></div>
+                    </div>
+                  )}
+                </div>
+              </Panel>
+
+              <Panel
+                title={t('Product Statistics')}
+                subtitle={`${materials.length} ${t('products')} · ${analytics.stockUnits} ${t('units in stock')}`}
+              >
+                <BarList
+                  items={analytics.categoryData.slice(0, 5).map(item => ({ label: t(item.label), value: item.value }))}
+                  format={analytics.categoryBasis === 'revenue' ? money : undefined}
+                />
+                <div className="ws-chart-note" style={{ marginTop: 10 }}>
+                  <span>{analytics.categoryBasis === 'revenue' ? t('Revenue by category') : t('Catalogue by category')}</span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => onSection('products')}>{t('Catalogue')}</button>
+                </div>
+              </Panel>
+
+              <Panel title={t('Quick actions')}>
+                <div className="ws-quick-grid">
+                  <button className="ws-quick" onClick={onAddSupplier}><span>🏢</span>{t('Add Supplier')}</button>
+                  <button className="ws-quick" onClick={() => onSection('notifications')}><span>📣</span>{t('Send announcement')}</button>
+                  <button className="ws-quick" onClick={() => onSection('complaints')}><span>⚖️</span>{t('Complaints & Disputes')}</button>
+                  <button className="ws-quick" onClick={onEditSettings}><span>⚙️</span>{t('Platform Settings')}</button>
+                </div>
+              </Panel>
+            </>
+          }
+        />
+      </>
+    );
+  };
 
   const renderUsers = () => {
     const rows = users.filter(u =>

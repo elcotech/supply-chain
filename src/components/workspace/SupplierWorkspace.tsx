@@ -13,15 +13,17 @@ import { Material, Order, Quotation, Rfq, User } from '../../types';
 import {
   formatCurrency, formatDate, genId, timeAgo, effectiveRating, forecastPrice,
 } from '../../utils';
-import { buildAnalytics } from '../../lib/analytics';
+import { buildAnalytics, monthlyTrend } from '../../lib/analytics';
 import { useLanguage } from '../../lib/i18n';
 import { jobStatus, TRANSPORT_STATUS_LABELS } from '../../lib/transport';
 import useLocalCollection from '../../hooks/useLocalCollection';
+import { LineChart } from '../Charts';
 import WorkspaceShell from './shell';
 import { WorkspaceProps } from './types';
 import {
-  BarList, Column, DataTable, EmptyState, Field, Kpi, KpiGrid, Modal, Panel,
-  SectionHeader, StatusPill, toneFor,
+  BarList, Column, DashboardGrid, DataTable, EmptyState, Field, Kpi, KpiGrid,
+  MiniStat, Modal, Panel, ProgressBar, RangeSelect, SectionHeader, StatusPill,
+  toneFor,
 } from './ui';
 
 interface Warehouse {
@@ -111,6 +113,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
   const materialFor = (id: string) => materials.find(m => m.id === id);
 
   // ---------- Modals ----------
+  const [dashRange, setDashRange] = useState('12');
   const [priceTarget, setPriceTarget] = useState<Material | null>(null);
   const [priceDraft, setPriceDraft] = useState({ price: '', minOrder: '' });
   const [stockTarget, setStockTarget] = useState<Material | null>(null);
@@ -290,56 +293,200 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
   ];
 
   // ---------- Sections ----------
-  const renderDashboard = () => (
-    <>
-      <SectionHeader
-        eyebrow={t('Suppliers')}
-        title={company.name}
-        hint={t('View total products, available stock, pending orders, new RFQs, sales, quotations, revenue and customer activity.')}
-        actions={<><button className="btn btn-secondary btn-sm" onClick={onEditCompany}>🏢 {t('Business Profile')}</button><button className="btn btn-primary btn-sm" onClick={onAddProduct}>➕ {t('Add product')}</button></>}
-      />
-      <KpiGrid>
-        <Kpi label={t('Total products')} value={ownMaterials.length} hint={`${new Set(ownMaterials.map(m => m.category)).size} categories`} icon="📦" />
-        <Kpi label={t('Stock')} value={ownMaterials.reduce((s, m) => s + m.quantity, 0).toLocaleString()} hint={`Value ${money(stockValue)}`} icon="🏭" />
-        <Kpi label={t('Pending orders')} value={ownOrders.filter(o => o.status === 'pending').length} hint={money(pipeline) + ' in pipeline'} icon="🕒" tone={ownOrders.some(o => o.status === 'pending') ? 'warn' : 'good'} />
-        <Kpi label="New RFQs" value={visibleRfqs.filter(r => r.status === 'open').length} hint={`${ownQuotations.length} quotations sent`} icon="📨" />
-        <Kpi label={t('Sales')} value={ownOrders.filter(o => o.status !== 'cancelled').length} hint="Orders received" icon="🛒" />
-        <Kpi label={t('Revenue')} value={money(revenue)} hint="Delivered orders" icon="💰" tone="accent" />
-        <Kpi label={t('Low-stock items')} value={lowStock.length} icon="⚠️" tone={lowStock.length ? 'warn' : 'good'} />
-        <Kpi label={t('Average rating')} value={`⭐ ${companyRating.toFixed(1)}`} hint={`${reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} reviews`} icon="⭐" />
-      </KpiGrid>
-      <div className="ws-grid-2">
-        <Panel title={t('Revenue trend')} subtitle="Last six months"><BarList items={analytics.monthlyRevenue.map(p => ({ label: p.label, value: p.value }))} format={money} /></Panel>
-        <Panel title={t('Top products')} subtitle="By revenue in the last 30 days"><BarList items={analytics.topProducts.slice(0, 6).map(p => ({ label: p.name, value: Math.round(p.revenue), hint: `${p.units} units` }))} format={money} /></Panel>
-      </div>
-      <Panel title={t('Recent activity')} subtitle="Newest orders and enquiries">
-        {ownOrders.length === 0 ? <EmptyState icon="📦" title="No orders yet" text="Publish products and respond to RFQs to start selling." /> : (
-          <ul className="ws-feed">
-            {[...ownOrders].reverse().slice(0, 6).map(o => (
-              <li key={o.id}>
-                <span className="ws-feed-icon">📦</span>
-                <div><strong>{o.invoiceNumber} · {money(o.totalAmount)}</strong><small>{buyerFor(o.customerId)?.name || 'Customer'} · {materialFor(o.materialId)?.name || ''}</small></div>
-                <StatusPill label={t(o.status)} tone={toneFor(o.status)} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-      {lowStock.length > 0 && (
-        <Panel title={t('Low stock')} subtitle="At or below ten units remaining">
-          <ul className="ws-alert-list">
-            {lowStock.map(m => (
-              <li key={m.id}>
-                <span>⚠️</span>
-                <div><strong>{m.name}</strong><small>{m.quantity} {m.unit} left · {money(m.price)}/{m.unit}</small></div>
-                <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}>Restock</button>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
-    </>
-  );
+  const renderDashboard = () => {
+    const months = Math.max(1, Number(dashRange) || 12);
+    const deliveredSeries = monthlyTrend(ownOrders.filter(o => o.status === 'delivered'), months).revenue;
+    const pipelineSeries = monthlyTrend(ownOrders, months).revenue;
+    const monthlySales = monthlyTrend(ownOrders, 1).revenue[0]?.value || 0;
+    const openRfqs = visibleRfqs.filter(r => r.status === 'open');
+    const maxStock = Math.max(...ownMaterials.map(m => m.quantity), 1);
+    const stockWatch = [...ownMaterials].sort((a, b) => a.quantity - b.quantity).slice(0, 6);
+    const rfqRows = [...visibleRfqs]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 7);
+    const rfqColumns: Column<Rfq>[] = [
+      {
+        key: 'request',
+        header: t('Request ID'),
+        value: row => row.id,
+        render: row => <span className="ws-mono">RFQ-{row.id.slice(-6).toUpperCase()}</span>,
+      },
+      {
+        key: 'material',
+        header: t('Material'),
+        value: row => row.materialName,
+        render: row => (
+          <span className="ws-approval-name">
+            <strong>{row.materialName}</strong>
+            <small>{row.quantity} {row.unit} · {row.city}</small>
+          </span>
+        ),
+      },
+      {
+        key: 'buyer',
+        header: t('Buyer'),
+        value: row => row.customerName,
+        render: row => <span>{row.customerName}</span>,
+      },
+      {
+        key: 'date',
+        header: t('Received'),
+        value: row => row.createdAt,
+        render: row => <span>{timeAgo(row.createdAt)}</span>,
+      },
+      {
+        key: 'status',
+        header: t('Status'),
+        value: row => row.status,
+        render: row => <StatusPill label={t(row.status)} tone={toneFor(row.status)} />,
+      },
+      {
+        key: 'action',
+        header: '',
+        noExport: true,
+        render: row => (
+          <button className="btn btn-primary btn-sm" onClick={() => openQuote(row)}>
+            {row.status === 'open' ? t('Submit Quote') : t('View')}
+          </button>
+        ),
+      },
+    ];
+
+    return (
+      <>
+        <SectionHeader
+          eyebrow={t('Supplier')}
+          title={t('Supplier Dashboard')}
+          hint={`${company.name} · ${t('Products, quotations, orders and stock health at a glance.')}`}
+          actions={
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={onEditCompany}>🏢 {t('Business Profile')}</button>
+              <button className="btn btn-primary btn-sm" onClick={onAddProduct}>➕ {t('Add product')}</button>
+            </>
+          }
+        />
+
+        <KpiGrid>
+          <Kpi label={t('Active Products')} value={ownMaterials.length} hint={`${new Set(ownMaterials.map(m => m.category)).size} categories`} icon="📦" />
+          <Kpi label={t('Monthly Sales')} value={money(monthlySales)} hint="Delivered this month" icon="💰" tone="accent" />
+          <Kpi label={t('Open RFQs')} value={openRfqs.length} hint={`${ownQuotations.length} quotations sent`} icon="📨" tone={openRfqs.length ? 'warn' : 'good'} />
+          <Kpi label={t('Pending Orders')} value={ownOrders.filter(o => o.status === 'pending').length} hint={`${money(pipeline)} in pipeline`} icon="🕒" tone="warn" />
+          <Kpi label={t('Seller Rating')} value={`${companyRating.toFixed(1)} ★`} hint={`${reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} reviews`} icon="⭐" tone="good" />
+        </KpiGrid>
+
+        <DashboardGrid
+          main={
+            <>
+              <Panel
+                title={t('Sales & Revenue Analytics')}
+                subtitle={t('Delivered sales against your full order pipeline')}
+                actions={
+                  <RangeSelect
+                    label={t('Period')}
+                    value={dashRange}
+                    onChange={setDashRange}
+                    options={[
+                      { value: '12', label: t('All Months') },
+                      { value: '6', label: t('Last 6 months') },
+                      { value: '3', label: t('Last 3 months') },
+                    ]}
+                  />
+                }
+              >
+                <div className="ws-chart-note">
+                  <span>{t('Delivered revenue')} · {money(revenue)}</span>
+                  <span className="ws-pill-stack">
+                    <StatusPill label={`● ${t('Delivered')}`} tone="good" />
+                    <StatusPill label={`● ${t('Pipeline')}`} tone="info" />
+                  </span>
+                </div>
+                <div className="ws-chart-box">
+                  <LineChart
+                    height={196}
+                    valueFormatter={money}
+                    series={[
+                      { label: t('Delivered'), color: '#1f6feb', data: deliveredSeries },
+                      { label: t('Pipeline'), color: '#c9a227', data: pipelineSeries },
+                    ]}
+                  />
+                </div>
+                <div className="ws-chart-note">
+                  <span>{t('Stock value')} {money(stockValue)}</span>
+                  <span>{ownMaterials.reduce((sum, m) => sum + m.quantity, 0).toLocaleString()} {t('units available')}</span>
+                </div>
+              </Panel>
+
+              <Panel
+                title={t('Incoming Customer RFQs')}
+                subtitle={t('Buyers waiting for your price and delivery terms')}
+                actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('rfqs')}>{t('View all')}</button>}
+              >
+                {rfqRows.length === 0 ? (
+                  <EmptyState icon="📨" title={t('No open RFQs')} text={t('New customer requests will appear here as soon as they are published.')} />
+                ) : (
+                  <DataTable
+                    rows={rfqRows}
+                    columns={rfqColumns}
+                    pageSize={7}
+                    exportName="incoming-rfqs"
+                    searchText={row => `${row.customerName} ${row.materialName} ${row.city} ${row.status}`}
+                  />
+                )}
+              </Panel>
+            </>
+          }
+          side={
+            <>
+              <Panel title={t('Order Pipeline')} subtitle={t('Current commercial position')}>
+                <div className="ws-mini-grid">
+                  <MiniStat label={t('Pending')} value={ownOrders.filter(o => o.status === 'pending').length} hint={t('orders')} tone="warn" icon="🕒" />
+                  <MiniStat label={t('Delivered')} value={ownOrders.filter(o => o.status === 'delivered').length} hint={t('orders')} tone="good" icon="✅" />
+                  <MiniStat label={t('Quotes sent')} value={ownQuotations.length} hint={t('quotation records')} tone="accent" icon="📨" />
+                  <MiniStat label={t('Low stock')} value={lowStock.length} hint={t('products')} tone={lowStock.length ? 'bad' : 'good'} icon="⚠️" />
+                </div>
+              </Panel>
+
+              <Panel
+                title={t('Inventory & Stock Alerts')}
+                subtitle={t('Lowest stock first · quick price update')}
+                actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('inventory')}>{t('Inventory')}</button>}
+              >
+                {stockWatch.length === 0 ? (
+                  <EmptyState icon="📦" title={t('No products yet')} text={t('Add your first product to start receiving RFQs.')} />
+                ) : (
+                  <div className="ws-stat-list">
+                    {stockWatch.map(m => (
+                      <div className="ws-stat-row" key={m.id}>
+                        <div>
+                          <strong>{m.name}</strong>
+                          <small>{m.quantity} {m.unit} left · {money(m.price)}/{m.unit}</small>
+                          <span className="ws-stat-bar">
+                            <ProgressBar
+                              value={(m.quantity / maxStock) * 100}
+                              tone={m.quantity <= 10 ? 'bad' : m.quantity <= 25 ? 'warn' : 'good'}
+                            />
+                          </span>
+                        </div>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openPrice(m)}>{t('Price')}</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}>＋</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+
+              <Panel title={t('Top Products')} subtitle={t('By revenue in the last 30 days')}>
+                <BarList
+                  items={analytics.topProducts.slice(0, 5).map(p => ({ label: p.name, value: Math.round(p.revenue), hint: `${p.units} units` }))}
+                  format={money}
+                />
+              </Panel>
+            </>
+          }
+        />
+      </>
+    );
+  };
 
   const renderProfile = () => (
     <>

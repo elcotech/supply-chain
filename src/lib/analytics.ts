@@ -195,9 +195,18 @@ const orderTime = (order: Order): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const buildMonthly = (orders: Order[], now: Date): { revenue: ChartPoint[]; orders: ChartPoint[] } => {
+/**
+ * Build a month-by-month revenue and order series ending at the current month.
+ * The dashboard charts ask for a full twelve months; the analytics page keeps
+ * its historical six-month window by leaving the default alone.
+ */
+export const monthlyTrend = (
+  orders: Order[],
+  months = 6,
+  now: Date = new Date(),
+): { revenue: ChartPoint[]; orders: ChartPoint[] } => {
   const buckets: { key: string; label: string; revenue: number; orders: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
+  for (let i = Math.max(1, months) - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     buckets.push({
       key: monthKey(d),
@@ -220,6 +229,9 @@ const buildMonthly = (orders: Order[], now: Date): { revenue: ChartPoint[]; orde
     orders: buckets.map(b => ({ label: b.label, value: b.orders })),
   };
 };
+
+const buildMonthly = (orders: Order[], now: Date): { revenue: ChartPoint[]; orders: ChartPoint[] } =>
+  monthlyTrend(orders, 6, now);
 
 const buildCategoryData = (
   orders: Order[],

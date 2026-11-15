@@ -35,6 +35,7 @@ import TransporterDashboard from './components/TransporterDashboard';
 import AdminWorkspace from './components/workspace/AdminWorkspace';
 import SupplierWorkspace from './components/workspace/SupplierWorkspace';
 import CustomerWorkspace from './components/workspace/CustomerWorkspace';
+import GuestWorkspace from './components/workspace/GuestWorkspace';
 import SupplierDirectory from './components/SupplierDirectory';
 import LanguagePage from './components/LanguagePage';
 import InfoPage, { InfoTab } from './components/InfoPage';
@@ -48,6 +49,7 @@ import useIsMobile from './hooks/useIsMobile';
 import useLocalCollection from './hooks/useLocalCollection';
 import { useLanguage } from './lib/i18n';
 import { MENUS, MenuKey, menuForRole } from './lib/menu';
+import { APP_VERSION } from './version';
 
 const THEME_KEY = 'escon_theme';
 
@@ -701,7 +703,7 @@ function App() {
   // Open a role workspace on a specific submenu. Every menu entry in the header,
   // mobile sheet and command palette routes through here so the same section id
   // is used everywhere.
-  const openWorkspace = useCallback((menu: MenuKey, sectionId = 'dashboard'): void => {
+  const openWorkspace = useCallback((menu: MenuKey, sectionId = menu === 'guest' ? 'home' : 'dashboard'): void => {
     setWorkspaceSection(sectionId);
     navigateTo(MENUS[menu].page);
   }, [navigateTo]);
@@ -3294,6 +3296,10 @@ function App() {
         <div className="header-content">
           <div className="logo" onClick={() => navigateTo('home')}>
             <div className="logo-icon">🏗️</div>
+            <div className="logo-text">
+              <h1>E-SCON <span>{APP_VERSION.split('.').slice(0, 2).join('.')}</span></h1>
+              <small>Build Smarter. Source Better.</small>
+            </div>
           </div>
           <DateTime />
           <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
@@ -3375,6 +3381,7 @@ function App() {
   const renderGuestNav = () => (
     <>
       <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
+      <button className={'nav-link ' + (currentPage === 'guest-workspace' ? 'active' : '')} onClick={() => openWorkspace('guest', 'home')}>👁️ {t('Public View')}</button>
       <button className={'nav-link ' + (currentPage === 'marketplace' ? 'active' : '')} onClick={() => navigateTo('marketplace')}>Marketplace</button>
       <button className={'nav-link ' + (currentPage === 'supplier-directory' ? 'active' : '')} onClick={() => navigateTo('supplier-directory')}>{t('Supplier Directory')}</button>
       <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
@@ -4168,6 +4175,18 @@ function App() {
     currentUser?.userType === 'customer'
       ? <CustomerWorkspace {...workspaceProps} section={workspaceSection} />
       : workspaceDenied;
+
+  const renderGuestWorkspace = () => (
+    <GuestWorkspace
+      section={workspaceSection}
+      companies={companies}
+      materials={materials}
+      reviews={reviews}
+      onSection={setWorkspaceSection}
+      onNavigate={navigateTo}
+      onOpenProduct={setSelectedMaterial}
+    />
+  );
 
   const renderSupplierDirectory = () => (
     <SupplierDirectory
@@ -5074,6 +5093,7 @@ function App() {
       'admin-workspace': 'Administration',
       'supplier-workspace': 'Supplier Workspace',
       'customer-workspace': 'Customer Workspace',
+      'guest-workspace': 'Guest / Public View',
       'supplier-directory': 'Supplier Directory',
       language: 'Language Settings',
       info: 'About & Help',
@@ -5831,6 +5851,7 @@ function App() {
       case 'admin-workspace': return renderAdminWorkspace();
       case 'supplier-workspace': return renderSupplierWorkspace();
       case 'customer-workspace': return renderCustomerWorkspace();
+      case 'guest-workspace': return renderGuestWorkspace();
       case 'supplier-directory': return renderSupplierDirectory();
       case 'language': return <LanguagePage onBack={() => navigateTo('home')} />;
       case 'company-dashboard': return renderCompanyDashboard();

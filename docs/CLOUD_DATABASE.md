@@ -1,4 +1,4 @@
-# E-SCON 2.0 — Cloud Database (Supabase)
+# E-SCON 5.0 — Cloud Database (Supabase)
 
 E-SCON keeps its data in the browser's `localStorage` so it works offline and
 starts instantly. When Supabase credentials are configured, the cloud module
@@ -167,3 +167,4 @@ are mostly swapping the storage calls for authenticated queries.
   are dropped (best-effort) until the next change while online.
 - **Disabling cloud:** remove/comment the two `REACT_APP_SUPABASE_*` values in
   `.env.local` and rebuild — the app goes back to local-only with no code change.
+

@@ -32,6 +32,75 @@ export const KpiGrid: React.FC<{ children: React.ReactNode }> = ({ children }) =
   <div className="ws-kpi-grid">{children}</div>
 );
 
+/** Compact secondary metric used inside dashboard side panels. */
+export const MiniStat: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  tone?: 'default' | 'good' | 'warn' | 'bad' | 'accent';
+  icon?: string;
+}> = ({ label, value, hint, tone = 'default', icon }) => (
+  <div className={'ws-mini-stat ws-mini-' + tone}>
+    <div className="ws-mini-stat-label">
+      {icon && <span aria-hidden="true">{icon}</span>}
+      <span>{label}</span>
+    </div>
+    <strong>{value}</strong>
+    {hint && <small>{hint}</small>}
+  </div>
+);
+
+/** Two-column dashboard area: a wide analytical column and a narrow side rail. */
+export const DashboardGrid: React.FC<{
+  main: React.ReactNode;
+  side: React.ReactNode;
+}> = ({ main, side }) => (
+  <div className="ws-dash-grid">
+    <div className="ws-dash-main">{main}</div>
+    <aside className="ws-dash-side">{side}</aside>
+  </div>
+);
+
+/** Small range/period picker used by the dashboard charts. */
+export const RangeSelect: React.FC<{
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  id?: string;
+}> = ({ label, value, onChange, options, id }) => (
+  <label className="ws-range-select">
+    {label && <span>{label}</span>}
+    <select id={id} value={value} onChange={event => onChange(event.target.value)} aria-label={label || 'Date range'}>
+      {options.map(option => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  </label>
+);
+
+/** Inline progress bar used by approvals, stock and verification panels. */
+export const ProgressBar: React.FC<{ value: number; tone?: 'blue' | 'good' | 'warn' | 'bad' }> = ({
+  value,
+  tone = 'blue',
+}) => (
+  <span className={'ws-progress ws-progress-' + tone} role="progressbar" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
+    <span style={{ width: Math.max(2, Math.min(100, value)) + '%' }} />
+  </span>
+);
+
+/** Simple schematic route strip for delivery tracking cards. */
+export const RouteStrip: React.FC<{ from: string; to: string; progress: number }> = ({ from, to, progress }) => (
+  <div className="ws-route-strip" aria-label={`Route from ${from} to ${to}`}>
+    <span className="ws-route-node">{from}</span>
+    <span className="ws-route-line">
+      <span className="ws-route-fill" style={{ width: Math.max(4, Math.min(100, progress)) + '%' }} />
+      <span className="ws-route-pin" style={{ left: Math.max(2, Math.min(98, progress)) + '%' }}>🚚</span>
+    </span>
+    <span className="ws-route-node">{to}</span>
+  </div>
+);
+
 export const SectionHeader: React.FC<{
   title: string;
   hint?: string;
