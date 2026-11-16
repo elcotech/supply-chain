@@ -1197,8 +1197,9 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       case 'analytics': return renderAnalytics();
       case 'ai': return renderAi();
       case 'messages': return renderMessages();
-      case 'performance': return renderPerformance();
+      case 'performance': case 'reviews': return renderPerformance();
       case 'international': return renderInternational();
+      case 'payments': return renderInvoices();
       default: return renderDashboard();
     }
   };

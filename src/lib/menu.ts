@@ -1,23 +1,17 @@
-// ===== Role-based main menu (spec §8 "E-SCON MAIN MENU") =====
-//
-// The document defines five menus, each with the submenus listed below. This
-// module is the single source of truth for that hierarchy: the workspace shell,
-// the header menu, the mobile sheet, the command palette and the footer all
-// read from here, so the navigation can never drift from the specification.
+// ===== Role-based main menu (E-SCON 5.0) =====
+// Single source of truth for role navigation. Four primary interfaces
+// (Administration, Supplier, Customer, Guest) follow the provided spec;
+// Transporter kept for existing operational accounts.
 
 import { UserRole } from '../types';
 
 export type MenuKey = 'admin' | 'supplier' | 'customer' | 'guest' | 'transporter';
 
 export interface MenuSection {
-  /** Stable section id used by the workspace router and deep links. */
   id: string;
-  /** English label; translated by `useLanguage().t()` at render time. */
   label: string;
   icon: string;
-  /** One-line explanation shown under the section title. */
   hint: string;
-  /** Existing page this section opens, when it is not a workspace panel. */
   page?: string;
 }
 
@@ -26,7 +20,6 @@ export interface RoleMenu {
   title: string;
   subtitle: string;
   sections: MenuSection[];
-  /** Page that hosts this menu. */
   page: string;
 }
 
@@ -34,100 +27,86 @@ export const MENUS: Record<MenuKey, RoleMenu> = {
   admin: {
     key: 'admin',
     title: 'Administration',
-    subtitle: 'Governance, verification, finance, AI control and platform management.',
+    subtitle: 'Complete platform management, monitoring and control.',
     page: 'admin-workspace',
     sections: [
-      { id: 'dashboard', label: 'Admin Dashboard', icon: '📊', hint: 'Users, suppliers, customers, transporters, products, orders, revenue and system activity.' },
-      { id: 'users', label: 'User Management', icon: '👥', hint: 'Register, approve, suspend, update and deactivate accounts and roles.' },
-      { id: 'suppliers', label: 'Supplier Management', icon: '🏢', hint: 'Verify identity, licences, warehouses and products; approve, reject or suspend.' },
-      { id: 'customers', label: 'Customer Management', icon: '🧾', hint: 'Contractor, company and individual profiles, verification and account status.' },
-      { id: 'transporters', label: 'Transporter Management', icon: '🚛', hint: 'Verify transport companies, vehicles, drivers, capacity and service areas.' },
-      { id: 'products', label: 'Product & Category', icon: '📦', hint: 'Categories, descriptions, specifications, units and listings.' },
-      { id: 'prices', label: 'Price Management', icon: '💵', hint: 'Supplier prices, price changes, history and unusual pricing.' },
-      { id: 'orders', label: 'Order Management', icon: '📋', hint: 'Confirmation, proformas, dispatch, delivery and completion.' },
-      { id: 'rfqs', label: 'RFQ & Quotation', icon: '📨', hint: 'Requests, supplier responses, validity, comparisons and status.' },
-      { id: 'logistics', label: 'Logistics Management', icon: '🗺️', hint: 'Delivery requests, transport quotes, GPS, distances, ETA and POD.' },
-      { id: 'finance', label: 'Finance & Payments', icon: '🏦', hint: 'Transactions, confirmations, commissions, refunds and settlements.' },
-      { id: 'ai', label: 'AI Intelligence Centre', icon: '🤖', hint: 'Recommendations, price forecasts, demand and model performance.' },
-      { id: 'reports', label: 'Reports & Analytics', icon: '📈', hint: 'Operational, financial, procurement, supplier and logistics reports.' },
-      { id: 'complaints', label: 'Complaints & Disputes', icon: '⚖️', hint: 'Receive, investigate and resolve complaints across every role.' },
-      { id: 'notifications', label: 'Notifications & Communication', icon: '📣', hint: 'Announcements, account notices, order alerts and targeted messages.' },
-      { id: 'security', label: 'Security & Audit', icon: '🔐', hint: 'Permissions, MFA policy, login records, suspicious activity and audit trail.' },
-      { id: 'settings', label: 'Platform Settings', icon: '⚙️', hint: 'Language, currency, tax, units, locations, categories and business rules.' },
-      { id: 'monitoring', label: 'Technical Monitoring', icon: '🩺', hint: 'System health, API availability, integration errors, backups and performance.' },
+      { id: 'home', label: 'Home', icon: '🏠', hint: 'Vision, mission, services of E-SCON, advertisements and graphics.' },
+      { id: 'dashboard', label: 'Dashboard', icon: '📊', hint: 'Platform-wide users, suppliers, vehicles, RFQs and orders at a glance.' },
+      { id: 'users', label: 'User Management', icon: '👥', hint: 'Search, filter, view, activate, suspend and manage roles.' },
+      { id: 'suppliers', label: 'Supplier Verification', icon: '🏢', hint: 'Review applications, licenses, documents; approve or reject.' },
+      { id: 'transporters', label: 'Transport Verification', icon: '🚚', hint: 'Verify vehicle registrations, ownership and operator records.' },
+      { id: 'products', label: 'Product Management', icon: '📦', hint: 'View, categorize, approve listings, monitor prices and availability.' },
+      { id: 'rfqs', label: 'RFQ Management', icon: '📝', hint: 'Monitor all RFQs, supplier responses and quotation status.' },
+      { id: 'orders', label: 'Order Management', icon: '🛒', hint: 'All orders, fulfillment, cancellations and completed transactions.' },
+      { id: 'market', label: 'Market Intelligence', icon: '📈', hint: 'Material prices, demand, geographic markets and historical trends.' },
+      { id: 'finance', label: 'Financial Management', icon: '💰', hint: 'Transactions, payments, refunds, charges and financial statements.' },
+      { id: 'reports', label: 'Reports', icon: '📑', hint: 'User, supplier, product, order, RFQ and financial reports; PDF/Excel export.' },
+      { id: 'complaints', label: 'Complaints', icon: '⚠️', hint: 'Customer and supplier complaints, disputes and resolutions.' },
+      { id: 'notifications', label: 'Notifications', icon: '🔔', hint: 'Platform announcements and notifications recorded by category/supplier.' },
+      { id: 'quotations', label: 'Quotations Ledger', icon: '📋', hint: 'All quotations recorded separately with status and transaction history.' },
+      { id: 'settings', label: 'System Settings', icon: '⚙️', hint: 'Configuration, roles, categories, language and audit logs.' },
     ],
   },
   supplier: {
     key: 'supplier',
-    title: 'Suppliers',
-    subtitle: 'Business management, products, inventory, prices, quotations and sales.',
+    title: 'Supplier',
+    subtitle: 'Manage products, prices, inventory, quotations, orders and deliveries.',
     page: 'supplier-workspace',
     sections: [
-      { id: 'dashboard', label: 'Supplier Dashboard', icon: '📊', hint: 'Products, stock, pending orders, RFQs, sales, quotations and revenue.' },
-      { id: 'profile', label: 'Business Profile', icon: '🏢', hint: 'Company name, registration, licence, contact details and description.' },
-      { id: 'verification', label: 'Verification Centre', icon: '🛡️', hint: 'Licences, tax documents, certificates and verification status.' },
-      { id: 'locations', label: 'Location & Warehouse', icon: '📍', hint: 'Warehouse GPS locations, service areas, hours and delivery coverage.' },
-      { id: 'products', label: 'Product Management', icon: '📦', hint: 'Add, edit, update and remove products with full specifications.' },
-      { id: 'inventory', label: 'Inventory Management', icon: '🏭', hint: 'Available and reserved stock, minimum levels, movements and alerts.' },
-      { id: 'prices', label: 'Price Management', icon: '💵', hint: 'Unit prices, bulk discounts, minimum order quantities and validity.' },
-      { id: 'rfqs', label: 'RFQ Management', icon: '📨', hint: 'Incoming customer requests, materials, quantities, sites and dates.' },
-      { id: 'quotations', label: 'Quotation Management', icon: '📝', hint: 'Prepare, send and track quotations with taxes and delivery charges.' },
-      { id: 'orders', label: 'Order Management', icon: '📋', hint: 'Accept, reject and update orders; confirm stock and dispatch.' },
-      { id: 'invoices', label: 'Proforma & Invoicing', icon: '🧾', hint: 'Proforma invoices, commercial invoices, receipts and documents.' },
-      { id: 'customers', label: 'Customer Management', icon: '👤', hint: 'Enquiries, purchasing history, reviews and communication records.' },
-      { id: 'delivery', label: 'Delivery Coordination', icon: '🚚', hint: 'Request transport, share collection details and track delivery.' },
-      { id: 'analytics', label: 'Sales & Revenue Analytics', icon: '📈', hint: 'Sales volume, revenue, best sellers and quotation acceptance.' },
-      { id: 'ai', label: 'AI Business Assistant', icon: '🤖', hint: 'Demand forecasts, stock and pricing insights, customer suggestions.' },
-      { id: 'messages', label: 'Messages & Notifications', icon: '🔔', hint: 'Enquiries, RFQs, order confirmations, payments and notices.' },
-      { id: 'performance', label: 'Supplier Performance', icon: '⭐', hint: 'Ratings, fulfilment rate, delivery reliability and response time.' },
-      { id: 'international', label: 'International Business', icon: '🌍', hint: 'Export information, commercial documents and cross-border sourcing.' },
+      { id: 'dashboard', label: 'Dashboard', icon: '📊', hint: 'Products, sales, open RFQs, pending orders and seller rating.' },
+      { id: 'profile', label: 'Business Profile', icon: '🏢', hint: 'Business information, licenses, TIN, contact and verification status.' },
+      { id: 'products', label: 'My Products', icon: '📦', hint: 'Add, edit, publish and manage construction material listings.' },
+      { id: 'prices', label: 'Price Management', icon: '💲', hint: 'Update prices, bulk pricing and price history.' },
+      { id: 'inventory', label: 'Inventory', icon: '🗃️', hint: 'Stock quantities, movements, low-stock alerts and history.' },
+      { id: 'rfqs', label: 'Customer RFQs', icon: '📥', hint: 'Incoming quotation requests with quantities and delivery requirements.' },
+      { id: 'quotations', label: 'Quotations', icon: '📋', hint: 'Submitted quotations, acceptance status and expiration.' },
+      { id: 'orders', label: 'Orders', icon: '🛒', hint: 'Confirm, process, fulfill and track orders.' },
+      { id: 'invoices', label: 'Invoices', icon: '🧾', hint: 'Create, view, download and track invoices and proformas.' },
+      { id: 'payments', label: 'Payments', icon: '💳', hint: 'Received payments, balances and transaction history.' },
+      { id: 'delivery', label: 'Delivery', icon: '🚚', hint: 'Arrange transport, update status and confirm completion.' },
+      { id: 'reviews', label: 'Reviews', icon: '⭐', hint: 'Customer ratings, written reviews and responses.' },
+      { id: 'analytics', label: 'Analytics', icon: '📈', hint: 'Revenue, sales performance, demand and inventory performance.' },
     ],
   },
   customer: {
     key: 'customer',
-    title: 'Customers',
-    subtitle: 'Procurement, project requirements, supplier selection, orders and payments.',
+    title: 'Customer / Contractor',
+    subtitle: 'Discover materials, compare prices, request quotations and track deliveries.',
     page: 'customer-workspace',
     sections: [
-      { id: 'dashboard', label: 'Customer Dashboard', icon: '📊', hint: 'Projects, requirements, quotations, orders, deliveries and payments.' },
-      { id: 'profile', label: 'Customer Profile', icon: '👤', hint: 'Name, company details, contacts, business documents and settings.' },
-      { id: 'projects', label: 'Project Management', icon: '🏗️', hint: 'Projects, budgets, sites, project managers and material schedules.' },
-      { id: 'sites', label: 'Site & GPS Location', icon: '📍', hint: 'Construction-site GPS locations, saved addresses and distances.' },
-      { id: 'search', label: 'Smart Product Search', icon: '🔍', hint: 'Search by name, category, specification, grade, price and availability.' },
-      { id: 'suppliers', label: 'Supplier Discovery', icon: '🏢', hint: 'Verified suppliers by location, availability, distance, rating and price.' },
-      { id: 'compare', label: 'Product Comparison', icon: '⚖️', hint: 'Specifications, grades, prices, stock, ratings and delivery terms.' },
-      { id: 'ai', label: 'AI Procurement Assistant', icon: '🤖', hint: 'Recommended suppliers, offer comparisons and cost-saving opportunities.' },
-      { id: 'price-intelligence', label: 'Price Intelligence', icon: '💹', hint: 'Current prices, historical movement, alerts and sources.' },
-      { id: 'rfqs', label: 'Request for Quotation', icon: '📨', hint: 'Send one request to multiple eligible suppliers with site and date.' },
-      { id: 'quotation-compare', label: 'Quotation Comparison', icon: '📝', hint: 'Compare prices, transport, delivery times, terms and delivered cost.' },
-      { id: 'cart', label: 'Shopping Cart', icon: '🛒', hint: 'Quantities, subtotals, delivery charges and the purchase step.' },
-      { id: 'proforma', label: 'Proforma & Purchase Orders', icon: '🧾', hint: 'Supplier proformas, purchase orders and confirmed procurement details.' },
-      { id: 'payments', label: 'Payment Centre', icon: '💳', hint: 'Payment instructions, methods, confirmations, receipts and history.' },
-      { id: 'tracking', label: 'Order Tracking', icon: '🚚', hint: 'Acceptance, preparation, loading, dispatch, GPS and arrival.' },
-      { id: 'delivery', label: 'Delivery Management', icon: '🏠', hint: 'Delivery address, schedule, transport charges and receipt.' },
-      { id: 'documents', label: 'Documents Centre', icon: '📁', hint: 'Quotations, proformas, invoices, purchase orders and receipts.' },
-      { id: 'reviews', label: 'Reviews & Complaints', icon: '⭐', hint: 'Rate suppliers and transporters, report problems and track resolution.' },
-      { id: 'analytics', label: 'Procurement Analytics', icon: '📈', hint: 'Project expenditure, quantities, price comparisons and supplier performance.' },
-      { id: 'notifications', label: 'Notifications & Messages', icon: '🔔', hint: 'Quotation updates, price alerts, orders, deliveries and messages.' },
+      { id: 'dashboard', label: 'Home', icon: '🏠', hint: 'Open RFQs, quotations, orders and total spend overview.' },
+      { id: 'marketplace', label: 'Marketplace', icon: '🛍️', hint: 'Browse materials, categories, prices and availability.', page: 'marketplace' },
+      { id: 'search', label: 'Search', icon: '🔎', hint: 'Find by category, department, place or nearest supplier.', page: 'search-materials' },
+      { id: 'compare', label: 'Compare Prices', icon: '⚖️', hint: 'Compare suppliers, unit prices, quantities and delivery costs.' },
+      { id: 'map', label: 'Supplier Map', icon: '🗺️', hint: 'Verified suppliers on map with distances.', page: 'supplier-directory' },
+      { id: 'rfq', label: 'Request Quotation', icon: '📝', hint: 'Select materials, quantities and submit RFQs.' },
+      { id: 'quotations', label: 'My Quotations', icon: '📋', hint: 'Received offers, compare, accept/reject and convert to orders.' },
+      { id: 'transport', label: 'Transport', icon: '🚛', hint: 'Browse transport options and request delivery services.' },
+      { id: 'cart', label: 'Shopping Cart', icon: '🛒', hint: 'Review items, quantities and totals.' },
+      { id: 'proforma', label: 'Proforma', icon: '📄', hint: 'Generate and review proforma invoices with costs and delivery.' },
+      { id: 'orders', label: 'My Orders', icon: '📦', hint: 'Order details, status, history and transaction summaries.' },
+      { id: 'tracking', label: 'Track Delivery', icon: '📍', hint: 'Delivery routes, vehicles, ETA and confirmation.' },
+      { id: 'wallet', label: 'Wallet', icon: '👛', hint: 'Balance, transactions, payments and refunds.' },
+      { id: 'favorites', label: 'Favorites', icon: '❤️', hint: 'Saved materials and suppliers.' },
+      { id: 'reviews', label: 'Reviews', icon: '⭐', hint: 'Rate suppliers, write and view reviews.' },
+      { id: 'reports', label: 'Reports', icon: '📑', hint: 'Purchase, spending, order and RFQ reports.' },
     ],
   },
   guest: {
     key: 'guest',
     title: 'Guest / Public',
-    subtitle: 'Public marketplace, supplier discovery, price comparison and registration.',
+    subtitle: 'Explore materials, prices and suppliers without registration.',
     page: 'guest-workspace',
     sections: [
-      { id: 'home', label: 'Homepage', icon: '🏠', hint: 'Featured materials, market insights and public entry points.', page: 'guest-workspace' },
-      { id: 'marketplace', label: 'Marketplace', icon: '🛒', hint: 'Browse public products and material categories.', page: 'marketplace' },
-      { id: 'catalogue', label: 'Product Details', icon: '📦', hint: 'Product images, descriptions, specifications, units and public prices.', page: 'search-materials' },
-      { id: 'directory', label: 'Supplier Directory', icon: '🏢', hint: 'Approved supplier businesses, public profiles and service locations.', page: 'supplier-directory' },
-      { id: 'map', label: 'Supplier Map', icon: '📍', hint: 'Interactive map of supplier locations and service coverage.', page: 'supplier-directory' },
-      { id: 'compare', label: 'Price Comparison', icon: '💱', hint: 'Compare public material prices and delivery charges.', page: 'search-materials' },
-      { id: 'insights', label: 'Market Insights', icon: '📈', hint: 'Market price trends, industry information and supply-chain insights.', page: 'analytics' },
-      { id: 'about', label: 'About E-SCON', icon: 'ℹ️', hint: 'Vision, mission, objectives, services and future expansion.', page: 'info' },
-      { id: 'contact', label: 'Contact', icon: '✉️', hint: 'FAQs, user guides, support information and contacts.', page: 'info' },
-      { id: 'register', label: 'Register', icon: '👤', hint: 'Create a customer, supplier or transporter account.', page: 'register' },
-      { id: 'login', label: 'Login', icon: '🔐', hint: 'Log in to a verified account and open role-specific functions.', page: 'login' },
+      { id: 'home', label: 'Homepage', icon: '🏠', hint: 'Featured materials, market trends and supplier highlights.' },
+      { id: 'marketplace', label: 'Marketplace', icon: '🛍️', hint: 'Public products, categories and advertised prices.', page: 'marketplace' },
+      { id: 'catalogue', label: 'Product Details', icon: '📦', hint: 'Product specs, images, units and advertised prices.', page: 'search-materials' },
+      { id: 'directory', label: 'Supplier Directory', icon: '🏢', hint: 'Verified suppliers, profiles and product categories.', page: 'supplier-directory' },
+      { id: 'map', label: 'Supplier Map', icon: '🗺️', hint: 'Verified supplier locations in Addis Ababa and beyond.', page: 'supplier-directory' },
+      { id: 'compare', label: 'Price Comparison', icon: '⚖️', hint: 'Compare published prices, suppliers and distances.', page: 'search-materials' },
+      { id: 'insights', label: 'Market Insights', icon: '📈', hint: 'Historical prices and monthly material price trends.', page: 'analytics' },
+      { id: 'about', label: 'About E-SCON', icon: 'ℹ️', hint: 'Platform description, objectives and how it works.', page: 'info' },
+      { id: 'contact', label: 'Contact', icon: '☎️', hint: 'Contact form, email, telephone and office location.', page: 'info' },
     ],
   },
   transporter: {
@@ -136,25 +115,18 @@ export const MENUS: Record<MenuKey, RoleMenu> = {
     subtitle: 'Delivery requests, fleet, dispatch, routes and earnings.',
     page: 'transporter-dashboard',
     sections: [
-      { id: 'overview', label: 'Transport Dashboard', icon: '📊', hint: 'Delivery requests, active trips, completed trips and earnings.' },
-      { id: 'profile', label: 'Company Profile', icon: '🏢', hint: 'Transport business, service areas and business documents.' },
-      { id: 'vehicles', label: 'Vehicle Management', icon: '🚛', hint: 'Trucks, vehicle types, capacities and maintenance information.' },
-      { id: 'drivers', label: 'Driver Management', icon: '🪪', hint: 'Driver profiles, licences, availability and assignments.' },
-      { id: 'requests', label: 'Delivery Requests', icon: '📥', hint: 'Receive and accept customer or supplier delivery requests.' },
-      { id: 'pricing', label: 'Transport Pricing', icon: '💵', hint: 'Rates by distance, load, vehicle and service conditions.' },
-      { id: 'routes', label: 'Route Management', icon: '🗺️', hint: 'Routes, distances, estimated times and alternative routes.' },
-      { id: 'gps', label: 'GPS Tracking', icon: '📍', hint: 'Share vehicle location and delivery progress with authorised users.' },
-      { id: 'dispatch', label: 'Dispatch Management', icon: '🧭', hint: 'Assign drivers and vehicles, schedule pickup and manage deliveries.' },
-      { id: 'pod', label: 'Proof of Delivery', icon: '✍️', hint: 'Delivery confirmation, photographs, signatures and timestamps.' },
-      { id: 'earnings', label: 'Financial Records', icon: '💰', hint: 'Transport quotations, invoices, earnings and payment status.' },
-      { id: 'analytics', label: 'Performance Analytics', icon: '📈', hint: 'Delivery reliability, vehicle utilisation and operating costs.' },
+      { id: 'overview', label: 'Transport Dashboard', icon: '📊', hint: 'Requests, active and completed trips, earnings.' },
+      { id: 'requests', label: 'Delivery Requests', icon: '📥', hint: 'Receive and accept delivery requests.' },
+      { id: 'vehicles', label: 'Vehicle Management', icon: '🚚', hint: 'Trucks, types, capacities and maintenance.' },
+      { id: 'drivers', label: 'Driver Management', icon: '👤', hint: 'Driver profiles, licences and assignments.' },
+      { id: 'gps', label: 'GPS Tracking', icon: '📍', hint: 'Share vehicle location and delivery progress.' },
+      { id: 'earnings', label: 'Financial Records', icon: '💰', hint: 'Invoices, earnings and payment status.' },
     ],
   },
 };
 
 export const MENU_ORDER: MenuKey[] = ['admin', 'supplier', 'customer', 'guest', 'transporter'];
 
-/** Which main menu a signed-in role belongs to (guests have no account). */
 export const menuForRole = (role: UserRole | null | undefined): MenuKey => {
   if (role === 'admin') return 'admin';
   if (role === 'company') return 'supplier';
@@ -163,10 +135,8 @@ export const menuForRole = (role: UserRole | null | undefined): MenuKey => {
   return 'guest';
 };
 
-/** Sections whose destination is an existing standalone page. */
 export const sectionById = (menu: MenuKey, id: string): MenuSection | undefined =>
   MENUS[menu].sections.find(section => section.id === id);
 
-/** Description shown under a workspace heading, translated where available. */
 export const sectionHint = (menu: MenuKey, id: string): string =>
   sectionById(menu, id)?.hint || '';

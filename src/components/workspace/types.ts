@@ -69,7 +69,7 @@ export interface WorkspaceProps {
 
   onNotify: (message: string, type?: Alert['type']) => void;
   onNavigate: (page: string) => void;
-  onBroadcast: (type: AppNotification['type'], title: string, message: string, role?: UserRole | 'all') => void;
+  onBroadcast: (type: AppNotification['type'], title: string, message: string, role?: UserRole | 'all', meta?: { category?: string; supplierId?: string; supplierName?: string }) => void;
 
   onUpdateOrderStatus: (orderId: string, status: string) => void;
   onUpdateUser: (user: User) => void;

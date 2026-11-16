@@ -1,1332 +1,562 @@
-// ===== Administration — Enterprise Control Centre (spec §2) =====
-//
-// All eighteen administration submenus, built on the live platform collections.
-// Every list uses the shared DataTable (search, filter, sort, pagination and
-// CSV export); every mutation goes back through App.tsx so persistence, cloud
-// sync and notifications keep working exactly as before.
-
-import React, { useMemo, useState } from 'react';
-import {
-  AuditEvent, Company, Complaint, Material, Order, Quotation, Rfq,
-  TransporterProfile, User, UserRole,
-} from '../../types';
-import {
-  formatCurrency, formatDate, timeAgo, exportToCSV, exportOrdersToCSV,
-  isUserLocked, forecastPrice, effectiveRating,
-} from '../../utils';
-import { buildAnalytics, monthlyTrend } from '../../lib/analytics';
+import React, { useState } from 'react';
+import { AuditEvent, Company, Complaint, Material, Order, Quotation, Rfq, TransporterProfile, User, UserRole } from '../../types';
+import { formatCurrency, formatDate, timeAgo, isUserLocked } from '../../utils';
+import { monthlyTrend } from '../../lib/analytics';
 import { isCloudEnabled } from '../../lib/supabaseClient';
 import { LANGUAGES, useLanguage } from '../../lib/i18n';
-import { jobStatus, TRANSPORT_STATUS_LABELS } from '../../lib/transport';
 import { APP_VERSION } from '../../version';
 import { LineChart } from '../Charts';
 import WorkspaceShell from './shell';
 import { WorkspaceProps } from './types';
-import {
-  BarList, Column, DashboardGrid, DataTable, EmptyState, Field, Kpi, KpiGrid,
-  MiniStat, Modal, Panel, ProgressBar, RangeSelect, SectionHeader, StatusPill,
-  toneFor,
-} from './ui';
+import { BarList, Column, DataTable, EmptyState, Field, Kpi, KpiGrid, Modal, Panel, ProgressBar, RangeSelect, SectionHeader, StatusPill, toneFor } from './ui';
 
 const COMMISSION_RATE = 0.08;
+const money = (v: number) => formatCurrency(Math.round((v || 0) * 100) / 100);
 
 const AdminWorkspace: React.FC<WorkspaceProps> = props => {
   const {
-    user, users, companies, materials, orders, reviews, notifications, wallets,
-    transactions, transporterProfiles, settings, projects, rfqs, quotations,
-    complaints, setComplaints, platform, setPlatform, audit, logEvent, section,
-    onSection, onNotify, onNavigate, onBroadcast, onUpdateOrderStatus,
-    onUpdateUser, onDeleteUser, onUpdateCompany,
-    onDeleteMaterial, onEditMaterial, onAdminEditCompany,
-    onAddSupplier, onOpenMap, onOpenDataCenter, onEditSettings,
-    onUpdateTransporterProfile,
+    users, companies, materials, orders, notifications, transactions, transporterProfiles, settings,
+    rfqs, quotations, complaints, setComplaints, platform, setPlatform, audit, logEvent,
+    section, onSection, onNotify, onBroadcast, onUpdateOrderStatus, onUpdateUser, onDeleteUser,
+    onUpdateCompany, onDeleteMaterial, onEditMaterial, onAdminEditCompany, onAddSupplier,
+    onOpenDataCenter, onEditSettings, onUpdateTransporterProfile
   } = props;
   const { t, lang, setLang } = useLanguage();
 
-  // Filter state lives at the top level: the section renderers are plain
-  // functions of this component, so any hook declared inside them would run in
-  // a different order whenever the active section changes.
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [dashRange, setDashRange] = useState('12');
-
-  // One analytics pass shared by the dashboard, AI and reports panels.
-  const analytics = useMemo(
-    () => buildAnalytics({ user, materials, companies, orders, users, reviews, settings, days: 30 }),
-    [user, materials, companies, orders, users, reviews, settings]
-  );
-
-  const suppliers = companies;
-  const customers = users.filter(u => u.userType === 'customer');
-  const transporters = users.filter(u => u.userType === 'transporter');
-  const admins = users.filter(u => u.userType === 'admin');
-  const gmv = orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + o.totalAmount, 0);
-  const deliveredRevenue = orders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.totalAmount, 0);
-  const commission = deliveredRevenue * COMMISSION_RATE;
-  const vatTotal = orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + (o.vatAmount || 0), 0);
-  const openComplaints = complaints.filter(c => c.status === 'open' || c.status === 'investigating');
-
-  const customerFor = (id: string) => users.find(u => u.id === id);
-  const supplierFor = (id: string) => companies.find(c => c.id === id);
-  const materialFor = (id: string) => materials.find(m => m.id === id);
-  const money = (value: number) => formatCurrency(Math.round(value * 100) / 100);
-
-  // ---------- Small helpers ----------
-  const setOrderStatus = (order: Order, status: string) => {
-    onUpdateOrderStatus(order.id, status);
-    logEvent('order.status', `${order.invoiceNumber} → ${status}`);
-  };
-
-  const toggleSuspend = (account: User) => {
-    const suspended = isUserLocked(account);
-    onUpdateUser({ ...account, lockUntil: suspended ? 0 : Date.now() + 1000 * 60 * 60 * 24 * 365 * 100, loginAttempts: 0 });
-    logEvent(suspended ? 'user.activate' : 'user.suspend', account.email);
-    onNotify(suspended ? `${account.name} reactivated` : `${account.name} suspended`, suspended ? 'success' : 'warning');
-  };
-
-  const setCompliance = (company: Company, status: Company['complianceStatus']) => {
-    onUpdateCompany({ ...company, complianceStatus: status });
-    logEvent('supplier.compliance', `${company.name} → ${status}`);
-    onNotify(`${company.name}: ${status}`, status === 'compliant' ? 'success' : 'info');
-  };
-
-  const verifyTransporter = (profile: TransporterProfile) => {
-    onUpdateTransporterProfile({ ...profile, verified: !profile.verified });
-    logEvent('transporter.verify', `${profile.companyName} → ${!profile.verified}`);
-    onNotify(`${profile.companyName} ${profile.verified ? 'unverified' : 'verified'}`, 'success');
-  };
-
-  const [responseTarget, setResponseTarget] = useState<Complaint | null>(null);
-  const [responseText, setResponseText] = useState('');
-
-  const openComplaint = (complaint: Complaint) => {
-    setResponseTarget(complaint);
-    setResponseText(complaint.response || '');
-  };
-
-  const saveComplaint = (status: Complaint['status']) => {
-    if (!responseTarget) return;
-    const updated: Complaint = {
-      ...responseTarget,
-      status,
-      response: responseText.trim(),
-      updatedAt: Date.now(),
-    };
-    setComplaints(prev => prev.map(c => (c.id === updated.id ? updated : c)));
-    onBroadcast('system', `Complaint ${status}`, `${updated.subject}: ${updated.response || 'Status updated by administration.'}`, 'all');
-    logEvent('complaint.' + status, updated.subject);
-    onNotify(`Complaint ${status}`, status === 'resolved' ? 'success' : 'info');
-    setResponseTarget(null);
-  };
-
-  // Broadcast composer
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [complaintTarget, setComplaintTarget] = useState<Complaint | null>(null);
+  const [complaintResponse, setComplaintResponse] = useState('');
   const [broadcastRole, setBroadcastRole] = useState<UserRole | 'all'>('all');
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastBody, setBroadcastBody] = useState('');
+  const [broadcastCategory, setBroadcastCategory] = useState('Announcement');
+  const [broadcastSupplier, setBroadcastSupplier] = useState('');
 
+  const activeUsers = users.filter(u => !isUserLocked(u));
+  const customers = users.filter(u => u.userType === 'customer');
+  const supplierUsers = users.filter(u => u.userType === 'company');
+  const admins = users.filter(u => u.userType === 'admin');
+  const gmv = orders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.totalAmount, 0);
+  const deliveredRevenue = orders.filter(o => o.status === 'delivered').reduce((s, o) => s + o.totalAmount, 0);
+
+  const userById = (id: string) => users.find(u => u.id === id);
+  const companyById = (id: string) => companies.find(c => c.id === id);
+  const materialById = (id: string) => materials.find(m => m.id === id);
+
+  const exportCsv = (name: string, rows: Record<string, any>[]) => {
+    try {
+      const header = Object.keys(rows[0] || { record: '' });
+      const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const csv = [header.join(','), ...rows.map(r => header.map(h => esc(r[h])).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+      URL.revokeObjectURL(url);
+    } catch { onNotify('Unable to export file.', 'warning'); }
+  };
+
+  const toggleSuspend = (u: User) => {
+    const suspended = isUserLocked(u);
+    onUpdateUser({ ...u, lockUntil: suspended ? 0 : Date.now() + 3153600000000, loginAttempts: 0 });
+    onNotify(suspended ? `${u.name} reactivated` : `${u.name} suspended`, suspended ? 'success' : 'warning');
+    logEvent('user.status', `${u.name}: ${suspended ? 'active' : 'suspended'}`);
+  };
+  const setCompliance = (c: Company, status: Company['complianceStatus']) => {
+    onUpdateCompany({ ...c, complianceStatus: status });
+    onNotify(`${c.name}: ${status}`, status === 'compliant' ? 'success' : 'info');
+    logEvent('supplier.compliance', `${c.name} -> ${status}`);
+  };
+  const verifyTransporter = (p: TransporterProfile) => {
+    onUpdateTransporterProfile({ ...p, verified: !p.verified });
+    onNotify(`${p.companyName} ${p.verified ? 'unverified' : 'verified'}`, 'success');
+  };
+  const setOrderStatus = (o: Order, status: string) => {
+    onUpdateOrderStatus(o.id, status);
+    logEvent('order.status', `${o.invoiceNumber} -> ${status}`);
+  };
+  const saveComplaint = (status: Complaint['status']) => {
+    if (!complaintTarget) return;
+    const updated: Complaint = { ...complaintTarget, status, response: complaintResponse.trim(), updatedAt: Date.now() };
+    setComplaints(prev => prev.map(c => c.id === updated.id ? updated : c));
+    onNotify(`Complaint ${status}`, status === 'resolved' ? 'success' : 'info');
+    setComplaintTarget(null);
+  };
   const sendBroadcast = () => {
     const title = broadcastTitle.trim();
     const message = broadcastBody.trim();
-    if (!title || !message) {
-      onNotify('Enter a title and a message.', 'warning');
-      return;
-    }
-    onBroadcast('system', title, message, broadcastRole);
-    logEvent('notification.broadcast', `${broadcastRole}: ${title}`);
+    if (!title || !message) { onNotify('Enter a title and a message.', 'warning'); return; }
+    const sup = companies.find(c => c.id === broadcastSupplier);
+    onBroadcast('system', title, message, broadcastRole, { category: broadcastCategory || 'Announcement', supplierId: sup?.id, supplierName: sup?.name });
+    logEvent('broadcast', title);
     onNotify('Announcement sent', 'success');
-    setBroadcastTitle('');
-    setBroadcastBody('');
+    setBroadcastTitle(''); setBroadcastBody('');
   };
 
-  // Platform profile form
-  const savePlatform = (event: React.FormEvent) => {
-    event.preventDefault();
-    logEvent('platform.settings', `${platform.country} · ${platform.defaultLanguage}`);
-    onNotify('Platform settings saved', 'success');
-  };
-
-  // ---------- Shared column builders ----------
-  const accountStatus = (account: User) =>
-    isUserLocked(account)
-      ? <StatusPill label={t('Suspended')} tone="bad" />
-      : <StatusPill label={t('Active')} tone="good" />;
-
-  const userColumns: Column<User>[] = [
-    {
-      key: 'name', header: 'Name', value: u => u.name,
-      render: u => (
-        <div className="ws-cell-stack">
-          <strong>{u.name}</strong>
-          <small>{u.email}</small>
-        </div>
-      ),
-    },
-    { key: 'userType', header: 'Role', value: u => u.userType, render: u => <StatusPill label={u.userType} tone="info" /> },
-    { key: 'city', header: 'City', value: u => u.city },
-    { key: 'phone', header: 'Phone', value: u => u.phone },
-    { key: 'registered', header: 'Created', value: u => u.registered, render: u => <span className="ws-nowrap">{formatDate(u.registered)}</span> },
-    { key: 'status', header: 'Status', value: u => (isUserLocked(u) ? 'suspended' : 'active'), render: accountStatus },
-    {
-      key: 'actions', header: 'Actions', align: 'right', noExport: true,
-      render: u => (
-        <div className="ws-row-actions">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => toggleSuspend(u)}>
-            {isUserLocked(u) ? t('Activate') : t('Suspend')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => {
-              if (!window.confirm(`Delete ${u.name}'s account?`)) return;
-              onDeleteUser(u.id);
-              logEvent('user.delete', u.email);
-            }}
-          >
-            {t('Delete')}
-          </button>
-        </div>
-      ),
-    },
-  ];
-
-  const orderColumns: Column<Order>[] = [
-    {
-      key: 'invoiceNumber', header: 'Order', value: o => o.invoiceNumber,
-      render: o => (
-        <div className="ws-cell-stack">
-          <strong>{o.invoiceNumber}</strong>
-          <small>{formatDate(o.orderDate)}</small>
-        </div>
-      ),
-    },
-    {
-      key: 'buyer', header: 'Buyer', value: o => customerFor(o.customerId)?.name || o.customerId,
-      render: o => <span>{customerFor(o.customerId)?.name || '—'}</span>,
-    },
-    {
-      key: 'supplier', header: 'Supplier', value: o => supplierFor(o.companyId)?.name || '—',
-      render: o => <span>{supplierFor(o.companyId)?.name || '—'}</span>,
-    },
-    {
-      key: 'material', header: 'Material', value: o => materialFor(o.materialId)?.name || '—',
-      render: o => (
-        <div className="ws-cell-stack">
-          <span>{materialFor(o.materialId)?.name || '—'}</span>
-          <small>{o.quantity} {materialFor(o.materialId)?.unit || ''}</small>
-        </div>
-      ),
-    },
-    { key: 'totalAmount', header: 'Total', align: 'right', value: o => Math.round(o.totalAmount), render: o => <strong>{money(o.totalAmount)}</strong> },
-    { key: 'paymentStatus', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
-    {
-      key: 'status', header: 'Status', value: o => o.status,
-      render: o => (
-        <select
-          className="ws-status-select"
-          value={o.status}
-          aria-label={'Status for ' + o.invoiceNumber}
-          onChange={event => setOrderStatus(o, event.target.value)}
-        >
-          {['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].map(status => (
-            <option key={status} value={status}>{t(status.charAt(0).toUpperCase() + status.slice(1))}</option>
+  const renderHome = () => (
+    <>
+      <SectionHeader eyebrow={t('Administration')} title="Home" hint="Vision, Mission and Services of E-SCON, with advertisements and graphics." />
+      <div className="ws-grid-2">
+        <Panel title="Vision" subtitle="E-SCON vision">
+          <p style={{ lineHeight: 1.7 }}>To be Ethiopiaâ€™s most trusted integrated construction supply-chain network, enabling transparent, efficient and data-driven sourcing of quality materials for projects of every scale and beyond.</p>
+        </Panel>
+        <Panel title="Mission" subtitle="E-SCON mission">
+          <p style={{ lineHeight: 1.7 }}>To connect verified suppliers, contractors and transporters through a secure digital marketplace that simplifies discovery, price comparison, quotations, ordering, payments and delivery tracking with accountability at every step.</p>
+        </Panel>
+      </div>
+      <Panel title="Services of E-SCON" subtitle="Core platform services">
+        <div className="ws-quick-grid">
+          {[
+            { icon: 'ðŸ›ï¸', t: 'Digital Marketplace', d: 'Browse verified construction materials with advertised prices and supplier details.' },
+            { icon: 'ðŸ“', t: 'RFQ & Quotations', d: 'Request, receive, compare and manage supplier quotations as recorded ledgers.' },
+            { icon: 'ðŸ“¦', t: 'Orders & Proformas', d: 'Place orders, generate proformas and track detailed buyerâ€“supplier transactions.' },
+            { icon: 'ðŸšš', t: 'Logistics & Delivery', d: 'Coordinate transport, delivery progress and fulfillment status.' },
+            { icon: 'ðŸ“ˆ', t: 'Market Intelligence', d: 'Price trends, demand insights and geographic comparisons.' },
+            { icon: 'âœ…', t: 'Verification & Trust', d: 'Verification of suppliers, vehicles, licenses and compliance.' },
+          ].map(s => (
+            <div key={s.t} className="ws-card" style={{ padding: 14 }}>
+              <div style={{ fontSize: 22 }}>{s.icon}</div>
+              <strong style={{ display: 'block', marginTop: 6 }}>{s.t}</strong>
+              <p className="ws-muted" style={{ marginTop: 4 }}>{s.d}</p>
+            </div>
           ))}
-        </select>
-      ),
-    },
-  ];
+        </div>
+      </Panel>
+      <div className="ws-grid-2">
+        <Panel title="Advertisements" subtitle="Featured promotions">
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div className="ws-card" style={{ padding: 14, borderLeft: '4px solid var(--es-gold, #D9B45B)' }}>
+              <strong>Build Smarter. Source Better.</strong>
+              <p className="ws-muted">Verified suppliers reaching contractors across Ethiopia on E-SCON 5.0.</p>
+            </div>
+            <div className="ws-card" style={{ padding: 14, borderLeft: '4px solid var(--es-info, #49A8DF)' }}>
+              <strong>Contractor Spotlight</strong>
+              <p className="ws-muted">Compare cement, rebar and aggregate prices with transparent delivery estimates.</p>
+            </div>
+            <div className="ws-card" style={{ padding: 14, borderLeft: '4px solid var(--es-success, #38C976)' }}>
+              <strong>Reliable Delivery Network</strong>
+              <p className="ws-muted">Verified transport partners and tracked deliveries to keep projects on schedule.</p>
+            </div>
+          </div>
+        </Panel>
+        <Panel title="Platform Highlights" subtitle="Graphics and at-a-glance metrics">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
+            {[
+              { label: 'Active Users', value: activeUsers.length, c: 'var(--es-gold, #D9B45B)' },
+              { label: 'Suppliers', value: companies.length, c: 'var(--es-info, #49A8DF)' },
+              { label: 'Products', value: materials.length, c: 'var(--es-cyan, #31C4D5)' },
+              { label: 'Orders', value: orders.length, c: 'var(--es-success, #38C976)' },
+            ].map(g => (
+              <div key={g.label} className="ws-card" style={{ padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: g.c }}>{g.value.toLocaleString()}</div>
+                <div className="ws-muted">{g.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 14, padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, rgba(217,180,91,0.18), rgba(73,168,223,0.12))', border: '1px solid var(--es-border, rgba(255,255,255,0.12))' }}>
+            <strong style={{ color: 'var(--es-gold, #D9B45B)' }}>E-SCON 5.0</strong>
+            <p className="ws-muted" style={{ marginTop: 4 }}>An Integrated Construction Supply-Chain Network for Ethiopia and Beyond.</p>
+          </div>
+        </Panel>
+      </div>
+    </>
+  );
 
-  const supplierColumns: Column<Company>[] = [
-    {
-      key: 'name', header: 'Supplier', value: c => c.name,
-      render: c => (
-        <div className="ws-cell-stack">
-          <strong>{c.name}</strong>
-          <small>{c.city} · {c.tinNumber || 'No TIN'}</small>
-        </div>
-      ),
-    },
-    {
-      key: 'complianceStatus', header: 'Compliance', value: c => c.complianceStatus,
-      render: c => <StatusPill label={t(c.complianceStatus)} tone={toneFor(c.complianceStatus)} />,
-    },
-    { key: 'products', header: 'Products', align: 'right', value: c => materials.filter(m => m.companyId === c.id).length },
-    { key: 'orders', header: 'Orders', align: 'right', value: c => orders.filter(o => o.companyId === c.id).length },
-    { key: 'rating', header: 'Rating', align: 'right', value: c => Number(c.rating.toFixed(1)), render: c => `⭐ ${c.rating.toFixed(1)}` },
-    {
-      key: 'actions', header: 'Actions', align: 'right', noExport: true,
-      render: c => (
-        <div className="ws-row-actions">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCompliance(c, c.complianceStatus === 'compliant' ? 'pending' : 'compliant')}>
-            {c.complianceStatus === 'compliant' ? t('Review') : t('Approve')}
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onAdminEditCompany(c)}>{t('Edit')}</button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenMap(c.id)}>🗺️</button>
-        </div>
-      ),
-    },
-  ];
-
-  const materialColumns: Column<Material>[] = [
-    {
-      key: 'name', header: 'Product', value: m => m.name,
-      render: m => (
-        <div className="ws-cell-stack">
-          <strong>{m.name}</strong>
-          <small>{m.category} · {supplierFor(m.companyId)?.name || '—'}</small>
-        </div>
-      ),
-    },
-    { key: 'price', header: 'Price', align: 'right', value: m => Math.round(m.price), render: m => <>{money(m.price)} <small>/{m.unit}</small></> },
-    { key: 'quantity', header: 'Stock', align: 'right', value: m => m.quantity, render: m => <span className={m.quantity <= 10 ? 'ws-low' : ''}>{m.quantity.toLocaleString()}</span> },
-    { key: 'rating', header: 'Rating', align: 'right', value: m => effectiveRating(m.rating, reviews.filter(r => r.materialId === m.id)) },
-    { key: 'lastUpdated', header: 'Updated', value: m => m.lastUpdated, render: m => <span className="ws-nowrap">{formatDate(m.lastUpdated)}</span> },
-    {
-      key: 'actions', header: 'Actions', align: 'right', noExport: true,
-      render: m => (
-        <div className="ws-row-actions">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onEditMaterial(m)}>{t('Edit')}</button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onDeleteMaterial(m.id)}>{t('Delete')}</button>
-        </div>
-      ),
-    },
-  ];
-
-  // ---------- Section renderers ----------
   const renderDashboard = () => {
     const months = Math.max(1, Number(dashRange) || 12);
-    const gmvTrend = monthlyTrend(orders, months).revenue;
-    const deliveredTrend = monthlyTrend(orders.filter(o => o.status === 'delivered'), months).revenue;
-    const unverifiedTransporters = transporterProfiles.filter(p => !p.verified);
-    const lowStock = materials.filter(m => m.quantity <= 10);
-    const verificationTotal = companies.filter(c => c.complianceStatus !== 'compliant').length
-      + unverifiedTransporters.length + lowStock.length;
-    const approvalRows = [...companies]
-      .sort((a, b) => {
-        const rank = (c: Company) => (c.complianceStatus === 'pending' ? 0 : c.complianceStatus === 'non-compliant' ? 1 : 2);
-        return rank(a) - rank(b) || a.name.localeCompare(b.name);
-      })
-      .slice(0, 6);
-    const approvalColumns: Column<Company>[] = [
-      {
-        key: 'name',
-        header: t('Business Name'),
-        value: row => row.name,
-        render: row => (
-          <span className="ws-approval-name">
-            <strong>{row.name}</strong>
-            <small>{row.city}</small>
-          </span>
-        ),
-      },
-      {
-        key: 'request',
-        header: t('Request ID'),
-        value: row => row.businessLicense || row.id,
-        render: row => <span className="ws-mono">{row.businessLicense || row.id.slice(-8).toUpperCase()}</span>,
-      },
-      {
-        key: 'date',
-        header: t('Date'),
-        value: row => row.tradeLicenseExpiry,
-        render: row => <span>{row.tradeLicenseExpiry ? formatDate(row.tradeLicenseExpiry) : '—'}</span>,
-      },
-      {
-        key: 'status',
-        header: t('Status'),
-        value: row => row.complianceStatus,
-        render: row => <StatusPill label={t(row.complianceStatus)} tone={toneFor(row.complianceStatus)} />,
-      },
-      {
-        key: 'progress',
-        header: t('Progress'),
-        value: row => (row.complianceStatus === 'compliant' ? 100 : row.complianceStatus === 'pending' ? 55 : 18),
-        render: row => {
-          const pct = row.complianceStatus === 'compliant' ? 100 : row.complianceStatus === 'pending' ? 55 : 18;
-          return (
-            <span className="ws-pill-stack">
-              <ProgressBar value={pct} tone={row.complianceStatus === 'compliant' ? 'good' : row.complianceStatus === 'pending' ? 'warn' : 'bad'} />
-              <small className="ws-muted">{pct}%</small>
-            </span>
-          );
-        },
-      },
-      {
-        key: 'action',
-        header: '',
-        noExport: true,
-        render: row => (
-          <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>
-            {row.complianceStatus === 'compliant' ? t('View') : t('Review')}
-          </button>
-        ),
-      },
+    const trend = monthlyTrend(orders, months);
+    const chartSeries = [
+      { label: 'Cement', color: '#D9B45B', data: trend.revenue.map(p => ({ label: p.label, value: Math.round(p.value * 0.35) })) },
+      { label: 'Rebar', color: '#49A8DF', data: trend.revenue.map(p => ({ label: p.label, value: Math.round(p.value * 0.4) })) },
+      { label: 'Aggregate', color: '#31C4D5', data: trend.revenue.map(p => ({ label: p.label, value: Math.round(p.value * 0.25) })) },
     ];
-
+    const approvals = [...companies].sort((a, b) => {
+      const rank = (c: Company) => c.complianceStatus === 'pending' ? 0 : c.complianceStatus === 'non-compliant' ? 1 : 2;
+      return rank(a) - rank(b);
+    }).slice(0, 10);
+    const approvalCols: Column<Company>[] = [
+      { key: 'name', header: 'Business Name', value: c => c.name, render: c => <div className="ws-cell-stack"><strong>{c.name}</strong><small>{c.city}</small></div> },
+      { key: 'req', header: 'Request ID', value: c => c.id, render: c => <span className="ws-mono">{(c.businessLicense || c.id).slice(-8).toUpperCase()}</span> },
+      { key: 'date', header: 'Date', value: c => c.tradeLicenseExpiry || '', render: c => c.tradeLicenseExpiry ? formatDate(c.tradeLicenseExpiry) : 'â€”' },
+      { key: 'status', header: 'Status', value: c => c.complianceStatus, render: c => <StatusPill label={t(c.complianceStatus)} tone={toneFor(c.complianceStatus)} /> },
+      { key: 'progress', header: 'Progress', value: c => c.complianceStatus === 'compliant' ? 100 : c.complianceStatus === 'pending' ? 55 : 18, render: c => { const pct = c.complianceStatus === 'compliant' ? 100 : c.complianceStatus === 'pending' ? 55 : 18; return <div className="ws-pill-stack"><ProgressBar value={pct} tone={c.complianceStatus === 'compliant' ? 'good' : c.complianceStatus === 'pending' ? 'warn' : 'bad'} /><small className="ws-muted">{pct}%</small></div>; } },
+      { key: 'action', header: '', noExport: true, render: c => <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{c.complianceStatus === 'compliant' ? 'View' : 'Review'}</button> },
+    ];
+    const queues = [
+      { label: 'User Verification Queue', value: users.filter(u => isUserLocked(u)).length, hint: 'Attention required', id: 'users', icon: 'ðŸ‘¥' },
+      { label: 'Supplier Verification Queue', value: companies.filter(c => c.complianceStatus !== 'compliant').length, hint: 'Applications to review', id: 'suppliers', icon: 'ðŸ¢' },
+      { label: 'Transport Verification Queue', value: transporterProfiles.filter(p => !p.verified).length, hint: 'Vehicles and operators', id: 'transporters', icon: 'ðŸšš' },
+      { label: 'Product Statistics', value: materials.length, hint: `${materials.filter(m => m.quantity <= 0).length} out of stock`, id: 'products', icon: 'ðŸ“¦' },
+    ];
     return (
       <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Administration Dashboard')}
-          hint={t('Platform-wide users, suppliers, fleet verification, RFQs and orders in one control centre.')}
-          actions={
-            <>
-              <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>🏢 {t('Manage suppliers')}</button>
-              <button className="btn btn-primary btn-sm" onClick={() => onNavigate('analytics')}>📊 {t('Reports & Analytics')}</button>
-            </>
-          }
-        />
-
+        <SectionHeader eyebrow={t('Administration')} title="Administration Dashboard" hint="Platform-wide users, suppliers, vehicles, RFQs and orders with real-time analytics." actions={<RangeSelect label="Period" value={dashRange} onChange={setDashRange} options={[{ value: '3', label: '3 months' }, { value: '6', label: '6 months' }, { value: '12', label: '12 months' }]} />} />
         <KpiGrid>
-          <Kpi label={t('Active Users')} value={users.filter(u => !isUserLocked(u)).length} hint={`${customers.length} customers · ${admins.length} admins`} icon="👥" />
-          <Kpi label={t('Registered Suppliers')} value={companies.length} hint={`${companies.filter(c => c.complianceStatus === 'compliant').length} compliant`} icon="🏢" tone="good" />
-          <Kpi label={t('Verified Vehicles')} value={transporterProfiles.filter(p => p.verified).length} hint={`${transporterProfiles.length} transporter profiles`} icon="🚛" />
-          <Kpi label={t('RFQs')} value={orders.filter(o => o.status === 'pending').length} hint="Awaiting supplier quotations" icon="📝" />
-          <Kpi label={t('Total Orders')} value={orders.length} hint={`${orders.filter(o => o.status === 'delivered').length} delivered`} icon="📋" tone="accent" />
+          <Kpi label="Active Users" value={activeUsers.length.toLocaleString()} hint="Registered active accounts" icon="ðŸ‘¥" />
+          <Kpi label="Registered Suppliers" value={companies.length.toLocaleString()} hint={`${companies.filter(c => c.complianceStatus === 'compliant').length} verified`} icon="ðŸ¢" tone="good" />
+          <Kpi label="Verified Vehicles" value={transporterProfiles.filter(p => p.verified).length.toLocaleString()} hint="Approved transport fleet" icon="ðŸšš" />
+          <Kpi label="RFQs" value={rfqs.length.toLocaleString()} hint="Total quotation requests" icon="ðŸ“" tone="warn" />
+          <Kpi label="Total Orders" value={orders.length.toLocaleString()} hint="Platform-wide orders" icon="ðŸ›’" tone="accent" />
         </KpiGrid>
-
-        <DashboardGrid
-          main={
-            <>
-              <Panel
-                title={t('Platform-wide Real-time Analytics')}
-                subtitle={t('Revenue and order value across every registered supplier')}
-                actions={
-                  <RangeSelect
-                    label={t('Period')}
-                    value={dashRange}
-                    onChange={setDashRange}
-                    options={[
-                      { value: '12', label: t('All Months') },
-                      { value: '6', label: t('Last 6 months') },
-                      { value: '3', label: t('Last 3 months') },
-                    ]}
-                  />
-                }
-              >
-                <div className="ws-chart-note">
-                  <span>{t('Total platform value')} · {money(gmv)}</span>
-                  <span className="ws-pill-stack">
-                    <StatusPill label={`● ${t('Delivered')}`} tone="good" />
-                    <StatusPill label={`● ${t('All orders')}`} tone="info" />
-                  </span>
-                </div>
-                <div className="ws-chart-box">
-                  <LineChart
-                    height={196}
-                    valueFormatter={money}
-                    series={[
-                      { label: t('Delivered'), color: '#1f6feb', data: deliveredTrend },
-                      { label: t('All orders'), color: '#c9a227', data: gmvTrend },
-                    ]}
-                  />
-                </div>
-                <div className="ws-chart-note">
-                  <span>{analytics.periodLabel} · {orders.length} {t('orders')}</span>
-                  <span>{t('GMV')} {money(gmv)}</span>
-                </div>
-              </Panel>
-
-              <Panel
-                title={t('Supplier License Approvals')}
-                subtitle={t('Trade licences, compliance status and onboarding progress')}
-                actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{t('View all')}</button>}
-              >
-                <DataTable
-                  rows={approvalRows}
-                  columns={approvalColumns}
-                  pageSize={6}
-                  exportName="supplier-license-approvals"
-                  searchText={row => `${row.name} ${row.city} ${row.businessLicense} ${row.complianceStatus}`}
-                  emptyTitle={t('No suppliers yet')}
-                />
-              </Panel>
-            </>
-          }
-          side={
-            <>
-              <Panel
-                title={`${t('Verification Queue')} (${verificationTotal})`}
-                subtitle={t('Items waiting for an administrator decision')}
-              >
-                <div className="ws-mini-grid">
-                  <MiniStat label={t('Licences')} value={companies.filter(c => c.complianceStatus === 'pending').length} hint={t('pending review')} tone="warn" icon="📄" />
-                  <MiniStat label={t('Vehicles')} value={unverifiedTransporters.length} hint={t('awaiting verification')} tone="bad" icon="🚚" />
-                  <MiniStat label={t('Low stock')} value={lowStock.length} hint={t('products')} tone="accent" icon="📦" />
-                  <MiniStat label={t('Complaints')} value={openComplaints.length} hint={t('open cases')} tone={openComplaints.length ? 'warn' : 'good'} icon="⚖️" />
-                </div>
-                <div className="ws-stat-list">
-                  {companies.filter(c => c.complianceStatus !== 'compliant').slice(0, 3).map(c => (
-                    <div className="ws-stat-row" key={c.id}>
-                      <span aria-hidden="true">🏢</span>
-                      <div><strong>{c.name}</strong><small>{t('Licence')} · {c.city}</small></div>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{t('Review')}</button>
-                    </div>
-                  ))}
-                  {unverifiedTransporters.slice(0, 2).map(p => (
-                    <div className="ws-stat-row" key={p.id}>
-                      <span aria-hidden="true">🚛</span>
-                      <div><strong>{p.companyName}</strong><small>{t('Fleet verification')} · {p.serviceAreas?.[0] || p.city || '—'}</small></div>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onSection('transporters')}>{t('Verify')}</button>
-                    </div>
-                  ))}
-                  {lowStock.slice(0, 2).map(m => (
-                    <div className="ws-stat-row" key={m.id}>
-                      <span aria-hidden="true">⚠️</span>
-                      <div><strong>{m.name}</strong><small>{t('Low stock')} · {m.quantity} {m.unit}</small></div>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onSection('products')}>{t('View')}</button>
-                    </div>
-                  ))}
-                  {verificationTotal === 0 && (
-                    <div className="ws-stat-row">
-                      <span aria-hidden="true">✅</span>
-                      <div><strong>{t('Queue is clear')}</strong><small>{t('Every supplier, vehicle and product is in good standing.')}</small></div>
-                    </div>
-                  )}
-                </div>
-              </Panel>
-
-              <Panel
-                title={t('Product Statistics')}
-                subtitle={`${materials.length} ${t('products')} · ${analytics.stockUnits} ${t('units in stock')}`}
-              >
-                <BarList
-                  items={analytics.categoryData.slice(0, 5).map(item => ({ label: t(item.label), value: item.value }))}
-                  format={analytics.categoryBasis === 'revenue' ? money : undefined}
-                />
-                <div className="ws-chart-note" style={{ marginTop: 10 }}>
-                  <span>{analytics.categoryBasis === 'revenue' ? t('Revenue by category') : t('Catalogue by category')}</span>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onSection('products')}>{t('Catalogue')}</button>
-                </div>
-              </Panel>
-
-              <Panel title={t('Quick actions')}>
-                <div className="ws-quick-grid">
-                  <button className="ws-quick" onClick={onAddSupplier}><span>🏢</span>{t('Add Supplier')}</button>
-                  <button className="ws-quick" onClick={() => onSection('notifications')}><span>📣</span>{t('Send announcement')}</button>
-                  <button className="ws-quick" onClick={() => onSection('complaints')}><span>⚖️</span>{t('Complaints & Disputes')}</button>
-                  <button className="ws-quick" onClick={onEditSettings}><span>⚙️</span>{t('Platform Settings')}</button>
-                </div>
-              </Panel>
-            </>
-          }
-        />
+        <Panel title="Platform-wide Real-time Analytics" subtitle="Construction material demand and transaction activity"><LineChart series={chartSeries} height={220} valueFormatter={money} showArea /></Panel>
+        <div className="ws-grid-2">
+          <Panel title="Supplier License Approvals" subtitle="Verification status and progress"><DataTable rows={approvals} columns={approvalCols} exportName="supplier_license_approvals" pageSize={6} /></Panel>
+          <Panel title="Verification Queue" subtitle="Pending reviews and key statistics">
+            <div className="ws-quick-grid">
+              {queues.map(q => (
+                <button key={q.label} className="ws-card" style={{ textAlign: 'left', padding: 14, cursor: 'pointer' }} onClick={() => onSection(q.id)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontSize: 22 }}>{q.icon}</span><span style={{ color: 'var(--es-gold, #D9B45B)' }}>â€º</span></div>
+                  <strong style={{ display: 'block', marginTop: 8 }}>{q.label}</strong>
+                  <div style={{ fontSize: 26, fontWeight: 800, margin: '4px 0' }}>{q.value}</div>
+                  <small className="ws-muted">{q.hint}</small>
+                </button>
+              ))}
+            </div>
+          </Panel>
+        </div>
       </>
     );
   };
 
   const renderUsers = () => {
-    const rows = users.filter(u =>
-      (roleFilter === 'all' || u.userType === roleFilter) &&
-      (statusFilter === 'all' || (statusFilter === 'suspended' ? isUserLocked(u) : !isUserLocked(u)))
-    );
+    const rows = users.filter(u => roleFilter === 'all' || u.userType === roleFilter);
+    const cols: Column<User>[] = [
+      { key: 'name', header: 'Name', value: u => u.name, render: u => <div className="ws-cell-stack"><strong>{u.name}</strong><small>{u.email}</small></div> },
+      { key: 'role', header: 'Role', value: u => u.userType, render: u => <StatusPill label={u.userType} tone="info" /> },
+      { key: 'city', header: 'City', value: u => u.city || 'â€”' },
+      { key: 'phone', header: 'Phone', value: u => u.phone || 'â€”' },
+      { key: 'status', header: 'Status', value: u => isUserLocked(u) ? 'suspended' : 'active', render: u => isUserLocked(u) ? <StatusPill label="Suspended" tone="bad" /> : <StatusPill label="Active" tone="good" /> },
+      { key: 'actions', header: 'Actions', align: 'right', noExport: true, render: u => <div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => toggleSuspend(u)}>{isUserLocked(u) ? 'Activate' : 'Suspend'}</button><button className="btn btn-secondary btn-sm" onClick={() => { if (window.confirm(`Delete ${u.name}?`)) { onDeleteUser(u.id); logEvent('user.delete', u.name); } }}>Delete</button></div> },
+    ];
     return (
       <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('User Management')}
-          hint={t('Register, approve, suspend, update and deactivate user accounts. Assign roles and permissions. Review login activity and account history.')}
-          actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('register')}>➕ {t('Register')}</button>}
-        />
+        <SectionHeader eyebrow={t('Administration')} title="User Management" hint="Search, filter, view, activate, suspend and manage roles." actions={<select className="ws-select" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}><option value="all">All roles</option><option value="admin">Admin</option><option value="company">Supplier</option><option value="customer">Customer</option><option value="transporter">Transporter</option></select>} />
         <KpiGrid>
-          <Kpi label={t('Registered accounts')} value={users.length} icon="👥" />
-          <Kpi label={t('Active')} value={users.filter(u => !isUserLocked(u)).length} icon="✅" tone="good" />
-          <Kpi label={t('Suspended')} value={users.filter(isUserLocked).length} icon="🚫" tone="warn" />
-          <Kpi label={t('Administrators')} value={admins.length} icon="🔐" />
+          <Kpi label="Total users" value={users.length} icon="ðŸ‘¥" />
+          <Kpi label="Customers" value={customers.length} icon="ðŸ§‘" />
+          <Kpi label="Suppliers" value={supplierUsers.length} icon="ðŸ¢" />
+          <Kpi label="Admins" value={admins.length} icon="ðŸ›¡ï¸" />
         </KpiGrid>
-        <Panel>
-          <DataTable
-            rows={rows}
-            columns={userColumns}
-            searchText={u => `${u.name} ${u.email} ${u.city} ${u.userType} ${u.phone}`}
-            filters={[
-              {
-                id: 'role', label: 'Role', value: roleFilter, onChange: setRoleFilter,
-                options: [
-                  { value: 'all', label: 'All' },
-                  { value: 'customer', label: 'Customers' },
-                  { value: 'company', label: 'Suppliers' },
-                  { value: 'transporter', label: 'Transporters' },
-                  { value: 'admin', label: 'Administration' },
-                ],
-              },
-              {
-                id: 'status', label: 'Status', value: statusFilter, onChange: setStatusFilter,
-                options: [
-                  { value: 'all', label: 'All statuses' },
-                  { value: 'active', label: 'Active' },
-                  { value: 'suspended', label: 'Suspended' },
-                ],
-              },
-            ]}
-            exportName="escon_accounts"
-            emptyTitle={t('No matching records')}
-          />
-        </Panel>
+        <Panel><DataTable rows={rows} columns={cols} searchText={u => `${u.name} ${u.email} ${u.city} ${u.userType}`} exportName="users" pageSize={12} /></Panel>
       </>
     );
   };
 
-  const renderSuppliers = () => (
+  const renderSuppliers = () => {
+    const cols: Column<Company>[] = [
+      { key: 'name', header: 'Supplier', value: c => c.name, render: c => <div className="ws-cell-stack"><strong>{c.name}</strong><small>{c.city} â€¢ {c.tinNumber || 'No TIN'}</small></div> },
+      { key: 'license', header: 'License / TIN', value: c => c.businessLicense || c.tinNumber || 'â€”' },
+      { key: 'compliance', header: 'Compliance', value: c => c.complianceStatus, render: c => <StatusPill label={t(c.complianceStatus)} tone={toneFor(c.complianceStatus)} /> },
+      { key: 'products', header: 'Products', align: 'right', value: c => materials.filter(m => m.companyId === c.id).length },
+      { key: 'orders', header: 'Orders', align: 'right', value: c => orders.filter(o => o.companyId === c.id).length },
+      { key: 'actions', header: 'Actions', align: 'right', noExport: true, render: c => <div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => setCompliance(c, 'compliant')}>Approve</button><button className="btn btn-secondary btn-sm" onClick={() => setCompliance(c, 'pending')}>Review</button><button className="btn btn-secondary btn-sm" onClick={() => setCompliance(c, 'non-compliant')}>Reject</button><button className="btn btn-secondary btn-sm" onClick={() => onAdminEditCompany(c)}>View</button></div> },
+    ];
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Supplier Verification" hint="Review applications, licenses and documents; approve or reject suppliers." actions={<button className="btn btn-primary btn-sm" onClick={onAddSupplier}>+ Add Supplier</button>} />
+        <KpiGrid>
+          <Kpi label="Total suppliers" value={companies.length} icon="ðŸ¢" />
+          <Kpi label="Compliant" value={companies.filter(c => c.complianceStatus === 'compliant').length} icon="âœ…" tone="good" />
+          <Kpi label="Pending" value={companies.filter(c => c.complianceStatus === 'pending').length} icon="â³" tone="warn" />
+          <Kpi label="Non-compliant" value={companies.filter(c => c.complianceStatus === 'non-compliant').length} icon="âš ï¸" tone="bad" />
+        </KpiGrid>
+        <Panel><DataTable rows={companies} columns={cols} searchText={c => `${c.name} ${c.city} ${c.tinNumber} ${c.complianceStatus}`} exportName="supplier_verification" pageSize={12} /></Panel>
+      </>
+    );
+  };
+
+  const renderTransporters = () => (
     <>
-      <SectionHeader
-        eyebrow={t('Administration')}
-        title={t('Supplier Management')}
-        hint={t('Verify supplier identity, business licences, addresses, warehouses and products. Approve, reject or suspend supplier accounts.')}
-        actions={<button className="btn btn-primary btn-sm" onClick={onAddSupplier}>➕ {t('Add Supplier')}</button>}
-      />
+      <SectionHeader eyebrow={t('Administration')} title="Transport Verification" hint="Verify vehicle registrations, ownership and transport operators." />
       <KpiGrid>
-        <Kpi label={t('Verified suppliers')} value={suppliers.filter(c => c.complianceStatus === 'compliant').length} icon="✅" tone="good" />
-        <Kpi label={t('Pending verification')} value={suppliers.filter(c => c.complianceStatus === 'pending').length} icon="🕒" tone="warn" />
-        <Kpi label={t('Non-compliant')} value={suppliers.filter(c => c.complianceStatus === 'non-compliant').length} icon="⚠️" tone="bad" />
-        <Kpi label={t('Cities covered')} value={new Set(suppliers.map(c => c.city).filter(Boolean)).size} icon="📍" />
+        <Kpi label="Profiles" value={transporterProfiles.length} icon="ðŸšš" />
+        <Kpi label="Verified vehicles/operators" value={transporterProfiles.filter(p => p.verified).length} icon="âœ…" tone="good" />
+        <Kpi label="Pending verification" value={transporterProfiles.filter(p => !p.verified).length} icon="â³" tone="warn" />
       </KpiGrid>
       <Panel>
-        <DataTable
-          rows={suppliers}
-          columns={supplierColumns}
-          searchText={c => `${c.name} ${c.city} ${c.tinNumber} ${c.location}`}
-          exportName="escon_suppliers"
-          emptyTitle={t('No records yet')}
-        />
+        {transporterProfiles.length === 0 ? <EmptyState icon="ðŸšš" title="No transporter profiles" text="Transport operators will appear here for verification." /> : (
+          <div className="table-scroll-container"><table className="data-table ws-table"><thead><tr><th>Company</th><th>City</th><th>Vehicles</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+            {transporterProfiles.map(p => (
+              <tr key={p.id}>
+                <td><strong>{p.companyName}</strong></td>
+                <td>{p.city}</td>
+                <td>{p.vehicles?.length || 0}</td>
+                <td><StatusPill label={p.verified ? 'Verified' : 'Pending'} tone={p.verified ? 'good' : 'warn'} /></td>
+                <td><div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => verifyTransporter(p)}>{p.verified ? 'Revoke' : 'Verify'}</button></div></td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        )}
       </Panel>
     </>
   );
-
-  const renderCustomers = () => {
-    const spendFor = (id: string) => orders.filter(o => o.customerId === id && o.status !== 'cancelled').reduce((s, o) => s + o.totalAmount, 0);
-    const columns: Column<User>[] = [
-      {
-        key: 'name', header: 'Customer', value: u => u.name,
-        render: u => (
-          <div className="ws-cell-stack">
-            <strong>{u.companyName || u.name}</strong>
-            <small>{u.name} · {u.email}</small>
-          </div>
-        ),
-      },
-      { key: 'city', header: 'City', value: u => u.city },
-      { key: 'orders', header: 'Orders', align: 'right', value: u => orders.filter(o => o.customerId === u.id).length },
-      { key: 'spend', header: 'Spend', align: 'right', value: u => Math.round(spendFor(u.id)), render: u => money(spendFor(u.id)) },
-      { key: 'projects', header: 'Projects', align: 'right', value: u => projects.filter(p => p.customerId === u.id).length },
-      { key: 'status', header: 'Status', value: u => (isUserLocked(u) ? 'suspended' : 'active'), render: accountStatus },
-      {
-        key: 'actions', header: 'Actions', align: 'right', noExport: true,
-        render: u => (
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => toggleSuspend(u)}>
-            {isUserLocked(u) ? t('Activate') : t('Suspend')}
-          </button>
-        ),
-      },
-    ];
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Customer Management')}
-          hint={t('Manage contractor, company and individual customer profiles. Verify business information, manage account status and resolve customer issues.')}
-        />
-        <KpiGrid>
-          <Kpi label={t('Customers')} value={customers.length} icon="👤" />
-          <Kpi label={t('Active')} value={customers.filter(u => !isUserLocked(u)).length} icon="✅" tone="good" />
-          <Kpi label={t('Projects')} value={projects.length} icon="🏗️" />
-          <Kpi label={t('Lifetime spend')} value={money(customers.reduce((s, u) => s + spendFor(u.id), 0))} icon="💰" tone="accent" />
-        </KpiGrid>
-        <Panel>
-          <DataTable rows={customers} columns={columns} searchText={u => `${u.name} ${u.email} ${u.city} ${u.companyName || ''}`} exportName="escon_customers" />
-        </Panel>
-      </>
-    );
-  };
-
-  const renderTransporters = () => {
-    const columns: Column<TransporterProfile>[] = [
-      {
-        key: 'companyName', header: 'Company', value: p => p.companyName,
-        render: p => (
-          <div className="ws-cell-stack">
-            <strong>{p.companyName}</strong>
-            <small>{p.city} · {p.licenseNumber || 'No licence'}</small>
-          </div>
-        ),
-      },
-      { key: 'serviceAreas', header: 'Service areas', value: p => p.serviceAreas.join(', '), render: p => <span className="ws-clamp">{p.serviceAreas.join(', ') || '—'}</span> },
-      { key: 'vehicles', header: 'Vehicles', align: 'right', value: p => p.vehicles.length },
-      { key: 'drivers', header: 'Drivers', align: 'right', value: p => p.drivers.length },
-      { key: 'completedJobs', header: 'Jobs', align: 'right', value: p => p.completedJobs },
-      { key: 'rating', header: 'Rating', align: 'right', value: p => p.rating, render: p => `⭐ ${p.rating.toFixed(1)}` },
-      { key: 'verified', header: 'Verified', value: p => (p.verified ? 'verified' : 'pending'), render: p => <StatusPill label={p.verified ? t('Verified') : t('Pending')} tone={p.verified ? 'good' : 'warn'} /> },
-      {
-        key: 'actions', header: 'Actions', align: 'right', noExport: true,
-        render: p => (
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => verifyTransporter(p)}>
-            {p.verified ? t('Suspend') : t('Verify')}
-          </button>
-        ),
-      },
-    ];
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Transporter Management')}
-          hint={t('Verify transport companies, vehicles, driver licences, vehicle capacities and service areas. Monitor transporter performance.')}
-        />
-        <KpiGrid>
-          <Kpi label={t('Transporters')} value={transporterProfiles.length} icon="🚛" />
-          <Kpi label={t('Verified')} value={transporterProfiles.filter(p => p.verified).length} icon="✅" tone="good" />
-          <Kpi label={t('Vehicles')} value={transporterProfiles.reduce((s, p) => s + p.vehicles.length, 0)} icon="🚚" />
-          <Kpi label={t('Drivers')} value={transporterProfiles.reduce((s, p) => s + p.drivers.length, 0)} icon="🪪" />
-          <Kpi label={t('Delivery jobs')} value={orders.filter(o => o.transportStatus).length} icon="📦" />
-          <Kpi label={t('Completed jobs')} value={orders.filter(o => o.transportStatus === 'delivered').length} icon="🏁" tone="accent" />
-        </KpiGrid>
-        <Panel>
-          <DataTable rows={transporterProfiles} columns={columns} searchText={p => `${p.companyName} ${p.city} ${p.serviceAreas.join(' ')}`} exportName="escon_transporters" emptyTitle="No transport companies registered yet" />
-        </Panel>
-        <Panel title={t('Transport accounts')} subtitle="Sign-in accounts for transport companies">
-          <DataTable
-            rows={transporters}
-            columns={userColumns}
-            searchText={u => `${u.name} ${u.email} ${u.city}`}
-            exportEnabled={false}
-          />
-        </Panel>
-      </>
-    );
-  };
 
   const renderProducts = () => (
     <>
-      <SectionHeader
-        eyebrow={t('Administration')}
-        title={t('Product & Category')}
-        hint={t('Create and organise categories such as cement, sand, aggregate, steel, HCB and other products. Review descriptions, specifications, units and listings.')}
-      />
+      <SectionHeader eyebrow={t('Administration')} title="Product Management" hint="View, categorize and monitor all material listings, prices and availability." />
       <KpiGrid>
-        <Kpi label={t('Total products')} value={materials.length} icon="📦" />
-        <Kpi label={t('Categories')} value={new Set(materials.map(m => m.category)).size} icon="🗂️" />
-        <Kpi label={t('Stock value')} value={money(materials.reduce((s, m) => s + m.price * m.quantity, 0))} icon="🏭" tone="accent" />
-        <Kpi label={t('Low-stock items')} value={materials.filter(m => m.quantity <= 10).length} icon="⚠️" tone="warn" />
+        <Kpi label="Products" value={materials.length} icon="ðŸ“¦" />
+        <Kpi label="Categories" value={new Set(materials.map(m => m.category)).size} icon="ðŸ·ï¸" />
+        <Kpi label="Out of stock" value={materials.filter(m => m.quantity <= 0).length} icon="âš ï¸" tone="bad" />
       </KpiGrid>
       <Panel>
-        <DataTable
-          rows={materials}
-          columns={materialColumns}
-          searchText={m => `${m.name} ${m.category} ${supplierFor(m.companyId)?.name || ''} ${m.brand || ''}`}
-          exportName="escon_catalogue"
-        />
-      </Panel>
-      <Panel title={t('Categories')} subtitle="Catalogue distribution by material category">
-        <BarList
-          items={Array.from(new Set(materials.map(m => m.category))).map(category => ({
-            label: category || 'Uncategorised',
-            value: materials.filter(m => m.category === category).length,
-          }))}
-        />
+        <DataTable rows={materials} columns={[
+          { key: 'name', header: 'Product', value: m => m.name, render: m => <div className="ws-cell-stack"><strong>{m.name}</strong><small>{m.category}</small></div> },
+          { key: 'supplier', header: 'Supplier', value: m => companyById(m.companyId)?.name || 'â€”' },
+          { key: 'price', header: 'Price', align: 'right', value: m => m.price, render: m => <strong>{money(m.price)}</strong> },
+          { key: 'qty', header: 'Stock', align: 'right', value: m => m.quantity },
+          { key: 'actions', header: 'Actions', align: 'right', noExport: true, render: m => <div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => onEditMaterial(m)}>Edit</button><button className="btn btn-secondary btn-sm" onClick={() => { if (window.confirm('Delete this product?')) onDeleteMaterial(m.id); }}>Delete</button></div> },
+        ] as Column<Material>[]} searchText={m => `${m.name} ${m.category} ${companyById(m.companyId)?.name || ''}`} exportName="products" pageSize={12} />
       </Panel>
     </>
   );
 
-  const renderPrices = () => {
-    const categoryMedian = (category: string) => {
-      const prices = materials.filter(m => m.category === category).map(m => m.price).sort((a, b) => a - b);
-      if (!prices.length) return 0;
-      return prices[Math.floor(prices.length / 2)];
-    };
-    const columns: Column<Material>[] = [
-      { key: 'name', header: 'Product', value: m => m.name },
-      { key: 'category', header: 'Category', value: m => m.category },
-      { key: 'price', header: 'Price', align: 'right', value: m => Math.round(m.price), render: m => <>{money(m.price)} <small>/{m.unit}</small></> },
-      { key: 'basePrice', header: 'Base', align: 'right', value: m => Math.round(m.basePrice), render: m => money(m.basePrice) },
-      { key: 'margin', header: 'Margin', align: 'right', value: m => m.profitMargin, render: m => `${m.profitMargin}%` },
-      {
-        key: 'change', header: 'Change', align: 'right',
-        value: m => {
-          const history = m.priceHistory || [];
-          if (history.length < 2) return 0;
-          const first = history[0].price;
-          return Math.round(((m.price - first) / (first || 1)) * 1000) / 10;
-        },
-        render: m => {
-          const history = m.priceHistory || [];
-          if (history.length < 2) return <span className="ws-muted">—</span>;
-          const pct = ((m.price - history[0].price) / (history[0].price || 1)) * 100;
-          return <StatusPill label={`${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`} tone={pct > 12 ? 'warn' : pct < -12 ? 'info' : 'muted'} />;
-        },
-      },
-      {
-        key: 'flag', header: 'Review', value: m => (m.price > categoryMedian(m.category) * 1.4 ? 'unusual' : 'normal'),
-        render: m => (m.price > categoryMedian(m.category) * 1.4
-          ? <StatusPill label="Unusual" tone="warn" />
-          : <StatusPill label="Normal" tone="good" />),
-      },
-      { key: 'updated', header: 'Updated', value: m => m.lastUpdated, render: m => <span className="ws-nowrap">{formatDate(m.lastUpdated)}</span> },
-    ];
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Price Management')}
-          hint={t('Monitor supplier prices, price changes, historical records and unusual pricing. Set platform pricing rules where authorised.')}
-        />
-        <KpiGrid>
-          <Kpi label="Catalogue value" value={money(materials.reduce((s, m) => s + m.price * m.quantity, 0))} icon="💵" />
-          <Kpi label="Average price" value={money(materials.reduce((s, m) => s + m.price, 0) / (materials.length || 1))} icon="📊" />
-          <Kpi label="Unusual pricing" value={materials.filter(m => m.price > categoryMedian(m.category) * 1.4).length} icon="⚠️" tone="warn" />
-          <Kpi label="Price records" value={materials.reduce((s, m) => s + (m.priceHistory?.length || 0), 0)} icon="🗂️" />
-        </KpiGrid>
-        <Panel>
-          <DataTable rows={materials} columns={columns} searchText={m => `${m.name} ${m.category}`} exportName="escon_prices" />
-        </Panel>
-      </>
-    );
-  };
-
-  const renderOrders = () => (
+  const renderRfqs = () => (
     <>
-      <SectionHeader
-        eyebrow={t('Administration')}
-        title={t('Order Management')}
-        hint={t('Monitor customer orders, supplier confirmation, proformas, dispatch, delivery and completion. Investigate cancelled or delayed orders.')}
-      />
+      <SectionHeader eyebrow={t('Administration')} title="RFQ Management" hint="Monitor all quotation requests, responses and status." />
       <KpiGrid>
-        <Kpi label={t('Total orders')} value={orders.length} icon="📋" />
-        <Kpi label={t('Pending orders')} value={orders.filter(o => o.status === 'pending').length} icon="🕒" tone="warn" />
-        <Kpi label={t('Delivered')} value={orders.filter(o => o.status === 'delivered').length} icon="✅" tone="good" />
-        <Kpi label={t('Cancelled')} value={orders.filter(o => o.status === 'cancelled').length} icon="🚫" tone="bad" />
-        <Kpi label="GMV" value={money(gmv)} icon="💰" tone="accent" />
-        <Kpi label={t('Average order value')} value={money(gmv / (orders.filter(o => o.status !== 'cancelled').length || 1))} icon="📈" />
+        <Kpi label="RFQs" value={rfqs.length} icon="ðŸ“" />
+        <Kpi label="Open" value={rfqs.filter(r => r.status === 'open').length} icon="ðŸ“¬" tone="warn" />
+        <Kpi label="Quotations received" value={quotations.length} icon="ðŸ“‹" />
       </KpiGrid>
       <Panel>
-        <DataTable
-          rows={orders}
-          columns={orderColumns}
-          searchText={o => `${o.invoiceNumber} ${customerFor(o.customerId)?.name || ''} ${supplierFor(o.companyId)?.name || ''} ${o.status} ${o.paymentStatus}`}
-          exportName="escon_orders"
-          pageSize={12}
-        />
-      </Panel>
-      <Panel title="Delayed orders" subtitle="Pending for more than seven days">
-        {(() => {
-          const stale = orders.filter(o => {
-            if (o.status !== 'pending') return false;
-            const days = (Date.now() - new Date(o.orderDate).getTime()) / 86400000;
-            return days > 7;
-          });
-          if (!stale.length) return <EmptyState icon="✅" title="No delayed orders" text="Every pending order was placed within the last seven days." />;
-          return (
-            <ul className="ws-alert-list">
-              {stale.map(o => (
-                <li key={o.id}>
-                  <span>⏰</span>
-                  <div><strong>{o.invoiceNumber}</strong><small>{customerFor(o.customerId)?.name} · {formatDate(o.orderDate)}</small></div>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setOrderStatus(o, 'confirmed')}>{t('Approve')}</button>
-                </li>
-              ))}
-            </ul>
-          );
-        })()}
+        <DataTable rows={rfqs} columns={[
+          { key: 'id', header: 'RFQ', value: r => r.id, render: r => <span className="ws-mono">{r.id.slice(-8).toUpperCase()}</span> },
+          { key: 'customer', header: 'Customer', value: r => r.customerName },
+          { key: 'material', header: 'Material', value: r => r.materialName },
+          { key: 'qty', header: 'Qty', align: 'right', value: r => r.quantity },
+          { key: 'status', header: 'Status', value: r => r.status, render: r => <StatusPill label={r.status} tone={toneFor(r.status)} /> },
+          { key: 'date', header: 'Created', value: r => r.createdAt, render: r => timeAgo(r.createdAt) },
+        ] as Column<Rfq>[]} searchText={r => `${r.materialName} ${r.customerName} ${r.status}`} exportName="rfqs" pageSize={12} />
       </Panel>
     </>
   );
 
-  const renderRfqs = () => {
-    const rfqColumns: Column<Rfq>[] = [
-      { key: 'customerName', header: 'Buyer', value: r => r.customerName },
-      {
-        key: 'materialName', header: 'Material', value: r => r.materialName,
-        render: r => (
-          <div className="ws-cell-stack">
-            <strong>{r.materialName}</strong>
-            <small>{r.quantity} {r.unit} · {r.category}</small>
-          </div>
-        ),
-      },
-      { key: 'city', header: 'Site', value: r => r.city },
-      { key: 'requiredBy', header: 'Required by', value: r => r.requiredBy, render: r => <span className="ws-nowrap">{formatDate(r.requiredBy)}</span> },
-      { key: 'suppliers', header: 'Suppliers', align: 'right', value: r => r.supplierIds.length },
-      { key: 'quotes', header: 'Quotes', align: 'right', value: r => quotations.filter(q => q.rfqId === r.id).length },
-      { key: 'status', header: 'Status', value: r => r.status, render: r => <StatusPill label={t(r.status)} tone={toneFor(r.status)} /> },
-      {
-        key: 'actions', header: 'Actions', align: 'right', noExport: true,
-        render: r => r.status === 'open' || r.status === 'quoted' ? (
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => {
-              props.setRfqs(prev => prev.map(item => (item.id === r.id ? { ...item, status: 'closed' } : item)));
-              logEvent('rfq.close', r.materialName);
-              onNotify('RFQ closed', 'success');
-            }}
-          >
-            {t('Resolve')}
-          </button>
-        ) : null,
-      },
+  const renderOrders = () => {
+    const cols: Column<Order>[] = [
+      { key: 'invoice', header: 'Order', value: o => o.invoiceNumber, render: o => <div className="ws-cell-stack"><strong>{o.invoiceNumber}</strong><small>{formatDate(o.orderDate)}</small></div> },
+      { key: 'buyer', header: 'Buyer', value: o => userById(o.customerId)?.name || o.customerId },
+      { key: 'supplier', header: 'Supplier', value: o => companyById(o.companyId)?.name || 'â€”' },
+      { key: 'total', header: 'Total', align: 'right', value: o => o.totalAmount, render: o => <strong>{money(o.totalAmount)}</strong> },
+      { key: 'payment', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
+      { key: 'status', header: 'Status', value: o => o.status, render: o => <select className="ws-status-select" value={o.status} onChange={e => setOrderStatus(o, e.target.value)}>{['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].map(s => <option key={s} value={s}>{t(s)}</option>)}</select> },
     ];
-    const quoteColumns: Column<Quotation>[] = [
-      { key: 'supplierName', header: 'Supplier', value: q => q.supplierName },
-      {
-        key: 'rfq', header: 'RFQ',
-        value: q => rfqs.find(r => r.id === q.rfqId)?.materialName || q.rfqId,
-        render: q => {
-          const rfq = rfqs.find(r => r.id === q.rfqId);
-          return (
-            <div className="ws-cell-stack">
-              <span>{rfq?.materialName || '—'}</span>
-              <small>{rfq?.customerName || ''}</small>
-            </div>
-          );
-        },
-      },
-      { key: 'unitPrice', header: 'Unit price', align: 'right', value: q => Math.round(q.unitPrice), render: q => money(q.unitPrice) },
-      { key: 'quantity', header: 'Qty', align: 'right', value: q => q.quantity },
-      { key: 'deliveryFee', header: 'Delivery', align: 'right', value: q => Math.round(q.deliveryFee), render: q => money(q.deliveryFee) },
-      { key: 'validUntil', header: 'Valid until', value: q => q.validUntil, render: q => <span className="ws-nowrap">{formatDate(q.validUntil)}</span> },
-      { key: 'status', header: 'Status', value: q => q.status, render: q => <StatusPill label={t(q.status)} tone={toneFor(q.status)} /> },
-    ];
+    const ordered = [...orders].sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
     return (
       <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('RFQ & Quotation')}
-          hint={t('Monitor requests for quotations, supplier responses, quotation validity, price comparisons and procurement status.')}
-        />
+        <SectionHeader eyebrow={t('Administration')} title="Order Management" hint="All orders with detailed buyerâ€“supplier transactions, summaries and export." />
         <KpiGrid>
-          <Kpi label="RFQs" value={rfqs.length} icon="📨" />
-          <Kpi label="Open" value={rfqs.filter(r => r.status === 'open').length} icon="🕒" tone="warn" />
-          <Kpi label={t('Quotations')} value={quotations.length} icon="📝" />
-          <Kpi label="Accepted" value={quotations.filter(q => q.status === 'accepted').length} icon="✅" tone="good" />
+          <Kpi label="Orders" value={orders.length} icon="ðŸ›’" />
+          <Kpi label="Pending" value={orders.filter(o => o.status === 'pending').length} icon="â³" tone="warn" />
+          <Kpi label="Delivered" value={orders.filter(o => o.status === 'delivered').length} icon="âœ…" tone="good" />
+          <Kpi label="GMV" value={money(gmv)} icon="ðŸ’°" />
         </KpiGrid>
-        <Panel title="RFQ book">
-          <DataTable rows={rfqs} columns={rfqColumns} searchText={r => `${r.customerName} ${r.materialName} ${r.city} ${r.status}`} exportName="escon_rfqs" emptyTitle="No requests for quotation yet" />
-        </Panel>
-        <Panel title={t('Quotations')}>
-          <DataTable rows={quotations} columns={quoteColumns} searchText={q => `${q.supplierName} ${q.status}`} exportName="escon_quotations" emptyTitle="No quotations submitted yet" />
-        </Panel>
-      </>
-    );
-  };
-
-  const renderLogistics = () => {
-    const jobs = orders.filter(o => o.transportStatus || o.deliveryIncluded);
-    const columns: Column<Order>[] = [
-      { key: 'invoiceNumber', header: 'Order', value: o => o.invoiceNumber },
-      {
-        key: 'supplier', header: 'Supplier', value: o => supplierFor(o.companyId)?.name || '',
-        render: o => (
-          <div className="ws-cell-stack">
-            <span>{supplierFor(o.companyId)?.name || '—'}</span>
-            <small>{supplierFor(o.companyId)?.city || ''}</small>
-          </div>
-        ),
-      },
-      { key: 'destination', header: 'Destination', value: o => o.address },
-      {
-        key: 'transporter', header: 'Transporter',
-        value: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || '—',
-        render: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || <span className="ws-muted">Unassigned</span>,
-      },
-      {
-        key: 'transport', header: 'Delivery status',
-        value: o => (o.transportStatus ? TRANSPORT_STATUS_LABELS[jobStatus(o)] : 'not requested'),
-        render: o => (o.transportStatus
-          ? <StatusPill label={TRANSPORT_STATUS_LABELS[jobStatus(o)]} tone={toneFor(o.transportStatus)} />
-          : <StatusPill label="Not requested" tone="muted" />),
-      },
-      { key: 'fee', header: 'Transport fee', align: 'right', value: o => Math.round(o.transportFee || 0), render: o => (o.transportFee ? money(o.transportFee) : '—') },
-      {
-        key: 'pod', header: 'POD', value: o => (o.transportPod ? 'captured' : 'pending'),
-        render: o => (o.transportPod ? <StatusPill label={o.transportPod.receivedBy} tone="good" /> : <span className="ws-muted">—</span>),
-      },
-    ];
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Logistics Management')}
-          hint={t('Monitor delivery requests, transport quotations, GPS tracking, route distances, estimated delivery times and proof of delivery.')}
-        />
-        <KpiGrid>
-          <Kpi label={t('Delivery jobs')} value={jobs.length} icon="🚚" />
-          <Kpi label="In transit" value={orders.filter(o => o.transportStatus === 'in_transit' || o.transportStatus === 'picked_up').length} icon="🛣️" tone="warn" />
-          <Kpi label={t('Completed')} value={orders.filter(o => o.transportStatus === 'delivered').length} icon="🏁" tone="good" />
-          <Kpi label="Transport revenue" value={money(orders.reduce((s, o) => s + (o.transportFee || 0), 0))} icon="💰" tone="accent" />
-          <Kpi label="Unassigned" value={orders.filter(o => o.deliveryIncluded && !o.transporterId).length} icon="⚠️" tone="warn" />
-          <Kpi label="Fleet" value={transporterProfiles.reduce((s, p) => s + p.vehicles.length, 0)} icon="🚛" />
-        </KpiGrid>
-        <Panel>
-          <DataTable rows={jobs} columns={columns} searchText={o => `${o.invoiceNumber} ${o.address} ${o.transporterId || ''}`} exportName="escon_logistics" emptyTitle="No delivery jobs yet" />
-        </Panel>
-      </>
-    );
-  };
-
-  const renderFinance = () => {
-    const refunds = transactions.filter(tx => tx.kind === 'refund').reduce((s, tx) => s + tx.amount, 0);
-    const walletFloat = Object.values(wallets).reduce((s, value) => s + value, 0);
-    const columns: Column<(typeof transactions)[number]>[] = [
-      { key: 'date', header: 'Date', value: tx => new Date(tx.date).toISOString().slice(0, 10), render: tx => <span className="ws-nowrap">{formatDate(new Date(tx.date).toISOString())}</span> },
-      { key: 'user', header: 'Account', value: tx => users.find(u => u.id === tx.userId)?.name || tx.userId },
-      { key: 'kind', header: 'Type', value: tx => tx.kind, render: tx => <StatusPill label={t(tx.kind)} tone={tx.kind === 'payment' ? 'info' : tx.kind === 'refund' ? 'bad' : 'good'} /> },
-      { key: 'amount', header: 'Amount', align: 'right', value: tx => Math.round(tx.amount), render: tx => <strong>{money(tx.amount)}</strong> },
-      { key: 'balanceAfter', header: 'Balance', align: 'right', value: tx => Math.round(tx.balanceAfter), render: tx => money(tx.balanceAfter) },
-      { key: 'note', header: 'Note', value: tx => tx.note },
-    ];
-    const balances = users
-      .map(u => ({ label: u.name, value: wallets[u.id] || 0 }))
-      .filter(row => row.value > 0)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Finance & Payments')}
-          hint={t('Monitor transaction records, payment confirmations, commissions, refunds, supplier settlements and financial reconciliation.')}
-        />
-        <KpiGrid>
-          <Kpi label="GMV" value={money(gmv)} icon="💰" tone="accent" />
-          <Kpi label={t('Revenue')} value={money(deliveredRevenue)} icon="📈" />
-          <Kpi label={t('Platform commission')} value={money(commission)} hint="8% of delivered orders" icon="🏦" />
-          <Kpi label={t('VAT collected')} value={money(vatTotal)} icon="🧾" />
-          <Kpi label="Refunds" value={money(refunds)} icon="↩️" tone="warn" />
-          <Kpi label="Wallet float" value={money(walletFloat)} icon="💳" />
-        </KpiGrid>
-        <div className="ws-grid-2">
-          <Panel title="Payment status" subtitle="Paid vs unpaid order value">
-            <BarList
-              items={[
-                { label: t('Paid'), value: Math.round(orders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + o.totalAmount, 0)) },
-                { label: t('Unpaid'), value: Math.round(orders.filter(o => o.paymentStatus === 'pending').reduce((s, o) => s + o.totalAmount, 0)) },
-                { label: t('Refunded'), value: Math.round(orders.filter(o => o.paymentStatus === 'refunded').reduce((s, o) => s + o.totalAmount, 0)) },
-              ]}
-              format={money}
-            />
-          </Panel>
-          <Panel title="Wallet balances" subtitle="Largest balances on the platform">
-            <BarList items={balances} format={money} emptyLabel="No wallet balances yet" />
-          </Panel>
-        </div>
-        <Panel title="Transaction ledger">
-          <DataTable rows={transactions} columns={columns} searchText={tx => `${tx.note} ${tx.kind} ${users.find(u => u.id === tx.userId)?.name || ''}`} exportName="escon_finance" pageSize={12} emptyTitle="No transactions yet" />
-        </Panel>
-      </>
-    );
-  };
-
-  const renderAi = () => {
-    const forecasts = materials
-      .map(material => ({ material, forecast: forecastPrice(material.priceHistory, material.price) }))
-      .filter((row): row is { material: Material; forecast: NonNullable<ReturnType<typeof forecastPrice>> } => Boolean(row.forecast))
-      .slice(0, 8);
-    const demand = [...analytics.topProducts].sort((a, b) => b.units - a.units).slice(0, 8);
-    const matching = [...analytics.topSuppliers].slice(0, 8);
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('AI Intelligence Centre')}
-          hint={t('Monitor AI recommendations, price forecasts, demand predictions, supplier matching, route optimisation and model performance.')}
-        />
-        <KpiGrid>
-          <Kpi label="Price models" value={forecasts.length} hint="Products with enough history" icon="💹" />
-          <Kpi label="Demand models" value={demand.length} hint="30-day product ranking" icon="📦" />
-          <Kpi label="Supplier matches" value={matching.length} hint="Ranked by revenue and rating" icon="🤝" />
-          <Kpi label="Recommendations" value={analytics.insights.length} hint="Generated from live data" icon="🤖" tone="accent" />
-        </KpiGrid>
-        <Panel title="Price forecasts" subtitle="Source: supplier price history · updated on every price change">
-          {forecasts.length === 0 ? (
-            <EmptyState icon="💹" title="No forecast available" text="A product needs at least two price snapshots before a forecast can be produced." />
-          ) : (
-            <ul className="ws-forecast-list">
-              {forecasts.map(({ material, forecast }) => (
-                <li key={material.id}>
-                  <div>
-                    <strong>{material.name}</strong>
-                    <small>{material.category} · {money(material.price)} / {material.unit}</small>
+        <Panel title="All transactions"><DataTable rows={ordered} columns={cols} searchText={o => `${o.invoiceNumber} ${userById(o.customerId)?.name || ''} ${companyById(o.companyId)?.name || ''} ${o.status}`} exportName="orders_transactions" pageSize={12} /></Panel>
+        <Panel title="Detailed buyer & supplier transactions" subtitle="Preview and download per-order summaries">
+          <div style={{ display: 'grid', gap: 10 }}>
+            {ordered.slice(0, 20).map(o => {
+              const buyer = userById(o.customerId);
+              const sup = companyById(o.companyId);
+              const mat = materialById(o.materialId);
+              return (
+                <div key={o.id} className="ws-card" style={{ padding: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div><strong>{o.invoiceNumber}</strong> <StatusPill label={o.status} tone={toneFor(o.status)} /> <StatusPill label={o.paymentStatus} tone={toneFor(o.paymentStatus)} /></div>
+                    <div className="ws-muted">{formatDate(o.orderDate)}</div>
                   </div>
-                  <StatusPill
-                    label={`${forecast.trend === 'up' ? '▲' : forecast.trend === 'down' ? '▼' : '■'} ${money(forecast.next)} (${forecast.changePct >= 0 ? '+' : ''}${forecast.changePct.toFixed(1)}%)`}
-                    tone={forecast.trend === 'up' ? 'warn' : forecast.trend === 'down' ? 'good' : 'muted'}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8, marginTop: 8, fontSize: 13 }}>
+                    <div><span className="ws-muted">Buyer</span><div><strong>{buyer?.name || 'â€”'}</strong><div className="ws-muted">{buyer?.phone || ''}</div></div></div>
+                    <div><span className="ws-muted">Supplier</span><div><strong>{sup?.name || 'â€”'}</strong><div className="ws-muted">{sup?.city || ''}</div></div></div>
+                    <div><span className="ws-muted">Item</span><div>{mat?.name || o.materialId} Ã— {o.quantity}</div></div>
+                    <div><span className="ws-muted">Total</span><div><strong>{money(o.totalAmount)}</strong></div></div>
+                  </div>
+                  <div className="ws-row-actions" style={{ marginTop: 8 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => exportCsv(`${o.invoiceNumber}-summary.csv`, [{ invoice: o.invoiceNumber, date: o.orderDate, buyer: buyer?.name || '', buyer_phone: buyer?.phone || '', supplier: sup?.name || '', item: mat?.name || o.materialId, quantity: o.quantity, unit_price: o.unitPrice, total: o.totalAmount, payment: o.paymentStatus, status: o.status, delivery_address: (o as any).address || (o as any).deliveryAddress || '' }])}>Download summary</button>
+                  </div>
+                </div>
+              );
+            })}
+            {orders.length === 0 && <EmptyState icon="ðŸ›’" title="No orders yet" text="Orders will appear here with full transaction details." />}
+          </div>
         </Panel>
+      </>
+    );
+  };
+
+  const renderMarket = () => {
+    const cats = Array.from(new Set(materials.map(m => m.category))).filter(Boolean);
+    const avg = materials.length ? materials.reduce((s, m) => s + m.price, 0) / materials.length : 0;
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Market Intelligence" hint="Monitor material prices, demand, categories and geographic markets." />
+        <KpiGrid>
+          <Kpi label="Products" value={materials.length} icon="ðŸ“¦" />
+          <Kpi label="Categories" value={cats.length} icon="ðŸ·ï¸" />
+          <Kpi label="Avg price" value={money(avg)} icon="ðŸ’²" />
+          <Kpi label="Cities" value={new Set(companies.map(c => c.city)).size} icon="ðŸ“" />
+        </KpiGrid>
         <div className="ws-grid-2">
-          <Panel title="Demand leaders" subtitle="Units sold in the last 30 days">
-            <BarList items={demand.map(p => ({ label: p.name, value: p.units, hint: p.supplierName }))} />
-          </Panel>
-          <Panel title="Supplier matching" subtitle="Ranked by revenue, then rating">
-            <BarList items={matching.map(s => ({ label: s.name, value: Math.round(s.revenue), hint: `${s.city} · ⭐ ${s.rating.toFixed(1)}` }))} format={money} />
-          </Panel>
+          <Panel title="By category"><BarList items={cats.map(cat => ({ label: cat, value: materials.filter(m => m.category === cat).length })).sort((a,b)=>b.value-a.value).slice(0,10)} /></Panel>
+          <Panel title="By supplier"><BarList items={companies.map(c => ({ label: c.name, value: materials.filter(m => m.companyId === c.id).length })).sort((a,b)=>b.value-a.value).slice(0,10)} /></Panel>
         </div>
-        <Panel title="Model performance" subtitle="Every recommendation is labelled with its source and update time">
-          <div className="ws-model-grid">
-            {[
-              { name: 'AI Price Intelligence', detail: 'Linear trend over stored price snapshots', state: 'Active', source: 'Supplier price history' },
-              { name: 'AI Demand Forecasting', detail: '30-day order volume by product', state: 'Active', source: 'Order book' },
-              { name: 'AI Supplier Matching', detail: 'Revenue, rating and delivery reliability', state: 'Active', source: 'Orders, reviews, companies' },
-              { name: 'Route Optimisation', detail: 'OSRM driving routes with fallback', state: isCloudEnabled ? 'Online' : 'Local', source: 'OSRM / OSM' },
-              { name: 'Document Intelligence', detail: 'Proforma and invoice extraction', state: 'Preview', source: 'Approved documents' },
-            ].map(model => (
-              <div key={model.name} className="ws-model">
-                <strong>{model.name}</strong>
-                <span>{model.detail}</span>
-                <small>{t('Source')}: {model.source}</small>
-                <StatusPill label={model.state} tone={model.state === 'Active' ? 'good' : 'info'} />
+        <Panel title="Price & availability overview">
+          <DataTable rows={materials} columns={[
+            { key: 'name', header: 'Material', value: m => m.name },
+            { key: 'category', header: 'Category', value: m => m.category },
+            { key: 'supplier', header: 'Supplier', value: m => companyById(m.companyId)?.name || 'â€”' },
+            { key: 'city', header: 'Place', value: m => companyById(m.companyId)?.city || 'â€”' },
+            { key: 'price', header: 'Price', align: 'right', value: m => m.price, render: m => money(m.price) },
+            { key: 'qty', header: 'Stock', align: 'right', value: m => m.quantity },
+          ] as Column<Material>[]} searchText={m => `${m.name} ${m.category} ${companyById(m.companyId)?.name || ''} ${companyById(m.companyId)?.city || ''}`} exportName="market_intelligence" pageSize={12} />
+        </Panel>
+      </>
+    );
+  };
+
+  const renderFinance = () => (
+    <>
+      <SectionHeader eyebrow={t('Administration')} title="Financial Management" hint="Transactions, payments and platform financial summaries." actions={<button className="btn btn-secondary btn-sm" onClick={() => exportCsv('financial_transactions.csv', transactions.map(t => ({ date: new Date(t.date).toISOString(), user: userById(t.userId)?.name || t.userId, type: t.kind, amount: t.amount, note: t.note })))}>Export</button>} />
+      <KpiGrid>
+        <Kpi label="GMV" value={money(gmv)} icon="ðŸ’°" />
+        <Kpi label="Delivered revenue" value={money(deliveredRevenue)} icon="âœ…" tone="good" />
+        <Kpi label="Est. commission" value={money(deliveredRevenue * COMMISSION_RATE)} icon="ðŸ“Š" />
+        <Kpi label="Wallet transactions" value={transactions.length} icon="ðŸ’³" />
+      </KpiGrid>
+      <Panel title="Wallet transactions">
+        <DataTable rows={transactions} columns={[
+          { key: 'date', header: 'Date', value: (tx: any) => tx.date, render: (tx: any) => formatDate(new Date(tx.date).toISOString()) },
+          { key: 'user', header: 'Account', value: (tx: any) => userById(tx.userId)?.name || tx.userId },
+          { key: 'kind', header: 'Type', value: (tx: any) => tx.kind },
+          { key: 'amount', header: 'Amount', align: 'right', value: (tx: any) => tx.amount, render: (tx: any) => money(tx.amount) },
+          { key: 'note', header: 'Note', value: (tx: any) => tx.note || 'â€”' },
+        ] as Column<any>[]} searchText={(tx: any) => `${tx.kind} ${tx.note || ''} ${userById(tx.userId)?.name || ''}`} exportName="financial_transactions" pageSize={12} />
+      </Panel>
+    </>
+  );
+
+  const renderReports = () => (
+    <>
+      <SectionHeader eyebrow={t('Administration')} title="Reports" hint="Platform reports with downloadable summaries." actions={<div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('orders_report.csv', orders.map(o => ({ invoice: o.invoiceNumber, buyer: userById(o.customerId)?.name || '', supplier: companyById(o.companyId)?.name || '', total: o.totalAmount, status: o.status, payment: o.paymentStatus, date: o.orderDate })))}>Orders CSV</button><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('quotations_report.csv', quotations.map(q => ({ id: q.id, supplier: q.supplierName, rfq: q.rfqId, unit_price: q.unitPrice, quantity: q.quantity, total: q.unitPrice * q.quantity + q.deliveryFee, status: q.status })))}>Quotations CSV</button></div>} />
+      <KpiGrid>
+        <Kpi label="Users" value={users.length} icon="ðŸ‘¥" />
+        <Kpi label="Suppliers" value={companies.length} icon="ðŸ¢" />
+        <Kpi label="Products" value={materials.length} icon="ðŸ“¦" />
+        <Kpi label="Orders" value={orders.length} icon="ðŸ›’" />
+        <Kpi label="RFQs" value={rfqs.length} icon="ðŸ“" />
+        <Kpi label="Quotations" value={quotations.length} icon="ðŸ“‹" />
+      </KpiGrid>
+      <Panel title="Platform summary"><BarList items={[{ label: 'Users', value: users.length }, { label: 'Suppliers', value: companies.length }, { label: 'Products', value: materials.length }, { label: 'Orders', value: orders.length }, { label: 'RFQs', value: rfqs.length }, { label: 'Quotations', value: quotations.length }, { label: 'Complaints', value: complaints.length }, { label: 'Notifications', value: notifications.length }]} /></Panel>
+    </>
+  );
+
+  const renderComplaints = () => (
+    <>
+      <SectionHeader eyebrow={t('Administration')} title="Complaints" hint="Manage and resolve customer and supplier complaints and disputes." />
+      <Panel>
+        {complaints.length === 0 ? <EmptyState icon="âš ï¸" title="No complaints" text="Submitted complaints will appear here for review and resolution." /> : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {[...complaints].sort((a, b) => b.updatedAt - a.updatedAt).map(c => (
+              <div key={c.id} className="ws-card" style={{ padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><strong>{c.subject}</strong><StatusPill label={c.status} tone={toneFor(c.status)} /></div>
+                <p className="ws-muted" style={{ margin: '6px 0' }}>{c.message}</p>
+                {c.response && <p style={{ fontSize: 13 }}><strong>Response:</strong> {c.response}</p>}
+                <div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => { setComplaintTarget(c); setComplaintResponse(c.response || ''); }}>Respond / Update</button></div>
               </div>
             ))}
           </div>
-          <p className="ws-note">
-            AI recommendations use only authorised platform data. Payments, contracts and other sensitive decisions remain subject to human approval.
-          </p>
-        </Panel>
-      </>
-    );
-  };
-
-  const renderReports = () => {
-    const exportAccounts = () => {
-      exportToCSV(users.map(u => ({ name: u.name, email: u.email, role: u.userType, city: u.city, phone: u.phone, registered: u.registered })), 'escon_accounts_report');
-      logEvent('report.export', 'accounts');
-    };
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Reports & Analytics')}
-          hint={t('Generate operational, financial, procurement, supplier, customer and logistics reports. Export approved reports.')}
-          actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('analytics')}>📊 Full analytics</button>}
-        />
-        <KpiGrid>
-          <Kpi label={t('Revenue')} value={money(deliveredRevenue)} icon="💰" tone="accent" />
-          <Kpi label="GMV" value={money(gmv)} icon="📈" />
-          <Kpi label={t('Delivery revenue')} value={money(orders.reduce((s, o) => s + (o.transportCost || 0), 0))} icon="🚚" />
-          <Kpi label={t('VAT collected')} value={money(vatTotal)} icon="🧾" />
-          <Kpi label="Delivered rate" value={`${analytics.deliveredRatePct.toFixed(1)}%`} icon="✅" />
-          <Kpi label={t('Average order value')} value={money(analytics.avgOrderValue)} icon="📊" />
-        </KpiGrid>
-        <div className="ws-grid-2">
-          <Panel title="Revenue by month"><BarList items={analytics.monthlyRevenue.map(p => ({ label: p.label, value: p.value }))} format={money} /></Panel>
-          <Panel title="Orders by month"><BarList items={analytics.monthlyOrders.map(p => ({ label: p.label, value: p.value }))} /></Panel>
-          <Panel title="Category revenue"><BarList items={analytics.categoryData.map(p => ({ label: p.label, value: p.value }))} format={money} /></Panel>
-          <Panel title="Orders by city"><BarList items={analytics.cityData.map(p => ({ label: p.label, value: p.value }))} /></Panel>
-        </div>
-        <Panel title={t('Export report')} subtitle="Approved platform reports, ready for finance and operations">
-          <div className="ws-quick-grid">
-            <button className="ws-quick" onClick={() => exportOrdersToCSV(orders, materials, companies)}><span>📋</span>Order book</button>
-            <button className="ws-quick" onClick={exportAccounts}><span>👥</span>Accounts</button>
-            <button className="ws-quick" onClick={() => exportToCSV(companies, 'escon_suppliers_report')}><span>🏢</span>{t('Suppliers')}</button>
-            <button className="ws-quick" onClick={() => exportToCSV(materials, 'escon_catalogue_report')}><span>📦</span>{t('Product Catalogue')}</button>
-            <button className="ws-quick" onClick={() => exportToCSV(quotations, 'escon_quotations_report')}><span>📝</span>{t('Quotations')}</button>
-            <button className="ws-quick" onClick={() => exportToCSV(complaints, 'escon_complaints_report')}><span>⚖️</span>{t('Complaints')}</button>
-          </div>
-        </Panel>
-        <Panel title="Plain-language insights">
-          <ul className="ws-insight-list">
-            {analytics.insights.map((insight, index) => <li key={index}>💡 {insight}</li>)}
-          </ul>
-        </Panel>
-      </>
-    );
-  };
-
-  const renderComplaints = () => {
-    const columns: Column<Complaint>[] = [
-      { key: 'subject', header: 'Subject', value: c => c.subject, render: c => <div className="ws-cell-stack"><strong>{c.subject}</strong><small>{c.message}</small></div> },
-      { key: 'userName', header: 'Raised by', value: c => c.userName, render: c => <div className="ws-cell-stack"><span>{c.userName}</span><small>{c.role}</small></div> },
-      { key: 'category', header: 'Category', value: c => c.category },
-      { key: 'againstName', header: 'Against', value: c => c.againstName || '—' },
-      { key: 'createdAt', header: 'Created', value: c => c.createdAt, render: c => <span className="ws-nowrap">{timeAgo(c.createdAt)}</span> },
-      { key: 'status', header: 'Status', value: c => c.status, render: c => <StatusPill label={t(c.status)} tone={toneFor(c.status)} /> },
-      {
-        key: 'actions', header: 'Actions', align: 'right', noExport: true,
-        render: c => <button type="button" className="btn btn-secondary btn-sm" onClick={() => openComplaint(c)}>{t('Review')}</button>,
-      },
-    ];
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Complaints & Disputes')}
-          hint={t('Receive, investigate and resolve complaints related to products, delivery, payments, quotations and service quality.')}
-        />
-        <KpiGrid>
-          <Kpi label="Open" value={complaints.filter(c => c.status === 'open').length} icon="📬" tone={complaints.some(c => c.status === 'open') ? 'warn' : 'good'} />
-          <Kpi label={t('Investigating')} value={complaints.filter(c => c.status === 'investigating').length} icon="🔎" />
-          <Kpi label={t('Resolved')} value={complaints.filter(c => c.status === 'resolved').length} icon="✅" tone="good" />
-          <Kpi label="Rejected" value={complaints.filter(c => c.status === 'rejected').length} icon="🚫" />
-        </KpiGrid>
-        <Panel>
-          <DataTable rows={complaints} columns={columns} searchText={c => `${c.subject} ${c.message} ${c.userName} ${c.category} ${c.status}`} exportName="escon_complaints" emptyTitle="No complaints filed" />
-        </Panel>
-        {responseTarget && (
-          <Modal
-            title={`${t('Review')} · ${responseTarget.subject}`}
-            onClose={() => setResponseTarget(null)}
-            footer={
-              <>
-                <button className="btn btn-secondary" onClick={() => setResponseTarget(null)}>{t('Cancel')}</button>
-                <button className="btn btn-secondary" onClick={() => saveComplaint('investigating')}>{t('Investigate')}</button>
-                <button className="btn btn-secondary" onClick={() => saveComplaint('rejected')}>{t('Reject')}</button>
-                <button className="btn btn-primary" onClick={() => saveComplaint('resolved')}>{t('Resolve')}</button>
-              </>
-            }
-          >
-            <div className="ws-detail-grid">
-              <div><span>{t('Raised by')}</span><strong>{responseTarget.userName} ({responseTarget.role})</strong></div>
-              <div><span>{t('Category')}</span><strong>{responseTarget.category}</strong></div>
-              <div><span>{t('Against')}</span><strong>{responseTarget.againstName || '—'}</strong></div>
-              <div><span>{t('Created')}</span><strong>{formatDate(new Date(responseTarget.createdAt).toISOString())}</strong></div>
-            </div>
-            <p className="ws-quote">{responseTarget.message}</p>
-            <Field label={t('Response')} hint="Shared with the person who raised the complaint.">
-              <textarea rows={5} value={responseText} onChange={event => setResponseText(event.target.value)} placeholder="Explain the outcome and next steps…" />
-            </Field>
-          </Modal>
         )}
-      </>
-    );
-  };
-
-  const renderNotifications = () => (
-    <>
-      <SectionHeader
-        eyebrow={t('Administration')}
-        title={t('Notifications & Communication')}
-        hint={t('Send platform announcements, account notifications, order alerts, system updates and targeted messages.')}
-      />
-      <div className="ws-grid-2">
-        <Panel title={t('Send announcement')} subtitle="Delivered to the notification drawer of every selected account">
-          <div className="ws-form">
-            <Field label="Audience">
-              <select value={broadcastRole} onChange={event => setBroadcastRole(event.target.value as UserRole | 'all')}>
-                <option value="all">Everyone</option>
-                <option value="customer">Customers</option>
-                <option value="company">Suppliers</option>
-                <option value="transporter">Transporters</option>
-                <option value="admin">Administrators</option>
-              </select>
-            </Field>
-            <Field label={t('Subject')} required>
-              <input value={broadcastTitle} onChange={event => setBroadcastTitle(event.target.value)} placeholder="Scheduled maintenance" maxLength={80} />
-            </Field>
-            <Field label={t('Message')} required>
-              <textarea rows={4} value={broadcastBody} onChange={event => setBroadcastBody(event.target.value)} placeholder="E-SCON will be unavailable on Sunday 02:00–03:00 for scheduled maintenance." maxLength={280} />
-            </Field>
-            <button className="btn btn-primary" onClick={sendBroadcast}>📣 {t('Send')}</button>
-          </div>
-        </Panel>
-        <Panel title={t('Recent activity')} subtitle="Latest platform notifications">
-          {notifications.length === 0 ? (
-            <EmptyState icon="🔔" title="No notifications yet" />
-          ) : (
-            <ul className="ws-feed">
-              {notifications.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 8).map(item => (
-                <li key={item.id} className="ws-feed-clickable" onClick={() => onSection(item.type === 'order' ? 'orders' : item.type === 'stock' ? 'products' : item.type === 'payment' ? 'orders' : 'notifications')}>
-                  <span className="ws-feed-icon">{item.type === 'order' ? '📦' : item.type === 'payment' ? '💳' : item.type === 'stock' ? '⚠️' : 'ℹ️'}</span>
-                  <div><strong>{item.title}</strong><small>{item.message}</small></div>
-                  <small className="ws-nowrap">{timeAgo(item.createdAt)}</small>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-      </div>
-      <Panel title="Templates" subtitle="One tap fills the composer">
-        <div className="ws-quick-grid">
-          {[
-            { title: 'Scheduled maintenance', message: 'E-SCON will be unavailable on Sunday 02:00–03:00 for scheduled maintenance.' },
-            { title: 'Price update', message: 'Supplier price updates have been published. Review current prices before ordering.' },
-            { title: 'Verification required', message: 'Please upload your renewed business licence in the Verification Centre.' },
-            { title: 'Delivery policy', message: 'Delivery fees are now calculated from the exact road distance to your site.' },
-          ].map(template => (
-            <button key={template.title} className="ws-quick" onClick={() => { setBroadcastTitle(template.title); setBroadcastBody(template.message); }}>
-              <span>📄</span>{template.title}
-            </button>
-          ))}
-        </div>
       </Panel>
+      {complaintTarget && (
+        <Modal title={`Complaint: ${complaintTarget.subject}`} onClose={() => setComplaintTarget(null)} footer={<><button className="btn btn-secondary" onClick={() => saveComplaint('investigating')}>Mark Investigating</button><button className="btn btn-primary" onClick={() => saveComplaint('resolved')}>Resolve</button></>}>
+          <p className="ws-quote">{complaintTarget.message}</p>
+          <Field label="Response"><textarea rows={5} value={complaintResponse} onChange={e => setComplaintResponse(e.target.value)} /></Field>
+        </Modal>
+      )}
     </>
   );
 
-  const renderSecurity = () => {
-    const columns: Column<AuditEvent>[] = [
-      { key: 'at', header: 'Time', value: e => e.at, render: e => <span className="ws-nowrap">{new Date(e.at).toLocaleString('en-GB')}</span> },
-      { key: 'actorName', header: 'Actor', value: e => e.actorName },
-      { key: 'action', header: 'Action', value: e => e.action },
-      { key: 'detail', header: 'Detail', value: e => e.detail },
-    ];
-    const capabilities: { label: string; roles: Record<UserRole, boolean> }[] = [
-      { label: 'Manage users & roles', roles: { admin: true, company: false, customer: false, transporter: false } },
-      { label: 'Verify suppliers', roles: { admin: true, company: false, customer: false, transporter: false } },
-      { label: 'Publish products', roles: { admin: true, company: true, customer: false, transporter: false } },
-      { label: 'Place orders', roles: { admin: false, company: false, customer: true, transporter: false } },
-      { label: 'Accept delivery jobs', roles: { admin: false, company: false, customer: false, transporter: true } },
-      { label: 'Change platform settings', roles: { admin: true, company: false, customer: false, transporter: false } },
-    ];
+  const renderNotifications = () => {
+    const byCategory = notifications.reduce<Record<string, typeof notifications>>((acc, n) => { const k = n.category || n.type || 'General'; (acc[k] = acc[k] || []).push(n); return acc; }, {});
+    const bySupplier = notifications.reduce<Record<string, typeof notifications>>((acc, n) => { const k = n.supplierName || (n.supplierId ? (companyById(n.supplierId)?.name || 'Supplier') : 'No supplier'); (acc[k] = acc[k] || []).push(n); return acc; }, {});
+    const catEntries = Object.entries(byCategory).sort((a, b) => b[1].length - a[1].length);
+    const supEntries = Object.entries(bySupplier).sort((a, b) => b[1].length - a[1].length);
+    const row = (n: any) => (
+      <div key={n.id} className="ws-card" style={{ padding: 10, fontSize: 13 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><strong>{n.title}</strong><small className="ws-muted">{timeAgo(n.createdAt)}</small></div>
+        <div>{n.message}</div>
+        <small className="ws-muted">{[n.category || n.type, n.supplierName ? `Supplier: ${n.supplierName}` : '', userById(n.userId)?.name ? `To: ${userById(n.userId)?.name}` : ''].filter(Boolean).join(' â€¢ ')}</small>
+      </div>
+    );
     return (
       <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Security & Audit')}
-          hint={t('Manage access permissions, MFA policies, login records, suspicious activity, audit logs and security incidents.')}
-        />
-        <KpiGrid>
-          <Kpi label="Audit events" value={audit.length} icon="🧾" />
-          <Kpi label="Locked accounts" value={users.filter(isUserLocked).length} icon="🔒" tone={users.some(isUserLocked) ? 'warn' : 'good'} />
-          <Kpi label="Failed sign-ins" value={users.reduce((s, u) => s + (u.loginAttempts || 0), 0)} icon="⚠️" />
-          <Kpi label={t('Administrators')} value={admins.length} icon="🛡️" />
-        </KpiGrid>
-        <Panel title="MFA policy" subtitle="Applies to the next sign-in on every device">
-          <div className="ws-toggle-row">
-            <div>
-              <strong>Require multi-factor authentication</strong>
-              <small>Ask administrators and suppliers for a second factor at sign-in.</small>
+        <SectionHeader eyebrow={t('Administration')} title="Notifications" hint="All notifications recorded separately and listed by category and by supplier." />
+        <div className="ws-grid-2">
+          <Panel title="Send announcement">
+            <div className="ws-form">
+              <Field label="Audience"><select value={broadcastRole} onChange={e => setBroadcastRole(e.target.value as any)}><option value="all">Everyone</option><option value="customer">Customers</option><option value="company">Suppliers</option><option value="transporter">Transporters</option><option value="admin">Administrators</option></select></Field>
+              <Field label="Category"><input value={broadcastCategory} onChange={e => setBroadcastCategory(e.target.value)} placeholder="e.g. Price Update, Order, Promotion" /></Field>
+              <Field label="Supplier (optional)"><select value={broadcastSupplier} onChange={e => setBroadcastSupplier(e.target.value)}><option value="">None</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+              <Field label="Title" required><input value={broadcastTitle} onChange={e => setBroadcastTitle(e.target.value)} /></Field>
+              <Field label="Message" required><textarea rows={4} value={broadcastBody} onChange={e => setBroadcastBody(e.target.value)} /></Field>
+              <button className="btn btn-primary" onClick={sendBroadcast}>Send announcement</button>
             </div>
-            <button
-              type="button"
-              className={'ws-toggle' + (platform.mfaRequired ? ' on' : '')}
-              aria-pressed={platform.mfaRequired}
-              onClick={() => {
-                setPlatform(prev => ({ ...prev, mfaRequired: !prev.mfaRequired }));
-                logEvent('security.mfa', platform.mfaRequired ? 'disabled' : 'enabled');
-              }}
-            >
-              {platform.mfaRequired ? 'On' : 'Off'}
-            </button>
-          </div>
-          <p className="ws-note">Policy changes are recorded in the audit trail below.</p>
+          </Panel>
+          <Panel title="Notification summary">
+            <KpiGrid>
+              <Kpi label="Total records" value={notifications.length} icon="ðŸ””" />
+              <Kpi label="Categories" value={catEntries.length} icon="ðŸ·ï¸" />
+              <Kpi label="Suppliers tagged" value={supEntries.filter(s => s[0] !== 'No supplier').length} icon="ðŸ¢" />
+            </KpiGrid>
+          </Panel>
+        </div>
+        <Panel title="Listed by category (history ledger)">
+          {catEntries.length === 0 ? <EmptyState icon="ðŸ””" title="No notifications recorded" /> : catEntries.map(([cat, items]) => (
+            <details key={cat} className="ws-fold" open={catEntries.length <= 3}><summary><strong>{cat}</strong> <span className="ws-muted">({items.length})</span></summary><div className="ws-fold-body" style={{ display: 'grid', gap: 6 }}>{[...items].sort((a: any, b: any) => b.createdAt - a.createdAt).slice(0, 50).map(row)}</div></details>
+          ))}
         </Panel>
-        <Panel title="Permission matrix" subtitle="Role-based access enforced throughout the app">
-          <div className="table-scroll-container">
-            <table className="data-table ws-table">
-              <thead>
-                <tr>
-                  <th>Capability</th>
-                  <th>Admin</th>
-                  <th>Supplier</th>
-                  <th>Customer</th>
-                  <th>Transporter</th>
-                </tr>
-              </thead>
-              <tbody>
-                {capabilities.map(row => (
-                  <tr key={row.label}>
-                    <td>{row.label}</td>
-                    {(['admin', 'company', 'customer', 'transporter'] as UserRole[]).map(role => (
-                      <td key={role}>{row.roles[role] ? <StatusPill label="Allowed" tone="good" /> : <span className="ws-muted">—</span>}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <Panel title="Listed by supplier (history ledger)">
+          {supEntries.length === 0 ? <EmptyState icon="ðŸ¢" title="No supplier notifications" /> : supEntries.map(([sup, items]) => (
+            <details key={sup} className="ws-fold"><summary><strong>{sup}</strong> <span className="ws-muted">({items.length})</span></summary><div className="ws-fold-body" style={{ display: 'grid', gap: 6 }}>{[...items].sort((a: any, b: any) => b.createdAt - a.createdAt).slice(0, 50).map(row)}</div></details>
+          ))}
         </Panel>
-        <Panel title={t('Audit log')} subtitle="Device-local, append-only security trail">
-          <DataTable rows={audit} columns={columns} searchText={e => `${e.action} ${e.actorName} ${e.detail}`} exportName="escon_audit" emptyTitle="No audit events yet" pageSize={12} />
+      </>
+    );
+  };
+
+  const renderQuotations = () => {
+    const bySupplier = companies.map(c => ({ c, qs: quotations.filter(q => q.supplierId === c.id) })).filter(g => g.qs.length > 0).sort((a, b) => b.qs.length - a.qs.length);
+    const accepted = quotations.filter(q => q.status === 'accepted').length;
+    const submitted = quotations.filter(q => q.status === 'submitted').length;
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Quotations Ledger" hint="All quotations recorded separately with status and transaction history (by supplier)." actions={<button className="btn btn-secondary btn-sm" onClick={() => exportCsv('quotations_ledger.csv', quotations.map(q => ({ id: q.id, supplier: q.supplierName, rfq: q.rfqId, unit_price: q.unitPrice, quantity: q.quantity, delivery_fee: q.deliveryFee, total: q.unitPrice * q.quantity + q.deliveryFee, status: q.status })))}>Export ledger</button>} />
+        <KpiGrid>
+          <Kpi label="Total quotations" value={quotations.length} icon="ðŸ“‹" />
+          <Kpi label="Submitted" value={submitted} icon="ðŸ“¨" tone="warn" />
+          <Kpi label="Accepted" value={accepted} icon="âœ…" tone="good" />
+          <Kpi label="Suppliers quoted" value={bySupplier.length} icon="ðŸ¢" />
+        </KpiGrid>
+        <Panel title="Quotation records">
+          <DataTable rows={quotations} columns={[
+            { key: 'id', header: 'Quote', value: q => q.id, render: q => <span className="ws-mono">{q.id.slice(-8).toUpperCase()}</span> },
+            { key: 'supplier', header: 'Supplier', value: q => q.supplierName },
+            { key: 'rfq', header: 'RFQ', value: q => q.rfqId, render: q => <span className="ws-mono">{q.rfqId.slice(-8).toUpperCase()}</span> },
+            { key: 'price', header: 'Unit price', align: 'right', value: q => q.unitPrice, render: q => money(q.unitPrice) },
+            { key: 'total', header: 'Total', align: 'right', value: q => q.unitPrice * q.quantity + q.deliveryFee, render: q => <strong>{money(q.unitPrice * q.quantity + q.deliveryFee)}</strong> },
+            { key: 'status', header: 'Status', value: q => q.status, render: q => <StatusPill label={q.status} tone={toneFor(q.status)} /> },
+          ] as Column<Quotation>[]} searchText={q => `${q.supplierName} ${q.status} ${q.rfqId}`} exportName="quotations_ledger" pageSize={12} />
+        </Panel>
+        <Panel title="By supplier (history)">
+          {bySupplier.length === 0 ? <EmptyState icon="ðŸ“‹" title="No quotations recorded" text="Supplier quotations will be listed here by supplier as a ledger." /> : bySupplier.map(g => (
+            <details key={g.c.id} className="ws-fold" open={bySupplier.length <= 3}><summary><strong>{g.c.name}</strong> <span className="ws-muted">({g.qs.length} quotations)</span></summary>
+              <div className="ws-fold-body" style={{ display: 'grid', gap: 6 }}>{g.qs.map(q => (
+                <div key={q.id} className="ws-card" style={{ padding: 10, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                  <div><strong className="ws-mono">{q.id.slice(-8).toUpperCase()}</strong> â€¢ RFQ {q.rfqId.slice(-8).toUpperCase()} â€¢ Qty {q.quantity}</div>
+                  <div><strong>{money(q.unitPrice * q.quantity + q.deliveryFee)}</strong> <StatusPill label={q.status} tone={toneFor(q.status)} /></div>
+                </div>
+              ))}</div>
+            </details>
+          ))}
         </Panel>
       </>
     );
@@ -1334,152 +564,60 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
 
   const renderSettings = () => (
     <>
-      <SectionHeader
-        eyebrow={t('Administration')}
-        title={t('Platform Settings')}
-        hint={t('Configure language, currency, tax, units, locations, product categories, business rules and country settings.')}
-        actions={<button className="btn btn-primary btn-sm" onClick={onEditSettings}>⚙️ Full settings</button>}
-      />
+      <SectionHeader eyebrow={t('Administration')} title="System Settings" hint="Configuration, language and audit logs." actions={<button className="btn btn-primary btn-sm" onClick={onEditSettings}>Full settings</button>} />
       <div className="ws-grid-2">
-        <Panel title="Localisation" subtitle="Default language and country for new visitors">
-          <form className="ws-form" onSubmit={savePlatform}>
-            <Field label={t('Language')} hint="Applies immediately to this device.">
-              <select value={lang} onChange={event => setLang(event.target.value as 'en' | 'am')}>
-                {LANGUAGES.map(language => <option key={language.code} value={language.code}>{language.label} · {language.native}</option>)}
-              </select>
-            </Field>
-            <Field label="Default language for new accounts">
-              <select value={platform.defaultLanguage} onChange={event => setPlatform(prev => ({ ...prev, defaultLanguage: event.target.value as 'en' | 'am' }))}>
-                {LANGUAGES.map(language => <option key={language.code} value={language.code}>{language.label}</option>)}
-              </select>
-            </Field>
-            <Field label="Country">
-              <input value={platform.country} onChange={event => setPlatform(prev => ({ ...prev, country: event.target.value }))} />
-            </Field>
-            <Field label="Currency" hint="Amounts are stored and printed in this currency.">
-              <input value={platform.currency} onChange={event => setPlatform(prev => ({ ...prev, currency: event.target.value }))} />
-            </Field>
-            <Field label="Tax label">
-              <input value={platform.taxLabel} onChange={event => setPlatform(prev => ({ ...prev, taxLabel: event.target.value }))} />
-            </Field>
-            <div className="ws-form-row">
-              <Field label={t('Phone')}><input value={platform.supportPhone} onChange={event => setPlatform(prev => ({ ...prev, supportPhone: event.target.value }))} /></Field>
-              <Field label={t('Email')}><input value={platform.supportEmail} onChange={event => setPlatform(prev => ({ ...prev, supportEmail: event.target.value }))} /></Field>
-            </div>
-            <button type="submit" className="btn btn-primary">{t('Save')}</button>
+        <Panel title="Platform profile">
+          <form className="ws-form" onSubmit={e => { e.preventDefault(); logEvent('settings.platform', 'Platform profile saved'); onNotify('Settings saved', 'success'); }}>
+            <Field label="Country"><input value={platform.country} onChange={e => setPlatform(prev => ({ ...prev, country: e.target.value }))} /></Field>
+            <Field label="Language"><select value={lang} onChange={e => setLang(e.target.value as 'en' | 'am')}>{LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}</select></Field>
+            <button type="submit" className="btn btn-primary">Save</button>
           </form>
         </Panel>
-        <div className="ws-stack">
-          <Panel title="Business rules" subtitle="Managed on the full settings page">
-            <ul className="ws-detail-list">
-              <li><span>VAT</span><strong>{settings.vat.enabled ? `${settings.vat.rate}%` : 'Disabled'}</strong></li>
-              <li><span>Delivery model</span><strong>{settings.delivery.mode === 'fixed' ? `Fixed ${money(settings.delivery.fixedFee)}` : `${money(settings.delivery.distanceBaseFee)} + ${money(settings.delivery.distancePerKmPerTon)}/km/ton`}</strong></li>
-              <li><span>Minimum order</span><strong>{settings.minOrder.enabled ? money(settings.minOrder.amount) : 'Not enforced'}</strong></li>
-              <li><span>Free delivery from</span><strong>{settings.delivery.freeDeliveryThreshold > 0 ? money(settings.delivery.freeDeliveryThreshold) : 'Disabled'}</strong></li>
-              <li><span>Delivery zones</span><strong>{settings.delivery.zones.length}</strong></li>
-            </ul>
-            <button className="btn btn-secondary btn-sm" onClick={onEditSettings}>{t('Edit')} business rules</button>
-          </Panel>
-          <Panel title="Catalogue" subtitle="Units and categories available to suppliers">
-            <p className="ws-muted">Units: {['pcs', 'kg', 'ton', 'm3', 'm2', 'bag', 'roll', 'box', 'set', 'quintal'].join(' · ')}</p>
-            <p className="ws-muted">Categories in use: {Array.from(new Set(materials.map(m => m.category))).join(' · ') || '—'}</p>
-          </Panel>
-        </div>
+        <Panel title="System tools & status">
+          <ul className="ws-detail-list">
+            <li><span>VAT</span><strong>{settings.vat.enabled ? `${settings.vat.rate}%` : 'Disabled'}</strong></li>
+            <li><span>Cloud sync</span><strong>{isCloudEnabled ? 'Configured' : 'Local only'}</strong></li>
+            <li><span>Version</span><strong>{APP_VERSION}</strong></li>
+            <li><span>Audit records</span><strong>{audit.length}</strong></li>
+          </ul>
+          <div className="ws-row-actions" style={{ marginTop: 10 }}>
+            <button className="btn btn-secondary btn-sm" onClick={onOpenDataCenter}>Data Center</button>
+            <button className="btn btn-secondary btn-sm" onClick={onEditSettings}>Edit rules</button>
+          </div>
+        </Panel>
       </div>
+      <Panel title="Audit logs">
+        <DataTable rows={[...audit].reverse()} columns={[
+          { key: 'at', header: 'Time', value: e => e.at, render: e => new Date(e.at).toLocaleString() },
+          { key: 'actor', header: 'Actor', value: e => e.actorName },
+          { key: 'action', header: 'Action', value: e => e.action },
+          { key: 'detail', header: 'Detail', value: e => e.detail },
+        ] as Column<AuditEvent>[]} searchText={e => `${e.action} ${e.actorName} ${e.detail}`} exportName="audit_logs" pageSize={12} />
+      </Panel>
     </>
   );
 
-  const renderMonitoring = () => {
-    const recordCount = users.length + companies.length + materials.length + orders.length + projects.length + rfqs.length + quotations.length + complaints.length + transporterProfiles.length;
-    const storageKb = (() => {
-      try {
-        return Math.round(JSON.stringify({
-          users, companies, materials, orders, projects, rfqs, quotations, complaints,
-        }).length / 1024);
-      } catch {
-        return 0;
-      }
-    })();
-    const online = typeof navigator === 'undefined' ? true : navigator.onLine;
-    const integrations = [
-      { name: 'Supabase cloud sync', state: isCloudEnabled ? 'Configured' : 'Offline mode', tone: isCloudEnabled ? 'good' as const : 'warn' as const, detail: 'escon_kv table · Realtime + polling fallback' },
-      { name: 'OSRM routing', state: 'Operational', tone: 'good' as const, detail: 'Driving distance and ETA, two servers' },
-      { name: 'Nominatim geocoding', state: 'Operational', tone: 'good' as const, detail: 'Address → coordinates, one request per second' },
-      { name: 'OpenStreetMap tiles', state: online ? 'Operational' : 'Offline', tone: online ? 'good' as const : 'warn' as const, detail: 'Supplier and site maps' },
-      { name: 'PWA service worker', state: 'serviceWorker' in navigator ? 'Registered' : 'Unsupported', tone: 'serviceWorker' in navigator ? 'good' as const : 'muted' as const, detail: 'Offline shell and cached assets' },
-      { name: 'Wallet & payments', state: 'Local ledger', tone: 'info' as const, detail: 'Demo settlement, no live gateway keys' },
-    ];
-    return (
-      <>
-        <SectionHeader
-          eyebrow={t('Administration')}
-          title={t('Technical Monitoring')}
-          hint={t('Monitor system health, API availability, integration errors, backups, database performance and service interruptions.')}
-        />
-        <KpiGrid>
-          <Kpi label="Records" value={recordCount.toLocaleString()} hint="Across nine collections" icon="🗄️" />
-          <Kpi label="Local storage" value={`${storageKb} KB`} hint="JSON snapshot size" icon="💾" />
-          <Kpi label="Connectivity" value={online ? 'Online' : 'Offline'} icon={online ? '🌐' : '📡'} tone={online ? 'good' : 'warn'} />
-          <Kpi label="Cloud sync" value={isCloudEnabled ? 'Active' : 'Local'} icon="☁️" tone={isCloudEnabled ? 'good' : 'warn'} />
-          <Kpi label="Version" value={APP_VERSION} icon="🏷️" />
-          <Kpi label="Audit events" value={audit.length} icon="🧾" />
-        </KpiGrid>
-        <Panel title="Connected platform services" subtitle="Every integration the platform depends on">
-          <ul className="ws-integration-list">
-            {integrations.map(item => (
-              <li key={item.name}>
-                <div><strong>{item.name}</strong><small>{item.detail}</small></div>
-                <StatusPill label={item.state} tone={item.tone} />
-              </li>
-            ))}
-          </ul>
-        </Panel>
-        <div className="ws-grid-2">
-          <Panel title="Data collections" subtitle="Live record counts">
-            <BarList
-              items={[
-                { label: 'Accounts', value: users.length },
-                { label: 'Suppliers', value: companies.length },
-                { label: 'Products', value: materials.length },
-                { label: 'Orders', value: orders.length },
-                { label: 'Projects', value: projects.length },
-                { label: 'RFQs', value: rfqs.length },
-                { label: 'Quotations', value: quotations.length },
-                { label: 'Complaints', value: complaints.length },
-                { label: 'Transporters', value: transporterProfiles.length },
-              ]}
-            />
-          </Panel>
-          <Panel title="Backups & recovery" subtitle="Export a portable snapshot of every collection">
-            <p className="ws-muted">Backups include accounts, suppliers, products, orders, projects, RFQs, quotations, complaints, wallets, reviews, transporter profiles and settings.</p>
-            <button className="btn btn-primary" onClick={onOpenDataCenter}>🛡️ Open Data Center</button>
-          </Panel>
-        </div>
-      </>
-    );
-  };
-
   const renderSection = () => {
     switch (section) {
+      case 'home': return renderHome();
       case 'dashboard': return renderDashboard();
       case 'users': return renderUsers();
       case 'suppliers': return renderSuppliers();
-      case 'customers': return renderCustomers();
       case 'transporters': return renderTransporters();
       case 'products': return renderProducts();
-      case 'prices': return renderPrices();
-      case 'orders': return renderOrders();
       case 'rfqs': return renderRfqs();
-      case 'logistics': return renderLogistics();
+      case 'orders': return renderOrders();
+      case 'market': return renderMarket();
       case 'finance': return renderFinance();
-      case 'ai': return renderAi();
       case 'reports': return renderReports();
       case 'complaints': return renderComplaints();
       case 'notifications': return renderNotifications();
-      case 'security': return renderSecurity();
+      case 'quotations': return renderQuotations();
       case 'settings': return renderSettings();
-      case 'monitoring': return renderMonitoring();
-      default: return renderDashboard();
+      // legacy fallbacks
+      case 'customers': return renderUsers();
+      case 'prices': case 'monitoring': case 'security': case 'ai': case 'logistics': return renderDashboard();
+      default: return renderHome();
     }
   };
 
@@ -1492,6 +630,8 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
         if (id === 'complaints') return complaints.filter(c => c.status === 'open').length || null;
         if (id === 'notifications') return notifications.filter(n => !n.read).length || null;
         if (id === 'orders') return orders.filter(o => o.status === 'pending').length || null;
+        if (id === 'quotations') return quotations.filter(q => q.status === 'submitted').length || null;
+        if (id === 'suppliers') return companies.filter(c => c.complianceStatus !== 'compliant').length || null;
         return null;
       }}
     >

@@ -18,6 +18,19 @@ A single-page React + TypeScript platform connecting Ethiopian suppliers and cus
 | [docs/PRIVACY_POLICY.md](./docs/PRIVACY_POLICY.md) | Legal / Play Store | Privacy policy template for the Play Store |
 | [docs/PLAY_STORE_LISTING.md](./docs/PLAY_STORE_LISTING.md) | Release managers | Store listing copy, assets, Data safety form and release checklist |
 
+
+
+## E-SCON 5.0 update (this workspace)
+
+- **E-SCON 5.0 UI/theme:** dark navy + gold visual identity (`src/escon-escon5.css`), foldable/responsive workspace shell (collapsible sidebar, mobile drawer, horizontal chips/details nav) with `E-SCON 5.0 — Ethiopia and Beyond` branding.
+- **Role menus (spec-aligned):** rewritten `src/lib/menu.ts` section IDs/labels for Administration, Supplier, Customer/Contractor, Guest/Public (transporter retained).
+- **Administration workspace:** Home (Vision/Mission/Services/Advertisements/Graphics), Dashboard KPIs (Active Users, Registered Suppliers, Verified Vehicles, RFQs, Total Orders), Platform-wide real-time analytics, Supplier License Approvals/progress, Verification Queue; plus Users, Supplier/Transport verification, Products, RFQ management, Market Intelligence, Finance, Reports (CSV), Complaints, **Notifications ledger** (recorded/grouped by category and supplier with broadcast meta), **Quotations ledger** (separate, by supplier/status, exportable), Orders with detailed buyer–supplier transactions and per-order summary download, Settings/audit.
+- **Supplier/Customer/Guest:** section-ID compatibility fallbacks for new menus; Guest public dashboard and existing Supplier/Customer dashboards retained with E-SCON 5.0 shell/theme.
+- **Search:** added `Nearest` sort option (distance-aware when location available) alongside existing category/city/supplier filters.
+- **Data/compatibility:** extended `AppNotification` (quotation/rfq, category, supplierId/supplierName) and notification broadcast/meta; preserved existing localStorage/Supabase persistence flows.
+- **Build:** production web build succeeds (`npm run build`) and Capacitor Android assets synced (`npx cap sync android`). **APK/AAB binaries were not rebuilt in this environment** because a JDK/Android build toolchain (`JAVA_HOME`/`java`) is not available here; rebuild with Android Studio/Gradle on a configured machine.
+
+
 ## Quick start
 
 ```bash

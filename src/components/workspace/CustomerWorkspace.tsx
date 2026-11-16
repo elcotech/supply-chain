@@ -1559,26 +1559,29 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
 
   const renderSectionBody = () => {
     switch (section) {
-      case 'dashboard': return renderDashboard();
+      case 'dashboard': case 'home': return renderDashboard();
       case 'profile': return renderProfile();
       case 'projects': return renderProjects();
       case 'sites': return renderSites();
       case 'search': return renderSearch();
+      case 'marketplace': return renderSearch();
       case 'suppliers': return renderSuppliers();
       case 'compare': return renderCompare();
+      case 'map': return renderSuppliers();
       case 'ai': return renderAi();
       case 'price-intelligence': return renderPriceIntelligence();
-      case 'rfqs': return renderRfqs();
-      case 'quotation-compare': return renderQuotationCompare();
+      case 'rfqs': case 'rfq': return renderRfqs();
+      case 'quotation-compare': case 'quotations': return renderQuotationCompare();
       case 'cart': return renderCart();
       case 'proforma': return renderProforma();
-      case 'payments': return renderPayments();
+      case 'payments': case 'wallet': return renderPayments();
       case 'tracking': return renderTracking();
-      case 'delivery': return renderDelivery();
-      case 'documents': return renderDocuments();
+      case 'delivery': case 'transport': return renderDelivery();
+      case 'documents': case 'favorites': return renderDocuments();
       case 'reviews': return renderReviews();
-      case 'analytics': return renderAnalytics();
+      case 'analytics': case 'reports': return renderAnalytics();
       case 'notifications': return renderNotifications();
+      case 'orders': return renderTracking();
       default: return renderDashboard();
     }
   };

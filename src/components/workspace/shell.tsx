@@ -1,13 +1,8 @@
-// ===== Role workspace shell =====
-//
-// One consistent frame for the Administration, Suppliers and Customers menus:
-// a persistent (and foldable) section list on desktop, a slide-in drawer on
-// phones, and a content area that renders the active spec submenu. The shell
-// owns only navigation; each workspace owns its panels.
-
+// ===== Role workspace shell (E-SCON 5.0) =====
 import React, { useState } from 'react';
 import { MENUS, MenuKey } from '../../lib/menu';
 import { useLanguage } from '../../lib/i18n';
+import { APP_VERSION } from '../../version';
 
 export interface WorkspaceShellProps {
   menu: MenuKey;
@@ -28,17 +23,32 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ({ menu, section, onSectio
     setDrawerOpen(false);
   };
 
+  const activeLabel = definition.sections.find(s => s.id === section)?.label || definition.title;
+
   return (
-    <div className={'ws-shell' + (collapsed ? ' ws-shell-collapsed' : '')}>
-      {/* Backdrop for the mobile drawer */}
+    <div className={'ws-shell' + (collapsed ? ' ws-shell-collapsed' : '') + ' ws-role-' + menu}>
       {drawerOpen && <div className="ws-drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
 
-      <aside
-        className={'ws-sidebar' + (drawerOpen ? ' ws-sidebar-open' : '')}
-        aria-label={t(definition.title) + ' ' + t('Menu')}
-      >
+      <aside className={'ws-sidebar' + (drawerOpen ? ' ws-sidebar-open' : '')} aria-label={t(definition.title) + ' ' + t('Menu')}>
+        <div className="ws-sidebar-brand">
+          <div className="ws-brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="34" height="34">
+              <polygon points="24,4 44,14 44,34 24,44 4,34 4,14" fill="none" stroke="#D9B45B" strokeWidth="2.2"/>
+              <polygon points="24,4 44,14 24,24 4,14" fill="none" stroke="#F0C65A" strokeWidth="1.6"/>
+              <line x1="24" y1="24" x2="24" y2="44" stroke="#D9B45B" strokeWidth="1.6"/>
+              <line x1="4" y1="14" x2="4" y2="34" stroke="#D9B45B" strokeWidth="1.2"/>
+              <line x1="44" y1="14" x2="44" y2="34" stroke="#D9B45B" strokeWidth="1.2"/>
+            </svg>
+          </div>
+          {!collapsed && (
+            <div className="ws-brand-text">
+              <strong>E-SCON <span>5.0</span></strong>
+              <small>{t('Build Smarter. Source Better.')}</small>
+            </div>
+          )}
+        </div>
         <div className="ws-sidebar-head">
-          <span className="ws-sidebar-eyebrow">{t('Workspace')}</span>
+          <span className="ws-sidebar-eyebrow">{t('Menu')}</span>
           <strong>{!collapsed ? t(definition.title) : ''}</strong>
           {!collapsed && <p>{t(definition.subtitle)}</p>}
           <button
@@ -48,7 +58,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ({ menu, section, onSectio
             onClick={() => setCollapsed(c => !c)}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
-            {collapsed ? '»' : '«'}
+            {collapsed ? '›' : '‹'}
           </button>
         </div>
         <nav className="ws-sidebar-nav">
@@ -70,18 +80,27 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ({ menu, section, onSectio
             );
           })}
         </nav>
+        {!collapsed && <div className="ws-sidebar-foot">v{APP_VERSION}</div>}
       </aside>
 
       <div className="ws-main">
-        <button
-          type="button"
-          className="ws-menu-toggle"
-          aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={drawerOpen}
-          onClick={() => setDrawerOpen(o => !o)}
-        >
-          {drawerOpen ? '✕' : '☰'}
-        </button>
+        <div className="ws-topstrip">
+          <button
+            type="button"
+            className="ws-menu-toggle"
+            aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen(o => !o)}
+          >
+            {drawerOpen ? '✕' : '☰'}
+          </button>
+          <div className="ws-topstrip-title">
+            <strong>{t(activeLabel)}</strong>
+            <span>{t('An Integrated Construction Supply-Chain Network for Ethiopia and Beyond')}</span>
+          </div>
+          <div className="ws-topstrip-meta">EN</div>
+        </div>
+
         <div className="ws-mobile-sections" role="tablist" aria-label={t(definition.title) + ' ' + t('Menu')}>
           {definition.sections.map(item => (
             <button
@@ -96,6 +115,18 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ({ menu, section, onSectio
             </button>
           ))}
         </div>
+
+        <details className="ws-fold">
+          <summary>{t('Quick navigation')}</summary>
+          <div className="ws-fold-body">
+            {definition.sections.map(item => (
+              <button key={item.id} type="button" className={'ws-fold-link' + (item.id === section ? ' active' : '')} onClick={() => onSection(item.id)}>
+                <span>{item.icon}</span> {t(item.label)}
+              </button>
+            ))}
+          </div>
+        </details>
+
         <div className="ws-content" key={section}>
           {children}
         </div>

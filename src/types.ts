@@ -432,11 +432,14 @@ export interface ProformaShareData {
 export interface AppNotification {
   id: string;
   userId: string;
-  type: 'order' | 'payment' | 'stock' | 'system' | 'rating';
+  type: 'order' | 'payment' | 'stock' | 'system' | 'rating' | 'quotation' | 'rfq';
   title: string;
   message: string;
   createdAt: number;
   read: boolean;
+  category?: string;
+  supplierId?: string;
+  supplierName?: string;
 }
 
 /** A wallet ledger entry (top-up, payment, income, refund). */
