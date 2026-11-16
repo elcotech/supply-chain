@@ -46,7 +46,7 @@ const InfoPage: React.FC<InfoPageProps> = ({
   return (
     <main className="main-content info-page">
       <section className="info-hero glass">
-        <span className="hero-badge">🇪🇹 Ethio-Supply Chain Optimization Network</span>
+        <span className="hero-badge">ET Ethio-Supply Chain Optimization Network</span>
         <h1>E-SCON — one integrated supply-chain network</h1>
         <p>
           A single platform for administration, suppliers, customers, guests and transport
