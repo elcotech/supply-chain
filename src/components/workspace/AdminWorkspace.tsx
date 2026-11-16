@@ -107,18 +107,18 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <Panel title="Services of E-SCON" subtitle="Core platform services">
         <div className="ws-quick-grid">
           {[
-            { icon: '', t: 'Digital Marketplace', d: 'Browse verified construction materials with advertised prices and supplier details.' },
-            { icon: '', t: 'RFQ & Quotations', d: 'Request, receive, compare and manage supplier quotations as recorded ledgers.' },
-            { icon: '', t: 'Orders & Proformas', d: 'Place orders, generate proformas and track detailed buyersupplier transactions.' },
-            { icon: '', t: 'Logistics & Delivery', d: 'Coordinate transport, delivery progress and fulfillment status.' },
-            { icon: '', t: 'Market Intelligence', d: 'Price trends, demand insights and geographic comparisons.' },
-            { icon: '...', t: 'Verification & Trust', d: 'Verification of suppliers, vehicles, licenses and compliance.' },
+            { icon: '', t: 'Digital Marketplace', d: 'Browse verified construction materials with advertised prices and supplier details.', id: 'products' },
+            { icon: '', t: 'RFQ & Quotations', d: 'Request, receive, compare and manage supplier quotations as recorded ledgers.', id: 'rfqs' },
+            { icon: '', t: 'Orders & Proformas', d: 'Place orders, generate proformas and track detailed buyersupplier transactions.', id: 'orders' },
+            { icon: '', t: 'Logistics & Delivery', d: 'Coordinate transport, delivery progress and fulfillment status.', id: 'logistics' },
+            { icon: '', t: 'Market Intelligence', d: 'Price trends, demand insights and geographic comparisons.', id: 'ai' },
+            { icon: '...', t: 'Verification & Trust', d: 'Verification of suppliers, vehicles, licenses and compliance.', id: 'suppliers' },
           ].map(s => (
-            <div key={s.t} className="ws-card" style={{ padding: 14 }}>
+            <button key={s.t} type="button" className="ws-card" style={{ padding: 14, textAlign: 'left', cursor: 'pointer' }} onClick={() => onSection(s.id)}>
               <div style={{ fontSize: 22 }}>{s.icon}</div>
               <strong style={{ display: 'block', marginTop: 6 }}>{s.t}</strong>
               <p className="ws-muted" style={{ marginTop: 4 }}>{s.d}</p>
-            </div>
+            </button>
           ))}
         </div>
       </Panel>
@@ -242,6 +242,34 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     );
   };
 
+  const renderCustomers = () => {
+    const spendFor = (id: string) => orders
+      .filter(o => o.customerId === id && o.status !== 'cancelled')
+      .reduce((s, o) => s + o.totalAmount, 0);
+    const cols: Column<User>[] = [
+      { key: 'name', header: 'Customer', value: u => u.name, render: u => <div className="ws-cell-stack"><strong>{u.name}</strong><small>{u.email}</small></div> },
+      { key: 'city', header: 'City', value: u => u.city || '' },
+      { key: 'phone', header: 'Phone', value: u => u.phone || '' },
+      { key: 'orders', header: 'Orders', align: 'right', value: u => orders.filter(o => o.customerId === u.id).length },
+      { key: 'spend', header: 'Total spend', align: 'right', value: u => spendFor(u.id), render: u => <strong>{money(spendFor(u.id))}</strong> },
+      { key: 'status', header: 'Status', value: u => isUserLocked(u) ? 'suspended' : 'active', render: u => isUserLocked(u) ? <StatusPill label="Suspended" tone="bad" /> : <StatusPill label="Active" tone="good" /> },
+      { key: 'actions', header: 'Actions', align: 'right', noExport: true, render: u => <div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => toggleSuspend(u)}>{isUserLocked(u) ? 'Activate' : 'Suspend'}</button><button className="btn btn-secondary btn-sm" onClick={() => onSection('users')}>Manage</button></div> },
+    ];
+    const totalSpend = customers.reduce((s, u) => s + spendFor(u.id), 0);
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Customer Management" hint="Registered contractors and buyers, order activity and total spend." actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('users')}>All users</button>} />
+        <KpiGrid>
+          <Kpi label="Customers" value={customers.length} icon="" />
+          <Kpi label="Active" value={customers.filter(u => !isUserLocked(u)).length} icon="" tone="good" />
+          <Kpi label="Suspended" value={customers.filter(isUserLocked).length} icon="" tone="bad" />
+          <Kpi label="Customer spend" value={money(totalSpend)} icon="" />
+        </KpiGrid>
+        <Panel><DataTable rows={customers} columns={cols} searchText={u => `${u.name} ${u.email} ${u.city} ${u.phone}`} exportName="customers" pageSize={12} /></Panel>
+      </>
+    );
+  };
+
   const renderSuppliers = () => {
     const cols: Column<Company>[] = [
       { key: 'name', header: 'Supplier', value: c => c.name, render: c => <div className="ws-cell-stack"><strong>{c.name}</strong><small>{c.city}  {c.tinNumber || 'No TIN'}</small></div> },
@@ -256,9 +284,9 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
         <SectionHeader eyebrow={t('Administration')} title="Supplier Verification" hint="Review applications, licenses and documents; approve or reject suppliers." actions={<button className="btn btn-primary btn-sm" onClick={onAddSupplier}>+ Add Supplier</button>} />
         <KpiGrid>
           <Kpi label="Total suppliers" value={companies.length} icon="" />
-          <Kpi label="Compliant" value={companies.filter(c => c.complianceStatus === 'compliant').length} icon="..." tone="good" />
-          <Kpi label="Pending" value={companies.filter(c => c.complianceStatus === 'pending').length} icon="3" tone="warn" />
-          <Kpi label="Non-compliant" value={companies.filter(c => c.complianceStatus === 'non-compliant').length} icon=" " tone="bad" />
+          <Kpi label="Compliant" value={companies.filter(c => c.complianceStatus === 'compliant').length} icon="" tone="good" />
+          <Kpi label="Pending" value={companies.filter(c => c.complianceStatus === 'pending').length} icon="" tone="warn" />
+          <Kpi label="Non-compliant" value={companies.filter(c => c.complianceStatus === 'non-compliant').length} icon="" tone="bad" />
         </KpiGrid>
         <Panel><DataTable rows={companies} columns={cols} searchText={c => `${c.name} ${c.city} ${c.tinNumber} ${c.complianceStatus}`} exportName="supplier_verification" pageSize={12} /></Panel>
       </>
@@ -270,8 +298,8 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <SectionHeader eyebrow={t('Administration')} title="Transport Verification" hint="Verify vehicle registrations, ownership and transport operators." />
       <KpiGrid>
         <Kpi label="Profiles" value={transporterProfiles.length} icon="" />
-        <Kpi label="Verified vehicles/operators" value={transporterProfiles.filter(p => p.verified).length} icon="..." tone="good" />
-        <Kpi label="Pending verification" value={transporterProfiles.filter(p => !p.verified).length} icon="3" tone="warn" />
+        <Kpi label="Verified vehicles/operators" value={transporterProfiles.filter(p => p.verified).length} icon="" tone="good" />
+        <Kpi label="Pending verification" value={transporterProfiles.filter(p => !p.verified).length} icon="" tone="warn" />
       </KpiGrid>
       <Panel>
         {transporterProfiles.length === 0 ? <EmptyState icon="" title="No transporter profiles" text="Transport operators will appear here for verification." /> : (
@@ -291,13 +319,46 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     </>
   );
 
+  const renderLogistics = () => {
+    const inTransit = orders.filter(o => o.status === 'shipped').length;
+    const pipeline = ['pending', 'confirmed', 'shipped', 'delivered'].map(status => ({
+      label: status,
+      value: orders.filter(o => o.status === status).length,
+    }));
+    const cols: Column<TransporterProfile>[] = [
+      { key: 'company', header: 'Transport partner', value: p => p.companyName, render: p => <div className="ws-cell-stack"><strong>{p.companyName}</strong><small>{p.licenseNumber || p.tinNumber || 'No license'}</small></div> },
+      { key: 'city', header: 'City', value: p => p.city },
+      { key: 'vehicles', header: 'Vehicles', align: 'right', value: p => p.vehicles?.length || 0 },
+      { key: 'drivers', header: 'Drivers', align: 'right', value: p => p.drivers?.length || 0 },
+      { key: 'rate', header: 'Rate / km', align: 'right', value: p => p.ratePerKm, render: p => money(p.ratePerKm) },
+      { key: 'status', header: 'Status', value: p => p.verified ? 'verified' : 'pending', render: p => <StatusPill label={p.verified ? 'Verified' : 'Pending'} tone={p.verified ? 'good' : 'warn'} /> },
+      { key: 'actions', header: 'Actions', align: 'right', noExport: true, render: p => <button className="btn btn-secondary btn-sm" onClick={() => verifyTransporter(p)}>{p.verified ? 'Revoke' : 'Verify'}</button> },
+    ];
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Logistics Management" hint="Transport partners, fleet capacity and the delivery pipeline." actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('transporters')}>Verification queue</button>} />
+        <KpiGrid>
+          <Kpi label="Transport partners" value={transporterProfiles.length} icon="" />
+          <Kpi label="Verified" value={transporterProfiles.filter(p => p.verified).length} icon="" tone="good" />
+          <Kpi label="Fleet size" value={transporterProfiles.reduce((s, p) => s + (p.vehicles?.length || 0), 0)} icon="" />
+          <Kpi label="In transit" value={inTransit} icon="" tone="warn" />
+        </KpiGrid>
+        <div className="ws-grid-2">
+          <Panel title="Fleet by partner"><BarList items={transporterProfiles.map(p => ({ label: p.companyName, value: p.vehicles?.length || 0 })).sort((a, b) => b.value - a.value).slice(0, 10)} /></Panel>
+          <Panel title="Delivery pipeline"><BarList items={pipeline} /></Panel>
+        </div>
+        <Panel title="Transport partners"><DataTable rows={transporterProfiles} columns={cols} searchText={p => `${p.companyName} ${p.city} ${p.licenseNumber} ${p.verified ? 'verified' : 'pending'}`} exportName="logistics_partners" pageSize={12} /></Panel>
+      </>
+    );
+  };
+
   const renderProducts = () => (
     <>
       <SectionHeader eyebrow={t('Administration')} title="Product Management" hint="View, categorize and monitor all material listings, prices and availability." />
       <KpiGrid>
         <Kpi label="Products" value={materials.length} icon="" />
-        <Kpi label="Categories" value={new Set(materials.map(m => m.category)).size} icon="-" />
-        <Kpi label="Out of stock" value={materials.filter(m => m.quantity <= 0).length} icon=" " tone="bad" />
+        <Kpi label="Categories" value={new Set(materials.map(m => m.category)).size} icon="" />
+        <Kpi label="Out of stock" value={materials.filter(m => m.quantity <= 0).length} icon="" tone="bad" />
       </KpiGrid>
       <Panel>
         <DataTable rows={materials} columns={[
@@ -310,6 +371,32 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       </Panel>
     </>
   );
+
+  const renderPrices = () => {
+    const priced = [...materials].sort((a, b) => b.price - a.price);
+    const avg = materials.length ? materials.reduce((s, m) => s + m.price, 0) / materials.length : 0;
+    const cols: Column<Material>[] = [
+      { key: 'name', header: 'Material', value: m => m.name, render: m => <div className="ws-cell-stack"><strong>{m.name}</strong><small>{m.category}</small></div> },
+      { key: 'supplier', header: 'Supplier', value: m => companyById(m.companyId)?.name || '' },
+      { key: 'unit', header: 'Unit', value: m => m.unit },
+      { key: 'base', header: 'Base price', align: 'right', value: m => m.basePrice, render: m => money(m.basePrice) },
+      { key: 'margin', header: 'Margin', align: 'right', value: m => Math.round((m.profitMargin || 0) * 100), render: m => `${Math.round((m.profitMargin || 0) * 100)}%` },
+      { key: 'price', header: 'Advertised', align: 'right', value: m => m.price, render: m => <strong>{money(m.price)}</strong> },
+      { key: 'stock', header: 'Stock', align: 'right', value: m => m.quantity, render: m => m.quantity > 0 ? String(m.quantity) : <StatusPill label="Out of stock" tone="bad" /> },
+    ];
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Price Management" hint="Monitor base prices, margins, advertised prices and stock across every listing." actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('products')}>Open products</button>} />
+        <KpiGrid>
+          <Kpi label="Listed prices" value={materials.length} icon="" />
+          <Kpi label="Average price" value={money(avg)} icon="" />
+          <Kpi label="Highest price" value={money(priced[0]?.price || 0)} icon="" tone="warn" />
+          <Kpi label="Out of stock" value={materials.filter(m => m.quantity <= 0).length} icon="" tone="bad" />
+        </KpiGrid>
+        <Panel title="Price monitor"><DataTable rows={priced} columns={cols} searchText={m => `${m.name} ${m.category} ${companyById(m.companyId)?.name || ''}`} exportName="price_management" pageSize={12} /></Panel>
+      </>
+    );
+  };
 
   const renderRfqs = () => (
     <>
@@ -347,9 +434,9 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
         <SectionHeader eyebrow={t('Administration')} title="Order Management" hint="All orders with detailed buyersupplier transactions, summaries and export." />
         <KpiGrid>
           <Kpi label="Orders" value={orders.length} icon="" />
-          <Kpi label="Pending" value={orders.filter(o => o.status === 'pending').length} icon="3" tone="warn" />
-          <Kpi label="Delivered" value={orders.filter(o => o.status === 'delivered').length} icon="..." tone="good" />
-          <Kpi label="GMV" value={money(gmv)} icon=" deg" />
+          <Kpi label="Pending" value={orders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
+          <Kpi label="Delivered" value={orders.filter(o => o.status === 'delivered').length} icon="" tone="good" />
+          <Kpi label="GMV" value={money(gmv)} icon="" />
         </KpiGrid>
         <Panel title="All transactions"><DataTable rows={ordered} columns={cols} searchText={o => `${o.invoiceNumber} ${userById(o.customerId)?.name || ''} ${companyById(o.companyId)?.name || ''} ${o.status}`} exportName="orders_transactions" pageSize={12} /></Panel>
         <Panel title="Detailed buyer & supplier transactions" subtitle="Preview and download per-order summaries">
@@ -391,8 +478,8 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
         <SectionHeader eyebrow={t('Administration')} title="Market Intelligence" hint="Monitor material prices, demand, categories and geographic markets." />
         <KpiGrid>
           <Kpi label="Products" value={materials.length} icon="" />
-          <Kpi label="Categories" value={cats.length} icon="-" />
-          <Kpi label="Avg price" value={money(avg)} icon="2" />
+          <Kpi label="Categories" value={cats.length} icon="" />
+          <Kpi label="Avg price" value={money(avg)} icon="" />
           <Kpi label="Cities" value={new Set(companies.map(c => c.city)).size} icon="" />
         </KpiGrid>
         <div className="ws-grid-2">
@@ -413,14 +500,53 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     );
   };
 
+  const renderAi = () => {
+    const trend = monthlyTrend(orders, 6);
+    const demandByCategory = Array.from(new Set(materials.map(m => m.category))).filter(Boolean).map(category => ({
+      label: category,
+      value: orders
+        .filter(o => materialById(o.materialId)?.category === category && o.status !== 'cancelled')
+        .reduce((s, o) => s + o.totalAmount, 0),
+    })).sort((a, b) => b.value - a.value);
+    const recent = trend.revenue.length ? trend.revenue[trend.revenue.length - 1].value : 0;
+    const previous = trend.revenue.length > 1 ? trend.revenue[trend.revenue.length - 2].value : recent;
+    const growth = previous > 0 ? ((recent - previous) / previous) * 100 : 0;
+    const projected = recent * (1 + Math.max(growth, 0) / 100);
+    const series = [{ label: 'Order value', color: '#D9B45B', data: trend.revenue.map(p => ({ label: p.label, value: p.value })) }];
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="AI Intelligence Centre" hint="Demand signals, category forecasts and model-based market insights." actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('market')}>Market data</button>} />
+        <KpiGrid>
+          <Kpi label="Demand signals" value={demandByCategory.filter(d => d.value > 0).length} icon="" />
+          <Kpi label="Top category" value={demandByCategory[0]?.label || 'No data'} icon="" />
+          <Kpi label="Monthly growth" value={`${growth.toFixed(1)}%`} icon="" tone={growth >= 0 ? 'good' : 'bad'} />
+          <Kpi label="Next month forecast" value={money(projected)} icon="" tone="accent" />
+        </KpiGrid>
+        <Panel title="Order value trend and forecast" subtitle="Last six months with a projected next month based on current growth"><LineChart series={series} height={220} valueFormatter={money} showArea /></Panel>
+        <div className="ws-grid-2">
+          <Panel title="Category demand"><BarList items={demandByCategory.slice(0, 10)} /></Panel>
+          <Panel title="Model notes" subtitle="How these signals are produced">
+            <ul className="ws-detail-list">
+              <li><span>Input</span><strong>Orders, listings and prices</strong></li>
+              <li><span>Window</span><strong>Six months</strong></li>
+              <li><span>Method</span><strong>Trend projection</strong></li>
+              <li><span>Refresh</span><strong>On every data change</strong></li>
+            </ul>
+            <p className="ws-muted" style={{ marginTop: 10 }}>Forecasts are indicative and should be combined with supplier capacity and seasonal demand.</p>
+          </Panel>
+        </div>
+      </>
+    );
+  };
+
   const renderFinance = () => (
     <>
       <SectionHeader eyebrow={t('Administration')} title="Financial Management" hint="Transactions, payments and platform financial summaries." actions={<button className="btn btn-secondary btn-sm" onClick={() => exportCsv('financial_transactions.csv', transactions.map(t => ({ date: new Date(t.date).toISOString(), user: userById(t.userId)?.name || t.userId, type: t.kind, amount: t.amount, note: t.note })))}>Export</button>} />
       <KpiGrid>
-        <Kpi label="GMV" value={money(gmv)} icon=" deg" />
-        <Kpi label="Delivered revenue" value={money(deliveredRevenue)} icon="..." tone="good" />
+        <Kpi label="GMV" value={money(gmv)} icon="" />
+        <Kpi label="Delivered revenue" value={money(deliveredRevenue)} icon="" tone="good" />
         <Kpi label="Est. commission" value={money(deliveredRevenue * COMMISSION_RATE)} icon="" />
-        <Kpi label="Wallet transactions" value={transactions.length} icon="3" />
+        <Kpi label="Wallet transactions" value={transactions.length} icon="" />
       </KpiGrid>
       <Panel title="Wallet transactions">
         <DataTable rows={transactions} columns={[
@@ -453,7 +579,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     <>
       <SectionHeader eyebrow={t('Administration')} title="Complaints" hint="Manage and resolve customer and supplier complaints and disputes." />
       <Panel>
-        {complaints.length === 0 ? <EmptyState icon=" " title="No complaints" text="Submitted complaints will appear here for review and resolution." /> : (
+        {complaints.length === 0 ? <EmptyState icon="" title="No complaints" text="Submitted complaints will appear here for review and resolution." /> : (
           <div style={{ display: 'grid', gap: 10 }}>
             {[...complaints].sort((a, b) => b.updatedAt - a.updatedAt).map(c => (
               <div key={c.id} className="ws-card" style={{ padding: 12 }}>
@@ -504,7 +630,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           <Panel title="Notification summary">
             <KpiGrid>
               <Kpi label="Total records" value={notifications.length} icon="" />
-              <Kpi label="Categories" value={catEntries.length} icon="-" />
+              <Kpi label="Categories" value={catEntries.length} icon="" />
               <Kpi label="Suppliers tagged" value={supEntries.filter(s => s[0] !== 'No supplier').length} icon="" />
             </KpiGrid>
           </Panel>
@@ -533,7 +659,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
         <KpiGrid>
           <Kpi label="Total quotations" value={quotations.length} icon="" />
           <Kpi label="Submitted" value={submitted} icon="" tone="warn" />
-          <Kpi label="Accepted" value={accepted} icon="..." tone="good" />
+          <Kpi label="Accepted" value={accepted} icon="" tone="good" />
           <Kpi label="Suppliers quoted" value={bySupplier.length} icon="" />
         </KpiGrid>
         <Panel title="Quotation records">
@@ -557,6 +683,97 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
               ))}</div>
             </details>
           ))}
+        </Panel>
+      </>
+    );
+  };
+
+  const renderSecurity = () => {
+    const suspended = users.filter(isUserLocked);
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Security & Audit" hint="Account safeguards, suspensions and the full audit trail." actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('settings')}>System settings</button>} />
+        <KpiGrid>
+          <Kpi label="Audit events" value={audit.length} icon="" />
+          <Kpi label="Suspended accounts" value={suspended.length} icon="" tone="bad" />
+          <Kpi label="Admin accounts" value={admins.length} icon="" />
+          <Kpi label="Wallet ledger entries" value={transactions.length} icon="" />
+        </KpiGrid>
+        <div className="ws-grid-2">
+          <Panel title="Account safeguards">
+            <ul className="ws-detail-list">
+              <li><span>Lockout</span><strong>Enabled after failed sign-ins</strong></li>
+              <li><span>Suspended accounts</span><strong>{suspended.length}</strong></li>
+              <li><span>Role control</span><strong>Admin managed</strong></li>
+              <li><span>Audit trail</span><strong>{audit.length} records</strong></li>
+            </ul>
+          </Panel>
+          <Panel title="Suspended accounts">
+            {suspended.length === 0 ? <EmptyState icon="" title="No suspended accounts" text="Every registered account is currently active." /> : (
+              <div className="ws-detail-list">
+                {suspended.slice(0, 8).map(u => (
+                  <div key={u.id} className="ws-row-actions" style={{ justifyContent: 'space-between' }}>
+                    <span>{u.name} ({u.userType})</span>
+                    <button className="btn btn-secondary btn-sm" onClick={() => toggleSuspend(u)}>Activate</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+        <Panel title="Recent audit events">
+          <DataTable rows={[...audit].reverse()} columns={[
+            { key: 'at', header: 'Time', value: e => e.at, render: e => new Date(e.at).toLocaleString() },
+            { key: 'actor', header: 'Actor', value: e => e.actorName },
+            { key: 'action', header: 'Action', value: e => e.action },
+            { key: 'detail', header: 'Detail', value: e => e.detail },
+          ] as Column<AuditEvent>[]} searchText={e => `${e.action} ${e.actorName} ${e.detail}`} exportName="security_audit" pageSize={12} />
+        </Panel>
+      </>
+    );
+  };
+
+  const renderMonitoring = () => {
+    const unread = notifications.filter(n => !n.read).length;
+    const pendingOrders = orders.filter(o => o.status === 'pending').length;
+    return (
+      <>
+        <SectionHeader eyebrow={t('Administration')} title="Technical Monitoring" hint="Service health, cloud sync status and operational queues." actions={<button className="btn btn-secondary btn-sm" onClick={onOpenDataCenter}>Data Center</button>} />
+        <KpiGrid>
+          <Kpi label="Cloud sync" value={isCloudEnabled ? 'Configured' : 'Local only'} icon="" tone={isCloudEnabled ? 'good' : 'warn'} />
+          <Kpi label="Audit records" value={audit.length} icon="" />
+          <Kpi label="Unread notifications" value={unread} icon="" tone={unread > 0 ? 'warn' : 'good'} />
+          <Kpi label="Pending orders" value={pendingOrders} icon="" tone={pendingOrders > 0 ? 'warn' : 'good'} />
+        </KpiGrid>
+        <div className="ws-grid-2">
+          <Panel title="Service health">
+            <ul className="ws-detail-list">
+              <li><span>Platform version</span><strong>{APP_VERSION}</strong></li>
+              <li><span>Cloud sync</span><strong>{isCloudEnabled ? 'Configured' : 'Local only'}</strong></li>
+              <li><span>VAT</span><strong>{settings.vat.enabled ? `${settings.vat.rate}%` : 'Disabled'}</strong></li>
+              <li><span>Audit trail</span><strong>Recording</strong></li>
+            </ul>
+          </Panel>
+          <Panel title="Operational queues">
+            <BarList items={[
+              { label: 'Pending orders', value: pendingOrders },
+              { label: 'Open complaints', value: complaints.filter(c => c.status === 'open').length },
+              { label: 'Supplier reviews', value: companies.filter(c => c.complianceStatus !== 'compliant').length },
+              { label: 'Transport reviews', value: transporterProfiles.filter(p => !p.verified).length },
+              { label: 'Open RFQs', value: rfqs.filter(r => r.status === 'open').length },
+            ]} />
+          </Panel>
+        </div>
+        <Panel title="Recent notifications">
+          {notifications.length === 0 ? <EmptyState icon="" title="No notifications" text="Platform notifications will appear here." /> : (
+            <DataTable rows={[...notifications].sort((a, b) => b.createdAt - a.createdAt)} columns={[
+              { key: 'title', header: 'Title', value: n => n.title },
+              { key: 'type', header: 'Type', value: n => n.type },
+              { key: 'message', header: 'Message', value: n => n.message },
+              { key: 'date', header: 'Created', value: n => n.createdAt, render: n => new Date(n.createdAt).toLocaleString() },
+              { key: 'read', header: 'Read', value: n => n.read ? 'yes' : 'no' },
+            ] as Column<any>[]} searchText={(n: any) => `${n.title} ${n.message} ${n.type}`} exportName="monitoring_notifications" pageSize={10} />
+          )}
         </Panel>
       </>
     );
@@ -602,21 +819,24 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       case 'home': return renderHome();
       case 'dashboard': return renderDashboard();
       case 'users': return renderUsers();
+      case 'customers': return renderCustomers();
       case 'suppliers': return renderSuppliers();
       case 'transporters': return renderTransporters();
+      case 'logistics': return renderLogistics();
       case 'products': return renderProducts();
+      case 'prices': return renderPrices();
       case 'rfqs': return renderRfqs();
       case 'orders': return renderOrders();
       case 'market': return renderMarket();
+      case 'ai': return renderAi();
       case 'finance': return renderFinance();
       case 'reports': return renderReports();
       case 'complaints': return renderComplaints();
       case 'notifications': return renderNotifications();
       case 'quotations': return renderQuotations();
+      case 'security': return renderSecurity();
+      case 'monitoring': return renderMonitoring();
       case 'settings': return renderSettings();
-      // legacy fallbacks
-      case 'customers': return renderUsers();
-      case 'prices': case 'monitoring': case 'security': case 'ai': case 'logistics': return renderDashboard();
       default: return renderHome();
     }
   };

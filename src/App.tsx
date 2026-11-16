@@ -3065,7 +3065,7 @@ function App() {
         const net = gross - commission;
         applyWalletChange(supplierUser.id, 'income', net,
           `Invoice ${existing.invoiceNumber} delivered  net of 8% platform fee (${formatCurrency(commission)})`);
-        pushNotification(supplierUser.id, 'payment', 'Payment received  deg',
+        pushNotification(supplierUser.id, 'payment', 'Payment received',
           `You earned ${formatCurrency(net)} (after 8% platform fee) for ${existing.invoiceNumber}.`);
       }
       pushNotification(existing.customerId, 'order', 'Order delivered ',
@@ -3308,17 +3308,17 @@ function App() {
           </div>
           <DateTime />
           <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
-            {mobileMenuOpen ? '-' : ' deg'}
+            {mobileMenuOpen ? 'X' : 'Menu'}
           </button>
           <div className={'header-actions' + (mobileMenuOpen ? ' open' : '')}>
             <button className="icon-btn command-trigger" onClick={() => setShowCommandPalette(true)} title="Quick search (Ctrl+K)" aria-label="Open quick search">
               <span className="command-trigger-hint">Ctrl K</span>
             </button>
             <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme">
-              {darkMode ? '' : ''}
+              <span className="theme-label">{darkMode ? 'Light' : 'Dark'}</span>
             </button>
-            <button className="icon-btn" onClick={toggleFullscreen} title="Fullscreen">
-              {isFullscreen ? '' : ''}
+            <button className="icon-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
+              <span className="theme-label">{isFullscreen ? 'Exit' : 'Full'}</span>
             </button>
             {currentUser && (
               <button className="icon-btn notif-btn" onClick={() => setShowNotifications(true)} title="Notifications">
@@ -3599,7 +3599,7 @@ function App() {
           <div className="modal-header cart-sample-head cart-single-header">
             <div className="cart-sample-head-top">
               <div className="cart-sample-brand">
-                <span className="cart-sample-brand-name"> deg E-SCON</span>
+                <span className="cart-sample-brand-name">E-SCON</span>
                 <span className="cart-sample-brand-divider">|</span>
                 <span className="cart-sample-brand-title">SHOPPING CART</span>
               </div>
@@ -3817,7 +3817,7 @@ function App() {
                 </div>
 
                 <div className="cart-new-words">
-                   deg Amount in Words: {amountToWords(payableTotal)}
+                  Amount in Words: {amountToWords(payableTotal)}
                 </div>
 
                 <div className="cart-new-bottom">
@@ -4004,7 +4004,7 @@ function App() {
                 <div className="form-row"><div className="form-group"><label className="form-label"> TIN Number *</label><input type="text" className="form-input" name="tinNumber" value={formData.tinNumber} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label"> Business License *</label><input type="text" className="form-input" name="businessLicense" value={formData.businessLicense} onChange={handleInputChange} required /></div></div>
                 {formData.registerUserType === 'transporter' && (<div className="form-row"><div className="form-group"><label className="form-label"> Transport Licence Number</label><input type="text" className="form-input" name="registerLicenseNumber" value={formData.registerLicenseNumber} onChange={handleInputChange} /></div><div className="form-group"><label className="form-label">- Service Areas</label><input type="text" className="form-input" name="registerServiceAreas" value={formData.registerServiceAreas} onChange={handleInputChange} placeholder="Addis Ababa, Adama, Hawassa" /></div></div>)}
                 <div className="form-group"><label className="checkbox-label"><input type="checkbox" name="vatRegistered" checked={formData.vatRegistered} onChange={handleInputChange} /> ... VAT Registered</label></div>
-                {formData.vatRegistered && <div className="form-group"><label className="form-label"> deg VAT Number</label><input type="text" className="form-input" name="vatNumber" value={formData.vatNumber} onChange={handleInputChange} /></div>}
+                {formData.vatRegistered && <div className="form-group"><label className="form-label">VAT Number</label><input type="text" className="form-input" name="vatNumber" value={formData.vatNumber} onChange={handleInputChange} /></div>}
               </>)}
               <div className="form-row"><div className="form-group"><label className="form-label"> Full Name *</label><input type="text" className="form-input" name="registerFullName" value={formData.registerFullName} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label"> Email *</label><input type="email" className="form-input" name="registerEmail" value={formData.registerEmail} onChange={handleInputChange} required /></div></div>
               <div className="form-row"><div className="form-group"><label className="form-label"> Password *</label><input type="password" className="form-input" name="registerPassword" value={formData.registerPassword} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label"> Phone *</label><input type="tel" className="form-input" name="registerPhone" value={formData.registerPhone} onChange={handleInputChange} required /></div></div>
@@ -4044,7 +4044,7 @@ function App() {
           <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{companyMaterials.length}</div><div className="stat-label">Products</div></div>
           <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
           <div className="dashboard-card glass"><div className="card-icon">3</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
-          <div className="dashboard-card glass"><div className="card-icon"> deg</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
+          <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
         <div className="card glass stock-summary-card">
           <div className="card-header"><h3> My stock</h3><span className="stock-summary-hint">Visible to you only  customers never see stock levels</span></div>
@@ -4245,7 +4245,7 @@ function App() {
           <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
           <div className="dashboard-card glass"><div className="card-icon">3</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
           <div className="dashboard-card glass"><div className="card-icon">...</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
-          <div className="dashboard-card glass"><div className="card-icon"> deg</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
+          <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
         <div className="card glass">
           <div className="card-header">
@@ -4335,7 +4335,7 @@ function App() {
       <form onSubmit={handleAddMaterial}>
         <div className="form-group"><label> Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label> Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label> Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
-        <div className="form-row"><div className="form-group"><label> deg Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label> Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
+        <div className="form-row"><div className="form-group"><label>Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label> Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label> Min Order <small className="form-hint">(optional  defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>- Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label> Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
         {renderMaterialDetailFields()}
@@ -4352,7 +4352,7 @@ function App() {
       <form onSubmit={handleUpdateMaterial}>
         <div className="form-group"><label> Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
         <div className="form-row"><div className="form-group"><label> Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label> Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
-        <div className="form-row"><div className="form-group"><label> deg Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label> Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
+        <div className="form-row"><div className="form-group"><label>Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label> Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
         <div className="form-row"><div className="form-group"><label> Min Order <small className="form-hint">(optional  defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>- Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
         <div className="form-group"><label> Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
         {renderMaterialDetailFields()}
@@ -4522,7 +4522,7 @@ function App() {
     const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon"></span><h1>{welcomeTitle(isAdmin ? 'Platform Orders' : isCompany ? 'Order Management' : 'My Orders')}</h1></div><div className="order-summary"><span> Total: {userOrders.length} orders</span><span> deg Value: {formatCurrency(totalValue)}</span>{canManage && <button className="btn btn-secondary" onClick={handleExportOrders}> Export</button>}</div></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon"></span><h1>{welcomeTitle(isAdmin ? 'Platform Orders' : isCompany ? 'Order Management' : 'My Orders')}</h1></div><div className="order-summary"><span> Total: {userOrders.length} orders</span><span>Value: {formatCurrency(totalValue)}</span>{canManage && <button className="btn btn-secondary" onClick={handleExportOrders}> Export</button>}</div></div>
         {userOrders.length === 0 ? <div className="no-orders glass">{isAdmin ? 'No orders on the platform yet' : 'No orders yet'}</div> : (
           <ScrollableTable minWidth="900px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th>{isAdmin && <th>Buyer</th>}<th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{canManage && <th>Actions</th>}</tr></thead><tbody>
@@ -4866,7 +4866,7 @@ function App() {
 
                   <div className="pd-metrics">
                     <div className="pd-metric">
-                      <span className="pd-metric-icon"> deg</span>
+                      <span className="pd-metric-icon"></span>
                       <div className="pd-metric-text">
                         <small>Unit Price</small>
                         <strong>{formatCurrency(material.price)} / {material.unit}</strong>
@@ -5122,8 +5122,8 @@ function App() {
           <span className="mobile-topbar-title">{mobilePageTitle()}</span>
         </div>
         <div className="mobile-topbar-actions">
-          <button className="mobile-icon-btn" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme">
-            {darkMode ? '' : ''}
+          <button className="mobile-icon-btn" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme" title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}>
+            <span className="theme-label">{darkMode ? 'Light' : 'Dark'}</span>
           </button>
           {currentUser && (
             <button className="mobile-icon-btn" onClick={() => setShowNotifications(true)} aria-label="Notifications">
@@ -5186,7 +5186,7 @@ function App() {
             </button>
             <TabLink active={currentPage === 'copilot'} onClick={() => openCopilot()} icon="-" label="Copilot" />
             <button className={'m-tab' + (mobileMenuOpen ? ' active' : '')} onClick={() => setMobileMenuOpen(true)}>
-              <span className="m-tab-icon"> deg</span>
+              <span className="m-tab-icon"></span>
               <span className="m-tab-label">More</span>
             </button>
           </>
@@ -5292,7 +5292,7 @@ function App() {
               onClick={() => { setMobileMenuOpen(false); setShowCompare(true); }}
             />
             <Action icon="2" label="Install App" sub="Work offline, home-screen icon" onClick={() => { setMobileMenuOpen(false); setShowInstallGuide(true); }} />
-            <Action icon={darkMode ? '' : ''} label={darkMode ? 'Light Theme' : 'Dark Theme'} onClick={() => setDarkMode(!darkMode)} />
+            <Action icon={darkMode ? 'L' : 'D'} label={darkMode ? 'Light Theme' : 'Dark Theme'} onClick={() => setDarkMode(!darkMode)} />
             {currentUser && currentUser.userType !== 'customer' && (
               <Action icon="" label="Export Orders" sub="Download your orders as CSV" onClick={() => { setMobileMenuOpen(false); handleExportOrders(); }} />
             )}
@@ -5696,7 +5696,7 @@ function App() {
             <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{companyMaterials.length}</strong><small>Products</small></div>
             <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
             <div className="m-stat-tile"><span className="m-stat-icon">3</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
-            <div className="m-stat-tile"><span className="m-stat-icon"> deg</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Revenue</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Revenue</small></div>
           </div>
           <div className="m-section">
             <div className="m-section-head"><h3> My stock</h3></div>
@@ -5783,7 +5783,7 @@ function App() {
           <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
           <div className="m-stat-tile"><span className="m-stat-icon">3</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
           <div className="m-stat-tile"><span className="m-stat-icon">...</span><strong>{stats.deliveredOrders}</strong><small>Delivered</small></div>
-          <div className="m-stat-tile"><span className="m-stat-icon"> deg</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Spent</small></div>
+          <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Spent</small></div>
         </div>
         <div className="m-section">
           <div className="m-section-head">
@@ -6251,7 +6251,7 @@ function App() {
                     {transactions.filter(t => t.userId === currentUser.id).slice(0, 15).map(tx => (
                       <div key={tx.id} className="ledger-item">
                         <span className={'ledger-icon ledger-' + tx.kind}>
-                          {tx.kind === 'topup' ? '-' : tx.kind === 'payment' ? '-' : tx.kind === 'income' ? ' deg' : ''}
+                          {tx.kind === 'topup' ? '-' : tx.kind === 'payment' ? '-' : tx.kind === 'income' ? '' : ''}
                         </span>
                         <span className="ledger-info">
                           <strong>{tx.note}</strong>

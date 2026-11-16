@@ -1,10 +1,10 @@
 /* ===== App.css - Optimized, Production-Ready ===== */
 
 /* ---------- CSS Variables (Light / Dark) ----------
-   Both themes are LIGHT BLUE: the page background is a soft blue wash, cards are
-   frosted white and the text is deep navy. The / toggle still works, it just
-   switches between two blue tints instead of light/dark - nothing in the app is
-   navy or black any more. */
+   Light theme: soft blue wash, white cards and deep navy text.
+   Dark theme: deep navy background, dark cards and near-white text.
+   Every colour is exposed as a variable so charts, cards and the workspace
+   shell stay readable in both modes. */
 :root {
   --bg: #e4f0fd;
   --bg-alt: #d3e6fa;
@@ -20,6 +20,7 @@
   --glass-border: rgba(255, 255, 255, 0.75);
   --primary: #0f4c81;
   --primary-light: #1a6fb5;
+  --primary-text: #0f4c81;
   --secondary: #d4a017;
   --secondary-light: #f0c040;
   --accent: #2ecc71;
@@ -35,27 +36,32 @@
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* "Dark" theme - a slightly deeper light-blue wash (never navy, never black). */
+/* Dark theme - deep navy surfaces with near-white text for night reading. */
 [data-theme="dark"] {
-  --bg: #cbe0f8;
-  --bg-alt: #bcd6f3;
-  --surface: #ffffff;
-  --surface-alt: rgba(11, 63, 109, 0.08);
-  --card-bg: rgba(255, 255, 255, 0.86);
-  --text: #0f2b4a;
-  --text-light: #43617f;
-  --text-muted: #5c7c9c;
-  --border: rgba(11, 63, 109, 0.22);
-  --shadow: 0 8px 30px rgba(11, 63, 109, 0.18);
-  --glass-bg: rgba(255, 255, 255, 0.76);
-  --glass-border: rgba(255, 255, 255, 0.85);
-  --primary: #0b3f6d;
-  --primary-light: #12588f;
-  --secondary: #a08030;
-  --secondary-light: #c5a35a;
-  --gold: #d4a017;
-  --gold-light: #e5c175;
-  --gold-dark: #8a6d20;
+  --bg: #0b1425;
+  --bg-alt: #0f1c31;
+  --surface: #142238;
+  --surface-alt: rgba(255, 255, 255, 0.06);
+  --card-bg: rgba(24, 40, 61, 0.9);
+  --text: #f2f5fa;
+  --text-light: #c6d2e2;
+  --text-muted: #9fb0c4;
+  --border: rgba(169, 181, 197, 0.24);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --glass-bg: rgba(17, 29, 48, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --primary: #1a6fb5;
+  --primary-light: #2e8bd6;
+  --primary-text: #8ec5ff;
+  --secondary: #d9b45b;
+  --secondary-light: #f0c65a;
+  --accent: #39b980;
+  --danger: #e36b70;
+  --warning: #e7b44d;
+  --gold: #d9b45b;
+  --gold-light: #f0c65a;
+  --gold-dark: #a08030;
+  --info: #49a8df;
 }
 
 /* ---------- Base ---------- */
@@ -376,7 +382,7 @@ body {
   gap: 10px;
   font-weight: 700;
   font-size: 1.25rem;
-  color: var(--primary);
+  color: var(--primary-text);
   cursor: pointer;
 }
 .logo-icon {
@@ -393,7 +399,7 @@ body {
   font-size: 1.12rem;
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .logo-text h1 span { color: var(--secondary); }
 .logo-text small {
@@ -467,7 +473,7 @@ body {
 }
 .nav-more-link:hover {
   background: var(--surface-alt);
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .nav-more-link.active {
   background: var(--primary);
@@ -509,7 +515,7 @@ body {
 }
 .nav-link:hover {
   background: rgba(15, 43, 61, 0.05);
-  color: var(--primary);
+  color: var(--primary-text);
   transform: translateY(-2px);
 }
 .nav-link.active {
@@ -573,7 +579,7 @@ body {
 }
 .btn-outline {
   background: transparent;
-  color: var(--primary);
+  color: var(--primary-text);
   border: 2px solid var(--primary);
 }
 .btn-outline:hover {
@@ -780,7 +786,7 @@ body {
   font-weight: 700;
   font-size: 1rem;
   margin-bottom: 4px;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .product-card .p-category {
   font-size: 0.7rem;
@@ -867,7 +873,7 @@ body {
   background: rgba(15, 43, 61, 0.03);
 }
 .dark-mode .data-table tbody tr:nth-child(even) {
-  background: rgba(15, 76, 129, 0.04);
+  background: rgba(255, 255, 255, 0.03);
 }
 .data-table tr:hover td {
   background: rgba(230, 126, 34, 0.09);
@@ -1043,7 +1049,7 @@ body {
 .form-section h3 {
   font-size: 0.95rem;
   margin-bottom: 12px;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .form-group {
   margin-bottom: 12px;
@@ -1191,7 +1197,7 @@ body {
 .stat-card .stat-value {
   font-size: 1.8rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .stat-card .stat-label {
   font-size: 0.85rem;
@@ -1232,7 +1238,7 @@ body {
 .footer-section h3 {
   font-size: 0.95rem;
   margin-bottom: 12px;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .footer-section p {
   font-size: 0.85rem;
@@ -1250,7 +1256,7 @@ body {
   transition: all var(--transition);
 }
 .footer-section button:hover {
-  color: var(--primary);
+  color: var(--primary-text);
   transform: translateX(4px);
 }
 .city-tags {
@@ -1830,7 +1836,7 @@ body {
   padding: 2px 7px;
   border-radius: 999px;
   background: rgba(26, 111, 181, 0.1);
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 10px;
   font-weight: 800;
   white-space: nowrap;
@@ -1844,7 +1850,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--primary);
+  color: var(--primary-text);
   white-space: nowrap;
   font-weight: 700;
 }
@@ -1920,6 +1926,13 @@ body {
   background: rgba(255, 255, 255, 0.1);
   transform: scale(1.1);
 }
+.theme-label {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
 
 /* ---------- Dark Mode Overrides ---------- */
 .dark-mode .header,
@@ -1930,8 +1943,9 @@ body {
 .dark-mode .map-picker-content,
 .dark-mode .map-modal-content,
 .dark-mode .supplier-detail-panel {
-  background: rgba(255, 255, 255, 0.88) !important;
-  border-color: rgba(11, 63, 109, 0.18) !important;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text);
 }
 /* Hero banner stays deep blue in both themes - it carries white text. */
 .dark-mode .search-hero {
@@ -2256,12 +2270,12 @@ body {
 .btn-icon.success { background: #d1fae5; color: #065f46; }
 .btn-icon.add-to-cart { background: #fef3c7; color: #92400e; }
 .btn-icon.map { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff; }
-.dark-mode .btn-icon { background: rgba(15, 76, 129, 0.08); color: var(--text); }
-.dark-mode .btn-icon.edit { background: rgba(29, 78, 216, 0.14); color: #1d4ed8; }
-.dark-mode .btn-icon.danger { background: rgba(185, 28, 28, 0.12); color: #b91c1c; }
+.dark-mode .btn-icon { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.dark-mode .btn-icon.edit { background: rgba(125, 180, 255, 0.16); color: #8ec5ff; }
+.dark-mode .btn-icon.danger { background: rgba(227, 107, 112, 0.18); color: #ff9fa3; }
 .dark-mode .btn-icon.contact,
-.dark-mode .btn-icon.success { background: rgba(4, 120, 87, 0.12); color: #047857; }
-.dark-mode .btn-icon.add-to-cart { background: rgba(180, 83, 9, 0.12); color: #b45309; }
+.dark-mode .btn-icon.success { background: rgba(57, 185, 128, 0.18); color: #7fe0b3; }
+.dark-mode .btn-icon.add-to-cart { background: rgba(231, 180, 77, 0.18); color: #ffc06a; }
 .dark-mode .btn-icon.map { background: linear-gradient(135deg, #0f4c81, #1a6fb5); }
 
 /* ---------- Product images ---------- */
@@ -2449,7 +2463,7 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
-.dark-mode .distance-badge { color: #047857; }
+.dark-mode .distance-badge { color: #7fe0b3; }
 .distance-link {
   cursor: pointer;
   color: #0e9f5a;
@@ -2457,7 +2471,7 @@ body {
   text-decoration: underline;
   transition: color 0.2s ease;
 }
-.dark-mode .distance-link { color: #047857; }
+.dark-mode .distance-link { color: #7fe0b3; }
 .distance-link:hover { color: var(--secondary); }
 .default-location-note {
   font-size: 0.75rem;
@@ -2494,9 +2508,9 @@ body {
   box-shadow: none;
 }
 .dark-mode .datetime-widget {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(11, 63, 109, 0.18);
-  color: #0f2b4a;
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--text);
 }
 .dark-mode .datetime-widget.inverted {
   background: rgba(0, 0, 0, 0.55);
@@ -3176,7 +3190,8 @@ a:focus-visible {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  font-size: 1.2rem;
+  font-size: 0.6rem;
+  font-weight: 700;
   cursor: pointer;
   align-items: center;
   justify-content: center;
@@ -3847,16 +3862,16 @@ a:focus-visible {
   color: #ef4444;
 }
 .dark-mode .btn-icon.fav-active {
-  background: rgba(239, 68, 68, 0.16);
-  color: #b91c1c;
+  background: rgba(227, 107, 112, 0.18);
+  color: #ff9fa3;
 }
 .btn-icon.compare-active {
   background: rgba(46, 204, 113, 0.15);
   color: #059669;
 }
 .dark-mode .btn-icon.compare-active {
-  background: rgba(46, 204, 113, 0.18);
-  color: #047857;
+  background: rgba(57, 185, 128, 0.18);
+  color: #7fe0b3;
 }
 
 /* =====================================================================
@@ -3891,11 +3906,11 @@ a:focus-visible {
   background: rgba(231, 76, 60, 0.15);
   color: #991b1b;
 }
-.dark-mode .status-pending { color: #b45309; }
-.dark-mode .status-confirmed { color: #1d4ed8; }
-.dark-mode .status-shipped { color: #6d28d9; }
-.dark-mode .status-delivered { color: #047857; }
-.dark-mode .status-cancelled { color: #b91c1c; }
+.dark-mode .status-pending { color: #ffd27a; }
+.dark-mode .status-confirmed { color: #8ec5ff; }
+.dark-mode .status-shipped { color: #c9a7ff; }
+.dark-mode .status-delivered { color: #7fe0b3; }
+.dark-mode .status-cancelled { color: #ff9fa3; }
 
 /* =====================================================================
    Optimized Filter Frame
@@ -4013,7 +4028,7 @@ a:focus-visible {
   background: rgba(230, 126, 34, 0.12);
 }
 .dark-mode .td-sticky {
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--surface);
 }
 .dark-mode .product-row:hover .td-sticky {
   background: rgba(230, 126, 34, 0.15);
@@ -6367,7 +6382,7 @@ a:focus-visible {
   min-width: 18px;
   margin: 0;
   padding: 0;
-  accent-color: var(--primary);
+  accent-color: var(--primary-text);
   cursor: pointer;
 }
 
@@ -6552,7 +6567,7 @@ a:focus-visible {
   border-radius: 8px;
   border: 1.5px solid var(--border);
   background: var(--surface);
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 1rem;
   font-weight: 800;
   line-height: 1;
@@ -6964,7 +6979,7 @@ a:focus-visible {
 .pd-head h3 {
   margin: 0;
   font-size: 1.02rem;
-  color: var(--primary);
+  color: var(--primary-text);
   flex: 1;
 }
 .pd-head-icon {
@@ -7064,7 +7079,7 @@ a:focus-visible {
 .pd-title {
   margin: 0 0 6px;
   font-size: 1.3rem;
-  color: var(--primary);
+  color: var(--primary-text);
   line-height: 1.25;
 }
 .pd-desc {
@@ -7110,7 +7125,7 @@ a:focus-visible {
   text-transform: none;
 }
 .pd-metric-text strong {
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 0.98rem;
   word-break: break-word;
 }
@@ -7181,7 +7196,7 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 1.02rem;
 }
 .pd-verified {
@@ -7213,7 +7228,7 @@ a:focus-visible {
 .pd-meta-icon { font-size: 1rem; line-height: 1.2; }
 .pd-meta > div { display: flex; flex-direction: column; min-width: 0; }
 .pd-meta small { font-size: 0.7rem; color: var(--text-muted); }
-.pd-meta strong { color: var(--primary); font-size: 0.86rem; word-break: break-word; }
+.pd-meta strong { color: var(--primary-text); font-size: 0.86rem; word-break: break-word; }
 .pd-meta span { font-size: 0.78rem; color: var(--text-light); }
 
 .pd-map-card {
@@ -7232,7 +7247,7 @@ a:focus-visible {
 .pd-route-node {
   font-size: 0.74rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-text);
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -7273,7 +7288,7 @@ a:focus-visible {
   padding: 5px 11px;
   font-size: 0.76rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 .pd-map-open {
   margin-left: auto;
@@ -7332,12 +7347,12 @@ a:focus-visible {
   color: var(--text-light);
 }
 .pd-summary-row > span { display: flex; flex-direction: column; min-width: 0; }
-.pd-summary-row strong { color: var(--primary); white-space: nowrap; }
+.pd-summary-row strong { color: var(--primary-text); white-space: nowrap; }
 .pd-summary-sub { font-size: 0.72rem; color: var(--text-muted); }
 .pd-summary-divider { height: 1px; background: var(--border); margin: 3px 0; }
 .pd-summary-total { font-size: 1.06rem; }
 .pd-summary-total span,
-.pd-summary-total strong { color: var(--primary); font-weight: 800; }
+.pd-summary-total strong { color: var(--primary-text); font-weight: 800; }
 .pd-summary-note { margin: 0; color: var(--text-light); font-size: 0.88rem; }
 
 /* A summary that cannot quote yet: the reason in words plus the one action

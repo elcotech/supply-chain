@@ -54,19 +54,25 @@ export const MiniBarChart: React.FC<{
   const bw = 100 / data.length;
   const fmt = valueFormatter || ((v: number) => String(Math.round(v)));
   return (
-    <div className="chart-bars" style={{ height }}>
-      {data.map((d, i) => (
-        <div key={i} className="chart-bar-col" style={{ width: `${bw}%` }}>
-          <div className="chart-bar-track">
-            <div
-              className="chart-bar-fill"
-              style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, transitionDelay: `${i * 40}ms` }}
-              title={fmt(d.value)}
-            />
+    <div className="chart-bars-block">
+      <div className="chart-bars" style={{ height }}>
+        {data.map((d, i) => (
+          <div key={i} className="chart-bar-col" style={{ width: `${bw}%` }}>
+            <span className="chart-bar-value" title={fmt(d.value)}>{fmt(d.value)}</span>
+            <div className="chart-bar-track">
+              <div
+                className="chart-bar-fill"
+                style={{ height: `${Math.max((d.value / max) * 100, 2)}%`, transitionDelay: `${i * 40}ms` }}
+                title={fmt(d.value)}
+              />
+            </div>
+            <span className="chart-bar-label">{d.label}</span>
           </div>
-          <span className="chart-bar-label">{d.label}</span>
-        </div>
-      ))}
+        ))}
+      </div>
+      <div className="chart-axis-note">
+        X axis: period. Y axis: value (0 to {fmt(max)}).
+      </div>
     </div>
   );
 };
@@ -93,30 +99,41 @@ export const LineChart: React.FC<{
   const labels = nonEmpty[0].data.map(p => p.label);
   const max = Math.max(...nonEmpty.flatMap(s => s.data.map(p => p.value)), 1);
   const width = 360;
-  const left = 6;
-  const right = 6;
-  const top = 12;
-  const bottom = height - 24;
+  const left = 46;
+  const right = 10;
+  const top = 14;
+  const bottom = height - 34;
   const plotWidth = width - left - right;
   const plotHeight = bottom - top;
   const step = labels.length > 1 ? plotWidth / (labels.length - 1) : plotWidth;
   const fmt = valueFormatter || ((v: number) => String(Math.round(v)));
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
+  const compact = (v: number) => {
+    const abs = Math.abs(v);
+    if (abs >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+    if (abs >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+    if (abs >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+    return fmt(v);
+  };
 
   return (
     <div className="chart-line">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Trend chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Trend chart. X axis: period. Y axis: value from 0 to ${fmt(max)}.`}>
         {gridLines.map((g, i) => {
           const y = top + plotHeight * g;
           return (
-            <line
-              key={i}
-              x1={left}
-              x2={width - right}
-              y1={y}
-              y2={y}
-              className="chart-line-grid"
-            />
+            <g key={i}>
+              <line
+                x1={left}
+                x2={width - right}
+                y1={y}
+                y2={y}
+                className="chart-line-grid"
+              />
+              <text x={left - 6} y={y + 3} textAnchor="end" className="chart-line-tick">
+                {compact(max * (1 - g))}
+              </text>
+            </g>
           );
         })}
         {nonEmpty.map(seriesItem => {
@@ -154,11 +171,17 @@ export const LineChart: React.FC<{
         {labels.map((label, i) => {
           const x = left + (labels.length > 1 ? i * step : plotWidth / 2);
           return (
-            <text key={label + i} x={x} y={height - 6} textAnchor="middle" className="chart-line-label">
+            <text key={label + i} x={x} y={height - 18} textAnchor="middle" className="chart-line-label">
               {label}
             </text>
           );
         })}
+        <text x={left + plotWidth / 2} y={height - 2} textAnchor="middle" className="chart-axis-title">
+          X axis: period
+        </text>
+        <text x={12} y={top + plotHeight / 2} textAnchor="middle" transform={`rotate(-90 12 ${top + plotHeight / 2})`} className="chart-axis-title">
+          Y axis: value
+        </text>
       </svg>
       {nonEmpty.length > 1 && (
         <div className="chart-line-legend">
@@ -190,23 +213,28 @@ export const HorizontalBarChart: React.FC<{
   const max = Math.max(...rows.map(d => d.value), 1);
   const fmt = valueFormatter || ((v: number) => String(Math.round(v)));
   return (
-    <div className="chart-hbars">
-      {rows.map((d, i) => (
-        <div key={d.label + i} className="chart-hbar-row">
-          <span className="chart-hbar-label" title={d.label}>{d.label}</span>
-          <span className="chart-hbar-track">
-            <span
-              className="chart-hbar-fill"
-              style={{
-                width: `${Math.max((d.value / max) * 100, 2)}%`,
-                background: color,
-                transitionDelay: `${i * 35}ms`,
-              }}
-            />
-          </span>
-          <strong className="chart-hbar-value">{fmt(d.value)}</strong>
-        </div>
-      ))}
+    <div className="chart-hbars-block">
+      <div className="chart-hbars">
+        {rows.map((d, i) => (
+          <div key={d.label + i} className="chart-hbar-row">
+            <span className="chart-hbar-label" title={d.label}>{d.label}</span>
+            <span className="chart-hbar-track">
+              <span
+                className="chart-hbar-fill"
+                style={{
+                  width: `${Math.max((d.value / max) * 100, 2)}%`,
+                  background: color,
+                  transitionDelay: `${i * 35}ms`,
+                }}
+              />
+            </span>
+            <strong className="chart-hbar-value">{fmt(d.value)}</strong>
+          </div>
+        ))}
+      </div>
+      <div className="chart-axis-note">
+        X axis: value (0 to {fmt(max)}). Y axis: category.
+      </div>
     </div>
   );
 };
@@ -267,6 +295,9 @@ export const DonutChart: React.FC<{
             <strong>{d.value}</strong>
           </div>
         ))}
+      </div>
+      <div className="chart-axis-note">
+        Center: total {total}. Segments: category share.
       </div>
     </div>
   );
