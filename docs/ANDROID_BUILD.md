@@ -82,7 +82,7 @@ The native app embeds whatever is in `build/`, so **always rebuild the web app
 before syncing**.
 
 ```powershell
-npm run build              # -> build/
+npm run build              #  to  build/
 npx cap sync android       # copy build/ into the Android project
 ```
 
@@ -121,7 +121,7 @@ $env:JAVA_HOME = "C:\Users\ETHIOMK\escon-tools\jdk17\jdk-17.0.20.1+1"
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r "E-SCON-debug.apk"
 ```
 
-> If `adb devices` shows **no device**, enable **Developer Options -> USB
+> If `adb devices` shows **no device**, enable **Developer Options  to  USB
 > debugging** on the phone and accept the authorization prompt on the device.
 
 ---
@@ -232,7 +232,7 @@ in-app logo are the same mark.
 | Android legacy icon | `android/app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.png` (48 / 72 / 96 / 144 / 192) |
 | Android round icon | same folders, `ic_launcher_round.png` |
 | Android adaptive foreground | same folders, `ic_launcher_foreground.png` (108 / 162 / 216 / 324 / 432; logo inside the 66% safe zone) |
-| Adaptive background | `res/values/ic_launcher_background.xml` -> `#FFFFFF` |
+| Adaptive background | `res/values/ic_launcher_background.xml`  to  `#FFFFFF` |
 
 `AndroidManifest.xml` wires `android:icon="@mipmap/ic_launcher"` and
 `android:roundIcon="@mipmap/ic_launcher_round"`; the `<adaptive-icon>` XMLs live in

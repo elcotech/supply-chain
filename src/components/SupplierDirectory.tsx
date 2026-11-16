@@ -119,7 +119,7 @@ const SupplierDirectory: React.FC<SupplierDirectoryProps> = ({
           <div className="modal-content ws-public-modal" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={selected.name}>
             <div className="modal-header">
               <h2>{selected.name}</h2>
-              <button className="modal-close" onClick={() => setSelected(null)}></button>
+              <button className="modal-close" onClick={() => setSelected(null)}>[X]</button>
             </div>
             <div className="modal-body">
               <ul className="ws-detail-list">

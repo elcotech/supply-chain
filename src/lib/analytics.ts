@@ -548,7 +548,7 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     insights.push('Sign in to unlock your own orders, spending and forecasts.');
   } else {
     if (growthPct != null) {
-      insights.push(`Revenue is ${growthPct >= 0 ? 'up' : 'down'} ${Math.abs(growthPct).toFixed(1)}% versus the previous ${days}-day period (${money(previousGmv)} -> ${money(gmv)}).`);
+      insights.push(`Revenue is ${growthPct >= 0 ? 'up' : 'down'} ${Math.abs(growthPct).toFixed(1)}% versus the previous ${days}-day period (${money(previousGmv)}  to  ${money(gmv)}).`);
     } else if (gmv > 0) {
       insights.push(`${periodLabel}: ${money(gmv)} across ${valid.length} orders, averaging ${money(avgOrderValue)} per order.`);
     } else {

@@ -58,13 +58,13 @@
 //
 // Verification (all passed)
 // - `$env:CI='true'; npm test -- --watchAll=false`
-//   -> 5 suites, 113 tests passed.
+//    to  5 suites, 113 tests passed.
 // - `$env:CI='true'; npm run build`
-//   -> Compiled successfully; main 256 kB gzip, CSS 44.23 kB gzip.
+//    to  Compiled successfully; main 256 kB gzip, CSS 44.23 kB gzip.
 // - Android debug + signed release APK + signed release AAB built after
 //   `npx cap copy android`.
-// - `aapt dump badging E-SCON-release.apk` -> versionCode 25, versionName 2.0.0.
-// - Embedded `assets/public/sw.js` -> `e-scon-v3.0.0`.
+// - `aapt dump badging E-SCON-release.apk`  to  versionCode 25, versionName 2.0.0.
+// - Embedded `assets/public/sw.js`  to  `e-scon-v3.0.0`.
 //
 // Artifact SHA-256
 // - E-SCON-debug.apk    cb4ec7ece2465226de28e8ab5e853a88e1ec5d6ae0dc194a9c1949d03b17a0c7
@@ -72,9 +72,9 @@
 // - E-SCON-release.aab  1fb574ca0aaf2f7dd0506dea2a50fdf2df9aaacc76205337bc9440bc9dc3e4f8
 //
 // Versioning
-// - package.json / package-lock.json 1.10.0 -> 2.0.0
-// - android versionCode 23 -> 24, versionName 1.10.0 -> 2.0.0
-// - public/sw.js VERSION e-scon-v1.15.0 -> e-scon-v3.0.0
+// - package.json / package-lock.json 1.10.0  to  2.0.0
+// - android versionCode 23  to  24, versionName 1.10.0  to  2.0.0
+// - public/sw.js VERSION e-scon-v1.15.0  to  e-scon-v3.0.0
 //
 // Working notes for the next person
 // - Order already had transportCost/deliveryIncluded; all new transport fields

@@ -74,7 +74,7 @@
 
 ## 3. Prerequisites
 
-- **Node.js**  14 (recommended 18 LTS)
+- **Node.js** >= 14 (recommended 18 LTS)
 - **npm** (bundled with Node)
 - A modern browser (Chrome, Firefox, Edge, Safari) - desktop & mobile
 - Internet connection (map tiles, OSRM and Nominatim are remote services)
@@ -122,11 +122,11 @@ except for the admin account.
 **Registration and editable locations (v6.5).** Registration geocodes the typed
 address/city with Nominatim and stores the real `lat`/`lng` (falling back to
 central Addis Ababa only if geocoding fails). Customers can correct the pin at
-any time from **Dashboard -> My Location**, which uses the shared
+any time from **Dashboard  to  My Location**, which uses the shared
 [`MapPicker`](../src/components/MapPicker.tsx) and saves the address, city and
-coordinates back to their account. Suppliers edit the same pin from **Profile ->
-Edit Company Profile**. Admins can correct any account from **Settings -> Data
-Manager -> Location**. Search previews and the product page measure from this
+coordinates back to their account. Suppliers edit the same pin from **Profile  to 
+Edit Company Profile**. Admins can correct any account from **Settings  to  Data
+Manager  to  Location**. Search previews and the product page measure from this
 saved pin; since v6.11 the **Order** action reuses that exact measured KM for
 the cart, proforma and placed order, and only takes a fresh high-accuracy GPS
 fix when a line has no measurement yet (e.g. a legacy cart or no pin at all).
@@ -180,7 +180,7 @@ supply-chain1/
  package.json
  tsconfig.json
  README.md
- TECHNICAL_DOCUMENTATION.md   # <- this file
+ TECHNICAL_DOCUMENTATION.md   #  this file
 ```
 
 > **Note:** `App.tsx` is intentionally the single page-routing hub - it renders different "pages" via a `currentPage` string switch (no react-router is used).
@@ -196,17 +196,17 @@ supply-chain1/
       state (useState)     
       localStorage sync    
       page router (switch) 
-      Header + DateTime      <- desktop; mobile uses TopBar + TabBar (isMobile)
-      Active page render     <- mobile variants branch on isMobile
+      Header + DateTime       desktop; mobile uses TopBar + TabBar (isMobile)
+      Active page render      mobile variants branch on isMobile
       Modals (product,     
        cart, edit company)  
-      Footer                 <- desktop only; mobile uses TabBar + More sheet
+      Footer                  desktop only; mobile uses TabBar + More sheet
 
 ```
 
 **Boot sequence**
 
-1. `App` mounts -> `showSplash = true` -> splash screen for **3 seconds**, then `currentPage = 'home'`.
+1. `App` mounts  to  `showSplash = true`  to  splash screen for **3 seconds**, then `currentPage = 'home'`.
 2. An initialization `useEffect` reads `localStorage` (`users`, `companies`, `materials`, `orders`, `currentUser`).
 3. Sample data is used **only when a collection has never been stored** (first run). Once a key exists, even as `[]`, the saved collection is authoritative - deleted sample rows are never re-added - and geocoding of supplier addresses runs once via Nominatim.
 4. Every mutation of state arrays is persisted back to `localStorage` via dedicated `useEffect`s.
@@ -217,16 +217,16 @@ supply-chain1/
 2. A debounced `useEffect` (300 ms) calls `performSearch()`.
 3. `performSearch` filters `materials`, then for each match calls the OSRM API for distance and transport cost (parallel `Promise.all`).
 4. Results are enriched into `SearchResult[]` (material + company + distance + costs) and rendered in a sortable table.
-5. Clicking a product row sets `autoRouteSupplierId` and bumps `routeRequestId` -> the map modal opens and **automatically draws the driving route** from the customer's current position.
+5. Clicking a product row sets `autoRouteSupplierId` and bumps `routeRequestId`  to  the map modal opens and **automatically draws the driving route** from the customer's current position.
 
 **Data flow example (proforma)**
 
-1. Cart -> `1 To Purchase` / `2 To Proforma` / `3 To Preview` -> `confirmOrder()` / `handlePrintProforma()` / `handlePreviewProforma()`. All three price the same cart with VAT (`true`); only the destination differs.
-2. `priceCartItems(cart, applyVat, origin?)` builds the **whole-cart** `CartReport`: net subtotal, **one aggregate VAT** (`vatOnSubtotal`) only when `applyVat` is true, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox -> supplier's `startFee + perKm x km` -> platform fallback), grouped by supplier with distance, mode and fee each. A cart holds one supplier (10.23), so the report normally has a single group.
+1. Cart  to  `1 To Purchase` / `2 To Proforma` / `3 To Preview`  to  `confirmOrder()` / `handlePrintProforma()` / `handlePreviewProforma()`. All three price the same cart with VAT (`true`); only the destination differs.
+2. `priceCartItems(cart, applyVat, origin?)` builds the **whole-cart** `CartReport`: net subtotal, **one aggregate VAT** (`vatOnSubtotal`) only when `applyVat` is true, and a delivery fee resolved **per line** by `resolveLineDelivery` (buyer checkbox  to  supplier's `startFee + perKm x km`  to  platform fallback), grouped by supplier with distance, mode and fee each. A cart holds one supplier (10.23), so the report normally has a single group.
 3. The report is stored in `proformaDetails` (the cart report in `cartDetails` is left untouched) and `showProforma` is set. `To Proforma` clears `proformaAutoPrint` and shows the document on screen; `To Preview` sets it, which makes `ProformaInvoice` fire `window.print()` once the modal has painted.
 4. `ProformaInvoice` renders from `proformaDetails` - every item, the supplier, one **Delivery Cost** total and the supplier's signature block beside the buyer's.
 5. `buildProformaShareData` + `generateProformaQrDataUrl` encode the compact summary into the QR, which is a fixed top-right cell of the **document header** grid regardless of item count; the payload is capped at `MAX_QR_LINE_ITEMS` with the true count in `tc`, and `PublicProforma` renders it on scan.
-6. The buyer presses ** Back to To Purchase** -> `handleBackToPurchase()` closes the document and re-enters the cart at step 1 (10.5). Nothing is lost: the proforma never mutates the cart.
+6. The buyer presses ** Back to To Purchase**  to  `handleBackToPurchase()` closes the document and re-enters the cart at step 1 (10.5). Nothing is lost: the proforma never mutates the cart.
 
 ---
 
@@ -258,8 +258,8 @@ All interfaces live in **`src/types.ts`**.
   brand?, model?,
   specifications?: { weight?, dimensions?, grade?, origin?,
                      certification?: string[], weightPerUnit?, materialType? },
-  images: string[],          // <- base64 data-URL photos
-  delivery?: MaterialDelivery, // <- NEW v5.2 supplier delivery terms
+  images: string[],          //  base64 data-URL photos
+  delivery?: MaterialDelivery, //  NEW v5.2 supplier delivery terms
   taxIncluded, vatPercentage, lastUpdated }
 ```
 
@@ -280,17 +280,17 @@ alter a cart the buyer already priced.
   transportCost, totalAmount, status: 'pending'|'confirmed'|'shipped'|'delivered'|'cancelled',
   orderDate, deliveryDate?, address, notes?, invoiceNumber,
   taxAmount, vatAmount, paymentMethod, paymentStatus,
-  deliveryIncluded: boolean } // <- NEW v5.2: did the buyer pay for delivery?
+  deliveryIncluded: boolean } //  NEW v5.2: did the buyer pay for delivery?
 ```
 
 ### Other types
 `Alert`, `FormData` (all form fields, incl. `materialImages: string[]` and the three delivery fields `materialDeliveryOffered` / `materialDeliveryPerKm` / `materialDeliveryStartFee`), `SearchResult` (Material + computed `distance`, `totalCost`, `estimatedTransport`, `company`).
 
 ```ts
-// CartItem      ... includeDelivery?: boolean,   // <- NEW v5.2 buyer's master switch
+// CartItem      ... includeDelivery?: boolean,   //  NEW v5.2 buyer's master switch
 //                 deliveryRate?: MaterialDelivery
 // DeliveryMode   'supplier' | 'platform' | 'none'
-// CartSupplier   ... deliveryMode?: DeliveryMode, // <- NEW v5.2 which rule paid
+// CartSupplier   ... deliveryMode?: DeliveryMode, //  NEW v5.2 which rule paid
 //                 deliveryBasis?: string          //   e.g. "300 start + 12/km"
 // CartReport     ... freeDeliveryApplied, minOrderEnabled, minOrderAmount, belowMinOrder
 ```
@@ -356,7 +356,7 @@ Plain (non-memo) helpers worth knowing:
 
 | Helper | Role |
 | --- | --- |
-| `resolveLineDelivery` | **The single source of truth for one line's delivery fee** - checkbox -> supplier rate -> platform fallback, returning both the fee and its `DeliveryMode` |
+| `resolveLineDelivery` | **The single source of truth for one line's delivery fee** - checkbox  to  supplier rate  to  platform fallback, returning both the fee and its `DeliveryMode` |
 | `combineDeliveryModes` | Folds two lines' modes into the one badge a supplier group shows |
 | `buildMaterialDelivery` | Turns the three product-form fields into a `MaterialDelivery` |
 | `priceCartItems` | Prices any set of cart lines into a `CartReport` (used by checkout, the proforma and the re-pricing effect) |
@@ -369,7 +369,7 @@ Plain (non-memo) helpers worth knowing:
 | `platformDeliveryHint` | Live buyer-facing note shown in the cart's Delivery Cost block when one or more supplier groups have no published rate and the platform fee applies |
 | `cartSignature` | Quantity + delivery-flag signature that keys the cart re-pricing effect |
 
-Quantity controls (10.5): the new single-page cart (10.28) renders each line's quantity with inline `` / `+` stepper buttons inside the items table, and the "With delivery" choice is on the same card's Delivery Cost block. The old `CartQuantityInput` module component (a reusable quantity + checkbox unit that lived above `function App()` and was shared by the old cart modal and `DetailsOrderBox`) was removed when the cart UI was rebuilt; per-line delivery is still a cart-line property (`CartItem.includeDelivery`) so the proforma and placed orders keep agreeing.
+Quantity controls (10.5): the new single-page cart (10.28) renders each line's quantity with inline `-` / `+` stepper buttons inside the items table, and the "With delivery" choice is on the same card's Delivery Cost block. The old `CartQuantityInput` module component (a reusable quantity + checkbox unit that lived above `function App()` and was shared by the old cart modal and `DetailsOrderBox`) was removed when the cart UI was rebuilt; per-line delivery is still a cart-line property (`CartItem.includeDelivery`) so the proforma and placed orders keep agreeing.
 
 ---
 
@@ -421,7 +421,7 @@ no-op and the app remains local-only. See `docs/CLOUD_DATABASE.md`.
 - **Transparency** toggle () - makes the widget fully transparent ("ghost").
 - Both preferences persist to `localStorage`.
 
-### 10.2 Product -> Map, distance & route (NEW/improved)
+### 10.2 Product  to  Map, distance & route (NEW/improved)
 - On the Search page each product row shows a ** Distance badge** computed from the customer's location (or the default Addis Ababa coordinates for guests).
 - **Clicking a product row** immediately opens the full-screen Leaflet map and **auto-draws the driving route** to the supplier.
 - The map's detail panel shows **route distance (km) and estimated driving time**, plus a "Show/Hide Route" control.
@@ -441,8 +441,8 @@ no-op and the app remains local-only. See `docs/CLOUD_DATABASE.md`.
 - Marker clicks and `window.__selectSupplier` go through `selectSupplierRef`, so they always hit the current selection logic instead of the first-render closure.
 
 ### 10.3 Product pictures (NEW)
-- **Upload:** On the *Add Product* and *Edit Product* forms there is a **" Upload Photos"** button (accepts `image/*`, multiple, max 6). Files are read with the `FileReader` API and stored as **base64 data URLs** in `formData.materialImages` -> saved to `Material.images`.
-- **Preview:** Uploaded photos show as thumbnails with an  remove button before saving.
+- **Upload:** On the *Add Product* and *Edit Product* forms there is a **" Upload Photos"** button (accepts `image/*`, multiple, max 6). Files are read with the `FileReader` API and stored as **base64 data URLs** in `formData.materialImages`  to  saved to `Material.images`.
+- **Preview:** Uploaded photos show as thumbnails with an [X] remove button before saving.
 - **Display:** Thumbnails appear in the search results table, the supplier dashboard table, and a **gallery** inside the product-details modal. Products without photos show a category-based emoji placeholder (   ...).
 
 ### 10.4 Live search & filters
@@ -452,7 +452,7 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 - The filter row on the Search page holds a **supplier listbox** (`<select name="searchSupplier">`) between the department and city filters, reusing the existing `.filter-select` pill styling - no new CSS.
 - Options are built from `companies`, keeping only suppliers that actually list products (`materials.some(m => m.companyId === company.id)`), sorted alphabetically and labelled `Name - City`. The first option is `all` (labelled `Supplier`), so no filter is applied by default.
 - Filtering happens in `performSearch` (`App.tsx`) with `material.companyId === searchSupplier`, so it composes with the other filters, sorting and the distance/delivery estimates.
-- The field is `FormData.searchSupplier`, is part of the debounce dependency list, and is reset by the  clear-filters button.
+- The field is `FormData.searchSupplier`, is part of the debounce dependency list, and is reset by the [X] clear-filters button.
 - The active supplier is echoed in the results header (` Results (12) -  Build Well Trading`) so the filtered state is obvious. The same filter row is rendered on mobile, so phones get it too.
 - **No results-header export (v5.4):** the  Export button that used to sit next to the results count is removed - the header  menu and the company dashboard export are the only product exports. `handleExportMaterials` stays in use by those two.
 
@@ -461,12 +461,12 @@ Debounced search (300 ms) over `name`, `description`, `brand`, `category` + filt
 
 Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`; older sample rows are normalised on load), so VAT is never extracted from the entered price. `priceCartItems` sums the net line totals into `subtotal`. With `applyVat` false (cart, re-price, back-to-purchase, delivery-fee reset) `vatAmount` is `0`; with `applyVat` true (both proforma actions and `confirmOrder`) it calls **`vatOnSubtotal(subtotal, settings.vat.rate, settings.vat.enabled)` once** for the whole cart and sets `total = subtotal + vatAmount + transportCost`. VAT is therefore never rounded per line. The **per-line** delivery fee is resolved separately (see [10.22](#1022-per-line-delivery-pricing-new-in-v52)), producing a `CartReport` grouped by supplier with per-supplier distance/delivery costs. Confirming creates one `Order` per item; `allocateVat` splits the single cart VAT across those rows by their net value (last row absorbs the rounding remainder), so the orders always sum to the proforma total. The cart shows a pending-VAT note and a VAT-inclusive payable figure (used for the wallet check); the proforma shows the VAT amount. The cart then resets and the Orders page opens. A **single** proforma invoice covers the whole cart - see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56).
 
-**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase` -> `confirmOrder()` places the order; `2 To Proforma` -> `handlePrintProforma()` opens the proforma on screen (it clears `proformaAutoPrint`); `3 To Preview` -> `handlePreviewProforma()` opens the identical document and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF). All three call the same `calculateCartTotals(true)`, so the figures cannot disagree (the cart modal itself prices with `calculateCartTotals(false)`). Since v6.11 the bottom of the modal follows `Sample Layout.jpg` again: an outlined **Clear** pill on the left and a solid dark-blue **To Purchase** pill on the right (`.cart-sample-actions`), both committing through the same `confirmOrder()` as step 1 - two entry points, one code path, so they can never disagree about the total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
+**Three order actions, in order (v5.6):** the cart modal's action row is `.cart-order-steps` (`.cart-order-step` buttons, `is-primary` on the first). `1 To Purchase`  to  `confirmOrder()` places the order; `2 To Proforma`  to  `handlePrintProforma()` opens the proforma on screen (it clears `proformaAutoPrint`); `3 To Preview`  to  `handlePreviewProforma()` opens the identical document and sets `proformaAutoPrint`, so `ProformaInvoice` fires `window.print()` once the modal has painted (print / save as PDF). All three call the same `calculateCartTotals(true)`, so the figures cannot disagree (the cart modal itself prices with `calculateCartTotals(false)`). Since v6.11 the bottom of the modal follows `Sample Layout.jpg` again: an outlined **Clear** pill on the left and a solid dark-blue **To Purchase** pill on the right (`.cart-sample-actions`), both committing through the same `confirmOrder()` as step 1 - two entry points, one code path, so they can never disagree about the total. **Cart CSV export and "Print Report" were removed** in v5.6: `handleExportCart`, `handlePrintCart` and the `exportCartToCSV` / `printCartReport` imports are gone, and the proforma is the buyer's only order document.
 
 **Sample Layout cart UI (v6.11):** `renderCartSummary` now rebuilds the cart modal against `Sample Layout.jpg`, inside the `cart-sample-*` class family (styles at the end of `App.css`):
-- **Header** (`.cart-sample-head`): dark-blue bar with the `E-SCON | SHOPPING CART` brand on the left, a **live date/time** (`LiveClock`, a 1 s `setInterval` in `App.tsx` - deliberately ticking here, unlike the proforma which freezes its timestamp) and the  close button on the right.
+- **Header** (`.cart-sample-head`): dark-blue bar with the `E-SCON | SHOPPING CART` brand on the left, a **live date/time** (`LiveClock`, a 1 s `setInterval` in `App.tsx` - deliberately ticking here, unlike the proforma which freezes its timestamp) and the [X] close button on the right.
 - **Steps** (`.cart-sample-steps`): the three order actions restyled to the layout - step 1 solid dark blue with white text, steps 2/3 light-blue fill with dark-blue text.
-- **Product cards** (`.cart-sample-products` / `.cart-sample-product`): one white card per line with a photo thumbnail (`.cart-sample-thumb`,  fallback), the product name in dark blue, **Supplier:** / **Location:** rows, the `ETB ... / unit - Min: ...` price line, and two stacked outlined buttons on the right - **View** (opens the product details) and **Map** (draws the supplier route). Both close the cart first because the details/map modals render *before* the cart in the DOM and would otherwise be covered. The quantity row is the per-line `` / `+` stepper plus a **Remove** button; the "With delivery" choice lives on the Delivery Cost card, not on the product card.
+- **Product cards** (`.cart-sample-products` / `.cart-sample-product`): one white card per line with a photo thumbnail (`.cart-sample-thumb`,  fallback), the product name in dark blue, **Supplier:** / **Location:** rows, the `ETB ... / unit - Min: ...` price line, and two stacked outlined buttons on the right - **View** (opens the product details) and **Map** (draws the supplier route). Both close the cart first because the details/map modals render *before* the cart in the DOM and would otherwise be covered. The quantity row is the per-line `-` / `+` stepper plus a **Remove** button; the "With delivery" choice lives on the Delivery Cost card, not on the product card.
 - **Financial Summary** (`.cart-sample-summary`): dark-blue header bar, then numbered rows (`.cart-sample-row` + CSS-counter `.cart-fin-no`): **Unit price x Quantity** (one row per line), **Subtotal**, **VAT (rate%)** with the "added when you place the order" note, **Delivery Cost** - whose sub-label prints the **exact road KM** the line carried from the product page, e.g. `(11.7 km x 25.01 ETB/km)` - and the highlighted **Grand Total** (the VAT-inclusive payable used for the wallet check). The delivery fee stays editable (input +  auto) exactly as before.
 - **Payment Method** (`.cart-sample-payment`) and the **Clear / To Purchase** action row (`.cart-sample-actions`), as in the layout.
 
@@ -477,13 +477,13 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`;
 - **No new GPS fix while a measurement exists:** the cart-open location effect, `priceCartItems`' coordinate guard and `confirmOrder`'s fix request all skip when every line carries a measured distance, so opening the cart or pressing **To Purchase** cannot move the number. A fresh fix is taken only for an unmeasured line (legacy carts, buyer with no pin).
 - The **Delivery Cost** row in the cart, the proforma's per-supplier distance and the placed orders therefore all show the same KM the product page displayed. Unit tests: `stageCartLine` distance snapshots, `computeDeliveryFee` reusing `distanceKm` without calling the router.
 
-**Back to "To Purchase" (v5.7):** the proforma is a **full-screen overlay**, and its old `<- Back to Cart` button only called `setShowProforma(false)` - which left the buyer on whatever page was behind it with no cart open. Anyone who opened "To Proforma" to check a figure and then wanted to order had to hunt for the  icon again, and a buyer who had just reviewed a delivery total had no obvious way to commit to it. The proforma's second button is now ** Back to To Purchase** and takes the optional `onBackToPurchase` prop, wired in `App.tsx` to `handleBackToPurchase()`:
+**Back to "To Purchase" (v5.7):** the proforma is a **full-screen overlay**, and its old ` Back to Cart` button only called `setShowProforma(false)` - which left the buyer on whatever page was behind it with no cart open. Anyone who opened "To Proforma" to check a figure and then wanted to order had to hunt for the  icon again, and a buyer who had just reviewed a delivery total had no obvious way to commit to it. The proforma's second button is now ** Back to To Purchase** and takes the optional `onBackToPurchase` prop, wired in `App.tsx` to `handleBackToPurchase()`:
 - It clears `showProforma` **and** `proformaAutoPrint` - a later "To Preview" must not inherit a queued print until it explicitly requests one.
 - It **re-prices** the cart with `calculateCartTotals()` before reopening the modal. Delivery is priced from a live OSRM distance, so a cart left open behind the proforma can legitimately cost a few birr more now; the buyer must land on the real current total, not a stale one. If pricing fails it returns early and the cart stays closed.
 - It sets `showCartSummary` and writes `cartSignature(cart) + '|' + deliveryFeeOverride` into `repricedCart`, exactly like `handleCheckout`, so the live re-pricing `useEffect` does not immediately recalculate what was just calculated.
 - It sets `highlightPurchaseStep`, which adds `is-returned` to the "To Purchase" button and swaps its hint to *"Tap here to place your order"*. `.cart-order-step.is-returned` pulses a 6 px ring (`@keyframes purchaseStepPulse`, 4 iterations) and a `useEffect` clears the flag after 8 s; `prefers-reduced-motion: reduce` replaces the animation with a static outline. The flag is **presentation only** - never gate `confirmOrder` on it.
 - **Empty cart:** the proforma cannot normally outlive the cart, but if it does, the handler warns and navigates to `search-materials` instead of opening an empty modal.
-- `onBackToPurchase` is **optional** and falls back to `onClose`, so any other host of `ProformaInvoice` still renders a working button. `onClose` itself is unchanged and still backs the overlay click and the .
+- `onBackToPurchase` is **optional** and falls back to `onClose`, so any other host of `ProformaInvoice` still renders a working button. `onClose` itself is unchanged and still backs the overlay click and the [X].
 
 **Customers cannot export anything (v5.7):** export is a supplier/admin tool. Every customer-reachable entry point was removed, not just hidden:
 - Header  Export - now gated on `currentUser.userType !== 'customer'` (it previously exported the whole product catalogue for anyone on the Search page).
@@ -496,7 +496,7 @@ Supplier prices are **VAT-exclusive** (`Material.taxIncluded` is always `false`;
 
 **Order entry:** a customer never picks a quantity in a list. The  button on a results row, the **Order** button on a mobile product card and **View & Order** in the compare modal all open the **product details**, where the only quantity control lives (`DetailsOrderBox` + `QuantityStepper`, steps of 1 with a live total, and since v5.5 the number itself is a **typed field** so a custom quantity can be entered without tapping + a hundred times).
 
-**Product page layout (v6.8, follows `Sample Layout.jpg`):** the details are rendered as four stacked sections in this fixed order - **Product Details -> Supplier Information -> Customer Reviews -> Order Summary** (`.pd-section`, each with a `.pd-head`). *Product Details* holds the photo gallery (`.pd-media`, `.pd-dots`), the category tag, title, description, the **Unit Price** and **Delivery Price** metric cards, the quantity row (`.pd-qty` + `QuantityStepper`) with the live **Material Subtotal**, and the **Order Date** / **Delivery Time** row. *Supplier Information* shows the verified supplier, rating, address, phone and a route card with distance, ETA and **View Route on Map**. *Customer Reviews* lists per-product reviews. *Order Summary* (`.pd-summary`) is the order box: it prices the order **on the page** 250 ms after any change - Material Subtotal, Delivery Price, VAT (when enabled) and **Total Payable** - and offers ** Place Order** plus a quieter **Add to cart & review instead**.
+**Product page layout (v6.8, follows `Sample Layout.jpg`):** the details are rendered as four stacked sections in this fixed order - **Product Details  to  Supplier Information  to  Customer Reviews  to  Order Summary** (`.pd-section`, each with a `.pd-head`). *Product Details* holds the photo gallery (`.pd-media`, `.pd-dots`), the category tag, title, description, the **Unit Price** and **Delivery Price** metric cards, the quantity row (`.pd-qty` + `QuantityStepper`) with the live **Material Subtotal**, and the **Order Date** / **Delivery Time** row. *Supplier Information* shows the verified supplier, rating, address, phone and a route card with distance, ETA and **View Route on Map**. *Customer Reviews* lists per-product reviews. *Order Summary* (`.pd-summary`) is the order box: it prices the order **on the page** 250 ms after any change - Material Subtotal, Delivery Price, VAT (when enabled) and **Total Payable** - and offers ** Place Order** plus a quieter **Add to cart & review instead**.
 
 Pressing **Place Order** stages the line with the **exact KM the page is displaying** and writes the order (cloud-first) from it; a fresh GPS fix is taken only when a line has no measurement yet (see the v6.11 distance note above). **Add to Cart & Review** stores the line the same way and opens the cart. The distance shown before you order is therefore not a preview - it is the value checkout charges.
 
@@ -510,7 +510,7 @@ Pressing **Place Order** stages the line with the **exact KM the page is display
 
 Since v6.10 the guard is written **inside** the 250 ms timeout. Writing it before the timeout let a re-render clear the timer while leaving the signature marked as priced; the next effect run then returned early and the cart stayed on "Calculating your order..." indefinitely. A cancelled in-flight price now releases the guard (only if it still owns the same signature), and both the no-totals path and the error path release it before setting `cartPriceFailed`. The failure state is rendered inside the loading modal, with the saved cart lines and a **Use my current location** / **Retry calculating** action instead of a dead spinner.
 
-**Cart quantity is freely editable (v5.4):** each cart line renders its quantity with a `` / `+` stepper inside the new single-page cart's items table (`.cart-new-table .cart-new-qty`). The stepper keeps a local draft string and only commits a valid whole number on blur, Enter or via the buttons, so clearing the box never pushes NaN into the line total or the grand total. The native spinners are hidden in favour of the `` / `+` buttons (`.cart-new-qty-btn`). Since v5.2 the same quantity card also carries the per-line "With delivery" checkbox, now rendered inside the cart's Delivery Cost block rather than on the line card itself - the decision still rides on `CartItem.includeDelivery` so the proforma and placed orders keep agreeing.
+**Cart quantity is freely editable (v5.4):** each cart line renders its quantity with a `-` / `+` stepper inside the new single-page cart's items table (`.cart-new-table .cart-new-qty`). The stepper keeps a local draft string and only commits a valid whole number on blur, Enter or via the buttons, so clearing the box never pushes NaN into the line total or the grand total. The native spinners are hidden in favour of the `-` / `+` buttons (`.cart-new-qty-btn`). Since v5.2 the same quantity card also carries the per-line "With delivery" checkbox, now rendered inside the cart's Delivery Cost block rather than on the line card itself - the decision still rides on `CartItem.includeDelivery` so the proforma and placed orders keep agreeing.
 
 **Stock visibility:** stock numbers, "In stock"/"Out" chips and low-stock banners are shown **only to suppliers and admins** (`canSeeStock`). Customers and guests see price and unit only.
 
@@ -520,7 +520,7 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 **Header shows the supplier's name (v5.6):** the supplier's own name is bold and centred on **both** dashboards. Desktop renders `<p className="dashboard-supplier-name">{company?.name}</p>` inside `.dashboard-header-supplier`, on its own line under the **Welcome - Supplier Dashboard** page heading (v6.5), replacing the old `Welcome {company?.name}!` paragraph. Mobile puts the same `.dashboard-supplier-name` on the `<h2>` of `.mobile-page-head-supplier`, with "Supplier Dashboard" demoted to the `<p>` subtitle and the old `` prefix dropped from the name. The rules are scoped to the supplier pages so the **customer** dashboard keeps its `Welcome {currentUser.name}!` / `Hi, {name}` greeting and its left alignment, and `word-break: break-word` keeps a long trading name from overflowing on a phone.
 
 **Own-stock detail (v5.4):** a supplier always sees everything about *their own* stock (this is the one surface where a stock number is not behind `canSeeStock`, because a supplier is reading their own inventory):
-- A **" My stock"** card with four tiles: units in stock, stock value (` quantity x price`), low-stock lines (`0 < quantity  LOW_STOCK_THRESHOLD`) and out-of-stock lines. The tiles turn amber/red when the count is above zero.
+- A **" My stock"** card with four tiles: units in stock, stock value (` quantity x price`), low-stock lines (`0 < quantity <= LOW_STOCK_THRESHOLD`) and out-of-stock lines. The tiles turn amber/red when the count is above zero.
 - The products table gains **In Stock** (`N unit`), **Stock Status** (`.stock-chip-in` / `.stock-chip-low` / `.stock-chip-out`) and **Stock Value** columns; the header/footer hint states that stock is private to the supplier.
 - The mobile supplier dashboard gets the same four tiles (`.m-stock-grid`) plus a status chip on every product row.
 - Nothing here is customer-visible: these components only render for `currentUser.userType === 'company'`, and the product-details/compare/search stock surfaces remain `canSeeStock`-gated (13.1).
@@ -528,11 +528,11 @@ Suppliers see their products (with photos) and can **view / edit / delete** them
 ### 10.7 Proforma Invoice (NEW)
 - **File:** `src/components/ProformaInvoice.tsx`.
 - Full proforma invoice with **live-updating clock**, unique invoice number (PI-YYYYMM-XXXXXX), 30-day validity.
-- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), financial summary (**Amount Before VAT** -> **VAT (x% added)** -> **Delivery Cost** -> **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines. The QR "public proforma" shows the same VAT-exclusive totals; the old per-supplier delivery breakdown was removed in v6.15.
-- **Layout (v5.4, extended in v5.5):** supplier and buyer blocks stay **side by side** everywhere - desktop, phones (`760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be 760px). Only the terms block still stacks - it is prose and needs the full width.
+- Includes: supplier/buyer details (TIN, VAT, address), item table (brand, origin, specs, delivery flag), financial summary (**Amount Before VAT**  to  **VAT (x% added)**  to  **Delivery Cost**  to  **Grand Total**), amount in words, terms & conditions (6 clauses), and signature lines. The QR public proforma shows the same VAT-exclusive totals; the old per-supplier delivery breakdown was removed in v6.15.
+- **Layout (v5.4, extended in v5.5):** supplier and buyer blocks stay **side by side** everywhere - desktop, phones (`<=760px` shrinks the label column to 68px and the box chrome) and print (the `1fr 1fr` grid is re-asserted because a print viewport can also be <=760px). Only the terms block still stacks - it is prose and needs the full width.
 - **Signature grid (changed in v5.2):** `.pf-signatures` is `repeat(auto-fit, minmax(200px, 1fr))`, so each party gets its own block next to the buyer's. The old fixed `1fr 1fr` only had room for two parties; do not hard-code a column count here.
 - **Amount in words (v5.4):** `.pf-summary-wrap` is a right-aligned column, so `.pf-words` renders **directly under** the numeric `.pf-summary` (46% width on screen, 52% in print, 100% on phones) instead of sitting beside it. The v6.15 document no longer renders the old `.pf-delivery-box`, so the money summary is the first block in that column.
-- **Header is a 3-column grid (v5.6):** `.pf-header` is `display: grid` with `grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto` - `.pf-brand` column 1, `.pf-meta` column 2, `.pf-header-qr` column 3, all pinned to `grid-row: 1`. **Do not change it back to flex.** With flex, the long `.pf-tagline` plus `.pf-meta` could not shrink far enough on a mid-width screen, and the QR - which must never shrink - was pushed out of the row and wrapped onto a new line at the left. The grid makes "always top-right" structural, and the `760px` and `@media print` blocks only re-declare columns 1/2/3; they must keep `align-self: start` and `justify-self: end` on `.pf-header-qr` so it stays hard against the top-right corner, opposite the logo, whether the items table is 2 lines or 400.
+- **Header is a 3-column grid (v5.6):** `.pf-header` is `display: grid` with `grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto` - `.pf-brand` column 1, `.pf-meta` column 2, `.pf-header-qr` column 3, all pinned to `grid-row: 1`. **Do not change it back to flex.** With flex, the long `.pf-tagline` plus `.pf-meta` could not shrink far enough on a mid-width screen, and the QR - which must never shrink - was pushed out of the row and wrapped onto a new line at the left. The grid makes "always top-right" structural, and the `<=760px` and `@media print` blocks only re-declare columns 1/2/3; they must keep `align-self: start` and `justify-self: end` on `.pf-header-qr` so it stays hard against the top-right corner, opposite the logo, whether the items table is 2 lines or 400.
 - Accessible from the cart summary modal via `2 To Proforma` (on screen) and `3 To Preview` (print preview), both covering the **whole cart** - see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56) and [10.5](#105-cart--checkout).
 - **Action bar (v5.7):** two buttons - ` Print Proforma` and ` Back to To Purchase`. The second fires `onBackToPurchase` when the host supplies it (falling back to `onClose`) and returns the buyer to step 1 of the cart; see [10.5](#105-cart--checkout). The bar is `.proforma-actions.no-print`, so neither button is printed.
 - **Print-ready**: `@media print` styles hide action buttons and format for A4.
@@ -579,13 +579,13 @@ All animations are **CSS-only** (no JS animation libraries), using CSS custom pr
 | **Logo spin** | Header logo icon | `rotate(360deg)` on hover with spring easing |
 | **Alert bounce** | Toast notifications | `@keyframes alertBounce` (translateY + spring) |
 | **Modal entrance** | All modals | `scale(0.85) + translateY` with spring `cubic-bezier` |
-| **Nav underline** | Navigation links | `::before` width transition from 0 -> 70% |
+| **Nav underline** | Navigation links | `::before` width transition from 0  to  70% |
 | **Cart badge pulse** | Cart item count badge | `@keyframes badgePulse` (scale oscillation) |
 | **Glass glow** | All `.glass` elements | Enhanced `box-shadow` with orange glow on hover |
 | **Focus ring** | Form inputs on focus | `@keyframes focusRing` (box-shadow expansion) |
 
 ### 10.15 Auth & security simulation
-Demo auth with lockout: 3 failed logins -> 30-second lock (`loginAttempts`, `lockUntil`). Passwords are stored in plaintext (demo only - do **not** use in production).
+Demo auth with lockout: 3 failed logins  to  30-second lock (`loginAttempts`, `lockUntil`). Passwords are stored in plaintext (demo only - do **not** use in production).
 
 **Screenshots are allowed in the Android app (v6.0):** `MainActivity.java` no longer sets `WindowManager.LayoutParams.FLAG_SECURE`, so the normal Android screenshot and screen-recording shortcuts work - see [10.24](#1024-branding-screenshots--search-polish-v58v60).
 
@@ -607,7 +607,7 @@ Demo auth with lockout: 3 failed logins -> 30-second lock (`loginAttempts`, `loc
 ### 10.17 Professional Proforma + scannable QR (NEW in v4)
 - **Files:** `src/components/ProformaInvoice.tsx`, `src/components/PublicProforma.tsx`.
 - The proforma now shows the **E-SCON brand exactly once** (header). The footer carries only the contact strip + legal note.
-- **Currency:** all figures render through the shared `formatCurrency` in `utils.ts` -> `ETB 1,234.50` - never `ETH`.
+- **Currency:** all figures render through the shared `formatCurrency` in `utils.ts`  to  `ETB 1,234.50` - never `ETH`.
 - **QR code:** encodes the full link `.../#escon=<token>` where `<token>` is a **base64url-encoded `ProformaShareData` JSON** (compact, non-sensitive). Scanning it opens a **mobile-first proforma view** (`PublicProforma`) directly - works both on screen and from a paper print.
 - `encodeProformaPayload` / `decodeProformaPayload` / `buildProformaQrUrl` / `generateProformaQrDataUrl` live in `utils.ts` and are unit-tested.
 - The printed document also shows a **minimum-order advisory** banner when the rule is enabled.
@@ -651,9 +651,9 @@ The two rate fields and the live example sentence (`.delivery-terms-preview`) ar
 **Buyer side:** a "With delivery" checkbox sits on the same card as the quantity - in the new single-page cart's Delivery Cost block and in `DetailsOrderBox` (product details). The product-details checkbox defaults to **on**; a cart line with no `includeDelivery` field at all (saved before v5.2) also means **on**, so existing carts keep their old totals - `item.includeDelivery !== false` is the check everywhere, never a truthiness test.
 
 **The pricing rule - one function, `resolveLineDelivery`:**
-1. Box unticked -> fee `0`, mode `none`.
-2. Supplier published a rate -> `startFee + perKm x distanceKm` over the **measured supplier -> buyer road distance** (OSRM, same source as the map), mode `supplier`. The admin's delivery settings (fixed fee, per-km-per-ton, zones, free-delivery threshold) are **not** consulted for these lines.
-3. No supplier rate -> the existing `computeDeliveryFee(...)` platform rules apply, mode `platform`, and `platformDeliveryHint` tells the buyer why the fee appeared.
+1. Box unticked  to  fee `0`, mode `none`.
+2. Supplier published a rate  to  `startFee + perKm x distanceKm` over the **measured supplier  to  buyer road distance** (OSRM, same source as the map), mode `supplier`. The admin's delivery settings (fixed fee, per-km-per-ton, zones, free-delivery threshold) are **not** consulted for these lines.
+3. No supplier rate  to  the existing `computeDeliveryFee(...)` platform rules apply, mode `platform`, and `platformDeliveryHint` tells the buyer why the fee appeared.
 `computeLineDeliveryFee` in `src/utils.ts` is the pure, unit-tested core; `lineDeliveryMode` and `deliveryBasisLabel` give the label text. Mixed lines from one supplier are folded with `combineDeliveryModes`, and the group's badge shows whichever rule actually paid.
 
 **Snapshot, not live lookup:** the rate is copied onto `CartItem.deliveryRate` at add-to-cart time and refreshed when the supplier edits that product (`handleUpdateMaterial` walks the cart), so a supplier raising prices never silently re-prices a cart the buyer already approved. The fee itself is calculated later - at checkout, when the proforma is previewed, and on every cart re-price - which is why the distance is only fetched there.
@@ -670,7 +670,7 @@ A cart belongs to exactly one supplier. A proforma is a legal document issued by
 
 **Why `addToCart` returns `boolean`:** `DetailsOrderBox` only closes the product-details dialog when the add succeeded - `if (addToCart(...)) onAdded()`. On a rejection the dialog must stay open with the quantity and delivery choices intact so the buyer can simply clear the cart and retry. Do not reintroduce a flag set *inside* the `setCart` updater and read immediately after: React does not promise the updater has run yet, so that flag was always `false` at the check.
 
-**Re-adding is not a new supplier:** bumping the quantity of a line already in the cart (product details "Update Cart", the cart's `+`/``) must keep working, so the check is skipped when `cart.some(i => i.materialId === material.id)`. In the updater the same `materialId` test comes first for the same reason.
+**Re-adding is not a new supplier:** bumping the quantity of a line already in the cart (product details "Update Cart", the cart's `+`/`-`) must keep working, so the check is skipped when `cart.some(i => i.materialId === material.id)`. In the updater the same `materialId` test comes first for the same reason.
 
 **Legacy carts are not auto-cleared.** A mixed cart from an older build still prices, still renders and still proformas (see [10.21](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56)); the buyer is expected to clear it. Only *new* adds are blocked.
 
@@ -752,7 +752,7 @@ The cart summary box uses a green border, green heading, and green bold totals
 **GPS beside Order.** `MobileProductCard` renders `.m-pc-map-btn` (` GPS`)
 next to the yellow Order button in `.m-pc-buy`; it calls
 `handleOpenMapWithRoute(company.id)`, the same route/selection path as the
-desktop "View Route on Map" control.
+desktop View Route on Map control.
 
 **One-page print.** `ProformaInvoice.tsx` keeps a ref to `.pf-document`. Before
 printing it resets `--pf-print-zoom` to `1`, temporarily measures the document at
@@ -919,11 +919,11 @@ Analytics and the home module cards use this entry point.
 
 **Quick Search.** [`CommandPalette.tsx`](../src/components/CommandPalette.tsx)
 is a global command palette opened with **Ctrl/ + K**, the header  button or
-the mobile **More -> Quick Search** action. `App.tsx` builds the `CommandItem[]`
+the mobile **More  to  Quick Search** action. `App.tsx` builds the `CommandItem[]`
 from the signed-in role: navigation pages, account actions (wallet,
 notifications, data centre), supplier/admin actions and every catalogue product.
 [`src/lib/commandSearch.ts`](../src/lib/commandSearch.ts) holds the pure
-ranking helpers: `scoreCommand` (exact -> prefix -> substring -> keyword ->
+ranking helpers: `scoreCommand` (exact  to  prefix  to  substring  to  keyword  to 
 multi-term), `rankCommands` (relevance or, with an empty query, a **Recent**
 group from `localStorage` under `escon_command_recent`), `parseRecentIds` and
 `recordRecentId`. Typing also prepends a **Search all products for "..."** item
@@ -1049,14 +1049,14 @@ The delivery UI is four small blocks, added in one commented section:
 - Rounded corners (10-16 px), pill buttons, soft shadows, smooth transitions.
 - Zebra-striped tables with sticky gradient headers and orange hover.
 - **Beautiful `<select>` list boxes**: custom chevron via inline SVG `background-image`, `appearance: none`, hover/focus rings, readable `option` colors in both themes.
-- **Product page (Sample Layout)** (`.pd-section`, `.pd-grid`, `.pd-media`, `.pd-metric`, `.pd-qty`, `.pd-supplier`, `.pd-summary`, `.pd-summary-row`, `.pd-place-order`): the four-section product-details layout - Product Details -> Supplier Information -> Customer Reviews -> Order Summary - with the price/quantity cards, supplier route card and the on-page order box, styled once for all breakpoints (44px touch targets on  768px).
+- **Product page (Sample Layout)** (`.pd-section`, `.pd-grid`, `.pd-media`, `.pd-metric`, `.pd-qty`, `.pd-supplier`, `.pd-summary`, `.pd-summary-row`, `.pd-place-order`): the four-section product-details layout - Product Details  to  Supplier Information  to  Customer Reviews  to  Order Summary - with the price/quantity cards, supplier route card and the on-page order box, styled once for all breakpoints (44px touch targets on <= 768px).
 - **Cart (Sample Layout, v6.11)** (`.cart-sample-modal`, `.cart-sample-head`, `.cart-sample-steps`, `.cart-sample-product`, `.cart-sample-card-btn`, `.cart-qty-sep`, `.cart-sample-summary`, `.cart-sample-row`, `.cart-fin-no`, `.cart-sample-payment`, `.cart-sample-actions`): the rebuilt cart - brand header with live clock, three order steps, photo product cards with View/Map, numbered Financial Summary rows (the Delivery Cost row prints the carried KM) and the Clear / To Purchase pills, styled once for all breakpoints.
 - **Order box** (`.order-box`, `.qty-stepper`): the quantity control inside the product page (`.qty-stepper` is the stepper itself; `.order-box` is the legacy wrapper kept for older markup), styled once for all breakpoints.
 - **Stock flags** (`.stock-flag` / `.stock-flag-low`): amber pill used for the supplier-only low-stock warning inside the product details view.
 - **Stock chips** (`.stock-chip-in` / `.stock-chip-low` / `.stock-chip-out`): green / amber / red pills used on the supplier dashboard so a supplier reads their own stock status at a glance (never shown to customers).
 
 ### Sections (for navigation)
-Header -> Navigation -> Buttons -> Cards -> Search -> Product Grid -> Tables -> Product Row -> Modal -> Map Picker -> Edit Company -> Alert -> Stats -> Features -> Footer -> Home Hero -> User Info -> Cart -> Dashboard -> Distance Loader -> Map Styles -> PWA -> Swipe -> Icon Buttons -> Dark Mode -> Responsive -> **UI v2 polish (appended section)** -> Mobile shell ( 768px) -> **Product page (Sample Layout)** & quantity stepper -> Stock flags -> **Proforma invoice & print** -> **Product card "View details" affordance** -> **Form controls / checkbox rows** -> **Auth pages (centered sign-in)** -> **Cart quantity editor** -> **Supplier stock tiles & chips**.
+Header  to  Navigation  to  Buttons  to  Cards  to  Search  to  Product Grid  to  Tables  to  Product Row  to  Modal  to  Map Picker  to  Edit Company  to  Alert  to  Stats  to  Features  to  Footer  to  Home Hero  to  User Info  to  Cart  to  Dashboard  to  Distance Loader  to  Map Styles  to  PWA  to  Swipe  to  Icon Buttons  to  Dark Mode  to  Responsive  to  **UI v2 polish (appended section)**  to  Mobile shell (<= 768px)  to  **Product page (Sample Layout)** & quantity stepper  to  Stock flags  to  **Proforma invoice & print**  to  **Product card "View details" affordance**  to  **Form controls / checkbox rows**  to  **Auth pages (centered sign-in)**  to  **Cart quantity editor**  to  **Supplier stock tiles & chips**.
 
 ---
 
@@ -1065,15 +1065,15 @@ Header -> Navigation -> Buttons -> Cards -> Search -> Product Grid -> Tables -> 
 - **Viewport meta** (`public/index.html`): `width=device-width, initial-scale=1, viewport-fit=cover` (allows user zoom for accessibility).
 - **Touch handling**: `touch-action: manipulation` on interactive elements; `-webkit-tap-highlight-color: transparent`; `:focus-visible` rings for keyboard users.
 - **Hover suppression** on touch devices (`@media (hover: none)` disables lift-on-hover).
-- **Header** stacks vertically on  640 px; nav links scroll horizontally; the DateTime widget centers and shrinks.
-- **Mobile hamburger menu** (``) appears on  768px, toggles full-width navigation.
+- **Header** stacks vertically on <= 640 px; nav links scroll horizontally; the DateTime widget centers and shrinks.
+- **Mobile hamburger menu** (``) appears on <= 768px, toggles full-width navigation.
 - **Tables** scroll horizontally inside `.table-responsive-wrapper` (min-widths per table); cell padding & font shrink on mobile.
 - **Frozen Product column** stays visible during horizontal scroll via `position: sticky`.
 - **Optimized filters** use compact sizing with short labels on all breakpoints.
-- **Map modal** rebalances: map 40-45% height, details panel scrolls ( 768/480 px media queries).
+- **Map modal** rebalances: map 40-45% height, details panel scrolls (<= 768/480 px media queries).
 - **Forms** collapse `.form-row` two-column grids to one column.
 - **PWA install banner** stacks vertically on mobile.
-- **Touch targets**: `.btn-icon`  40px, buttons  44px on touch devices.
+- **Touch targets**: `.btn-icon` >= 40px, buttons >= 44px on touch devices.
 - **Safe area insets**: respects device notches via `env(safe-area-inset-*)`.
 - **Mobile banking-style shell (v5)**: under `768px` the app swaps its desktop chrome for a dedicated mobile shell - this is a *dual layout*, both are fully supported and the desktop layout is **unchanged** (all mobile markup/CSS is opt-in and gated):
   - `src/hooks/useIsMobile.ts` returns a reactive `isMobile` boolean from `matchMedia("(max-width: 768px)")`; `App.tsx` uses it to render `renderMobileTopBar()`, `renderMobileBottomNav()` and the profile "More" bottom sheet instead of the desktop header/footer. The same `768px` breakpoint is the CSS boundary, so JS and CSS always agree.
@@ -1087,20 +1087,20 @@ Header -> Navigation -> Buttons -> Cards -> Search -> Product Grid -> Tables -> 
   - **Orders** on mobile render stacked order cards with the `OrderTimeline` shipment stepper, customer/supplier line, itemised totals and Confirm/Reorder actions, plus Export on **supplier cards only** since v5.7.
   - **Dashboards** on mobile render 2x2 stat tiles plus compact product/order lists (`renderMobileDashboard(true|false)`).
   - **Modals become bottom sheets** on mobile (`.modal-overlay` aligns to bottom, `.modal-content` gets top-rounded corners) and forms use 16px inputs to prevent iOS auto-zoom. The floating compare bar and PWA banner are lifted above the tab bar.
-- **Forms (v5.4)**: `.form-input` / `.form-select` / `.form-textarea` / `.btn-submit` are re-stated inside the `768px` block (16px font, 46px min-height) because their base rules now live at the end of the file and would otherwise win. The sign-in card drops its vertical centering on phones, and the cart quantity field grows its `` / `+` keys to 38px.
+- **Forms (v5.4)**: `.form-input` / `.form-select` / `.form-textarea` / `.btn-submit` are re-stated inside the `768px` block (16px font, 46px min-height) because their base rules now live at the end of the file and would otherwise win. The sign-in card drops its vertical centering on phones, and the cart quantity field grows its `-` / `+` keys to 38px.
 - **Supplier stock (v5.4)**: the mobile supplier dashboard shows the same four stock tiles as the desktop one (`.m-stock-grid`, 2x2) plus a per-row status chip.
 
 ### 13.1 Sample Layout responsive cart (v6.14)
 
-The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders correctly on **every device size**: desktop (> 900px), tablet landscape (768-900px), phones ( 640px) and very small phones ( 400px).
+The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders correctly on **every device size**: desktop (> 900px), tablet landscape (768-900px), phones (<= 640px) and very small phones (<= 400px).
 
 **Layout sections (in order, matching the reference image):**
 
-1. **Header** (`.cart-sample-head`): dark-blue gradient bar with ` E-SCON | SHOPPING CART` and  close on the first line, and the live clock (`LiveClock`) on its own single line so the brand never wraps. The blue bar is inset by the modal's page padding only on phones; on desktop the sheet has no outer padding.
+1. **Header** (`.cart-sample-head`): dark-blue gradient bar with ` E-SCON | SHOPPING CART` and [X] close on the first line, and the live clock (`LiveClock`) on its own single line so the brand never wraps. The blue bar is inset by the modal's page padding only on phones; on desktop the sheet has no outer padding.
 2. **Steps** (`.cart-new-steps` / `.cart-order-step`): three tabs - `1 To Purchase` (solid dark blue, white text), `2 To Proforma` (on screen), `3 To Preview` (print preview; light-blue fill, dark-blue text).
 3. **Supplier & Buyer Details** (`.cart-new-parties`): two side-by-side rounded cards - Supplier Details and Buyer Details - each with key:value rows (Company Name, Address, TIN, VAT No., Phone, Email for supplier; plus Contact Person for buyer).
 4. **Item Details Banner** (`.cart-new-product-banner`): per-line card with product thumbnail, name, price/unit, description, and stacked **GPS MAP** + **Auto Refresh** buttons.
-5. **Order Items Table** (`.cart-new-items-section` / `.cart-new-table`): No., Item Name, Description, Unit, Qty (with `` / `+` stepper), Unit Price.
+5. **Order Items Table** (`.cart-new-items-section` / `.cart-new-table`): No., Item Name, Description, Unit, Qty (with `-` / `+` stepper), Unit Price.
 6. **Delivery Cost** (`.cart-new-delivery-section`): header with  Delivery Cost label + GPS MAP / Refresh buttons, then Starting Point / Destination / Total Distance / Delivery Cost rows. The distance is the same 0.1 km value used by the product page and proforma (v6.15).
 7. **Financial Summary** (`.cart-new-financial`): Amount Before VAT, VAT (%), Delivery Cost, Grand Total (highlighted dark-blue row).
 8. **Amount in Words** (`.cart-new-words`): light-blue bar with the total spelled out.
@@ -1112,18 +1112,18 @@ The cart modal (`renderCartSummary`) follows `Sample Layout.jpg` and now renders
 
 | Breakpoint | Width | Behavior |
 | --- | --- | --- |
-| Desktop |  641px | Centred A4-width sheet (794px, A4 at 96 dpi) with the modal padding removed; full two-column parties, two-column bottom (terms + payment), 4-column delivery row, side-by-side product banner with stacked actions. The sheet hugs its content and only scrolls inside when taller than the viewport |
+| Desktop | >= 641px | Centred A4-width sheet (794px, A4 at 96 dpi) with the modal padding removed; full two-column parties, two-column bottom (terms + payment), 4-column delivery row, side-by-side product banner with stacked actions. The sheet hugs its content and only scrolls inside when taller than the viewport |
 | Tablet landscape | 768-900px | Parties stack to 1fr, delivery row 2-col, product banner keeps thumbnail + info + stacked actions |
-| Phone |  640px | Everything single-column, compact font sizes (0.6-0.75rem), full-width action buttons stacked vertically, delivery row 1-col, signatures stacked |
-| Small phone |  400px | Extra compact (0.55-0.7rem), 35px thumbnails, tighter spacing |
+| Phone | <= 640px | Everything single-column, compact font sizes (0.6-0.75rem), full-width action buttons stacked vertically, delivery row 1-col, signatures stacked |
+| Small phone | <= 400px | Extra compact (0.55-0.7rem), 35px thumbnails, tighter spacing |
 
-The product details page (4 - Product Details -> Supplier Information -> Customer Reviews -> Order Summary) also stacks to single-column on phones ( 720px) per the existing `.pd-grid` / `.pd-metrics` / `.pd-supplier-meta` media query.
+The product details page (4 - Product Details  to  Supplier Information  to  Customer Reviews  to  Order Summary) also stacks to single-column on phones (<= 720px) per the existing `.pd-grid` / `.pd-metrics` / `.pd-supplier-meta` media query.
 
 ### 13.2 Ordering flow & supplier-only stock
 
 Two rules govern what a customer sees about quantities and stock.
 
-**1. The `+ / ` quantity control appears only in the product details view.**
+**1. The `+ / -` quantity control appears only in the product details view.**
 It is the step where the customer has actually seen the product and is ready to order, so a list never shows a quantity picker:
 
 | Surface | Customer action |
@@ -1131,13 +1131,13 @@ It is the step where the customer has actually seen the product and is ready to 
 | Desktop results row (``) | opens the product details (`setSelectedMaterial`) |
 | Mobile product card (` Order` / ` Edit order`) | opens the product details |
 | Compare modal (`View & Order`) | closes the modal and opens the product details |
-| Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number +  / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then ** Place Order** (stages the exact measured KM -> order -> Orders page; fresh GPS fix only when a line has no measurement) or **Add to Cart & Review** (stores the line without waiting for GPS and opens the cart, v6.10) |
+| Product details (`DetailsOrderBox`) | four Sample-Layout sections ending in **Order Summary**: `QuantityStepper` (typed number + - / +) + live Material Subtotal in Product Details, **With delivery** on the Delivery Price card, then ** Place Order** (stages the exact measured KM  to  order  to  Orders page; fresh GPS fix only when a line has no measurement) or **Add to Cart & Review** (stores the line without waiting for GPS and opens the cart, v6.10) |
 | Cart modal | per-line number input (`updateCartQuantity`) + per-line **With delivery** checkbox (`updateCartDelivery`); the staged `distanceKm` is what the totals and checkout charge (v6.11) |
 
 - `QuantityStepper` is a **module-scope** component in `App.tsx` (just above `function App()`, used only by `DetailsOrderBox`); `DetailsOrderBox` stays next to `renderMaterialDetails`. It steps by **1** and stops at **1** - customers may order any amount, so the stepper must not derive its step or floor from `minOrder` (`min` is hard-coded to `1`).
-- **The number is a real input (v5.5).** The middle of `.qty-stepper` is `<input className="qty-value">`, not a read-only `<span>`: a customer can tap  / + **or type any whole number** and commit with Enter or by clicking away. The local `draft` string keeps the field usable while it is being emptied, and `commit()` only calls `onChange` with a parsed integer `>= min` (never `NaN`, so the running subtotal below the stepper can never go blank). The unit moved out of the old `<small>` into a sibling `<span className="qty-unit">`. The native spinners are hidden (`appearance: textfield` + the two `::-webkit-*-spin-button` resets) so  / + stay the only visible controls; do not re-add a read-only value span.
-- `DetailsOrderBox` owns its quantity state, so it resets to `1` every time the modal is opened (no `document.getElementById` juggling any more). Its hint reads "Any quantity - use  / + or tap the number to type your own."
-- The cart's own quantity control is the inline `` / `+` stepper in the items table, not a separate module component: that keeps the single-page layout self-contained and avoids the stale `CartQuantityInput` dead code path.
+- **The number is a real input (v5.5).** The middle of `.qty-stepper` is `<input className="qty-value">`, not a read-only `<span>`: a customer can tap - / + **or type any whole number** and commit with Enter or by clicking away. The local `draft` string keeps the field usable while it is being emptied, and `commit()` only calls `onChange` with a parsed integer `>= min` (never `NaN`, so the running subtotal below the stepper can never go blank). The unit moved out of the old `<small>` into a sibling `<span className="qty-unit">`. The native spinners are hidden (`appearance: textfield` + the two `::-webkit-*-spin-button` resets) so - / + stay the only visible controls; do not re-add a read-only value span.
+- `DetailsOrderBox` owns its quantity state, so it resets to `1` every time the modal is opened (no `document.getElementById` juggling any more). Its hint reads "Any quantity - use - / + or tap the number to type your own."
+- The cart's own quantity control is the inline `-` / `+` stepper in the items table, not a separate module component: that keeps the single-page layout self-contained and avoids the stale `CartQuantityInput` dead code path.
 - `addToCart` and `updateCartQuantity` only guard against non-finite values and quantities below 1. The cart line input uses `min={1} step={1}`. **Do not** re-add a `minOrder` check to either function; the per-product minimum is reference data only (see [10.5](#105-cart--checkout)).
 - A sold-out product shows **"Currently unavailable - please contact the supplier."** instead of the stepper, so nothing un-orderable can be added to the cart.
 - The old native `prompt("Quantity (Min: ...)")` on the desktop results row and the card-level `m-stepper` are **removed** - keep it that way; never reintroduce a quantity control in a list.
@@ -1196,7 +1196,7 @@ No router library - `currentPage` switch in `App.tsx`:
 ## 15. Building for Production & Deployment
 
 ```bash
-npm run build          # -> ./build (static site)
+npm run build          #  to  ./build (static site)
 npx tsc --noEmit       # Typecheck without building
 CI=true npm run build  # Build with ESLint errors (Vercel CI mode)
 ```
@@ -1222,7 +1222,7 @@ For the install prompt to work:
 | Symptom                              | Cause / Fix                                                                  |
 | ------------------------------------ | ---------------------------------------------------------------------------- |
 | Leaflet default marker icons broken  | The icon-fix snippet in `MapComponent.tsx`/`MapPicker.tsx` must load before any marker creation |
-| Distance shows "Unable to calculate" | OSRM demo server offline -> haversine fallback already handles this; retry later |
+| Distance shows "Unable to calculate" | OSRM demo server offline  to  haversine fallback already handles this; retry later |
 | Tapping Order seems to do nothing    | Fixed in v6.8: alerts are a fixed toast above modals, the cart shows a loading state instead of returning `null`, routing requests abort after 9 s and try a second OSRM endpoint, and `confirmOrder` has `try/catch/finally` so it can never leave the button stuck |
 | Order says location is unavailable   | Browser/app location permission is off, timed out, or the saved profile has no coordinates. Since v6.9 the Order Summary automatically asks for a fix and offers ** Use my current location**; allow GPS/location access and tap it, or press **Place Order** again. The app only falls back to the saved pin when one exists |
 | KM did not change after moving       | By design since v6.11: the measured KM is fixed once a line carries it so the cart/checkout cannot quote a different number. To re-measure from a new position, move the pin in **My Location** (or reopen the product page) - the route effect re-runs on the updated coordinates |
@@ -1230,21 +1230,21 @@ For the install prompt to work:
 | Cart stays on "Calculating your order..." | Fixed in v6.10: the re-pricing guard is written inside the 250 ms timer and released when pricing is cancelled. If totals still fail, the loading modal lists the saved lines and offers **Use my current location** or **Retry calculating**. Check `repricedCart`, `cartPriceFailed` and the auto-location effect (10.27) |
 | "Please select a valid user" on a correct login | The account list had not finished loading. Local data is now published before the geocoding pass and login falls back to the stored `users` cache, so this window is gone in v6.8 (6 startup order) |
 | Geocoding fails at startup           | Nominatim rate limit - the app keeps the last-known coordinates and continues |
-| localStorage quota exceeded         | Too many base64 product photos -> reduce image count/size (cap is 6/product)   |
-| `npm start` fails on Windows         | Ensure Node  14; delete `node_modules` and re-run `npm install`              |
+| localStorage quota exceeded         | Too many base64 product photos  to  reduce image count/size (cap is 6/product)   |
+| `npm start` fails on Windows         | Ensure Node >= 14; delete `node_modules` and re-run `npm install`              |
 | Build fails on TypeScript errors     | Run `npx tsc --noEmit` and fix reported errors                                 |
 | Build fails with `no-unused-vars`    | Remove unused variables; CI treats ESLint warnings as errors                   |
 | PWA install banner doesn't appear    | Must be served over HTTPS; browser must support `beforeinstallprompt` event    |
 | Animations feel choppy               | Check `prefers-reduced-motion: reduce` - animations should be disabled for a11y |
 | Frozen column overlaps other cells   | Ensure `.td-sticky` has proper `z-index` and `background` to cover scrolling content |
 | A cart's delivery fee ignores the "With delivery" box | The open cart is priced 250 ms after a change; a fee that never updates means a line lost `CartItem.deliveryRate`, so `resolveLineDelivery` fell back to the platform rules (10.22) |
-| Proforma total  order total         | Something computed a delivery fee outside `resolveLineDelivery`. Both `priceCartItems` and `confirmOrder` must call it (10.22) |
+| Proforma total != order total         | Something computed a delivery fee outside `resolveLineDelivery`. Both `priceCartItems` and `confirmOrder` must call it (10.22) |
 | QR moved down the page / no QR       | The QR must stay in `.pf-header-qr`, pinned to column 3 of the `.pf-header` **grid**. Never render it inside the items block or after the table, and never put `.pf-header` back on `display: flex` - a long brand tagline then wraps the QR onto a new line at the left on mid-width screens (10.7, 10.21) |
-| Big cart -> "Showing the first 12 of 40" | Expected: the QR payload is capped at `MAX_QR_LINE_ITEMS` for scannability and the true count is in `tc`. The printed document still lists everything (10.21) |
+| Big cart  to  "Showing the first 12 of 40" | Expected: the QR payload is capped at `MAX_QR_LINE_ITEMS` for scannability and the true count is in `tc`. The printed document still lists everything (10.21) |
 | Adding a second supplier wiped the cart | `findOtherCartSupplier` must `return false` **before** `setCart` and never clear or replace anything. The check belongs in both `addToCartLogic` and the updater (10.23) |
 | Product details closes even though nothing was added | `addToCart` must return `boolean`; `DetailsOrderBox` awaits `onOrder()` and the App handler (`handleDetailsOrder`) refreshes GPS, adds the line and opens the cart only on success. An already-carted line skips the duplicate add but still refreshes the position (10.23, v6.7) |
 | "To Preview" opens but does not print | `handlePreviewProforma` must set `proformaAutoPrint`, and `ProformaInvoice`'s `autoPrint` effect must not be blocked by its `useRef` guard firing early (10.5) |
-| "Back to To Purchase" drops the buyer on a bare page | `handleBackToPurchase` must set `showCartSummary` **and** `setShowProforma(false)` - the old `<- Back to Cart` only closed the proforma. It must also re-price via `calculateCartTotals()` and seed `repricedCart` (10.5) |
+| "Back to To Purchase" drops the buyer on a bare page | `handleBackToPurchase` must set `showCartSummary` **and** `setShowProforma(false)` - the old ` Back to Cart` only closed the proforma. It must also re-price via `calculateCartTotals()` and seed `repricedCart` (10.5) |
 | Buyer cannot leave the proforma / cart not re-priced on return | Check `onBackToPurchase` is passed to `ProformaInvoice` and that the handler does not reuse the stale `cartDetails`; delivery fees are computed from a live OSRM distance |
 | A customer can still export orders | Every export surface must be role-gated: header `userType !== 'customer'`, orders page + mobile order card `{isCompany && ...}`, mobile More sheet `userType !== 'customer'` (10.5) |
 | "To Purchase" won't pulse after coming back | `highlightPurchaseStep` is presentation only - it sets `is-returned` on the button and self-clears after 8 s. Verify the keyframes rule exists in `App.css` and that `prefers-reduced-motion` users get the static outline instead |
@@ -1283,7 +1283,7 @@ npm test
 | `src/settings.test.ts` | Defaults, round-trip persistence, corrupted-JSON repair, number sanitising, admin seed |
 | `src/lib/analytics.test.ts` | Role scoping (admin/company/customer/transporter/guest), cancelled-order exclusion, period filtering and previous-period growth, KPI keys and insights, and Copilot revenue/stock/customer/fallback/greeting answers |
 | `src/lib/transport.test.ts` | Transport fees, service-area matching, job scoping, claim/advance guards, proof of delivery and transporter profile creation |
-| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode->decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, legacy delivery data, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation), **`roundKm`** (0.1 km rounding used by every buyer-facing view and by `stageCartLine`) |
+| `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode to decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, legacy delivery data, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation), **`roundKm`** (0.1 km rounding used by every buyer-facing view and by `stageCartLine`) |
 
 41 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
 
@@ -1313,25 +1313,25 @@ Read this before touching any code. It prevents the most common mistakes.
 15. **A line's delivery fee is only ever computed by `resolveLineDelivery`.** Never call `computeDeliveryFee` or multiply a per-km rate by hand in the cart, the proforma or the order path. `confirmOrder` and `priceCartItems` must agree, or the invoice stops matching the order (10.22). The same applies to the "is delivery included?" test: it is always `item.includeDelivery !== false`, never a truthiness check, because pre-v5.2 carts have no field at all and must keep charging delivery.
 16. **The cart has two entry points.** Desktop header (`.cart-icon-btn`) and mobile tab bar (`.m-fab-cart`). Do not add a third - a button on a product row, card, carousel or the mobile top bar may only navigate to the product details, never open the cart (10.5).
 17. **One cart, one supplier.** Never let an add from a second supplier through, and never resolve the conflict by clearing or replacing the buyer's cart. Warn, name both suppliers, keep the dialog open, return `false`. Enforce it with `findOtherCartSupplier`, not an inline comparison, so the unit tests keep covering the real path (10.23).
-18. **The proforma header is a grid, not a flex row.** `.pf-header` pins `.pf-brand` / `.pf-meta` / `.pf-header-qr` to columns 1 / 2 / 3 of row 1, and the `760px` and `@media print` blocks only re-declare the columns. Flex let a long tagline push the QR onto a new line at the left on some screens; never reintroduce it (10.7).
+18. **The proforma header is a grid, not a flex row.** `.pf-header` pins `.pf-brand` / `.pf-meta` / `.pf-header-qr` to columns 1 / 2 / 3 of row 1, and the `<=760px` and `@media print` blocks only re-declare the columns. Flex let a long tagline push the QR onto a new line at the left on some screens; never reintroduce it (10.7).
 19. **Export is supplier/admin only.** Never add a CSV/export control to a surface a customer can reach, and never re-add one that exists only for them: header `userType !== 'customer'`, orders page and mobile order card `{isCompany && ...}`, mobile More sheet `userType !== 'customer'`. The proforma is the buyer's only order document, by design (10.5).
 20. **A full-screen overlay must always be able to get the buyer back.** Closing the proforma must never be the only way out of it - `onBackToPurchase` re-opens the cart at step 1, re-priced. Any new full-screen modal (wallet, compare, notifications) that a customer enters mid-order must offer an explicit route back, and re-derive live figures rather than reusing a stale report (10.5).
 
 ### 19.2 Where things live
-- **Business rules** (delivery fee, zones, min order) -> `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates use `computeDeliveryFee` directly; cart totals, the proforma and order creation go through `resolveLineDelivery`, which only falls back to `computeDeliveryFee` when a supplier publishes no rate of their own (10.22).
-- **Currency** -> `formatCurrency` in `utils.ts` (used by App, ProformaInvoice, AdminSettings, PublicProforma).
-- **Search filters** -> `FormData.search*` fields + `performSearch` in `App.tsx`; the filter row is `renderSearchMaterials` and reuses `.search-filters` / `.filter-select` / `.filter-input` / `.filter-clear`. A new filter needs: the field in `FormData` (`types.ts`), the `formData` initialiser, the check in `performSearch`, the control in the filter row, the debounce dependency list, and the reset in `clearFilters`.
-- **Proforma scope** -> a proforma is always the **whole cart**: `handlePrintProforma` and `handlePreviewProforma` both price every line with `priceCartItems` and store the report in `proformaDetails`. Do not render the proforma from `cartDetails`, and do not reintroduce a supplier picker, a "one supplier per invoice" scoping helper, or a QR that moves down the page as the item list grows (10.21).
-- **Cart scope** -> the cart holds **one supplier** (10.23). The rule is `findOtherCartSupplier` in `utils.ts` (pure, unit-tested); `App.tsx` calls it in `addToCartLogic` before the write and again inside the `setCart` updater. `addToCart` returns a `boolean` so `DetailsOrderBox` can keep the dialog open on a rejection.
-- **Supplier dashboard name** -> `.dashboard-supplier-name` in `App.css`, rendered on the desktop `.dashboard-header-supplier` and the mobile `.mobile-page-head-supplier`. Bold and centred; the customer dashboard keeps its greeting.
-- **QR / sharing** -> `encodeProformaPayload`, `decodeProformaPayload`, `buildProformaQrUrl`, `generateProformaQrDataUrl`, `buildProformaShareData` and `MAX_QR_LINE_ITEMS` in `utils.ts`; rendering in `ProformaInvoice.tsx` and `PublicProforma.tsx`. The hash format is `#escon=<base64url(ESCON1+json)>`. Truncating the payload is allowed; truncating the **printed** document is not.
-- **PWA** -> `public/sw.js` (custom, version `VERSION` const), `src/index.tsx` registration (production only), `src/components/InstallGuide.tsx`, banner logic in `App.tsx`.
-- **Admin page routing** -> a `case 'settings'` in the `renderCurrentPage` switch guards `userType === 'admin'`.
-- **Role visibility** -> `canSeeStock` in the "Role visibility" block of `App.tsx` (top of the component, right after the state) is the single source of truth for supplier-only data; the customer-only blocks use `currentUser?.userType === 'customer'`. **Exports** are gated separately, inline, at each surface (10.5) - there is no `canExport` helper.
+- **Business rules** (delivery fee, zones, min order)  to  `src/settings.ts` + `src/components/AdminSettings.tsx`. They persist under `system_settings` in localStorage. `calculateTransportCost` in `utils.ts` is the **legacy hard-coded** helper; new code must use `computeDeliveryFee` (settings-driven). Search estimates use `computeDeliveryFee` directly; cart totals, the proforma and order creation go through `resolveLineDelivery`, which only falls back to `computeDeliveryFee` when a supplier publishes no rate of their own (10.22).
+- **Currency**  to  `formatCurrency` in `utils.ts` (used by App, ProformaInvoice, AdminSettings, PublicProforma).
+- **Search filters**  to  `FormData.search*` fields + `performSearch` in `App.tsx`; the filter row is `renderSearchMaterials` and reuses `.search-filters` / `.filter-select` / `.filter-input` / `.filter-clear`. A new filter needs: the field in `FormData` (`types.ts`), the `formData` initialiser, the check in `performSearch`, the control in the filter row, the debounce dependency list, and the reset in `clearFilters`.
+- **Proforma scope**  to  a proforma is always the **whole cart**: `handlePrintProforma` and `handlePreviewProforma` both price every line with `priceCartItems` and store the report in `proformaDetails`. Do not render the proforma from `cartDetails`, and do not reintroduce a supplier picker, a "one supplier per invoice" scoping helper, or a QR that moves down the page as the item list grows (10.21).
+- **Cart scope**  to  the cart holds **one supplier** (10.23). The rule is `findOtherCartSupplier` in `utils.ts` (pure, unit-tested); `App.tsx` calls it in `addToCartLogic` before the write and again inside the `setCart` updater. `addToCart` returns a `boolean` so `DetailsOrderBox` can keep the dialog open on a rejection.
+- **Supplier dashboard name**  to  `.dashboard-supplier-name` in `App.css`, rendered on the desktop `.dashboard-header-supplier` and the mobile `.mobile-page-head-supplier`. Bold and centred; the customer dashboard keeps its greeting.
+- **QR / sharing**  to  `encodeProformaPayload`, `decodeProformaPayload`, `buildProformaQrUrl`, `generateProformaQrDataUrl`, `buildProformaShareData` and `MAX_QR_LINE_ITEMS` in `utils.ts`; rendering in `ProformaInvoice.tsx` and `PublicProforma.tsx`. The hash format is `#escon=<base64url(ESCON1+json)>`. Truncating the payload is allowed; truncating the **printed** document is not.
+- **PWA**  to  `public/sw.js` (custom, version `VERSION` const), `src/index.tsx` registration (production only), `src/components/InstallGuide.tsx`, banner logic in `App.tsx`.
+- **Admin page routing**  to  a `case 'settings'` in the `renderCurrentPage` switch guards `userType === 'admin'`.
+- **Role visibility**  to  `canSeeStock` in the "Role visibility" block of `App.tsx` (top of the component, right after the state) is the single source of truth for supplier-only data; the customer-only blocks use `currentUser?.userType === 'customer'`. **Exports** are gated separately, inline, at each surface (10.5) - there is no `canExport` helper.
 
 ### 19.3 Common change scenarios
-- **"Change the delivery fee":** open the app with `admin@escon.et` ->  Settings -> edit -> Save. No code required. To change the default that new installations get, edit `DEFAULT_SETTINGS` in `settings.ts`.
-- **"Add a new Ethiopian city to a zone":** Settings -> zone -> the "+" button adds a city selector. The city list is `ETHIOPIAN_CITIES` in `constants.ts`.
+- **"Change the delivery fee":** open the app with `admin@escon.et`  to   Settings  to  edit  to  Save. No code required. To change the default that new installations get, edit `DEFAULT_SETTINGS` in `settings.ts`.
+- **"Add a new Ethiopian city to a zone":** Settings  to  zone  to  the "+" button adds a city selector. The city list is `ETHIOPIAN_CITIES` in `constants.ts`.
 - **"Point the map at a different tile server":** edit the tile-layer URLs in `MapComponent.tsx` and `MapPicker.tsx`. If you add a cross-origin tile host, update `sw.js` caching rules too.
 - **"Add a page":** add a `case` in `renderCurrentPage`, a nav button in `renderUserNav`/`renderGuestNav`, and optionally a hash shortcut in `manifest.json` (`shortcuts`).
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 - six touch points, and reuse the existing filter classes so the frame does not change.
@@ -1343,7 +1343,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (10.2), then confirm the destination is in the `companies` list passed to the map.
 - **"Add a quantity control somewhere new":** don't. Open the product details (`setSelectedMaterial`) and let `DetailsOrderBox` handle it. The same goes for the "With delivery" checkbox - it belongs to the quantity card, so it rides along in the new single-page cart's Delivery Cost block and in `DetailsOrderBox`.
 - **"The delivery fee on the proforma doesn't match the order":** something bypassed `resolveLineDelivery`. Diff the call sites: `priceCartItems` (cart + proforma) and `confirmOrder` (order creation) must both call it with the same `includeDelivery` and `deliveryRate`. Also check `CartItem.deliveryRate` was snapshotted when the item was added - a cart line that lost its rate silently falls back to the platform fee (10.22).
-- **"A customer wants their order list as a file":** they cannot export it - that is deliberate. Point them at the **proforma** (cart -> `2 To Proforma` / `3 To Preview`), which is their order document. Do not add an export for them; if the product owner changes their mind, the gating points are listed together in 10.5.
+- **"A customer wants their order list as a file":** they cannot export it - that is deliberate. Point them at the **proforma** (cart  to  `2 To Proforma` / `3 To Preview`), which is their order document. Do not add an export for them; if the product owner changes their mind, the gating points are listed together in 10.5.
 - **"The buyer went to the proforma and now can't order":** that is what `handleBackToPurchase` is for. It closes the document, re-prices and re-opens the cart with `is-returned` on the "To Purchase" step. If the button only closes the overlay, you have restored the old broken behaviour (10.5).
 
 ### 19.4 Known limitations (do not "fix" without discussion)
@@ -1443,7 +1443,7 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 
 ### v6.18 - Quick Search, offline awareness, admin control room & auditable delivery
 - **Quick Search command palette.** `CommandPalette.tsx` opens with
-  **Ctrl/ + K**, the header  button or mobile **More -> Quick Search**. It
+  **Ctrl/ + K**, the header  button or mobile **More  to  Quick Search**. It
   lists role-aware pages, account actions, supplier/admin actions and every
   product; `src/lib/commandSearch.ts` provides relevance scoring, a persisted
   **Recent** group (`escon_command_recent`), safe parsing and de-duplication.
@@ -1514,7 +1514,7 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   `max-height: calc(100vh - 48px)`) with no dead space at the bottom, the modal
   padding is removed so the document fills the page, and the header clock sits
   on its own line. The cart body scrolls inside when the review is taller than
-  the screen. Phones (640 px) are unchanged and stay full-screen.
+  the screen. Phones (<=640 px) are unchanged and stay full-screen.
 - **The map now uses the same origin as search and the product page.** The
   `MapComponent` origin is seeded from the saved buyer pin and a new effect
   follows `currentUser.lat/lng` changes until a live GPS fix arrives, so the
@@ -1580,10 +1580,10 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   `sw.js` `VERSION` `e-scon-v1.14.4` to `e-scon-v1.14.5`.
 
 ### v6.12 - new Sample Layout cart, single page on every device (bug-fix: dead code + stale docs cleaned)
-- **Cart rebuilt against the latest `Sample Layout.jpg`.** The modal is now a full single-page proforma-style order document that fits on one screen on desktop, tablet and phone: supplier & buyer details, a product photo banner per line, a numbered order-items table (with inline `` / `+` quantity stepper), a Delivery Cost block that prints the **exact road km** carried from the product page and the per-km rate, a live buyer-facing note when a supplier group has no published rate and the platform fee applies, financial totals (Amount before VAT -> VAT -> Delivery Cost -> Grand Total), the amount in words, terms & conditions, payment-method choices, supplier & buyer signature lines, and the bottom actions.
+- **Cart rebuilt against the latest `Sample Layout.jpg`.** The modal is now a full single-page proforma-style order document that fits on one screen on desktop, tablet and phone: supplier & buyer details, a product photo banner per line, a numbered order-items table (with inline `-` / `+` quantity stepper), a Delivery Cost block that prints the **exact road km** carried from the product page and the per-km rate, a live buyer-facing note when a supplier group has no published rate and the platform fee applies, financial totals (Amount before VAT  to  VAT  to  Delivery Cost  to  Grand Total), the amount in words, terms & conditions, payment-method choices, supplier & buyer signature lines, and the bottom actions.
 - **Stale-weight guard fixed.** The cart no longer quotes a different distance than the product page: each `CartItem.distanceKm` is snapshotted when the line is staged, and `priceCartItems`, `resolveLineDelivery`, `confirmOrder` and the proforma reuse it verbatim, routing only for legacy lines without one.
 - **Dead code removed.** The old `CartQuantityInput` module component and its `onToggleDelivery` wiring were removed when the cart UI was rebuilt; the dead `handleDeliveryFeeChange` / `handleDeliveryFeeReset` manual-delivery-fee handlers were removed (delivery is now driven solely by each line's "With delivery" checkbox and the supplier's published rate, or the platform fallback). No unused declarations remain in the production build.
-- **Single-page sizing.** The modal body is capped and scaled so the whole order document is readable without scrolling on every device; the close button is the layout's  style and lives in the dark-blue header with the live `LiveClock`.
+- **Single-page sizing.** The modal body is capped and scaled so the whole order document is readable without scrolling on every device; the close button is the layout's [X] style and lives in the dark-blue header with the live `LiveClock`.
 - **Documentation.** 9 (module-scope functions) and 10.5 (cart & checkout) rewritten for the rebuilt cart; stale `CartQuantityInput` / manual-delivery-fee references removed from the troubleshooting notes and the route table.
 - **Release.** Bumped `versionCode` 15 to 16, `versionName` 1.9.5 to 1.9.6 and `sw.js` `VERSION` `e-scon-v1.14.3` to `e-scon-v1.14.4`.
 
@@ -1631,12 +1631,12 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 
 ### v6.8 - order feedback, accurate KM and cloud-first commit
 - **Product page rebuilt to the Sample Layout.** `DetailsOrderBox`/`renderMaterialDetails`
-  now render four sections in a fixed order - **Product Details -> Supplier
-  Information -> Customer Reviews -> Order Summary** (`.pd-section`) - with the
+  now render four sections in a fixed order - **Product Details  to  Supplier
+  Information  to  Customer Reviews  to  Order Summary** (`.pd-section`) - with the
   photo gallery, Unit/Delivery price cards, the quantity row and live Material
   Subtotal, the supplier route card, reviews, and an **Order Summary** that
   prices subtotal, delivery, VAT and **Total Payable** on the page. The old
-  **Supplier -> Description -> Pricing -> Distance -> Reviews** ordering and the
+  **Supplier  to  Description  to  Pricing  to  Distance  to  Reviews** ordering and the
   trailing `.order-box` are gone.
 - **Ordering no longer dead-ends.** When the summary cannot quote - no usable
   location, or the cart holds another supplier's goods - the disabled
@@ -1724,8 +1724,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 - **Welcome headings** on page-level headings across desktop and mobile.
 - **Docs, tests & release.** README, this document, `docs/CLOUD_DATABASE.md` and
   `docs/USER_GUIDE.md` describe the seed and new flows; `npm test` (55 tests) and
-  `npm run build` pass. Bumped `versionCode` 7 -> 8, `versionName` 1.6 -> 1.7 and
-  `sw.js` `VERSION` `e-scon-v1.9.0` -> `e-scon-v1.10.0`.
+  `npm run build` pass. Bumped `versionCode` 7  to  8, `versionName` 1.6  to  1.7 and
+  `sw.js` `VERSION` `e-scon-v1.9.0`  to  `e-scon-v1.10.0`.
 
 ### v6.4 - editable data, admin data manager & single aggregate VAT
 - **Seed data no longer resets.** Initialization uses `sampleUsers` /
@@ -1747,8 +1747,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   enable switch live in `SystemSettings.vat` and are editable in **Settings**.
   Legacy `taxIncluded: true` sample rows are normalised to the VAT-exclusive
   model on initialization.
-- **Housekeeping** - bumped `versionCode` 7 -> 8, `versionName` 1.6 -> 1.7 and
-  `sw.js` `VERSION` `e-scon-v1.9.0` -> `e-scon-v1.10.0`.
+- **Housekeeping** - bumped `versionCode` 7  to  8, `versionName` 1.6  to  1.7 and
+  `sw.js` `VERSION` `e-scon-v1.9.0`  to  `e-scon-v1.10.0`.
 
 ### v6.3 - VAT always in the total & supplier profile recovery
 
@@ -1773,8 +1773,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 - **Proforma styling matches the maths.** The VAT summary row was still styled
   as a greyed, non-additive "information only" line left over from the
   VAT-inclusive build; it is a normal summary row again.
-- **Housekeeping** - bumped `versionCode` 6 -> 7, `versionName` 1.5 -> 1.6 and
-  `sw.js` `VERSION` `e-scon-v1.8.0` -> `e-scon-v1.9.0`.
+- **Housekeeping** - bumped `versionCode` 6  to  7, `versionName` 1.5  to  1.6 and
+  `sw.js` `VERSION` `e-scon-v1.8.0`  to  `e-scon-v1.9.0`.
 
 ### v6.2 - VAT-exclusive product pricing
 
@@ -1788,8 +1788,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 - **Clear documents.** The proforma shows **Amount Before VAT**, **VAT (15%
   added)**, **Delivery Cost** and **Grand Total**; item prices are labelled
   "before VAT".
-- **Housekeeping** - bumped `versionCode` 5 -> 6, `versionName` 1.4 -> 1.5 and
-  `sw.js` `VERSION` `e-scon-v1.7.0` -> `e-scon-v1.8.0`.
+- **Housekeeping** - bumped `versionCode` 5  to  6, `versionName` 1.4  to  1.5 and
+  `sw.js` `VERSION` `e-scon-v1.7.0`  to  `e-scon-v1.8.0`.
 
 ### v6.1 - global cloud sync & Amount Before VAT
 
@@ -1805,10 +1805,10 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   local-only are not overwritten. New users, companies and products get
   collision-resistant IDs instead of sequential ones.
 - **Amount Before VAT on the proforma.** The printed/on-screen proforma and the
-  QR "public proforma" now show the goods amount before VAT, followed by the
+  QR public proforma now show the goods amount before VAT, followed by the
   VAT-included subtotal, the included VAT and the grand total.
-- **Housekeeping** - bumped `versionCode` 4 -> 5, `versionName` 1.3 -> 1.4 and
-  `sw.js` `VERSION` `e-scon-v1.6.0` -> `e-scon-v1.7.0`.
+- **Housekeeping** - bumped `versionCode` 4  to  5, `versionName` 1.3  to  1.4 and
+  `sw.js` `VERSION` `e-scon-v1.6.0`  to  `e-scon-v1.7.0`.
 
 ### v6.0 - VAT-inclusive totals, clearer search results & screenshots allowed
 
@@ -1829,8 +1829,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
   map-at-registration step and automatic entity cloud sync were not wired in v6.0
   (the sync layer was re-enabled in v6.1). `settings.ts` still syncs
   `system_settings` when Supabase is configured.
-- **Housekeeping** - bumped `versionCode` 3 -> 4, `versionName` 1.2 -> 1.3 and
-  `sw.js` `VERSION` `e-scon-v1.5.0` -> `e-scon-v1.6.0`.
+- **Housekeeping** - bumped `versionCode` 3  to  4, `versionName` 1.2  to  1.3 and
+  `sw.js` `VERSION` `e-scon-v1.5.0`  to  `e-scon-v1.6.0`.
 
 ### v5.8 - branding, screenshot protection & mobile search polish
 
@@ -1849,8 +1849,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 - **Full-bleed Find bar** - on phones the search field and its  button now span
   the entire window width, side to side.
 - **Housekeeping** - removed unused `escon.pdf`, `sample.jpg`, the CRA `logo.svg`
-  and the unused launcher template vectors; bumped `versionCode` 1 -> 2,
-  `versionName` 1.0 -> 1.1 and `sw.js` `VERSION` `e-scon-v1.3.0` -> `e-scon-v1.4.0`.
+  and the unused launcher template vectors; bumped `versionCode` 1  to  2,
+  `versionName` 1.0  to  1.1 and `sw.js` `VERSION` `e-scon-v1.3.0`  to  `e-scon-v1.4.0`.
 
 ### v5.9 - supplier self-service "My Business"
 
@@ -1866,8 +1866,8 @@ switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
 - **Complete product forms** - the add/edit product forms now expose the
   previously-stored weight/dimensions/grade/origin/certifications and model
   fields via `renderMaterialSpecificationsFields()`.
-- **Housekeeping** - bumped `versionCode` 2 -> 3, `versionName` 1.1 -> 1.2 and
-  `sw.js` `VERSION` `e-scon-v1.4.0` -> `e-scon-v1.5.0`.
+- **Housekeeping** - bumped `versionCode` 2  to  3, `versionName` 1.1  to  1.2 and
+  `sw.js` `VERSION` `e-scon-v1.4.0`  to  `e-scon-v1.5.0`.
 - **Location at sign-up** - suppliers now pin their business on the map during
   registration (required), with the same `MapPicker` they already use in **My
   Business**.

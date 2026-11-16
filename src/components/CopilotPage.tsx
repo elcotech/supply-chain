@@ -266,7 +266,7 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
                   <h3>Try a question</h3>
                   <div className="copilot-starter-grid">
                     {suggestions.map(prompt => (
-                      <button key={prompt} type="button" onClick={() => send(prompt)}>{prompt}<span>-></span></button>
+                      <button key={prompt} type="button" onClick={() => send(prompt)}>{prompt}<span> to </span></button>
                     ))}
                   </div>
                 </div>

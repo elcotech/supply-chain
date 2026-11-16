@@ -20,7 +20,7 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
       <div className="public-proforma">
         <div className="public-proforma-top">
           <div className="public-proforma-brand">E-SCON</div>
-          <button className="btn-secondary no-print" onClick={onClose}> Close</button>
+          <button className="btn-secondary no-print" onClick={onClose}>[X] Close</button>
         </div>
 
         <div className="public-proforma-doc">

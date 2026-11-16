@@ -41,7 +41,7 @@ const STEPS: Record<DeviceKind, { title: string; steps: string[] }> = {
     title: 'Install on Windows',
     steps: [
       'Open E-SCON in Microsoft Edge or Chrome.',
-      'Click the install icon ( or ) in the address bar, or open the browser menu -> "Apps" -> "Install this site as an app".',
+      'Click the install icon ( or ) in the address bar, or open the browser menu  to  "Apps"  to  "Install this site as an app".',
       'Confirm. E-SCON opens in its own standalone window.',
     ],
   },
@@ -49,7 +49,7 @@ const STEPS: Record<DeviceKind, { title: string; steps: string[] }> = {
     title: 'Install on your device',
     steps: [
       'Use Chrome or Edge for full installation support.',
-      'Look for the install icon in the address bar, or use the browser menu -> "Install app".',
+      'Look for the install icon in the address bar, or use the browser menu  to  "Install app".',
       'Alternatively add the page to your home screen from the browser share menu.',
     ],
   },
@@ -69,7 +69,7 @@ const InstallGuide: React.FC<InstallGuideProps> = ({ onClose }) => {
       <div className="modal-content install-guide-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2> Install E-SCON</h2>
-          <button className="modal-close" onClick={onClose}></button>
+          <button className="modal-close" onClick={onClose}>[X]</button>
         </div>
         <div className="modal-body">
           <p className="install-guide-intro">

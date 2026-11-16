@@ -138,7 +138,7 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
       ) : (
         <div className="modal-header">
           <h2>{isCreate ? ' Add Supplier Account' : ' Edit Company Profile'}</h2>
-          <button className="modal-close" onClick={onClose}></button>
+          <button className="modal-close" onClick={onClose}>[X]</button>
         </div>
       )}
 
@@ -168,7 +168,7 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
                 <div className="image-preview-list">
                   <div className="image-preview-item">
                     <img src={logo} alt="Company logo preview" />
-                    <button type="button" className="image-preview-remove" onClick={() => setLogo('')} title="Remove logo"></button>
+                    <button type="button" className="image-preview-remove" onClick={() => setLogo('')} title="Remove logo">[X]</button>
                   </div>
                 </div>
               )}

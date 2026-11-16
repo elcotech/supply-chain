@@ -580,7 +580,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                 <ul className="ws-detail-list">
                   <li><span>{t('Site')}</span><strong>{project.siteAddress}, {project.city}</strong></li>
                   <li><span>{t('Manager')}</span><strong>{project.managerName} - {project.managerPhone}</strong></li>
-                  <li><span>{t('Schedule')}</span><strong>{formatDate(project.startDate)} -> {project.endDate ? formatDate(project.endDate) : 'Open'}</strong></li>
+                  <li><span>{t('Schedule')}</span><strong>{formatDate(project.startDate)}  to  {project.endDate ? formatDate(project.endDate) : 'Open'}</strong></li>
                   <li><span>{t('Budget')}</span><strong>{money(project.budget)}</strong></li>
                   <li><span>Spent</span><strong>{money(projectSpend)} ({used}%)</strong></li>
                 </ul>
@@ -844,7 +844,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                     <td key={material.id}>
                       <div className="ws-row-actions">
                         <button className="btn btn-primary btn-sm" onClick={() => onAddToCart(material, material.minOrder || 1)}>{t('Add to cart')}</button>
-                        <button className="btn btn-secondary btn-sm" onClick={() => onToggleCompare(material.id)}></button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => onToggleCompare(material.id)}>[X]</button>
                       </div>
                     </td>
                   ))}
@@ -1089,7 +1089,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                     <small>{item.supplierName} - {money(item.price)} / {item.unit} - {item.includeDelivery === false ? 'Collection' : 'Delivery included'}</small>
                   </div>
                   <div className="ws-qty">
-                    <button className="btn btn-secondary btn-sm" onClick={() => onUpdateCartQty(item.id, item.quantity - 1)} aria-label={'Decrease ' + item.materialName}></button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => onUpdateCartQty(item.id, item.quantity - 1)} aria-label={'Decrease ' + item.materialName}>-</button>
                     <input
                       type="number"
                       min="1"
@@ -1100,7 +1100,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                     <button className="btn btn-secondary btn-sm" onClick={() => onUpdateCartQty(item.id, item.quantity + 1)} aria-label={'Increase ' + item.materialName}>+</button>
                   </div>
                   <strong className="ws-nowrap">{money(item.price * item.quantity)}</strong>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onRemoveFromCart(item.id)} aria-label={'Remove ' + item.materialName}></button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => onRemoveFromCart(item.id)} aria-label={'Remove ' + item.materialName}>[X]</button>
                 </div>
               ))}
             </div>

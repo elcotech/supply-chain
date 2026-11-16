@@ -1,7 +1,7 @@
 // ===== src/components/OrderTimeline.tsx =====
 // Visual shipment progress tracker (banking-app style stepper) for the
 // standard supply-chain order lifecycle:
-//   Ordered -> Confirmed -> In Transit -> Delivered
+//   Ordered  to  Confirmed  to  In Transit  to  Delivered
 // Cancelled orders render a distinct failed state.
 import React from 'react';
 

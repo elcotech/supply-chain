@@ -4,9 +4,9 @@
 // When Supabase credentials are configured, this module mirrors every shared
 // key into the `escon_kv` table so all devices see the same data:
 //
-//   * on startup  -> `pullCloudToCache()` downloads the cloud rows into the
+//   * on startup   to  `pullCloudToCache()` downloads the cloud rows into the
 //                    local cache before the app reads state;
-//   * on change   -> `cloudPush(key, value)` uploads the key (coalesced).
+//   * on change    to  `cloudPush(key, value)` uploads the key (coalesced).
 //
 // With no credentials set, every function is a no-op and the app behaves
 // exactly as before (local-only, no network calls).

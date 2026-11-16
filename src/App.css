@@ -1,4 +1,4 @@
-/* ===== App.css - Optimized, ProductionReady ===== */
+/* ===== App.css - Optimized, Production-Ready ===== */
 
 /* ---------- CSS Variables (Light / Dark) ----------
    Both themes are LIGHT BLUE: the page background is a soft blue wash, cards are
@@ -6256,7 +6256,7 @@ a:focus-visible {
 }
 /* The middle of the product-details stepper is a typed field, not a label: it
    looks identical to the old read-only value but takes a custom number. The
-   native spinner is hidden so the only controls are  / + (and typing). */
+   native spinner is hidden so the only controls are - / + (and typing). */
 .qty-value::-webkit-outer-spin-button,
 .qty-value::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .qty-value { -moz-appearance: textfield; appearance: textfield; }
@@ -6522,7 +6522,7 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   Cart quantity editor - a real editable field with  / + keys
+   Cart quantity editor - a real editable field with - / + keys
    ===================================================================== */
 .cart-item-quantity input {
   background: var(--surface);
@@ -8007,7 +8007,7 @@ a:focus-visible {
   }
 }
 
-/* Very small phones (400px) - extra compact */
+/* Very small phones (<=400px) - extra compact */
 @media (max-width: 400px) {
   .cart-new-layout {
     font-size: 0.65rem;

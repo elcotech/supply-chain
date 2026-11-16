@@ -279,7 +279,7 @@ export const StarRatingDisplay: React.FC<{ value: number; size?: number }> = ({ 
     <span className="star-row" aria-label={`${value} out of 5`}>
       {[1, 2, 3, 4, 5].map(i => (
         <span key={i} style={{ fontSize: size }} className={i <= full ? 'star on' : 'star'}>
-          
+          *
         </span>
       ))}
     </span>
@@ -303,7 +303,7 @@ export const StarRatingInput: React.FC<{ value: number; onChange: (v: number) =>
         role="radio"
         aria-checked={i <= value}
       >
-        
+        *
       </button>
     ))}
   </div>

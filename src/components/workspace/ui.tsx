@@ -289,7 +289,7 @@ export function DataTable<T extends { id: string }>({
           />
           {query && (
             <button type="button" className="ws-clear" onClick={() => setQuery('')} aria-label={t('Clear')}>
-              
+              [X]
             </button>
           )}
         </div>
@@ -332,7 +332,7 @@ export function DataTable<T extends { id: string }>({
                       <button type="button" className="ws-sort" onClick={() => toggleSort(column.key)}>
                         {t(column.header)}
                         <span aria-hidden="true" className="ws-sort-arrow">
-                          {sortKey === column.key ? (sortDir === 'asc' ? '' : '') : ''}
+                          {sortKey === column.key ? (sortDir === 'asc' ? '^' : 'v') : ''}
                         </span>
                       </button>
                     </th>
@@ -363,11 +363,11 @@ export function DataTable<T extends { id: string }>({
             </span>
             <div className="ws-pager">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={safePage === 0}>
-                <- {t('Previous')}
+                 {t('Previous')}
               </button>
               <span className="ws-page-indicator">{t('Page')} {safePage + 1} {t('of')} {pageCount}</span>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))} disabled={safePage >= pageCount - 1}>
-                {t('Next')} ->
+                {t('Next')}  to 
               </button>
             </div>
           </div>
@@ -440,7 +440,7 @@ export const Modal: React.FC<{
       >
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="modal-close" onClick={onClose} aria-label={t('Close')}></button>
+          <button className="modal-close" onClick={onClose} aria-label={t('Close')}>[X]</button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="ws-modal-footer">{footer}</div>}

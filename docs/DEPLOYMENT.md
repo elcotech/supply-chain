@@ -9,7 +9,7 @@ built from the same source.
 
 ```bash
 npm install
-npm run build            # -> ./build  (static site)
+npm run build            #  to  ./build  (static site)
 npx tsc --noEmit         # typecheck without building
 ```
 

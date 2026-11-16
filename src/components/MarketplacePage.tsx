@@ -166,7 +166,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
             <ProductThumb material={material} />
           </button>
           <div className="market-card-badges">
-            {rating >= 4.5 && <span className="market-pill gold"> Top rated</span>}
+            {rating >= 4.5 && <span className="market-pill gold">* Top rated</span>}
             {canSeeStock && outOfStock && <span className="market-pill danger">Out of stock</span>}
             {!canSeeStock && outOfStock && <span className="market-pill">Unavailable</span>}
           </div>
@@ -245,7 +245,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
                 placeholder="Search products, brands, suppliers or cities..."
                 aria-label="Search marketplace"
               />
-              {query && <button type="button" className="market-search-clear" onClick={() => setQuery('')} aria-label="Clear search"></button>}
+              {query && <button type="button" className="market-search-clear" onClick={() => setQuery('')} aria-label="Clear search">[X]</button>}
             </form>
             <div className="market-hero-actions">
               <button type="button" className="escon-btn ghost" onClick={onOpenAnalytics}> Marketplace analytics</button>
@@ -320,7 +320,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
           <section className="market-section">
             <div className="escon-section-head">
               <h2>Supplier storefronts</h2>
-              <button type="button" className="escon-link" onClick={() => onAskCopilot('Who are the top suppliers?')}>Ask Copilot -></button>
+              <button type="button" className="escon-link" onClick={() => onAskCopilot('Who are the top suppliers?')}>Ask Copilot  to </button>
             </div>
             <div className="supplier-spotlight">
               {supplierSummaries.slice(0, 8).map(summary => (
@@ -347,7 +347,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
 
         <section className="market-section">
           <div className="escon-section-head">
-            <h2>{query ? `Results for "${query}"` : category === 'all' ? 'All products' : category}</h2>
+            <h2>{query ? `Results for ${query}` : category === 'all' ? 'All products' : category}</h2>
             <span className="escon-badge">{filtered.length} items</span>
           </div>
           {visible.length === 0 ? (
@@ -391,7 +391,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
           <div className="modal-content market-store-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{storeSupplier.company.name}</h2>
-              <button className="modal-close" onClick={() => setStoreId(null)}></button>
+              <button className="modal-close" onClick={() => setStoreId(null)}>[X]</button>
             </div>
             <div className="modal-body">
               <div className="market-store-head">

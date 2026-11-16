@@ -97,7 +97,7 @@ To delete your data:
 | --- | --- | --- |
 | OpenStreetMap / CARTO | Map tiles | <https://osmfoundation.org/wiki/Privacy_Policy> - <https://carto.com/privacy/> |
 | OSRM demo server | Driving routes & distances | <https://project-osrm.org/> |
-| Nominatim | Address  coordinate lookup | <https://osmfoundation.org/wiki/Privacy_Policy> |
+| Nominatim | Address  to/from  coordinate lookup | <https://osmfoundation.org/wiki/Privacy_Policy> |
 | Supabase (optional) | Cloud database hosting | <https://supabase.com/privacy> |
 
 These services receive only the data needed to fulfil the request (for example,

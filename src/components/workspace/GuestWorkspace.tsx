@@ -161,7 +161,7 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
 
       <div className="ws-public-hero">
         <span className="ws-hero-eyebrow">{t('Build Smarter. Source Better.')}</span>
-        <h2>{t('Ethiopia's construction supply chain, open to everyone.')}</h2>
+        <h2>{t('Ethiopias construction supply chain, open to everyone.')}</h2>
         <p>
           {t('Browse verified suppliers, compare live material prices and explore market insights before you create an account.')}
         </p>
@@ -180,7 +180,7 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
         <Kpi label={t('Verified Suppliers')} value={verifiedCompanies.length} hint={`${companies.length} ${t('registered')}`} icon="" tone="good" />
         <Kpi label={t('Public Products')} value={materials.length} hint={`${categories.length} ${t('categories')}`} icon="" />
         <Kpi label={t('Cities Covered')} value={cities.length} hint={cities.slice(0, 3).join(' - ') || '-'} icon="" />
-        <Kpi label={t('Average Rating')} value={`${averageRating.toFixed(1)} `} hint={`${reviews.length} ${t('reviews')}`} icon="*" tone="accent" />
+        <Kpi label={t('Average Rating')} value={`${averageRating.toFixed(1)} *`} hint={`${reviews.length} ${t('reviews')}`} icon="*" tone="accent" />
         <Kpi label={t('Marketplace')} value={t('Open')} hint={t('Browse without an account')} icon="" tone="good" />
       </KpiGrid>
 

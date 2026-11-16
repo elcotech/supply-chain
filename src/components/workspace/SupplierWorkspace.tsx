@@ -140,7 +140,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       lastUpdated: new Date().toISOString(),
       priceHistory: [...(priceTarget.priceHistory || []), { date: Date.now(), price }].slice(-24),
     });
-    logEvent('price.update', `${priceTarget.name} -> ${price}`);
+    logEvent('price.update', `${priceTarget.name}  to  ${price}`);
     onNotify('Price updated', 'success');
     setPriceTarget(null);
   };
@@ -198,7 +198,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
     ]);
     setRfqs(prev => prev.map(item => (item.id === rfqTarget.id ? { ...item, status: item.status === 'open' ? 'quoted' : item.status } : item)));
     onSendMessage(rfqTarget.customerId, 'New quotation received', `${company.name} quoted ${money(unitPrice)} / ${rfqTarget.unit} for ${rfqTarget.materialName}.`);
-    logEvent('quotation.submit', `${rfqTarget.materialName} -> ${money(unitPrice)}`);
+    logEvent('quotation.submit', `${rfqTarget.materialName}  to  ${money(unitPrice)}`);
     onNotify('Quotation submitted', 'success');
     setRfqTarget(null);
   };
@@ -371,7 +371,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           <Kpi label={t('Monthly Sales')} value={money(monthlySales)} hint="Delivered this month" icon="" tone="accent" />
           <Kpi label={t('Open RFQs')} value={openRfqs.length} hint={`${ownQuotations.length} quotations sent`} icon="" tone={openRfqs.length ? 'warn' : 'good'} />
           <Kpi label={t('Pending Orders')} value={ownOrders.filter(o => o.status === 'pending').length} hint={`${money(pipeline)} in pipeline`} icon="" tone="warn" />
-          <Kpi label={t('Seller Rating')} value={`${companyRating.toFixed(1)} `} hint={`${reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} reviews`} icon="*" tone="good" />
+          <Kpi label={t('Seller Rating')} value={`${companyRating.toFixed(1)} *`} hint={`${reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} reviews`} icon="*" tone="good" />
         </KpiGrid>
 
         <DashboardGrid
@@ -742,7 +742,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
               render: m => {
                 const forecast = forecastPrice(m.priceHistory, m.price);
                 if (!forecast) return <span className="ws-muted">No history</span>;
-                return <StatusPill label={`${forecast.trend === 'up' ? '' : forecast.trend === 'down' ? '' : ''} ${money(forecast.next)}`} tone={forecast.trend === 'up' ? 'warn' : forecast.trend === 'down' ? 'good' : 'muted'} />;
+                return <StatusPill label={`${forecast.trend === 'up' ? '^' : forecast.trend === 'down' ? 'v' : ''} ${money(forecast.next)}`} tone={forecast.trend === 'up' ? 'warn' : forecast.trend === 'down' ? 'good' : 'muted'} />;
               },
             },
             { key: 'updated', header: 'Updated', value: m => m.lastUpdated, render: m => <span className="ws-nowrap">{formatDate(m.lastUpdated)}</span> },
@@ -1021,7 +1021,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
                 <li key={material.id}>
                   <div>
                     <strong>{material.name}</strong>
-                    <small>{money(material.price)} / {material.unit} -> {money(forecast.next)} ({forecast.changePct >= 0 ? '+' : ''}{forecast.changePct.toFixed(1)}%)</small>
+                    <small>{money(material.price)} / {material.unit}  to  {money(forecast.next)} ({forecast.changePct >= 0 ? '+' : ''}{forecast.changePct.toFixed(1)}%)</small>
                   </div>
                   <button className="btn btn-secondary btn-sm" onClick={() => openPrice(material)}>{t('Edit')}</button>
                 </li>
@@ -1244,7 +1244,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         >
           <div className="ws-form">
             <p className="ws-muted">Current stock: <strong>{stockTarget.quantity.toLocaleString()} {stockTarget.unit}</strong></p>
-            <Field label="Movement (+ received /  removed)" hint="Use a negative number to remove damaged or reserved stock.">
+            <Field label="Movement (+ received / - removed)" hint="Use a negative number to remove damaged or reserved stock.">
               <input type="number" step="1" value={stockDraft.delta} onChange={e => setStockDraft(prev => ({ ...prev, delta: e.target.value }))} />
             </Field>
             <Field label="Reason">

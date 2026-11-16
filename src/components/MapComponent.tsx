@@ -317,10 +317,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
     // Step 2: Add fresh user location marker
     const uMarker = L.marker([origin.lat, origin.lng], { icon: userIcon })
       .bindPopup(`
-        <strong>\ud83d\udccd Your Location</strong><br/>
+        <strong> Your Location</strong><br/>
         Lat: ${origin.lat.toFixed(6)}<br/>
         Lng: ${origin.lng.toFixed(6)}<br/>
-        <small>${origin.accuracy > 0 ? `Accuracy: \u00b1${origin.accuracy.toFixed(0)}m` : 'GPS accuracy pending'}</small>
+        <small>${origin.accuracy > 0 ? `Accuracy: +/-${origin.accuracy.toFixed(0)}m` : 'GPS accuracy pending'}</small>
       `)
       .addTo(group);
     userMarkerRef.current = uMarker;
@@ -351,7 +351,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       // Destination marker
       const destIcon = L.divIcon({
         className: 'route-dest-marker',
-        html: '<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));">\ud83d\udccd</div>',
+        html: '<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));"></div>',
         iconSize: [24, 24],
         iconAnchor: [12, 24],
       });
@@ -502,12 +502,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       marker.bindPopup(`
         <div style="min-width:200px;font-family:system-ui,sans-serif;line-height:1.5;">
           <strong style="font-size:15px;color:#1a4a6f;">${company.name}</strong><br/>
-          \ud83d\udccd ${company.location || company.city}<br/>
-          \u2b50 ${company.rating || 'N/A'}/5 &nbsp;|&nbsp; \ud83d\udce6 ${productCount} products<br/>
-          ${company.tinNumber ? '\u2705 Verified' : '\u23f3 Pending'}<br/>
+           ${company.location || company.city}<br/>
+          * ${company.rating || 'N/A'}/5 &nbsp;|&nbsp;  ${productCount} products<br/>
+          ${company.tinNumber ? '[OK] Verified' : '... Pending'}<br/>
           <button onclick="window.__selectSupplier('${company.id}')"
             style="margin-top:8px;padding:6px 14px;background:#1a4a6f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">
-            \ud83d\uddfa\ufe0f Show Route
+             Show Route
           </button>
         </div>
       `);
@@ -523,9 +523,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     // Initial user location marker
     const userM = L.marker([initPos.lat, initPos.lng], { icon: userIcon }).addTo(map);
     userM.bindPopup(`
-      <strong>\ud83d\udccd Your Location</strong><br/>
+      <strong> Your Location</strong><br/>
       ${currentUser?.address || 'Location pending'}<br/>
-      <small>Requesting GPS access\u2026</small>
+      <small>Requesting GPS access...</small>
     `);
     userMarkerRef.current = userM;
     allLatLngs.push([initPos.lat, initPos.lng]);
@@ -627,7 +627,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
             >
                Locate Me
             </button>
-            <button className="map-modal-close" onClick={onClose}></button>
+            <button className="map-modal-close" onClick={onClose}>[X]</button>
           </div>
         </div>
 
@@ -728,7 +728,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
               {userPositionRef.current.accuracy > 0 && (
                 <div style={{ background: 'rgba(168,85,247,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #a855f7', fontSize: 13 }}>
-                   GPS accuracy: <strong>{userPositionRef.current.accuracy.toFixed(0)}m</strong>
+                   GPS accuracy: <strong>+/-{userPositionRef.current.accuracy.toFixed(0)}m</strong>
                 </div>
               )}
             </div>
@@ -755,7 +755,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
                         </span>
                         <span className="map-product-price">
                           {m.price.toLocaleString()} ETB/{m.unit}
-                          <span aria-hidden="true">></span>
+                          <span aria-hidden="true"></span>
                         </span>
                       </button>
                     </li>

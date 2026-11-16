@@ -606,7 +606,7 @@
 }
 
 .info-faq details[open] summary::after {
-  content: "";
+  content: "-";
   transform: translateY(-50%) rotate(180deg);
 }
 

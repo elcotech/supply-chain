@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
+import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import './App.css';
 import './escon-v7.css';
 import './escon-transport.css';
@@ -71,7 +71,7 @@ function LiveClock() {
   });
   return (
     <span className="cart-live-clock">
-      -... {date} - -' {time}
+      ... {date} - - {time}
     </span>
   );
 }
@@ -93,17 +93,17 @@ const companyFromUser = (user: User): Company => {
     id: genId('comp'),
     userId: user.id,
     name: user.companyName || user.name,
-    description:,
-    location: user.address ||,
+    description: '',
+    location: user.address || '',
     city: user.city || 'Addis Ababa',
     lat: typeof user.lat === 'number' && isFinite(user.lat) ? user.lat : 9.032,
     lng: typeof user.lng === 'number' && isFinite(user.lng) ? user.lng : 38.7469,
     rating: 0,
     totalOrders: 0,
     established,
-    tinNumber: user.tinNumber ||,
-    businessLicense: user.businessLicense ||,
-    vatNumber: user.vatRegistered ? user.vatNumber || :,
+    tinNumber: user.tinNumber || '',
+    businessLicense: user.businessLicense || '',
+    vatNumber: user.vatRegistered ? user.vatNumber || '' : '',
     tradeLicenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
     complianceStatus: 'compliant',
   };
@@ -114,20 +114,20 @@ const companyFromUser = (user: User): Company => {
 // and ordered - it is never dropped just because the profile record is gone.
 const stubCompany = (id: string, name: string): Company => ({
   id,
-  userId:,
+  userId: '',
   name: name || 'Unknown supplier',
-  description:,
-  location:,
-  city:,
+  description: '',
+  location: '',
+  city: '',
   lat: 9.032,
   lng: 38.7469,
   rating: 0,
   totalOrders: 0,
-  established:,
-  tinNumber:,
-  businessLicense:,
-  vatNumber:,
-  tradeLicenseExpiry:,
+  established: '',
+  tinNumber: '',
+  businessLicense: '',
+  vatNumber: '',
+  tradeLicenseExpiry: '',
   complianceStatus: 'compliant',
 });
 
@@ -162,7 +162,7 @@ const snapshotLegacyLocal = (): Array<[string, string]> => {
       if (raw !== null) snapshot.push([key, raw]);
     }
   } catch {
-    /* storage unavailable - nothing to merge */
+    /* storage unavailable  nothing to merge */
   }
   return snapshot;
 };
@@ -180,12 +180,12 @@ const canonicalJson = (value: unknown): string => {
     }
     return input;
   };
-  try { return JSON.stringify(normalise(value)); } catch { return; }
+  try { return JSON.stringify(normalise(value)); } catch { return ''; }
 };
 
 const MapComponent = React.lazy(() => import('./components/MapComponent'));
 
-// The new single-page cart renders quantity via inline +/' stepper buttons
+// The new single-page cart renders quantity via inline +/ stepper buttons
 // next to the With delivery choice, so the buyer commits quantity and delivery
 // on the same card. This comment is retained above the shared line-delivery
 // resolver.
@@ -263,10 +263,10 @@ const buildMaterialDelivery = (form: FormData): MaterialDelivery | undefined => 
 };
 
 // Order-quantity picker on the product details page. The number is a real input,
-// not a read-only label: the customer can tap - / + OR type any whole number and
+// not a read-only label: the customer can tap  / + OR type any whole number and
 // press Enter (or click away). Same draft-string trick as CartQuantityInput, so
 // clearing the field never pushes NaN into the order total. Module scope on
-// purpose - defined inside App() it would remount on every render and drop the
+// purpose  defined inside App() it would remount on every render and drop the
 // draft while the customer is typing.
 const QuantityStepper = ({ value, min, unit, onChange }: { value: number; min: number; unit: string; onChange: (v: number) => void }) => {
   const [draft, setDraft] = useState(String(value));
@@ -279,13 +279,13 @@ const QuantityStepper = ({ value, min, unit, onChange }: { value: number; min: n
       onChange(parsed);
       return;
     }
-    // Empty or below the minimum while editing - resync silently, never NaN.
+    // Empty or below the minimum while editing  resync silently, never NaN.
     setDraft(String(value));
   };
 
   return (
-    <div className="qty-stepper- role="group- aria-label="Quantity">
-      <button type="button- onClick={() => onChange(Math.max(min, value - 1))} aria-label="Decrease quantity- disabled={value <= min}>'</button>
+    <div className="qty-stepper" role="group" aria-label="Quantity">
+      <button type="button" onClick={() => onChange(Math.max(min, value - 1))} aria-label="Decrease quantity" disabled={value <= min}></button>
       <input
         className="qty-value"
         type="number"
@@ -296,10 +296,10 @@ const QuantityStepper = ({ value, min, unit, onChange }: { value: number; min: n
         onChange={e => setDraft(e.target.value)}
         onBlur={e => commit(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }}
-        aria-label={'Quantity in - + (unit || 'units')}
+        aria-label={'Quantity in ' + (unit || 'units')}
       />
       <span className="qty-unit">{unit || 'units'}</span>
-      <button type="button- onClick={() => onChange(value + 1)} aria-label="Increase quantity">+</button>
+      <button type="button" onClick={() => onChange(value + 1)} aria-label="Increase quantity">+</button>
     </div>
   );
 };
@@ -325,9 +325,9 @@ function App() {
   const [detailsQty, setDetailsQty] = useState(1);
   const [detailsDelivery, setDetailsDelivery] = useState(true);
   const [detailsQuote, setDetailsQuote] = useState<CartReport | null>(null);
-  // Why the summary cannot quote. `null` means -still pricing"; any other value
+  // Why the summary cannot quote. `null` means "still pricing"; any other value
   // is a reason the buyer can read and act on, so Place Order never sits on a
-  // permanent -Calculating- with nothing explaining it. `location` means the
+  // permanent "Calculating" with nothing explaining it. `location` means the
   // buyer has no usable pin yet, so the summary offers to take a GPS fix instead
   // of a Retry that can never succeed.
   const [detailsQuoteBlock, setDetailsQuoteBlock] = useState<{ kind: 'conflict' | 'error' | 'location'; message: string } | null>(null);
@@ -336,13 +336,13 @@ function App() {
   // One automatic GPS attempt per product. Without this, a buyer who denies the
   // permission would be prompted every time the summary re-rendered; the Retry
   // button clears it so they can try again deliberately.
-  const detailsLocationTried = useRef();
+  const detailsLocationTried = useRef('');
   // Held here, not inside `DetailsOrderBox`: that component is declared inside
   // `App`, so React sees a new type on every render and would remount it,
   // discarding any state it owned mid-order.
   const [isDetailsOrdering, setIsDetailsOrdering] = useState(false);
   // Which photo the product page is showing, and whether every review is open.
-  // Both belong to the Sample Layout's gallery dots and -See all reviews- link.
+  // Both belong to the Sample Layout's gallery dots and "See all reviews" link.
   const [detailsImageIndex, setDetailsImageIndex] = useState(0);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -365,10 +365,10 @@ function App() {
   const [cartPriceRetry, setCartPriceRetry] = useState(0);
   // Signature of the cart lines currently priced into `cartDetails`. The
   // re-pricing effect uses it to skip redundant work, so it MUST be cleared the
-  // moment `cartDetails` is discarded - otherwise clearing the cart and adding
+  // moment `cartDetails` is discarded  otherwise clearing the cart and adding
   // the same product again produces an identical signature, the effect returns
   // early, `cartDetails` stays null and the cart modal can never render.
-  const repricedCart = useRef();
+  const repricedCart = useRef('');
   // One automatic location request per open cart. A denied permission should not
   // re-prompt on every render; the failure state offers a deliberate retry.
   const cartLocationTried = useRef(false);
@@ -379,7 +379,7 @@ function App() {
   const [adminEditingMaterial, setAdminEditingMaterial] = useState(false);
   const [currentPage, setCurrentPage] = useState<string>('splash');
   const [infoTab, setInfoTab] = useState<InfoTab>('about');
-  const [copilotSeed, setCopilotSeed] = useState<string>();
+  const [copilotSeed, setCopilotSeed] = useState<string>('');
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = safeLocalStorage.getItem(THEME_KEY);
     if (saved === 'dark' || saved === 'light') return saved === 'dark';
@@ -398,14 +398,14 @@ function App() {
   // the same supplier is clicked twice in a row.
   const [routeRequestId, setRouteRequestId] = useState(0);
   const [showProforma, setShowProforma] = useState(false);
-  // -To Proforma- opens the document on screen. -To Preview- opens the same
+  // "To Proforma" opens the document on screen. "To Preview" opens the same
   // document and queues the browser print preview. Both use identical figures.
   const [proformaAutoPrint, setProformaAutoPrint] = useState(false);
   // Report the proforma is rendered from. Kept apart from cartDetails because a
   // proforma always covers the whole cart - one supplier, every selected line.
   const [proformaDetails, setProformaDetails] = useState<CartReport | null>(null);
   // True for a few seconds after the buyer comes back from the proforma, so the
-  // cart can pulse its -To Purchase- step and make clear where they landed.
+  // cart can pulse its "To Purchase" step and make clear where they landed.
   const [highlightPurchaseStep, setHighlightPurchaseStep] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navMoreOpen, setNavMoreOpen] = useState(false);
@@ -441,7 +441,7 @@ function App() {
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState(10000);
   const [topUpMethod, setTopUpMethod] = useState('Telebirr');
-  const [reviewDraft, setReviewDraft] = useState<{ rating: number; comment: string }>({ rating: 5, comment: });
+  const [reviewDraft, setReviewDraft] = useState<{ rating: number; comment: string }>({ rating: 5, comment: '' });
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'cod' | 'wallet'>('bank');
 
   // ---------- v7 workspace collections (spec 2-7) ----------
@@ -488,7 +488,7 @@ function App() {
     if (!isMobile) setMobileMenuOpen(false);
   }, [isMobile]);
 
-  // The -To Purchase- step pulses for a few seconds after the buyer returns from
+  // The "To Purchase" step pulses for a few seconds after the buyer returns from
   // the proforma ("Back to To Purchase"), so it is obvious where they landed.
   useEffect(() => {
     if (!highlightPurchaseStep) return;
@@ -539,21 +539,21 @@ function App() {
   };
 
   const [formData, setFormData] = useState<FormData>({
-    loginEmail:, loginPassword:, selectedUser:,
-    registerFullName:, registerEmail:, registerPassword:, registerPhone:,
-    registerAddress:, registerCity: 'Addis Ababa', registerLat: 0, registerLng: 0, registerCompanyName:, registerUserType: 'customer',
-    registerServiceAreas:, registerLicenseNumber:,
-    tinNumber:, businessLicense:, vatNumber:, vatRegistered: false,
-    materialName:, materialCategory:, materialPrice:, materialQuantity:, materialUnit:,
-    materialMinOrder:, materialDescription:, searchQuery:, searchCategory: 'all',
-    searchMaxPrice:, searchSupplier: 'all', searchCity: 'all', searchSortBy: 'price_asc',
-    orderQuantity:, orderAddress:, materialBrand:, materialModel:, materialWeight:,
-    materialDimensions:, materialGrade:, materialOrigin: 'Ethiopia', materialCertifications:, materialImages: [],
+    loginEmail: '', loginPassword: '', selectedUser: '',
+    registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '',
+    registerAddress: '', registerCity: 'Addis Ababa', registerLat: 0, registerLng: 0, registerCompanyName: '', registerUserType: 'customer',
+    registerServiceAreas: '', registerLicenseNumber: '',
+    tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false,
+    materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '',
+    materialMinOrder: '', materialDescription: '', searchQuery: '', searchCategory: 'all',
+    searchMaxPrice: '', searchSupplier: 'all', searchCity: 'all', searchSortBy: 'price_asc',
+    orderQuantity: '', orderAddress: '', materialBrand: '', materialModel: '', materialWeight: '',
+    materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [],
     materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001',
-    materialDeliveryOffered: false, materialDeliveryPerKm:, materialDeliveryStartFee:,
-    companyName:, companyDescription:, companyLocation:, companyCity:,
-    companyPhone:, companyEmail:, companyWebsite:, companyWorkingHours:,
-    companyTinNumber:, companyBusinessLicense:, companyVatNumber:, companyTradeLicenseExpiry:,
+    materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '',
+    companyName: '', companyDescription: '', companyLocation: '', companyCity: '',
+    companyPhone: '', companyEmail: '', companyWebsite: '', companyWorkingHours: '',
+    companyTinNumber: '', companyBusinessLicense: '', companyVatNumber: '', companyTradeLicenseExpiry: '',
   });
 
   // ---------- Page transition animation ----------
@@ -668,9 +668,9 @@ function App() {
   const ensureSupplierCompany = useCallback((supplierId: string, supplierName: string): Company => {
     const existing = companies.find(c => c.id === supplierId);
     if (existing) return existing;
-    const name = (supplierName ||).trim().toLowerCase();
+    const name = (supplierName || '').trim().toLowerCase();
     const owner = name
-      ? users.find(u => u.userType === 'company' && (u.companyName ||).trim().toLowerCase() === name)
+      ? users.find(u => u.userType === 'company' && (u.companyName || '').trim().toLowerCase() === name)
       : undefined;
     const rebuilt = owner ? { ...companyFromUser(owner), id: supplierId } : stubCompany(supplierId, supplierName);
     setCompanies(prev => prev.some(c => c.id === rebuilt.id) ? prev : [...prev, rebuilt]);
@@ -691,7 +691,7 @@ function App() {
   // Open Copilot and optionally pre-ask a question. The seed is cleared once the
   // page consumes it so the same prompt can be sent again later.
   const openCopilot = useCallback((prompt?: string): void => {
-    setCopilotSeed(prompt ||);
+    setCopilotSeed(prompt || '');
     navigateTo('copilot');
   }, [navigateTo]);
 
@@ -709,7 +709,7 @@ function App() {
     navigateTo(MENUS[menu].page);
   }, [navigateTo]);
 
-  // Append-only audit trail shown in Administration - Security & Audit.
+  // Append-only audit trail shown in Administration  Security & Audit.
   const logEvent = useCallback((action: string, detail: string): void => {
     const actor = currentUserRef.current;
     if (!actor) return;
@@ -744,13 +744,13 @@ function App() {
   // and mobile alike.
   const welcomeTitle = useCallback((title: string): string => {
     const firstName = currentUser?.name?.trim().split(/\s+/)[0];
-    return firstName ? `Welcome, ${firstName} - ${title}` : `Welcome - ${title}`;
+    return firstName ? `Welcome, ${firstName}  ${title}` : `Welcome  ${title}`;
   }, [currentUser]);
 
   // Apply one cloud row to the React state. Echoes of our own pushes are ignored
   // by comparing with the local copy first, so devices cannot ping-pong writes.
   const applyCloudRow = useCallback((key: string, data: unknown): void => {
-    const uid = currentUserRef.current?.id ||;
+    const uid = currentUserRef.current?.id || '';
     if (key.startsWith('cart_') && key !== `cart_${uid}`) return;
     if (key.startsWith('favs_') && key !== `favs_${uid}`) return;
 
@@ -759,13 +759,13 @@ function App() {
       try {
         if (canonicalJson(JSON.parse(localRaw)) === canonicalJson(data)) return;
       } catch {
-        /* corrupt local value - let the cloud copy replace it */
+        /* corrupt local value  let the cloud copy replace it */
       }
     }
     try {
       safeLocalStorage.setItem(key, JSON.stringify(data));
     } catch {
-      return; // storage quota - keep the in-memory state as it is
+      return; // storage quota  keep the in-memory state as it is
     }
 
     const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value as T[] : []);
@@ -799,7 +799,7 @@ function App() {
             if (u.userType !== 'company' || owned.has(u.id)) return;
             // Same recovery as startup: re-attach a name-matching orphan first
             // so products already pointing at that profile keep their id.
-            const companyName = (u.companyName ||).trim().toLowerCase();
+            const companyName = (u.companyName || '').trim().toLowerCase();
             const orphan = companyName
               ? merged.find(c =>
                   c.name.trim().toLowerCase() === companyName &&
@@ -883,12 +883,12 @@ function App() {
   // `pushNotification` because it captures that callback.
   const sendWorkspaceMessage = useCallback((userId: string, title: string, message: string): void => {
     pushNotification(userId, 'system', title, message);
-    logEvent('message.send', `${currentUserRef.current?.name || 'Account'} - ${getUserById(userId)?.name || userId}: ${title}`);
+    logEvent('message.send', `${currentUserRef.current?.name || 'Account'}  ${getUserById(userId)?.name || userId}: ${title}`);
   }, [pushNotification, logEvent, getUserById]);
 
   const notifyOrderParties = useCallback((order: Order, title: string, message: string, type: AppNotification['type'] = 'order'): void => {
     pushNotification(order.customerId, type, title, message);
-    const supplierUser = getUserById(companies.find(c => c.id === order.companyId)?.userId ||);
+    const supplierUser = getUserById(companies.find(c => c.id === order.companyId)?.userId || '');
     if (supplierUser) pushNotification(supplierUser.id, type, title, message);
   }, [companies, getUserById, pushNotification]);
 
@@ -926,7 +926,7 @@ function App() {
 
   const submitReview = useCallback((materialId: string): void => {
     if (!currentUser || currentUser.userType !== 'customer') return;
-    if (reviewDraft.rating < 1 || reviewDraft.rating > 5) { showAlert('Please pick 1"5 stars', 'warning'); return; }
+    if (reviewDraft.rating < 1 || reviewDraft.rating > 5) { showAlert('Please pick 15 stars', 'warning'); return; }
     const material = getMaterialById(materialId);
     const company = material ? getCompanyById(material.companyId) : undefined;
     setReviews(prev => [
@@ -940,8 +940,8 @@ function App() {
           `${currentUser.name} rated ${material?.name || 'a product'} ${reviewDraft.rating}....`);
       }
     }
-    setReviewDraft({ rating: 5, comment: });
-    showAlert('Thanks - your rating was submitted ', 'success');
+    setReviewDraft({ rating: 5, comment: '' });
+    showAlert('Thanks  your rating was submitted ', 'success');
   }, [currentUser, getCompanyById, getMaterialById, getUserById, pushNotification, reviewDraft, showAlert]);
 
   const unreadNotifications = useCallback((): number =>
@@ -971,7 +971,7 @@ function App() {
     const payload = buildBackupPayload();
     if (!payload) { showAlert('Login to export a backup', 'warning'); return; }
     downloadJson(payload, `escon-backup-${new Date().toISOString().split('T')[0]}.json`);
-    showAlert('Backup downloaded -', 'success');
+    showAlert('Backup downloaded ', 'success');
     setShowDataCenter(false);
   }, [buildBackupPayload, showAlert]);
 
@@ -1050,7 +1050,7 @@ function App() {
     const init = async () => {
       // First run of this version: remember local-only data so it can be merged
       // with the cloud instead of being overwritten by an old cloud copy. Do
-      // not mark the merge as done when cloud sync is off or the pull failed -
+      // not mark the merge as done when cloud sync is off or the pull failed 
       // otherwise enabling it later would skip this protection.
       const alreadyMerged = Boolean(safeLocalStorage.getItem(CLOUD_MERGE_KEY));
       const legacyLocal = alreadyMerged ? [] : snapshotLegacyLocal();
@@ -1081,7 +1081,7 @@ function App() {
               }
               safeLocalStorage.setItem(key, JSON.stringify(merged));
             } catch {
-              /* unreadable local value - leave the cloud copy in place */
+              /* unreadable local value  leave the cloud copy in place */
             }
           });
         }
@@ -1148,7 +1148,7 @@ function App() {
       for (const user of parsedUsers) {
         if (user.userType !== 'company') continue;
         if (baseCompanies.some(c => c.userId === user.id)) continue;
-        const companyName = (user.companyName ||).trim().toLowerCase();
+        const companyName = (user.companyName || '').trim().toLowerCase();
         const orphan = companyName
           ? baseCompanies.find(c =>
               c.name.trim().toLowerCase() === companyName &&
@@ -1165,8 +1165,8 @@ function App() {
       // pass. Geocoding every supplier is the only part that touches the network
       // and it can take seconds on a slow connection; holding the account list
       // back until it finished meant a buyer who reached the login form during
-      // that window was rejected with -Please select a valid user- even though
-      // the credentials were right (and the catalogue still read -No products
+      // that window was rejected with "Please select a valid user" even though
+      // the credentials were right (and the catalogue still read "No products
       // listed yet"). Local data is complete and usable immediately.
       setCompanies(baseCompanies);
       setUsers(parsedUsers);
@@ -1224,7 +1224,7 @@ function App() {
     return () => { cancelled = true; };
   }, [isInitialized, geocodeAllCompanies, showAlert]);
 
-  // Persistence - every shared collection is written locally and mirrored to
+  // Persistence  every shared collection is written locally and mirrored to
   // Supabase so adding/editing a product on one device reaches the others.
   useEffect(() => {
     if (isInitialized) {
@@ -1410,7 +1410,7 @@ function App() {
     if (!user) {
       showAlert(
         users.length === 0
-          ? 'Your account list is still loading - please try again in a moment.'
+          ? 'Your account list is still loading  please try again in a moment.'
           : 'No account matches that e-mail address.',
         'danger'
       );
@@ -1418,7 +1418,7 @@ function App() {
     }
     if (isUserLocked(user)) {
       const remainingTime = Math.ceil((user.lockUntil! - Date.now()) / 1000);
-      showAlert('Account locked. Try again in - + remainingTime + - seconds', 'danger');
+      showAlert('Account locked. Try again in ' + remainingTime + ' seconds', 'danger');
       return;
     }
     if (user.password === loginPassword) {
@@ -1426,12 +1426,12 @@ function App() {
       setCurrentUser(user);
       showAlert('Login successful! ', 'success');
       setCurrentPage('home');
-      setFormData(prev => ({ ...prev, loginPassword:, selectedUser: }));
+      setFormData(prev => ({ ...prev, loginPassword: '', selectedUser: '' }));
     } else {
       const newAttempts = (user.loginAttempts || 0) + 1;
       let lockUntil = 0;
       if (newAttempts >= 3) { lockUntil = Date.now() + 30000; showAlert('Too many failed attempts. Account locked for 30 seconds.', 'danger'); }
-      else { showAlert('Incorrect password. - + (3 - newAttempts) + - attempts remaining.', 'danger'); }
+      else { showAlert('Incorrect password. ' + (3 - newAttempts) + ' attempts remaining.', 'danger'); }
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, loginAttempts: newAttempts, lockUntil } : u));
     }
   };
@@ -1448,18 +1448,18 @@ function App() {
     }
     // Geocode the address the user typed so distances are measured from their
     // real location instead of a random point near Addis Ababa. They can refine
-    // it later from Dashboard -> My Location (or on the map picker).
+    // it later from Dashboard  to  My Location (or on the map picker).
     const coords = await geocodeAddress(registerAddress, registerCity);
     const newUser: User = {
       id: genId('user'), name: registerFullName.trim(), email, password: registerPassword || '0909',
       phone: registerPhone, address: registerAddress, city: registerCity, userType: registerUserType as User['userType'],
-      companyName: isBusiness ? registerCompanyName :,
+      companyName: isBusiness ? registerCompanyName : '',
       lat: coords?.lat ?? 9.0320, lng: coords?.lng ?? 38.7469,
       registered: new Date().toISOString().split('T')[0], loginAttempts: 0, lockUntil: 0,
-      tinNumber: isBusiness ? tinNumber :,
-      businessLicense: isBusiness ? (businessLicense || registerLicenseNumber) :,
+      tinNumber: isBusiness ? tinNumber : '',
+      businessLicense: isBusiness ? (businessLicense || registerLicenseNumber) : '',
       vatRegistered: isBusiness ? vatRegistered : false,
-      vatNumber: isBusiness ? vatNumber :
+      vatNumber: isBusiness ? vatNumber : ''
     };
     setUsers(prev => [...prev, newUser]);
     if (registerUserType === 'transporter') {
@@ -1474,10 +1474,10 @@ function App() {
     }
     if (registerUserType === 'company') {
       const newCompany: Company = {
-        id: genId('comp'), userId: newUser.id, name: registerCompanyName, description:,
+        id: genId('comp'), userId: newUser.id, name: registerCompanyName, description: '',
         location: registerAddress, city: registerCity, lat: newUser.lat || 9.0320, lng: newUser.lng || 38.7469,
         rating: 0, totalOrders: 0, established: new Date().getFullYear().toString(), tinNumber, businessLicense,
-        vatNumber: vatRegistered ? vatNumber :,
+        vatNumber: vatRegistered ? vatNumber : '',
         tradeLicenseExpiry: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
         complianceStatus: 'compliant'
       };
@@ -1485,7 +1485,7 @@ function App() {
     }
     showAlert('Registration successful! Please login. ...', 'success');
     setCurrentPage('login');
-    setFormData(prev => ({ ...prev, registerFullName:, registerEmail:, registerPassword:, registerPhone:, registerAddress:, registerCity: 'Addis Ababa', registerCompanyName:, tinNumber:, businessLicense:, vatNumber:, vatRegistered: false, registerServiceAreas:, registerLicenseNumber: }));
+    setFormData(prev => ({ ...prev, registerFullName: '', registerEmail: '', registerPassword: '', registerPhone: '', registerAddress: '', registerCity: 'Addis Ababa', registerCompanyName: '', tinNumber: '', businessLicense: '', vatNumber: '', vatRegistered: false, registerServiceAreas: '', registerLicenseNumber: '' }));
   };
 
   const transporterProfileFor = useCallback((userId: string): TransporterProfile | undefined =>
@@ -1499,7 +1499,7 @@ function App() {
   }, [showAlert]);
 
   // Claiming a delivery request assigns the transporter, freezes the quoted fee
-  // and moves the job to -accepted- so no other company can take it.
+  // and moves the job to "accepted" so no other company can take it.
   const handleClaimTransportJob = useCallback(async (orderId: string): Promise<void> => {
     if (!currentUser || currentUser.userType !== 'transporter') {
       showAlert('Only a transporter account can accept delivery requests.', 'danger');
@@ -1537,11 +1537,11 @@ function App() {
       transportAcceptedAt: acceptedAt,
     } : item));
     const label = `${profile.companyName} accepted delivery for order ${order.invoiceNumber}`;
-    pushNotification(order.customerId, 'order', 'Delivery accepted', `${label} - fee ${formatCurrency(fee)}.`);
-    const supplierUser = getUserById(company?.userId ||);
+    pushNotification(order.customerId, 'order', 'Delivery accepted', `${label}  fee ${formatCurrency(fee)}.`);
+    const supplierUser = getUserById(company?.userId || '');
     if (supplierUser) pushNotification(supplierUser.id, 'order', 'Delivery accepted', label);
     pushNotification(currentUser.id, 'order', 'Job accepted', `${order.invoiceNumber} is now in your dispatch list.`);
-    showAlert(`Job accepted - transport fee ${formatCurrency(fee)}.`, 'success');
+    showAlert(`Job accepted  transport fee ${formatCurrency(fee)}.`, 'success');
   }, [companies, currentUser, getUserById, materials, orders, pushNotification, showAlert, transporterProfileFor, users]);
 
   const handleAssignTransportAsset = useCallback((orderId: string, vehicleId: string, driverId: string): void => {
@@ -1602,7 +1602,7 @@ function App() {
     setCartDetails(null);
     setDeliveryFeeOverride(null);
     safeLocalStorage.removeItem('currentUser');
-    showAlert('Logged out successfully', 'info');
+    showAlert('Logged out successfully ', 'info');
     setCurrentPage('home');
   };
 
@@ -1625,8 +1625,8 @@ function App() {
       companyCity: company.city,
       companyPhone: currentUser.phone,
       companyEmail: currentUser.email,
-      companyWebsite: company.website ||,
-      companyWorkingHours: company.workingHours ||,
+      companyWebsite: company.website || '',
+      companyWorkingHours: company.workingHours || '',
       companyTinNumber: company.tinNumber,
       companyBusinessLicense: company.businessLicense,
       companyVatNumber: company.vatNumber,
@@ -1668,40 +1668,40 @@ function App() {
     const today = new Date().toISOString().split('T')[0];
     const draftUser: User = {
       id: userId,
-      name:,
-      email:,
-      password:,
-      phone:,
-      address:,
+      name: '',
+      email: '',
+      password: '',
+      phone: '',
+      address: '',
       city: 'Addis Ababa',
       userType: 'company',
-      companyName:,
+      companyName: '',
       lat: 9.032,
       lng: 38.7469,
       registered: today,
       loginAttempts: 0,
       lockUntil: 0,
-      tinNumber:,
-      businessLicense:,
+      tinNumber: '',
+      businessLicense: '',
       vatRegistered: false,
-      vatNumber:,
+      vatNumber: '',
     };
     const draftCompany: Company = {
       id: genId('comp'),
       userId,
-      name:,
-      description:,
-      location:,
+      name: '',
+      description: '',
+      location: '',
       city: 'Addis Ababa',
       lat: 9.032,
       lng: 38.7469,
       rating: 0,
       totalOrders: 0,
       established: today.slice(0, 4),
-      tinNumber:,
-      businessLicense:,
-      vatNumber:,
-      tradeLicenseExpiry:,
+      tinNumber: '',
+      businessLicense: '',
+      vatNumber: '',
+      tradeLicenseExpiry: '',
       complianceStatus: 'pending',
     };
     setAdminCompanyTarget({ company: draftCompany, user: draftUser, isNew: true });
@@ -1756,7 +1756,7 @@ function App() {
     const ownedIds = new Set(ownedCompanies.map(c => c.id));
     const productCount = materials.filter(m => ownedIds.has(m.companyId)).length;
     const label = ownedCompanies.length > 0
-      ? `${user.name}, their supplier profile and ${productCount} product${productCount === 1 ? : 's'}`
+      ? `${user.name}, their supplier profile and ${productCount} product${productCount === 1 ? '' : 's'}`
       : user.name;
     if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
 
@@ -1822,15 +1822,15 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The current location is unavailable.';
       if (hasUserCoordinates(currentUser)) {
-        showAlert(message + - Using your saved location for this order.', 'warning');
+        showAlert(message + ' Using your saved location for this order.', 'warning');
         return { lat: currentUser.lat, lng: currentUser.lng, accuracy: Number.NaN };
       }
-      showAlert(message + - Enable GPS/location access, then press Order again.', 'danger');
+      showAlert(message + ' Enable GPS/location access, then press Order again.', 'danger');
       return null;
     }
   };
 
-  // -Refresh- in the cart's Delivery Cost block: take a fresh GPS fix and
+  // "Refresh" in the cart's Delivery Cost block: take a fresh GPS fix and
   // re-measure every line from it, then persist that exact road distance on the
   // line. This is the same value the order will reuse, so the map/route and the
   // charged delivery cannot drift apart after the buyer has moved.
@@ -1850,17 +1850,17 @@ function App() {
       }
     }));
     if (changed) setCart(updated);
-    repricedCart.current =;
+    repricedCart.current = '';
     setCartPriceRetry(n => n + 1);
   };
 
   // Keep the stored cart KMs in step with the buyer's current position. The map,
-  // -Refresh- and a page reload can all change `currentUser.lat/lng`; without
+  // "Refresh" and a page reload can all change `currentUser.lat/lng`; without
   // this, the cart would keep charging a distance measured from the old pin
   // while the product page and map show the new one. Only the buyer's origin is
-  // re-measured - the supplier pins stay fixed - and the resulting 0.1 km value
+  // re-measured  the supplier pins stay fixed  and the resulting 0.1 km value
   // is exactly what the cart, proforma and order rows display.
-  const cartMeasuredOrigin = useRef();
+  const cartMeasuredOrigin = useRef('');
   useEffect(() => {
     if (!hasUserCoordinates(currentUser) || cart.length === 0) return;
     const originKey = `${currentUser.id}:${currentUser.lat.toFixed(6)},${currentUser.lng.toFixed(6)}`;
@@ -1883,14 +1883,14 @@ function App() {
       finished = true;
       if (cancelled || !changed) return;
       setCart(updated);
-      repricedCart.current =;
+      repricedCart.current = '';
       setCartPriceRetry(n => n + 1);
     })();
     return () => {
       cancelled = true;
-      // A cart change interrupted the measurement - allow the next render to
+      // A cart change interrupted the measurement  allow the next render to
       // start it again instead of leaving the lines on the previous origin.
-      if (!finished) cartMeasuredOrigin.current =;
+      if (!finished) cartMeasuredOrigin.current = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, currentUser?.lat, currentUser?.lng, cart]);
@@ -1904,7 +1904,7 @@ function App() {
       return;
     }
     const productCount = materials.filter(m => m.companyId === companyId).length;
-    if (!window.confirm(`Delete ${company.name}, ${productCount} product${productCount === 1 ? : 's'} and the supplier account? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete ${company.name}, ${productCount} product${productCount === 1 ? '' : 's'} and the supplier account? This cannot be undone.`)) return;
 
     setCompanies(prev => prev.filter(c => c.id !== companyId));
     setMaterials(prev => prev.filter(m => m.companyId !== companyId));
@@ -1929,15 +1929,15 @@ function App() {
     showAlert('Platform settings saved and applied ...', 'success');
   };
 
-  // Money carried by a line when the buyer leaves the -with delivery- tick on but
+  // Money carried by a line when the buyer leaves the "with delivery" tick on but
   // the supplier publishes no rate: the platform's own delivery rules apply, and
   // the buyer is told so rather than seeing a fee with no explanation.
   const platformDeliveryHint = (supplierGroups: CartSupplier[]): string | null => {
     const platformGroups = supplierGroups.filter(s => s.deliveryMode === 'platform');
     if (platformGroups.length === 0) return null;
     return platformGroups.length === 1
-      ? -  - + platformGroups[0].supplierName + - does not publish a delivery rate for this item, so the platform delivery fee applies.'
-      : -  - + platformGroups.length + - suppliers do not publish a delivery rate for these items, so the platform delivery fee applies to them.';
+      ? '  ' + platformGroups[0].supplierName + ' does not publish a delivery rate for this item, so the platform delivery fee applies.'
+      : '  ' + platformGroups.length + ' suppliers do not publish a delivery rate for these items, so the platform delivery fee applies to them.';
   };
 
   // ---------- Material CRUD ----------
@@ -1970,11 +1970,11 @@ function App() {
     setMaterials(prev => [...prev, newMaterial]);
     if (parseInt(materialQuantity) <= LOW_STOCK_THRESHOLD) {
       pushNotification(currentUser.id, 'stock', 'Low-stock alert',
-        `${materialName} has only ${materialQuantity} ${materialUnit || 'units'} left - restock soon.`);
+        `${materialName} has only ${materialQuantity} ${materialUnit || 'units'} left  restock soon.`);
     }
     showAlert('Product added successfully! ', 'success');
     setCurrentPage('company-dashboard');
-    setFormData(prev => ({ ...prev, materialName:, materialCategory:, materialPrice:, materialQuantity:, materialUnit:, materialMinOrder:, materialDescription:, materialBrand:,       materialModel:, materialWeight:, materialDimensions:, materialGrade:, materialOrigin: 'Ethiopia', materialCertifications:, materialImages: [], materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001', materialDeliveryOffered: false, materialDeliveryPerKm:, materialDeliveryStartFee: }));
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001', materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
   };
 
   const handleEditMaterial = (material: Material) => {
@@ -1988,13 +1988,13 @@ function App() {
       materialUnit: material.unit,
       materialMinOrder: material.minOrder.toString(),
       materialDescription: material.description,
-      materialBrand: material.brand ||,
-      materialModel: material.model ||,
-      materialWeight: material.specifications?.weight ||,
-      materialDimensions: material.specifications?.dimensions ||,
-      materialGrade: material.specifications?.grade ||,
+      materialBrand: material.brand || '',
+      materialModel: material.model || '',
+      materialWeight: material.specifications?.weight || '',
+      materialDimensions: material.specifications?.dimensions || '',
+      materialGrade: material.specifications?.grade || '',
       materialOrigin: material.specifications?.origin || 'Ethiopia',
-      materialCertifications: material.specifications?.certification?.join(', ') ||,
+      materialCertifications: material.specifications?.certification?.join(', ') || '',
       materialImages: material.images || [],
       materialProfitMargin: (material.profitMargin * 100).toString(),
       materialTransportCost: String(material.transportCost),
@@ -2002,8 +2002,8 @@ function App() {
       materialTaxIncluded: false,
       materialWeightPerUnit: String(material.specifications?.weightPerUnit || 0.001),
       materialDeliveryOffered: Boolean(material.delivery?.offered),
-      materialDeliveryPerKm: material.delivery?.perKm ? String(material.delivery.perKm) :,
-      materialDeliveryStartFee: material.delivery?.startFee ? String(material.delivery.startFee) :,
+      materialDeliveryPerKm: material.delivery?.perKm ? String(material.delivery.perKm) : '',
+      materialDeliveryStartFee: material.delivery?.startFee ? String(material.delivery.startFee) : '',
     }));
     setCurrentPage('edit-material');
   };
@@ -2065,20 +2065,20 @@ function App() {
       ? { ...item, deliveryRate: rate && rate.offered ? rate : undefined }
       : item));
     if (updatedMaterial.quantity <= LOW_STOCK_THRESHOLD) {
-      pushNotification(currentUser?.id ||, 'stock', 'Low-stock alert',
-        `${updatedMaterial.name} has only ${updatedMaterial.quantity} ${updatedMaterial.unit || 'units'} left - restock soon.`);
+      pushNotification(currentUser?.id || '', 'stock', 'Low-stock alert',
+        `${updatedMaterial.name} has only ${updatedMaterial.quantity} ${updatedMaterial.unit || 'units'} left  restock soon.`);
     }
-    showAlert('Product updated successfully!', 'success');
+    showAlert('Product updated successfully! ', 'success');
     setEditingMaterial(null);
     setCurrentPage(adminEditingMaterial ? 'admin-settings' : currentUser?.userType === 'company' ? 'company-dashboard' : 'search-materials');
     setAdminEditingMaterial(false);
-    setFormData(prev => ({ ...prev, materialName:, materialCategory:, materialPrice:, materialQuantity:, materialUnit:, materialMinOrder:, materialDescription:, materialBrand:,       materialModel:, materialWeight:, materialDimensions:, materialGrade:, materialOrigin: 'Ethiopia', materialCertifications:, materialImages: [], materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001', materialDeliveryOffered: false, materialDeliveryPerKm:, materialDeliveryStartFee: }));
+    setFormData(prev => ({ ...prev, materialName: '', materialCategory: '', materialPrice: '', materialQuantity: '', materialUnit: '', materialMinOrder: '', materialDescription: '', materialBrand: '',       materialModel: '', materialWeight: '', materialDimensions: '', materialGrade: '', materialOrigin: 'Ethiopia', materialCertifications: '', materialImages: [], materialProfitMargin: '15', materialTransportCost: '15', materialVatPercentage: '15', materialTaxIncluded: false, materialWeightPerUnit: '0.001', materialDeliveryOffered: false, materialDeliveryPerKm: '', materialDeliveryStartFee: '' }));
   };
 
   const handleDeleteMaterial = (id: string): void => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       setMaterials(prev => prev.filter(m => m.id !== id));
-      showAlert('Product deleted successfully', 'success');
+      showAlert('Product deleted successfully -', 'success');
     }
   };
 
@@ -2169,7 +2169,7 @@ function App() {
   const clearFilters = () => {
     setSearchResults([]);
     setIsSearchPerformed(false);
-    setFormData(prev => ({ ...prev, searchQuery:, searchMaxPrice:, searchCategory: 'all', searchSupplier: 'all', searchCity: 'all' }));
+    setFormData(prev => ({ ...prev, searchQuery: '', searchMaxPrice: '', searchCategory: 'all', searchSupplier: 'all', searchCity: 'all' }));
   };
 
   // Favorites
@@ -2199,7 +2199,7 @@ function App() {
     if (!currentUser) { showAlert('Please login', 'danger'); setCurrentPage('login'); return; }
     navigateTo('search-materials');
     setFormData(prev => ({ ...prev, searchQuery: material.name }));
-    showAlert('Showing - + material.name + - - add to cart to reorder', 'info');
+    showAlert('Showing ' + material.name + '  add to cart to reorder', 'info');
   };
 
   // ---------- Cart ----------
@@ -2229,9 +2229,9 @@ function App() {
     const foreign = otherSupplierInCart(material.companyId, material.id);
     if (foreign) {
       showAlert(
-        'Your cart can only contain items from one supplier. It currently holds - +
-        foreign.supplierName + - - remove those items or clear the cart before adding - +
-        material.name + - from - + company.name + '.',
+        'Your cart can only contain items from one supplier. It currently holds ' +
+        foreign.supplierName + '  remove those items or clear the cart before adding ' +
+        material.name + ' from ' + company.name + '.',
         'warning'
       );
       return false;
@@ -2240,7 +2240,7 @@ function App() {
     // from the distance later, so the cart has to remember which rate applies.
     const alreadyInCart = cart.some(i => i.materialId === material.id);
     setCart(prev => stageCartLine(prev, material, quantity, includeDelivery, company.name, 'increment', distanceKm) || prev);
-    showAlert(alreadyInCart ? 'Updated - + material.name + - quantity in cart' : 'Added - + material.name + - to cart', 'success');
+    showAlert(alreadyInCart ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
     return true;
   };
 
@@ -2253,7 +2253,7 @@ function App() {
     const item = cart.find(i => i.id === itemId);
     if (!item) return;
     if (!Number.isFinite(newQuantity) || newQuantity < 1) {
-      showAlert('Quantity must be at least 1 - + (item.unit || 'unit'), 'warning');
+      showAlert('Quantity must be at least 1 ' + (item.unit || 'unit'), 'warning');
       return;
     }
     if (item.quantity === Math.round(newQuantity)) return;
@@ -2268,14 +2268,14 @@ function App() {
     setDeliveryFeeOverride(null);
     // Drop the priced signature with the totals. `cartDetails` is now null, so
     // any later cart must be priced again even if it hashes to the same value.
-    repricedCart.current =;
+    repricedCart.current = '';
     setCartPriceFailed(false);
     if (!silent) showAlert('Cart cleared', 'info');
   };
 
   // Price a set of cart lines. Delivery is resolved per line: the buyer's checkbox
   // decides whether anything is charged, the supplier's published per-km rate is
-  // applied to the real supplier'buyer distance, and the platform settings are
+  // applied to the real supplierbuyer distance, and the platform settings are
   // only used for lines whose supplier has no rate of their own.
   const priceCartItems = async (
     items: CartItem[],
@@ -2298,7 +2298,7 @@ function App() {
     const supplierMap = new Map<string, CartSupplier>();
     const settings = systemSettings;
     // First pass: value the whole cart. VAT is deliberately not calculated per
-    // line; it is applied once below to this aggregate net subtotal - and only
+    // line; it is applied once below to this aggregate net subtotal  and only
     // when the cart is turned into a proforma / placed order (`applyVat`).
     for (const item of items) {
       subtotal += item.basePrice * (1 + item.profitMargin) * item.quantity;
@@ -2379,8 +2379,8 @@ function App() {
       total,
       distanceKm: totalDistance,
       suppliers,
-      supplierName: multiple ? 'Multiple Suppliers (' + suppliers.length + ')' : (suppliers[0]?.supplierName ||),
-      supplierCity: multiple ? : (suppliers[0]?.supplierCity ||),
+      supplierName: multiple ? 'Multiple Suppliers (' + suppliers.length + ')' : (suppliers[0]?.supplierName || ''),
+      supplierCity: multiple ? '' : (suppliers[0]?.supplierCity || ''),
       itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
       uniqueItems: items.length,
       currency: 'ETB',
@@ -2417,7 +2417,7 @@ function App() {
     }
   };
 
-  // -Add to cart & review- is a collection action, not a checkout action: the
+  // "Add to cart & review" is a collection action, not a checkout action: the
   // line is stored first, whatever the GPS state, and the cart takes the fresh
   // fix when it prices delivery. The saved profile pin is only used to show the
   // route preview when one already exists.
@@ -2469,7 +2469,7 @@ function App() {
   // The Sample Layout puts the Order Summary and its **Place Order** button on
   // the product page itself, so the order commits from here instead of routing
   // the buyer through the cart modal. It stages exactly the line the summary
-  // priced, then hands the whole set to `confirmOrder` - one code path for VAT,
+  // priced, then hands the whole set to `confirmOrder`  one code path for VAT,
   // delivery, wallet and cloud sync, so the product page and the cart can never
   // disagree about what was charged.
   const handlePlaceOrderFromDetails = async (
@@ -2501,16 +2501,16 @@ function App() {
       const measuredKm = await measureDistanceForMaterial(material);
       // Stage the line into the cart *first*, whatever the GPS state. A
       // same-supplier product joins the lines already there, so pressing Place
-      // Order always lands the goods in the cart - a denied or slow location
-      // can never leave the buyer with nothing on screen. `'set'` - the quantity
+      // Order always lands the goods in the cart  a denied or slow location
+      // can never leave the buyer with nothing on screen. `'set'`  the quantity
       // typed on the page is the quantity ordered.
       const lines = stageCartLine(cart, material, quantity, includeDelivery, company.name, 'set', measuredKm);
       if (!lines) {
         const foreign = otherSupplierInCart(material.companyId, material.id);
         showAlert(
-          'Your cart can only contain items from one supplier. It currently holds - +
+          'Your cart can only contain items from one supplier. It currently holds ' +
           (foreign ? foreign.supplierName : 'another supplier') +
-          - - clear the cart before ordering - + material.name + '.',
+          '  clear the cart before ordering ' + material.name + '.',
           'warning'
         );
         return false;
@@ -2526,9 +2526,9 @@ function App() {
       if (lines.some(item => measuredLineDistance(item) === null)) {
         coords = (await refreshCurrentLocation()) ?? undefined;
         if (!coords && !hasUserCoordinates(currentUser)) {
-          // No usable position, so the order cannot be priced yet - but the
+          // No usable position, so the order cannot be priced yet  but the
           // goods are safely in the cart. Send the buyer to the cart, which
-          // shows the saved lines and offers -Use my current location", instead
+          // shows the saved lines and offers "Use my current location", instead
           // of leaving the product page with nothing to show for the tap.
           cartLocationTried.current = true;
           setShowCartSummary(true);
@@ -2549,19 +2549,19 @@ function App() {
 
   // Reset the quantity and delivery choice whenever a different product is
   // opened, so the summary never quotes the previous product's figures.
-  const selectedMaterialId = selectedMaterial ? selectedMaterial.id :;
+  const selectedMaterialId = selectedMaterial ? selectedMaterial.id : '';
   useEffect(() => {
     setDetailsQty(1);
     setDetailsDelivery(true);
     setDetailsQuote(null);
     setDetailsImageIndex(0);
     setShowAllReviews(false);
-    detailsLocationTried.current =;
+    detailsLocationTried.current = '';
     // Drop the previous product's measurement so a cart line staged before the
     // new route arrives can never carry the old product's KM. The distance
     // effect above (declared earlier, so it runs first) is already measuring
     // this product's route; until it lands the summary prices from the saved
-    // pin - the same endpoints the pill will display.
+    // pin  the same endpoints the pill will display.
     setDistanceToSelected(null);
   }, [selectedMaterialId]);
 
@@ -2581,8 +2581,8 @@ function App() {
 
   // Price what the Order Summary will show. It stages the very lines
   // `handlePlaceOrderFromDetails` will commit and prices them with
-  // `priceCartItems(..., true)` - the same call `confirmOrder` makes - so
-  // -Total Payable- is the amount that actually leaves the buyer's account.
+  // `priceCartItems(..., true)`  the same call `confirmOrder` makes  so
+  // "Total Payable" is the amount that actually leaves the buyer's account.
   const detailsQuoteSignature = [
     selectedMaterialId,
     detailsQty,
@@ -2607,7 +2607,7 @@ function App() {
     const company = getCompanyById(selectedMaterial.companyId);
     if (!company) {
       setDetailsQuote(null);
-      setDetailsQuoteBlock({ kind: 'error', message: 'This supplier\u2019s profile could not be loaded. Please try again.' });
+      setDetailsQuoteBlock({ kind: 'error', message: 'This suppliers profile could not be loaded. Please try again.' });
       return;
     }
     let cancelled = false;
@@ -2616,7 +2616,7 @@ function App() {
       // Retry that only re-runs the same failing maths would leave the Order
       // Summary permanently unpriceable. Ask the device for a fix once per
       // product and price from those exact coordinates. Only when that fails do
-      // we show a message with an explicit -Use my current location- action.
+      // we show a message with an explicit "Use my current location" action.
       let origin: { lat: number; lng: number } | undefined;
       if (!hasUserCoordinates(currentUser)) {
         if (detailsLocationTried.current === selectedMaterial.id) {
@@ -2653,15 +2653,15 @@ function App() {
       if (!lines) {
         // The cart holds another supplier's goods: a proforma is issued by one
         // seller, so this product cannot be staged on top of them. Name the
-        // supplier that is blocking it - an unexplained blank summary looks
+        // supplier that is blocking it  an unexplained blank summary looks
         // exactly like an order that refuses to go through.
         const foreign = findOtherCartSupplier(cart, selectedMaterial.companyId, selectedMaterial.id);
         if (!cancelled) {
           setDetailsQuote(null);
           setDetailsQuoteBlock({
             kind: 'conflict',
-            message: 'Your cart holds items from - + (foreign ? foreign.supplierName : 'another supplier') +
-              '. One proforma is issued by a single seller, so clear the cart to order - + selectedMaterial.name + '.',
+            message: 'Your cart holds items from ' + (foreign ? foreign.supplierName : 'another supplier') +
+              '. One proforma is issued by a single seller, so clear the cart to order ' + selectedMaterial.name + '.',
           });
         }
         return;
@@ -2723,7 +2723,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCartSummary, cart.length, currentUser?.lat, currentUser?.lng]);
 
-  // Re-price the open cart whenever a quantity, a -with delivery- checkbox or the
+  // Re-price the open cart whenever a quantity, a "with delivery" checkbox or the
   // manual delivery override changes, so the totals on screen always match the
   // cart. The pricing helper lives in a ref because it is rebuilt on every render
   // and must not itself be an effect dependency.
@@ -2738,7 +2738,7 @@ function App() {
       repricedCart.current = signature;
       priceCartItemsRef.current(cart, false).then(totals => {
         if (cancelled) {
-          if (repricedCart.current === signature) repricedCart.current =;
+          if (repricedCart.current === signature) repricedCart.current = '';
           return;
         }
         if (totals) {
@@ -2746,18 +2746,18 @@ function App() {
           return;
         }
         // Pricing gave up (no location, unreachable routing, unreadable line).
-        // Release the guard so this cart can be priced again - without it the
+        // Release the guard so this cart can be priced again  without it the
         // signature would still match and the effect would never run, leaving
         // the buyer stuck on a loading screen with no way to order.
-        repricedCart.current =;
+        repricedCart.current = '';
         setCartPriceFailed(true);
       }).catch(error => {
         if (cancelled) {
-          if (repricedCart.current === signature) repricedCart.current =;
+          if (repricedCart.current === signature) repricedCart.current = '';
           return;
         }
         console.warn('Cart could not be repriced', error);
-        repricedCart.current =;
+        repricedCart.current = '';
         setCartPriceFailed(true);
       });
     }, 250);
@@ -2775,7 +2775,7 @@ function App() {
     repricedCart.current = cartPriceSignature(cart);
   };
 
-  // -To Proforma- - open the proforma document on screen so the buyer can read
+  // "To Proforma"  open the proforma document on screen so the buyer can read
   // every line. Printing is an explicit action from the document itself.
   // The verification QR stays in the document header (10.21).
   const handlePrintProforma = async () => {
@@ -2787,7 +2787,7 @@ function App() {
     setShowProforma(true);
   };
 
-  // -To Preview- - the same proforma figures, opened with the browser print
+  // "To Preview"  the same proforma figures, opened with the browser print
   // preview queued so the buyer can print or save it as a PDF immediately.
   const handlePreviewProforma = async () => {
     if (cart.length === 0) { showAlert('Your cart is empty', 'warning'); return; }
@@ -2798,11 +2798,11 @@ function App() {
     setShowProforma(true);
   }; 
 
-  // -Back to To Purchase- - the buyer read the proforma and wants to place the
+  // "Back to To Purchase"  the buyer read the proforma and wants to place the
   // order, so they must land back on step 1 of the cart, not on the page behind
   // it. Close the document, re-price the cart (delivery distances are live, so
   // the figures may have moved while the proforma was open), reopen the cart
-  // modal and pulse the -To Purchase- step so the way forward is obvious.
+  // modal and pulse the "To Purchase" step so the way forward is obvious.
   const handleBackToPurchase = async () => {
     setShowProforma(false);
     setProformaAutoPrint(false);
@@ -2837,7 +2837,7 @@ function App() {
     // A buyer can reach this point without a saved pin (a legacy account, or one
     // whose location was cleared). Ask the device for a fresh fix here instead
     // of refusing to order, and use those exact coordinates for the whole
-    // commit - React state has not re-rendered yet, so reading `currentUser`
+    // commit  React state has not re-rendered yet, so reading `currentUser`
     // would still see the old, location-less object.
     let buyerOrigin = origin;
     if (needsCoordinates && !buyerOrigin && !hasUserCoordinates(currentUser)) {
@@ -2864,7 +2864,7 @@ function App() {
     let walletPaid = 0;
     let orderCommitted = false;
     try {
-    // Price exactly the lines being bought - not the `cart` state, which may not
+    // Price exactly the lines being bought  not the `cart` state, which may not
     // have flushed yet when the product-details Place Order action staged them.
     // The fresh origin (when there is one) is the same coordinate set the rows
     // below are recorded from, so summary, delivery fee and order cannot differ.
@@ -2873,7 +2873,7 @@ function App() {
     // Block submission when the configured minimum-order rule is not met so
     // the customer cannot accidentally create an unfulfillable order.
     if (totals.minOrderEnabled && totals.belowMinOrder) {
-      showAlert('This order is below the minimum of - + formatCurrency(totals.minOrderAmount || 0) + '. Please add more items.', 'danger');
+      showAlert('This order is below the minimum of ' + formatCurrency(totals.minOrderAmount || 0) + '. Please add more items.', 'danger');
       setShowCartSummary(true);
       return false;
     }
@@ -2881,7 +2881,7 @@ function App() {
     const wholeTotal = totals.total;
     if (paymentMethod === 'wallet') {
       walletPaid = wholeTotal;
-      const ok = applyWalletChange(buyer.id, 'payment', wholeTotal, `Payment for cart (${lines.length} item${lines.length > 1 ? 's' :})`);
+      const ok = applyWalletChange(buyer.id, 'payment', wholeTotal, `Payment for cart (${lines.length} item${lines.length > 1 ? 's' : ''})`);
       if (ok === null) {
         showAlert('Insufficient wallet balance. Please top up first.', 'danger');
         setShowCartSummary(true);
@@ -2931,8 +2931,8 @@ function App() {
         totalAmount: totalAmount,
         status: 'pending',
         orderDate: new Date().toISOString().split('T')[0],
-        address: currentUser?.address ||,
-        notes: 'Order from cart - - + lines.length + - items total',
+        address: currentUser?.address || '',
+        notes: 'Order from cart - ' + lines.length + ' items total',
         invoiceNumber: 'INV-' + new Date().getFullYear() + '-' + (orders.length + 1000 + createdOrders.length),
         taxAmount: 0,
         vatAmount: vatAmountItem,
@@ -2944,7 +2944,7 @@ function App() {
       };
       createdOrders.push(newOrder);
       notifyOrderParties(newOrder, `New order ${newOrder.invoiceNumber}`,
-        `${currentUser!.name} ordered ${item.quantity} ${materialUnit} of ${materialName} - ETA ${deliveryEta(distanceKm)}.`);
+        `${currentUser!.name} ordered ${item.quantity} ${materialUnit} of ${materialName}  ETA ${deliveryEta(distanceKm)}.`);
       const buyerCompany = materialName;
       if (paymentMethod === 'wallet') {
         pushNotification(currentUser!.id, 'order', 'Order confirmed on the platform',
@@ -2979,7 +2979,7 @@ function App() {
       pushNotification(currentUser!.id, 'order', 'Wallet orders placed',
         `${createdOrders.length} order(s) totalling ${formatCurrency(walletPaid)} were paid instantly from your wallet.`);
     }
-    showAlert('Order placed successfully! - Total: - + formatCurrency(totals.total), 'success');
+    showAlert('Order placed successfully!  Total: ' + formatCurrency(totals.total), 'success');
     if (clearAfter) clearCart(true);
     setShowCartSummary(false);
     setCurrentPage('orders');
@@ -3006,7 +3006,7 @@ function App() {
   // ---------- Export ----------
   const handleExportMaterials = () => {
     exportToCSV(materials, 'materials_export');
-    showAlert('Materials exported! -', 'success');
+    showAlert('Materials exported! ', 'success');
   };
   const handleExportOrders = () => {
     let userOrders = orders;
@@ -3018,7 +3018,7 @@ function App() {
     }
     if (userOrders.length === 0) { showAlert('No orders to export.', 'warning'); return; }
     exportOrdersToCSV(userOrders, materials, companies);
-    showAlert('Orders exported! -', 'success');
+    showAlert('Orders exported! ', 'success');
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: string) => {
@@ -3037,7 +3037,7 @@ function App() {
         const remaining = Math.max(0, material.quantity - existing.quantity);
         if (remaining <= LOW_STOCK_THRESHOLD && supplierUser) {
           pushNotification(supplierUser.id, 'stock', 'Low-stock alert',
-            `${material.name} now has ${remaining} ${material.unit || 'units'} left - consider restocking.`);
+            `${material.name} now has ${remaining} ${material.unit || 'units'} left  consider restocking.`);
         }
       }
       // Wallet orders already went through walletToInvoice; supplier income is
@@ -3064,12 +3064,12 @@ function App() {
         const commission = Math.round(gross * 0.08 * 100) / 100;
         const net = gross - commission;
         applyWalletChange(supplierUser.id, 'income', net,
-          `Invoice ${existing.invoiceNumber} delivered - net of 8% platform fee (${formatCurrency(commission)})`);
-        pushNotification(supplierUser.id, 'payment', 'Payment received',
+          `Invoice ${existing.invoiceNumber} delivered  net of 8% platform fee (${formatCurrency(commission)})`);
+        pushNotification(supplierUser.id, 'payment', 'Payment received  deg',
           `You earned ${formatCurrency(net)} (after 8% platform fee) for ${existing.invoiceNumber}.`);
       }
-      pushNotification(existing.customerId, 'order', 'Order delivered',
-        `${existing.invoiceNumber} was delivered - you can now rate the product.`);
+      pushNotification(existing.customerId, 'order', 'Order delivered ',
+        `${existing.invoiceNumber} was delivered  you can now rate the product.`);
     }
     if (status === 'cancelled') {
       updated.paymentStatus = 'refunded';
@@ -3077,8 +3077,8 @@ function App() {
       if (existing.walletPayment && existing.paymentStatus === 'paid') {
         const refunded = applyWalletChange(existing.customerId, 'refund', existing.totalAmount,
           `Refund for cancelled ${existing.invoiceNumber}`);
-        pushNotification(existing.customerId, 'payment', 'Refund issued',
-          `ETB ${existing.totalAmount.toLocaleString()} returned to your wallet${refunded !== null ? - - new balance - + formatCurrency(refunded) :}.`);
+        pushNotification(existing.customerId, 'payment', 'Refund issued 3',
+          `ETB ${existing.totalAmount.toLocaleString()} returned to your wallet${refunded !== null ? '  new balance ' + formatCurrency(refunded) : ''}.`);
       } else {
         pushNotification(existing.customerId, 'order', 'Order cancelled',
           `${existing.invoiceNumber} was cancelled by the supplier.`);
@@ -3089,7 +3089,7 @@ function App() {
       }
     }
     setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
-    showAlert('Order status updated to - + status + - ', 'success');
+    showAlert('Order status updated to ' + status + ' ', 'success');
   };
 
   const handleContactSupplier = (materialId: string) => {
@@ -3099,7 +3099,7 @@ function App() {
     if (!company) return;
     const user = getUserById(company.userId);
     if (!user) return;
-    const phoneNumber = user.phone.replace(/\s/g,);
+    const phoneNumber = user.phone.replace(/\s/g, '');
     window.location.href = 'tel:' + phoneNumber;
   };
 
@@ -3122,7 +3122,7 @@ function App() {
     setFormData(prev => ({ ...prev, registerUserType: type }));
   };
 
-  // Shared -does this product include delivery, and at what rate?- block used by
+  // Shared "does this product include delivery, and at what rate?" block used by
   // both the add and the edit product form. The rate fields only matter when the
   // supplier ticks the box, so they are hidden until then.
   const deliveryStartFee = Math.max(0, parseFloat(formData.materialDeliveryStartFee) || 0);
@@ -3147,7 +3147,7 @@ function App() {
       {formData.materialDeliveryOffered && (
         <div className="form-row">
           <div className="form-group">
-            <label>> Delivery Price per km (ETB) *</label>
+            <label> Delivery Price per km (ETB) *</label>
             <input
               type="number"
               className="form-input"
@@ -3176,7 +3176,7 @@ function App() {
       )}
       {formData.materialDeliveryOffered && (
         <p className="delivery-terms-preview">
-          - A buyer ordering this item with delivery is charged{' '}
+           A buyer ordering this item with delivery is charged{' '}
           <strong>{formatCurrency(deliveryStartFee)}</strong> starting fee
           {' + '}
           <strong>{formatCurrency(deliveryPerKm)}</strong> per km
@@ -3200,10 +3200,10 @@ function App() {
   const handleDatalistInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setFormData(prev => ({ ...prev, selectedUser: value }));
-    const user = findLoginUser(users, value,);
+    const user = findLoginUser(users, value, '');
     if (user && isUserLocked(user)) {
       const remainingTime = Math.ceil((user.lockUntil! - Date.now()) / 1000);
-      showAlert('Account locked. Try again in - + remainingTime + - seconds.', 'warning', 3000);
+      showAlert('Account locked. Try again in ' + remainingTime + ' seconds.', 'warning', 3000);
     }
   };
 
@@ -3221,14 +3221,14 @@ function App() {
     const readers = files.map(file => new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => resolve();
+      reader.onerror = () => resolve('');
       reader.readAsDataURL(file);
     }));
     Promise.all(readers).then(results => {
       const valid = results.filter(r => r);
       setFormData(prev => ({ ...prev, materialImages: [...prev.materialImages, ...valid].slice(0, 6) }));
     });
-    e.target.value =;
+    e.target.value = '';
   };
 
   const removeMaterialImage = (index: number) => {
@@ -3239,35 +3239,35 @@ function App() {
   const renderProductImage = (images: string[] | undefined, category: string, size = 'md') => {
     const src = images && images.length > 0 ? images[0] : null;
     const emojiMap: Record<string, string> = {
-      'Construction': '-', 'Transport':, 'Health':', 'Education': '"',
-      'Agriculture':, 'Manufacturing':, 'Energy':, 'Mining': '>',
-      'Technology':', 'Retail': '>', 'Services': '> ', 'Hospitality':,
-      'Logistics': '"', 'Pharmaceutical':, 'Automotive': '-', 'Environmental':,
-      'Water':', 'Telecom': '"', 'Food & Beverage':
+      'Construction': '-', 'Transport': '', 'Health': '', 'Education': '',
+      'Agriculture': '3/4', 'Manufacturing': '', 'Energy': '', 'Mining': '',
+      'Technology': '', 'Retail': '', 'Services': ' ', 'Hospitality': '',
+      'Logistics': '', 'Pharmaceutical': '', 'Automotive': '-', 'Environmental': '+/-',
+      'Water': '', 'Telecom': '', 'Food & Beverage': ''
     };
-    const emoji = emojiMap[category] || '"';
+    const emoji = emojiMap[category] || '';
     if (src) {
-      return <img className={'product-img product-img-' + size} src={src} alt="Product- loading="lazy- />;
+      return <img className={'product-img product-img-' + size} src={src} alt="Product" loading="lazy" />;
     }
-    return <div className={'product-img product-img-' + size + - product-img-placeholder'}>{emoji}</div>;
+    return <div className={'product-img product-img-' + size + ' product-img-placeholder'}>{emoji}</div>;
   };
 
   // Render product image gallery for the details modal
   // Product image upload section used in add/edit material forms
   const renderMaterialImageUploader = () => (
     <div className="form-group">
-      <label>"- Product Photos <small className="form-hint">(up to 6, shown in the catalogue &amp; details)</small></label>
+      <label>- Product Photos <small className="form-hint">(up to 6, shown in the catalogue &amp; details)</small></label>
       <div className="image-uploader">
         <label className="image-upload-btn">
-          -- Upload Photos
-          <input type="file- accept="image/*- multiple onChange={handleMaterialImagesChange} />
+          - Upload Photos
+          <input type="file" accept="image/*" multiple onChange={handleMaterialImagesChange} />
         </label>
         {formData.materialImages.length > 0 && (
           <div className="image-preview-list">
             {formData.materialImages.map((img, i) => (
               <div key={i} className="image-preview-item">
-                <img src={img} alt={'Preview - + (i + 1)} />
-                <button type="button- className="image-preview-remove- onClick={() => removeMaterialImage(i)} title="Remove photo">-</button>
+                <img src={img} alt={'Preview ' + (i + 1)} />
+                <button type="button" className="image-preview-remove" onClick={() => removeMaterialImage(i)} title="Remove photo">-</button>
               </div>
             ))}
           </div>
@@ -3278,7 +3278,7 @@ function App() {
 
   // ---------- Render helpers ----------
   const ScrollableTable = ({ children, minWidth = '800px' }: { children: React.ReactNode; minWidth?: string }) => (
-    <div className="table-responsive-wrapper"><div className="table-scroll-container- style={{ minWidth }}>{children}</div></div>
+    <div className="table-responsive-wrapper"><div className="table-scroll-container" style={{ minWidth }}>{children}</div></div>
   );
 
   // ---------- Page render functions ----------
@@ -3299,7 +3299,7 @@ function App() {
     return (
       <header className="header">
         <div className="header-content">
-          <div className="logo- onClick={() => navigateTo('home')}>
+          <div className="logo" onClick={() => navigateTo('home')}>
             <div className="logo-icon">-</div>
             <div className="logo-text">
               <h1>E-SCON <span>{APP_VERSION.split('.').slice(0, 2).join('.')}</span></h1>
@@ -3307,42 +3307,42 @@ function App() {
             </div>
           </div>
           <DateTime />
-          <button className="mobile-menu-toggle- onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
-            {mobileMenuOpen ? '-' :}
+          <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+            {mobileMenuOpen ? '-' : ' deg'}
           </button>
-          <div className={'header-actions' + (mobileMenuOpen ? - open' :)}>
-            <button className="icon-btn command-trigger- onClick={() => setShowCommandPalette(true)} title="Quick search (Ctrl+K)- aria-label="Open quick search">
-              -<span className="command-trigger-hint">Ctrl K</span>
+          <div className={'header-actions' + (mobileMenuOpen ? ' open' : '')}>
+            <button className="icon-btn command-trigger" onClick={() => setShowCommandPalette(true)} title="Quick search (Ctrl+K)" aria-label="Open quick search">
+              <span className="command-trigger-hint">Ctrl K</span>
             </button>
-            <button className="icon-btn- onClick={() => setDarkMode(!darkMode)} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme">
-              {darkMode ? :}
+            <button className="icon-btn" onClick={() => setDarkMode(!darkMode)} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme">
+              {darkMode ? '' : ''}
             </button>
-            <button className="icon-btn- onClick={toggleFullscreen} title="Fullscreen">
-              {isFullscreen ? '>' : '>'}
+            <button className="icon-btn" onClick={toggleFullscreen} title="Fullscreen">
+              {isFullscreen ? '' : ''}
             </button>
             {currentUser && (
-              <button className="icon-btn notif-btn- onClick={() => setShowNotifications(true)} title="Notifications">
-                -- {unreadNotifications() > 0 && <span className="notif-badge">{unreadNotifications()}</span>}
+              <button className="icon-btn notif-btn" onClick={() => setShowNotifications(true)} title="Notifications">
+                 {unreadNotifications() > 0 && <span className="notif-badge">{unreadNotifications()}</span>}
               </button>
             )}
             {currentUser && (
-              <button className="wallet-chip- onClick={() => setShowWallet(true)} title="E-SCON Wallet">
-                - {formatCurrency(walletBalance(currentUser.id))}
+              <button className="wallet-chip" onClick={() => setShowWallet(true)} title="E-SCON Wallet">
+                3 {formatCurrency(walletBalance(currentUser.id))}
               </button>
             )}
             {currentUser ? renderUserNav() : renderGuestNav()}
             {currentUser && currentUser.userType === 'customer' && (
-              <button className="cart-icon-btn- onClick={handleCheckout}>
-                >' {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
+              <button className="cart-icon-btn" onClick={handleCheckout}>
+                 {cart.length > 0 && <span className="cart-badge">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
               </button>
             )}
             {/* Customers never export: the proforma is the buyer's only order
                 document, and the platform data stays with suppliers and admins. */}
             {currentUser && currentUser.userType !== 'customer' && (
-              <button className="export-btn- onClick={() => {
+              <button className="export-btn" onClick={() => {
                 if (currentPage === 'search-materials') handleExportMaterials();
                 else if (currentPage === 'orders') handleExportOrders();
-              }}>- Export</button>
+              }}> Export</button>
             )}
           </div>
         </div>
@@ -3357,21 +3357,21 @@ function App() {
     <div className="nav-more">
       <button
         type="button"
-        className={'nav-link nav-more-toggle' + (active ? - active' :)}
+        className={'nav-link nav-more-toggle' + (active ? ' active' : '')}
         onClick={() => setNavMoreOpen(open => !open)}
         aria-expanded={navMoreOpen}
         aria-haspopup="menu"
       >
-        More <span className="nav-more-caret">-</span>
+        More <span className="nav-more-caret">-3/4</span>
       </button>
       {navMoreOpen && (
-        <div className="nav-more-panel- role="menu">
+        <div className="nav-more-panel" role="menu">
           {items.map(item => (
             <button
               key={item.label}
               type="button"
               role="menuitem"
-              className={'nav-more-link' + (item.active ? - active' :)}
+              className={'nav-more-link' + (item.active ? ' active' : '')}
               onClick={() => { setNavMoreOpen(false); item.onClick(); }}
             >
               {item.icon && <span className="nav-more-icon">{item.icon}</span>}
@@ -3385,21 +3385,21 @@ function App() {
 
   const renderGuestNav = () => (
     <>
-      <button className={'nav-link - + (currentPage === 'home' ? 'active' :)} onClick={() => navigateTo('home')}>Home</button>
-      <button className={'nav-link - + (currentPage === 'guest-workspace' ? 'active' :)} onClick={() => openWorkspace('guest', 'home')}>' {t('Public View')}</button>
-      <button className={'nav-link - + (currentPage === 'marketplace' ? 'active' :)} onClick={() => navigateTo('marketplace')}>Marketplace</button>
-      <button className={'nav-link - + (currentPage === 'supplier-directory' ? 'active' :)} onClick={() => navigateTo('supplier-directory')}>{t('Supplier Directory')}</button>
-      <button className={'nav-link - + (currentPage === 'analytics' ? 'active' :)} onClick={() => navigateTo('analytics')}>Insights</button>
-      <button className={'nav-link - + (currentPage === 'copilot' ? 'active' :)} onClick={() => openCopilot()}>{'\u{1F916}'} Copilot</button>
+      <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
+      <button className={'nav-link ' + (currentPage === 'guest-workspace' ? 'active' : '')} onClick={() => openWorkspace('guest', 'home')}> {t('Public View')}</button>
+      <button className={'nav-link ' + (currentPage === 'marketplace' ? 'active' : '')} onClick={() => navigateTo('marketplace')}>Marketplace</button>
+      <button className={'nav-link ' + (currentPage === 'supplier-directory' ? 'active' : '')} onClick={() => navigateTo('supplier-directory')}>{t('Supplier Directory')}</button>
+      <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
+      <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>{''} Copilot</button>
       <NavMore
         active={['search-materials', 'supplier-map', 'login', 'register', 'info', 'language'].includes(currentPage)}
         items={[
-          { label: 'Find Products', icon: '\u{1F50D}', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
-          { label: 'Supplier Map', icon: '\u{1F4CD}', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
-          { label: t('Language Settings'), icon: '\u{1F310}', active: currentPage === 'language', onClick: () => navigateTo('language') },
-          { label: 'About & Help', icon: '\u2139\uFE0F', active: currentPage === 'info', onClick: () => openInfo('about') },
-          { label: 'Login', icon: '\u{1F510}', active: currentPage === 'login', onClick: () => navigateTo('login') },
-          { label: 'Create Account', icon: '\u{1F464}', active: currentPage === 'register', onClick: () => navigateTo('register') },
+          { label: 'Find Products', icon: '', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
+          { label: 'Supplier Map', icon: '', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+          { label: t('Language Settings'), icon: '', active: currentPage === 'language', onClick: () => navigateTo('language') },
+          { label: 'About & Help', icon: '', active: currentPage === 'info', onClick: () => openInfo('about') },
+          { label: 'Login', icon: '', active: currentPage === 'login', onClick: () => navigateTo('login') },
+          { label: 'Create Account', icon: '', active: currentPage === 'register', onClick: () => navigateTo('register') },
         ]}
       />
     </>
@@ -3414,38 +3414,38 @@ function App() {
     const dashboardLabel = t(MENUS[menuKey].title);
     const inWorkspace = Object.values(MENUS).some(menu => menu.page === currentPage) || currentPage === 'customer-workspace' || currentPage === 'supplier-workspace' || currentPage === 'admin-workspace';
     const secondary = [
-      { label: 'Find Products', icon: '\u{1F50D}', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
-      { label: 'Supplier Map', icon: '\u{1F4CD}', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
-      { label: 'About & Help', icon: '\u2139\uFE0F', active: currentPage === 'info', onClick: () => openInfo('about') },
+      { label: 'Find Products', icon: '', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
+      { label: 'Supplier Map', icon: '', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+      { label: 'About & Help', icon: '', active: currentPage === 'info', onClick: () => openInfo('about') },
       ...(isCompany ? [
         { label: 'Add Product', icon: '+', active: currentPage === 'add-material', onClick: () => navigateTo('add-material') },
-        { label: 'Company Profile', icon: '\u{1F3E2}', active: currentPage === 'edit-company', onClick: handleEditCompany },
+        { label: 'Company Profile', icon: '', active: currentPage === 'edit-company', onClick: handleEditCompany },
       ] : []),
       ...(isAdmin ? [
-        { label: 'Add Supplier', icon: '\u{1F3E2}', active: false, onClick: handleAdminAddSupplier },
-        { label: 'Platform Settings', icon: '\u2699\uFE0F', active: currentPage === 'settings', onClick: () => navigateTo('settings') },
+        { label: 'Add Supplier', icon: '', active: false, onClick: handleAdminAddSupplier },
+        { label: 'Platform Settings', icon: '', active: currentPage === 'settings', onClick: () => navigateTo('settings') },
       ] : []),
     ];
     return (
       <>
-        <button className={'nav-link - + (currentPage === 'home' ? 'active' :)} onClick={() => navigateTo('home')}>Home</button>
-        <button className={'nav-link' + (inWorkspace ? - active' :)} onClick={() => openWorkspace(menuKey, (menuKey==='admin'||menuKey==='guest') ? 'home' : 'dashboard')}>- {t('Workspace')}</button>
-        <button className={'nav-link - + (currentPage === 'marketplace' ? 'active' :)} onClick={() => navigateTo('marketplace')}>Marketplace</button>
-        <button className={'nav-link - + (currentPage === 'analytics' ? 'active' :)} onClick={() => navigateTo('analytics')}>Insights</button>
-        <button className={'nav-link - + (currentPage === 'copilot' ? 'active' :)} onClick={() => openCopilot()}>{'\u{1F916}'} Copilot</button>
+        <button className={'nav-link ' + (currentPage === 'home' ? 'active' : '')} onClick={() => navigateTo('home')}>Home</button>
+        <button className={'nav-link' + (inWorkspace ? ' active' : '')} onClick={() => openWorkspace(menuKey, (menuKey==='admin'||menuKey==='guest') ? 'home' : 'dashboard')}>- {t('Workspace')}</button>
+        <button className={'nav-link ' + (currentPage === 'marketplace' ? 'active' : '')} onClick={() => navigateTo('marketplace')}>Marketplace</button>
+        <button className={'nav-link ' + (currentPage === 'analytics' ? 'active' : '')} onClick={() => navigateTo('analytics')}>Insights</button>
+        <button className={'nav-link ' + (currentPage === 'copilot' ? 'active' : '')} onClick={() => openCopilot()}>{''} Copilot</button>
         <NavMore
           active={['search-materials', 'supplier-map', 'add-material', 'edit-company', 'settings', 'company-dashboard', 'customer-dashboard', 'transporter-dashboard', 'info', 'language'].includes(currentPage)}
           items={[
-            { label: dashboardLabel, icon: '\u{1F4CA}', active: currentPage === dashboardPage, onClick: () => openWorkspace(menuKey) },
+            { label: dashboardLabel, icon: '', active: currentPage === dashboardPage, onClick: () => openWorkspace(menuKey) },
             ...secondary,
-            { label: t('Supplier Directory'), icon: '\u{1F3E2}', active: currentPage === 'supplier-directory', onClick: () => navigateTo('supplier-directory') },
-            { label: t('Language Settings'), icon: '\u{1F310}', active: currentPage === 'language', onClick: () => navigateTo('language') },
+            { label: t('Supplier Directory'), icon: '', active: currentPage === 'supplier-directory', onClick: () => navigateTo('supplier-directory') },
+            { label: t('Language Settings'), icon: '', active: currentPage === 'language', onClick: () => navigateTo('language') },
           ]}
         />
         <div className="user-info">
           <div className="user-avatar">{currentUser?.name?.charAt(0).toUpperCase()}</div>
           <div><div className="user-name">{currentUser?.name?.split(' ')[0]}</div><div className="user-type">{isAdmin ? 'Admin' : isCompany ? 'Supplier' : isTransporter ? 'Transporter' : 'Customer'}</div></div>
-          <button className="btn-logout- onClick={handleLogout}>Logout</button>
+          <button className="btn-logout" onClick={handleLogout}>Logout</button>
         </div>
       </>
     );
@@ -3453,10 +3453,10 @@ function App() {
 
   const renderAlert = () => {
     if (!alert) return null;
-    const icons: Record<string, string> = { success: '...', danger: - ', warning: - ', info: };
+    const icons: Record<string, string> = { success: '...', danger: ' ', warning: ' ', info: '1' };
     return (
-      <div className="alert-stack- role="alert- aria-live="assertive">
-        <div className={'alert alert-' + alert.type}><span className="alert-icon">{icons[alert.type] ||}</span>{alert.message}</div>
+      <div className="alert-stack" role="alert" aria-live="assertive">
+        <div className={'alert alert-' + alert.type}><span className="alert-icon">{icons[alert.type] || '1'}</span>{alert.message}</div>
       </div>
     );
   };
@@ -3465,20 +3465,20 @@ function App() {
     if (!showCartSummary) return null;
     if (!cartDetails) {
       return (
-        <div className="modal-overlay- onClick={() => setShowCartSummary(false)}>
-          <div className="modal-content cart-modal- onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setShowCartSummary(false)}>
+          <div className="modal-content cart-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{cart.length === 0 || cartPriceFailed ? 'Shopping Cart' : 'Calculating your order...'}</h2>
-              <button className="modal-close- onClick={() => setShowCartSummary(false)}>Close</button>
+              <button className="modal-close" onClick={() => setShowCartSummary(false)}>Close</button>
             </div>
             <div className="modal-body">
               {cart.length === 0 ? (
                 <div className="empty-cart">
                   <h3>Your cart is empty</h3>
-                  <button className="btn btn-primary- onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button>
+                  <button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button>
                 </div>
               ) : (
-                <div className="cart-loading- role="status- aria-live="polite">
+                <div className="cart-loading" role="status" aria-live="polite">
                   <span className="dot-pulse"></span>
                   <p>
                     {cartPriceFailed
@@ -3492,11 +3492,11 @@ function App() {
                           <h4>{item.materialName}</h4>
                           <p>
                             {item.supplierName}  {formatCurrency(item.price)} / {item.unit}
-                            {item.includeDelivery !== false && -   delivery included'}
+                            {item.includeDelivery !== false && '   delivery included'}
                           </p>
                         </div>
                         <div className="cart-item-total"><strong>- {item.quantity}</strong></div>
-                        <button className="btn-icon danger- onClick={() => removeFromCart(item.id)} title="Remove item">-'</button>
+                        <button className="btn-icon danger" onClick={() => removeFromCart(item.id)} title="Remove item">-</button>
                       </div>
                     ))}
                   </div>
@@ -3512,7 +3512,7 @@ function App() {
                         onClick={async () => {
                           // Release the effect's signature guard. Without a pin,
                           // take a fix first; Retry alone can never succeed.
-                          repricedCart.current =;
+                          repricedCart.current = '';
                           setCartPriceFailed(false);
                           if (hasUserCoordinates(currentUser)) {
                             setCartPriceRetry(n => n + 1);
@@ -3527,7 +3527,7 @@ function App() {
                           }
                         }}
                       >
-                        {hasUserCoordinates(currentUser) ? '- Retry calculating' : '- Use my current location'}
+                        {hasUserCoordinates(currentUser) ? ' Retry calculating' : ' Use my current location'}
                       </button>
                     </>
                   )}
@@ -3547,8 +3547,8 @@ function App() {
     const platformHint = platformDeliveryHint(supplierGroups);
     const primaryDeliveryItem = primarySupplier?.items.find(item => item.includeDelivery !== false);
     const buyer = currentUser;
-    const buyerAddress = buyer?.address?.trim() ||;
-    const buyerCity = buyer?.city?.trim() ||;
+    const buyerAddress = buyer?.address?.trim() || '';
+    const buyerCity = buyer?.city?.trim() || '';
     const destinationLabel = buyerAddress
       ? (buyerCity && !buyerAddress.toLowerCase().includes(buyerCity.toLowerCase())
         ? `${buyerAddress}, ${buyerCity}`
@@ -3582,50 +3582,50 @@ function App() {
           : distanceKm > 0 ? sup.transportCost / distanceKm : 0;
         const formula = sup.transportCost > 0
           ? `${distanceKm.toFixed(1)} km - ${rate.toFixed(2)} ETB/km`
-            + (usePublishedRate && startFee > 0 ? ` + ${formatCurrency(startFee)} start` :)
+            + (usePublishedRate && startFee > 0 ? ` + ${formatCurrency(startFee)} start` : '')
             + ` = ${formatCurrency(sup.transportCost)}`
           : distanceKm > 0
-            ? `${distanceKm.toFixed(1)} km - no delivery charge`
+            ? `${distanceKm.toFixed(1)} km  no delivery charge`
             : 'No delivery charge';
         return {
           id: sup.supplierId,
-          label: supplierGroups.length > 1 ? `${sup.supplierName}: ` :,
+          label: supplierGroups.length > 1 ? `${sup.supplierName}: ` : '',
           formula,
         };
       });
     return (
-      <div className="modal-overlay cart-overlay-single- onClick={() => setShowCartSummary(false)}>
-        <div className="modal-content cart-modal cart-sample-modal cart-single-page- onClick={e => e.stopPropagation()}>
+      <div className="modal-overlay cart-overlay-single" onClick={() => setShowCartSummary(false)}>
+        <div className="modal-content cart-modal cart-sample-modal cart-single-page" onClick={e => e.stopPropagation()}>
           <div className="modal-header cart-sample-head cart-single-header">
             <div className="cart-sample-head-top">
               <div className="cart-sample-brand">
-                <span className="cart-sample-brand-name"> E-SCON</span>
+                <span className="cart-sample-brand-name"> deg E-SCON</span>
                 <span className="cart-sample-brand-divider">|</span>
                 <span className="cart-sample-brand-title">SHOPPING CART</span>
               </div>
-              <button className="modal-close- onClick={() => setShowCartSummary(false)}>-</button>
+              <button className="modal-close" onClick={() => setShowCartSummary(false)}>-</button>
             </div>
             <div className="cart-sample-clock"><LiveClock /></div>
           </div>
           <div className="modal-body cart-single-body">
             {cart.length === 0 ? (
-              <div className="empty-cart"><span className="empty-cart-icon">>'</span><h3>Your cart is empty</h3><button className="btn btn-primary- onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button></div>
+              <div className="empty-cart"><span className="empty-cart-icon"></span><h3>Your cart is empty</h3><button className="btn btn-primary" onClick={() => { setShowCartSummary(false); navigateTo('search-materials'); }}>Start Shopping</button></div>
             ) : (
               <div className="cart-new-layout">
                 <div className="cart-new-steps">
                   <button
-                    className={'cart-new-step active' + (highlightPurchaseStep ? - returned' :)}
+                    className={'cart-new-step active' + (highlightPurchaseStep ? ' returned' : '')}
                     onClick={() => { void confirmOrder(); }}
                     disabled={isCalculating || isPlacingOrder || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}
                   >
                     <span className="cart-new-step-num">1</span>
                     <span>{isPlacingOrder ? 'Placing...' : 'To Purchase'}</span>
                   </button>
-                  <button className="cart-new-step- onClick={handlePrintProforma}>
+                  <button className="cart-new-step" onClick={handlePrintProforma}>
                     <span className="cart-new-step-num">2</span>
                     <span>To Proforma</span>
                   </button>
-                  <button className="cart-new-step- onClick={handlePreviewProforma}>
+                  <button className="cart-new-step" onClick={handlePreviewProforma}>
                     <span className="cart-new-step-num">3</span>
                     <span>To Preview</span>
                   </button>
@@ -3653,12 +3653,12 @@ function App() {
                   })}
                   <div className="cart-new-party-box">
                     <div className="cart-new-party-head">
-                      <span>'</span>
+                      <span></span>
                       <span>Buyer Details</span>
                     </div>
                     <div className="cart-new-party-body">
                       <div className="cart-new-party-row"><span>Company Name</span><span>: {buyer?.name || '-'}</span></div>
-                      <div className="cart-new-party-row"><span>Address</span><span>: {buyer?.address ? buyer.address + (buyer.city ? ', - + buyer.city :) : (buyer?.city || '-')}</span></div>
+                      <div className="cart-new-party-row"><span>Address</span><span>: {buyer?.address ? buyer.address + (buyer.city ? ', ' + buyer.city : '') : (buyer?.city || '-')}</span></div>
                       <div className="cart-new-party-row"><span>TIN</span><span>: {buyer?.tinNumber || '-'}</span></div>
                       <div className="cart-new-party-row"><span>VAT No.</span><span>: {buyer?.vatNumber || '-'}</span></div>
                       <div className="cart-new-party-row"><span>Contact Person</span><span>: {buyer?.name || '-'}</span></div>
@@ -3684,9 +3684,9 @@ function App() {
                           <div className="cart-new-product-desc">"{material?.description || item.materialName}"</div>
                         </div>
                         <div className="cart-new-product-actions">
-                          <button type="button- disabled={!material} onClick={() => { setShowCartSummary(false); if (material) setSelectedMaterial(material); }}>- GPS MAP</button>
-                          <button type="button- onClick={() => { setShowCartSummary(false); handleOpenMapWithRoute(company.id); }}>- Auto Refresh</button>
-                          <button type="button- onClick={() => removeFromCart(item.id)} style={{color:'#d33'}}>-' Remove</button>
+                          <button type="button" disabled={!material} onClick={() => { setShowCartSummary(false); if (material) setSelectedMaterial(material); }}> GPS MAP</button>
+                          <button type="button" onClick={() => { setShowCartSummary(false); handleOpenMapWithRoute(company.id); }}> Auto Refresh</button>
+                          <button type="button" onClick={() => removeFromCart(item.id)} style={{color:'#d33'}}>- Remove</button>
                         </div>
                       </div>
                     );
@@ -3695,8 +3695,8 @@ function App() {
 
                 <div className="cart-new-items-section">
                   <div className="cart-new-items-head">
-                    <span>>' Order Items</span>
-                    <span>{cart.length} item{cart.length === 1 ? : 's'}</span>
+                    <span> Order Items</span>
+                    <span>{cart.length} item{cart.length === 1 ? '' : 's'}</span>
                   </div>
                   <div className="cart-new-table-wrap">
                     <table className="cart-new-table">
@@ -3719,7 +3719,7 @@ function App() {
                             <td>{item.unit}</td>
                             <td>
                               <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
-                                <button onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity-1))} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}>'</button>
+                                <button onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity-1))} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}></button>
                                 <span>{item.quantity}</span>
                                 <button onClick={() => updateCartQuantity(item.id, item.quantity+1)} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}>+</button>
                               </div>
@@ -3732,7 +3732,7 @@ function App() {
                   </div>
                 </div>                  <div className="cart-new-delivery-section">
                   <div className="cart-new-delivery-head">
-                    <span>- Delivery Cost (to destination)</span>
+                    <span> Delivery Cost (to destination)</span>
                     <div>
                       <button
                         type="button"
@@ -3743,7 +3743,7 @@ function App() {
                           handleOpenMapWithRoute(primarySupplier.supplierId);
                         }}
                       >
-                        - GPS MAP
+                         GPS MAP
                       </button>
                       <button
                         type="button"
@@ -3751,7 +3751,7 @@ function App() {
                         onClick={() => { void refreshCartDelivery(); }}
                         title="Take a fresh GPS fix and re-measure the route"
                       >
-                        - Refresh
+                         Refresh
                       </button>
                     </div>
                   </div>
@@ -3759,7 +3759,7 @@ function App() {
                     <div className="cart-new-delivery-detail">
                       {primarySupplier && primaryDeliveryItem && primarySupplier.deliveryMode !== 'none' && primarySupplier.transportCost > 0
                         ? (primaryDeliveryItem.deliveryRate && primaryDeliveryItem.deliveryRate.offered
-                          ? `Distance: ${primarySupplier.distanceKm.toFixed(1)} km` + (primaryDeliveryItem.deliveryRate.perKm > 0 ? ` - ${Number(primaryDeliveryItem.deliveryRate.perKm).toFixed(2)} ETB/km` :) + (primaryDeliveryItem.deliveryRate.startFee > 0 ? ` + ${Number(primaryDeliveryItem.deliveryRate.startFee).toFixed(2)} ETB start` :)
+                          ? `Distance: ${primarySupplier.distanceKm.toFixed(1)} km` + (primaryDeliveryItem.deliveryRate.perKm > 0 ? ` - ${Number(primaryDeliveryItem.deliveryRate.perKm).toFixed(2)} ETB/km` : '') + (primaryDeliveryItem.deliveryRate.startFee > 0 ? ` + ${Number(primaryDeliveryItem.deliveryRate.startFee).toFixed(2)} ETB start` : '')
                           : `Distance: ${primarySupplier.distanceKm.toFixed(1)} km - platform rate`)
                         : primarySupplier && primarySupplier.transportCost === 0
                           ? '(you arrange transport)'
@@ -3771,7 +3771,7 @@ function App() {
                       <div>
                         <label>Starting Point</label>
                         <select
-                          value={primarySupplier?.supplierId ||}
+                          value={primarySupplier?.supplierId || ''}
                           onChange={e => {
                             if (!e.target.value) return;
                             setShowCartSummary(false);
@@ -3798,7 +3798,7 @@ function App() {
                       <div><label>Total Distance</label><div>{primarySupplier?.distanceKm?.toFixed(1) || '0.0'} km <small>Rate: ETB {effectiveRate.toFixed(2)} / km</small></div></div>
                       <div><label>Delivery Cost</label><div>{formatCurrency(cartDetails.transportCost)}</div></div>
                     </div>
-                    {platformHint && <div className="cart-new-platform-hint- role="note">{platformHint}</div>}
+                    {platformHint && <div className="cart-new-platform-hint" role="note">{platformHint}</div>}
                   </div>
                 </div>
 
@@ -3817,28 +3817,28 @@ function App() {
                 </div>
 
                 <div className="cart-new-words">
-                  - Amount in Words: {amountToWords(payableTotal)}
+                   deg Amount in Words: {amountToWords(payableTotal)}
                 </div>
 
                 <div className="cart-new-bottom">
                   <div className="cart-new-terms">
-                    <div className="cart-new-terms-head"><span>"</span><span>Terms, Conditions, Delivery & Remarks</span></div>
+                    <div className="cart-new-terms-head"><span></span><span>Terms, Conditions, Delivery & Remarks</span></div>
                     <div className="cart-new-terms-body">
-                      <div>- Payment Terms: 50% advance required. Balance due upon delivery.</div>
-                      <div>- Delivery: Supplier Delivery - 3-5 business days from order confirmation.</div>
-                      <div>- Subject to stock availability. Priced per line as marked.</div>
-                      <div>- Warranty: Standard manufacturer warranty applies. Damaged goods must be reported within 48 hours.</div>
-                      <div>- Returns: Unopened items may be returned within 7 days. Restocking fee of 10%.</div>
-                      <div>- Pricing: Prices are subject to change without prior notice.</div>
-                      <div>- Remarks: Please confirm the delivery address and contact number before dispatch.</div>
+                      <div> Payment Terms: 50% advance required. Balance due upon delivery.</div>
+                      <div> Delivery: Supplier Delivery - 3-5 business days from order confirmation.</div>
+                      <div> Subject to stock availability. Priced per line as marked.</div>
+                      <div> Warranty: Standard manufacturer warranty applies. Damaged goods must be reported within 48 hours.</div>
+                      <div> Returns: Unopened items may be returned within 7 days. Restocking fee of 10%.</div>
+                      <div> Pricing: Prices are subject to change without prior notice.</div>
+                      <div> Remarks: Please confirm the delivery address and contact number before dispatch.</div>
                     </div>
                   </div>
                   <div className="cart-new-payment">
-                    <div className="cart-new-payment-head"><span>'</span><span>Payment Methods</span></div>
+                    <div className="cart-new-payment-head"><span>3</span><span>Payment Methods</span></div>
                     <div className="cart-new-payment-body">
-                      <label className={paymentMethod === 'wallet' ? 'active' :}><input type="radio- checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} /> - E-SCON Wallet <small>Balance: {formatCurrency(walletBalance(buyer?.id ||))}</small></label>
-                      <label className={paymentMethod === 'bank' ? 'active' :}><input type="radio- checked={paymentMethod === 'bank'} onChange={() => setPaymentMethod('bank')} />  Bank Transfer <small>Pay via bank account</small></label>
-                      <label className={paymentMethod === 'cod' ? 'active' :}><input type="radio- checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} /> - Cash on Delivery <small>Pay when goods arrive</small></label>
+                      <label className={paymentMethod === 'wallet' ? 'active' : ''}><input type="radio" checked={paymentMethod === 'wallet'} onChange={() => setPaymentMethod('wallet')} /> 3 E-SCON Wallet <small>Balance: {formatCurrency(walletBalance(buyer?.id || ''))}</small></label>
+                      <label className={paymentMethod === 'bank' ? 'active' : ''}><input type="radio" checked={paymentMethod === 'bank'} onChange={() => setPaymentMethod('bank')} />  Bank Transfer <small>Pay via bank account</small></label>
+                      <label className={paymentMethod === 'cod' ? 'active' : ''}><input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} />  Cash on Delivery <small>Pay when goods arrive</small></label>
                     </div>
                   </div>
                 </div>
@@ -3865,9 +3865,9 @@ function App() {
 
                 <div className="cart-new-actions">
                   <button onClick={() => { void confirmOrder(); }} disabled={isCalculating || isPlacingOrder || (cartDetails.minOrderEnabled && cartDetails.belowMinOrder)}>
-                    - Place Order
+                     Place Order
                   </button>
-                  <button onClick={handlePrintProforma}>>' Add to Cart & Review</button>
+                  <button onClick={handlePrintProforma}> Add to Cart & Review</button>
                 </div>
               </div>
             )}
@@ -3888,71 +3888,71 @@ function App() {
     return (
       <main className="main-content">
         <section className="home-hero glass">
-          <div className="hero-badge"> Ethiopian Supply Chain Platform</div>
+          <div className="hero-badge">1 Ethiopian Supply Chain Platform</div>
           <h1>Welcome to Ethio-Supply Chain Optimization Network</h1>
           <p>Connecting verified suppliers with buyers across Ethiopia</p>
           <div className="search-center">
             <form onSubmit={(e) => { e.preventDefault(); navigateTo('search-materials'); }}>
-              <div className="search-center-input"><input type="text- className="search-input- placeholder="Search products...- value={formData.searchQuery} onChange={(e) => setFormData(prev => ({ ...prev, searchQuery: e.target.value }))} /><button type="submit- className="search-center-btn">- Search</button></div>
+              <div className="search-center-input"><input type="text" className="search-input" placeholder="Search products..." value={formData.searchQuery} onChange={(e) => setFormData(prev => ({ ...prev, searchQuery: e.target.value }))} /><button type="submit" className="search-center-btn"> Search</button></div>
             </form>
           </div>
           <div className="cta-buttons">
             {currentUser ? (
               <>
-                {currentUser.userType === 'company' ? <button className="btn btn-primary- onClick={() => navigateTo('company-dashboard')}>- Dashboard</button> : <button className="btn btn-primary- onClick={() => navigateTo('search-materials')}>- Find Products</button>}
-                <button className="btn btn-secondary- onClick={() => setShowSupplierMap(true)}>- Supplier Map</button>
+                {currentUser.userType === 'company' ? <button className="btn btn-primary" onClick={() => navigateTo('company-dashboard')}> Dashboard</button> : <button className="btn btn-primary" onClick={() => navigateTo('search-materials')}> Find Products</button>}
+                <button className="btn btn-secondary" onClick={() => setShowSupplierMap(true)}>- Supplier Map</button>
               </>
             ) : (
               <>
-                <button className="btn btn-primary- onClick={() => navigateTo('register')}>- Get Started</button>
-                <button className="btn btn-secondary- onClick={() => navigateTo('login')}>"' Login</button>
+                <button className="btn btn-primary" onClick={() => navigateTo('register')}> Get Started</button>
+                <button className="btn btn-secondary" onClick={() => navigateTo('login')}> Login</button>
               </>
             )}
           </div>
         </section>
         <div className="stats-grid">
-          <div className="stat-card glass"><div className="stat-icon">"</div><div className="stat-value">{stats.totalMaterials}+</div><div className="stat-label">Products</div></div>
+          <div className="stat-card glass"><div className="stat-icon"></div><div className="stat-value">{stats.totalMaterials}+</div><div className="stat-label">Products</div></div>
           <div className="stat-card glass"><div className="stat-icon"></div><div className="stat-value">{stats.totalCompanies}</div><div className="stat-label">Suppliers</div></div>
-          <div className="stat-card glass"><div className="stat-icon">"</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
+          <div className="stat-card glass"><div className="stat-icon"></div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
           <div className="stat-card glass"><div className="stat-icon"></div><div className="stat-value">{stats.avgRating}/5</div><div className="stat-label">Rating</div></div>
         </div>
         <h2 className="section-title"> New in E-SCON</h2>
         <div className="home-modules">
-          <button type="button- className="home-module marketplace- onClick={() => navigateTo('marketplace')}>
-            <span className="home-module-icon">></span>
+          <button type="button" className="home-module marketplace" onClick={() => navigateTo('marketplace')}>
+            <span className="home-module-icon"></span>
             <span className="home-module-body">
               <strong>Marketplace</strong>
               <small>Search {materials.length} products from {companies.length} verified suppliers, compare prices and order in one place.</small>
             </span>
-            <span className="home-module-cta">Browse '</span>
+            <span className="home-module-cta">Browse </span>
           </button>
-          <button type="button- className="home-module analytics- onClick={() => navigateTo('analytics')}>
-            <span className="home-module-icon">"</span>
+          <button type="button" className="home-module analytics" onClick={() => navigateTo('analytics')}>
+            <span className="home-module-icon"></span>
             <span className="home-module-body">
               <strong>Analytics &amp; Insights</strong>
-              <small>Live KPIs, revenue trends, category charts, price forecasts and CSV export - scoped to your role.</small>
+              <small>Live KPIs, revenue trends, category charts, price forecasts and CSV export  scoped to your role.</small>
             </span>
-            <span className="home-module-cta">View report '</span>
+            <span className="home-module-cta">View report </span>
           </button>
-          <button type="button- className="home-module copilot- onClick={() => openCopilot('Give me an executive summary')}>
+          <button type="button" className="home-module copilot" onClick={() => openCopilot('Give me an executive summary')}>
             <span className="home-module-icon">-</span>
             <span className="home-module-body">
               <strong>Copilot AI</strong>
               <small>Ask plain-language questions about orders, stock, suppliers and prices. Answers come from your live data.</small>
             </span>
-            <span className="home-module-cta">Ask now '</span>
+            <span className="home-module-cta">Ask now </span>
           </button>
           <button
             type="button"
             className="home-module transport"
             onClick={() => currentUser?.userType === 'transporter' ? navigateTo('transporter-dashboard') : openInfo('transport')}
           >
-            <span className="home-module-icon">></span>
+            <span className="home-module-icon"></span>
             <span className="home-module-body">
               <strong>Transport network</strong>
               <small>Verified transport companies receive confirmed delivery requests, dispatch their fleet and build a delivery record.</small>
             </span>
-            <span className="home-module-cta">{currentUser?.userType === 'transporter' ? 'Open dashboard : 'Learn more}</span>
+            <span className="home-module-cta">{currentUser?.userType === 'transporter' ? 'Open dashboard ' : 'Learn more '}</span>
           </button>
         </div>
         <h2 className="section-title"> Key Features</h2>
@@ -3960,30 +3960,30 @@ function App() {
           <div className="feature-card glass"><div className="feature-icon">-</div><h3>AI Price Forecasting</h3><p>Predict future prices using ML</p></div>
           <div className="feature-card glass"><div className="feature-icon">-</div><h3>GIS Supplier Mapping</h3><p>Interactive map with cost calculation</p></div>
           <div className="feature-card glass"><div className="feature-icon"></div><h3>Logistics Optimization</h3><p>Smart routing & cost minimization</p></div>
-          <div className="feature-card glass"><div className="feature-icon">"</div><h3>Business Compliance</h3><p>Full TIN & VAT support</p></div>
-          <div className="feature-card glass"><div className="feature-icon">></div><h3>Dedicated Transporters</h3><p>Dispatch, fleet, drivers & proof of delivery</p></div>
-          <div className="feature-card glass"><div className="feature-icon">"</div><h3>Every Device</h3><p>Responsive phone, tablet and desktop layouts</p></div>
+          <div className="feature-card glass"><div className="feature-icon"></div><h3>Business Compliance</h3><p>Full TIN & VAT support</p></div>
+          <div className="feature-card glass"><div className="feature-icon"></div><h3>Dedicated Transporters</h3><p>Dispatch, fleet, drivers & proof of delivery</p></div>
+          <div className="feature-card glass"><div className="feature-icon">+/-</div><h3>Every Device</h3><p>Responsive phone, tablet and desktop layouts</p></div>
         </div>
       </main>
     );
   };
 
   const renderLogin = () => {
-    const selectedUser = findLoginUser(users, formData.selectedUser,);
+    const selectedUser = findLoginUser(users, formData.selectedUser, '');
     const isLocked = selectedUser ? isUserLocked(selectedUser) : false;
     return (
       <main className="main-content">
         <div className="auth-container">
           <div className="auth-card glass">
-            <div className="auth-header"><span className="auth-icon">"'</span><h2>Welcome Back</h2><p>Sign in with the e-mail address registered with E-SCON.</p></div>
+            <div className="auth-header"><span className="auth-icon"></span><h2>Welcome Back</h2><p>Sign in with the e-mail address registered with E-SCON.</p></div>
             <div className="auth-body">
               <form onSubmit={handleLogin}>
-                <div className="form-group"><label className="form-label- htmlFor="login-email">- Email</label><input id="login-email- type="email- className="form-input- name="selectedUser- value={formData.selectedUser} onChange={handleDatalistInputChange} autoComplete="username- inputMode="email- autoCapitalize="none- spellCheck={false} placeholder="you@example.com- required disabled={isLocked} /></div>
-                <div className="form-group"><label className="form-label- htmlFor="login-password">"' Password</label><input id="login-password- type="password- className="form-input- name="loginPassword- value={formData.loginPassword} onChange={handleInputChange} autoComplete="current-password- required disabled={isLocked} /></div>
-                {isLocked && <p className="auth-locked- role="status">This account is temporarily locked. Try again in a moment.</p>}
-                <button type="submit- className="btn-submit- disabled={isLocked}>- Login</button>
+                <div className="form-group"><label className="form-label" htmlFor="login-email"> Email</label><input id="login-email" type="email" className="form-input" name="selectedUser" value={formData.selectedUser} onChange={handleDatalistInputChange} autoComplete="username" inputMode="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" required disabled={isLocked} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="login-password"> Password</label><input id="login-password" type="password" className="form-input" name="loginPassword" value={formData.loginPassword} onChange={handleInputChange} autoComplete="current-password" required disabled={isLocked} /></div>
+                {isLocked && <p className="auth-locked" role="status">This account is temporarily locked. Try again in a moment.</p>}
+                <button type="submit" className="btn-submit" disabled={isLocked}> Login</button>
               </form>
-              <div className="text-center"><p>Don't have an account? <button className="link-btn- onClick={() => navigateTo('register')}>Register here</button></p></div>
+              <div className="text-center"><p>Don't have an account? <button className="link-btn" onClick={() => navigateTo('register')}>Register here</button></p></div>
             </div>
           </div>
         </div>
@@ -3995,25 +3995,25 @@ function App() {
     <main className="main-content">
       <div className="auth-container">
         <div className="auth-card glass">
-          <div className="auth-header"><span className="auth-icon">"</span><h2>Welcome - Create Account</h2><p>Join E-SCON Platform</p></div>
+          <div className="auth-header"><span className="auth-icon"></span><h2>Welcome  Create Account</h2><p>Join E-SCON Platform</p></div>
           <div className="auth-body">
-            <div className="auth-tabs"><button className={'auth-tab - + (formData.registerUserType === 'customer' ? 'active' :)} onClick={() => switchUserType('customer')}>' Customer</button><button className={'auth-tab - + (formData.registerUserType === 'company' ? 'active' :)} onClick={() => switchUserType('company')}> Supplier</button><button className={'auth-tab - + (formData.registerUserType === 'transporter' ? 'active' :)} onClick={() => switchUserType('transporter')}>> Transporter</button></div>
+            <div className="auth-tabs"><button className={'auth-tab ' + (formData.registerUserType === 'customer' ? 'active' : '')} onClick={() => switchUserType('customer')}> Customer</button><button className={'auth-tab ' + (formData.registerUserType === 'company' ? 'active' : '')} onClick={() => switchUserType('company')}> Supplier</button><button className={'auth-tab ' + (formData.registerUserType === 'transporter' ? 'active' : '')} onClick={() => switchUserType('transporter')}> Transporter</button></div>
             <form onSubmit={handleRegister}>
               {formData.registerUserType !== 'customer' && (<>
-                <div className="form-group"><label className="form-label"> {formData.registerUserType === 'transporter' ? 'Transport Company Name' : 'Company Name'} *</label><input type="text- className="form-input- name="registerCompanyName- value={formData.registerCompanyName} onChange={handleInputChange} required /></div>
-                <div className="form-row"><div className="form-group"><label className="form-label">- TIN Number *</label><input type="text- className="form-input- name="tinNumber- value={formData.tinNumber} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">- Business License *</label><input type="text- className="form-input- name="businessLicense- value={formData.businessLicense} onChange={handleInputChange} required /></div></div>
-                {formData.registerUserType === 'transporter' && (<div className="form-row"><div className="form-group"><label className="form-label"> Transport Licence Number</label><input type="text- className="form-input- name="registerLicenseNumber- value={formData.registerLicenseNumber} onChange={handleInputChange} /></div><div className="form-group"><label className="form-label">- Service Areas</label><input type="text- className="form-input- name="registerServiceAreas- value={formData.registerServiceAreas} onChange={handleInputChange} placeholder="Addis Ababa, Adama, Hawassa- /></div></div>)}
-                <div className="form-group"><label className="checkbox-label"><input type="checkbox- name="vatRegistered- checked={formData.vatRegistered} onChange={handleInputChange} /> ... VAT Registered</label></div>
-                {formData.vatRegistered && <div className="form-group"><label className="form-label">' VAT Number</label><input type="text- className="form-input- name="vatNumber- value={formData.vatNumber} onChange={handleInputChange} /></div>}
+                <div className="form-group"><label className="form-label"> {formData.registerUserType === 'transporter' ? 'Transport Company Name' : 'Company Name'} *</label><input type="text" className="form-input" name="registerCompanyName" value={formData.registerCompanyName} onChange={handleInputChange} required /></div>
+                <div className="form-row"><div className="form-group"><label className="form-label"> TIN Number *</label><input type="text" className="form-input" name="tinNumber" value={formData.tinNumber} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label"> Business License *</label><input type="text" className="form-input" name="businessLicense" value={formData.businessLicense} onChange={handleInputChange} required /></div></div>
+                {formData.registerUserType === 'transporter' && (<div className="form-row"><div className="form-group"><label className="form-label"> Transport Licence Number</label><input type="text" className="form-input" name="registerLicenseNumber" value={formData.registerLicenseNumber} onChange={handleInputChange} /></div><div className="form-group"><label className="form-label">- Service Areas</label><input type="text" className="form-input" name="registerServiceAreas" value={formData.registerServiceAreas} onChange={handleInputChange} placeholder="Addis Ababa, Adama, Hawassa" /></div></div>)}
+                <div className="form-group"><label className="checkbox-label"><input type="checkbox" name="vatRegistered" checked={formData.vatRegistered} onChange={handleInputChange} /> ... VAT Registered</label></div>
+                {formData.vatRegistered && <div className="form-group"><label className="form-label"> deg VAT Number</label><input type="text" className="form-input" name="vatNumber" value={formData.vatNumber} onChange={handleInputChange} /></div>}
               </>)}
-              <div className="form-row"><div className="form-group"><label className="form-label">' Full Name *</label><input type="text- className="form-input- name="registerFullName- value={formData.registerFullName} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">- Email *</label><input type="email- className="form-input- name="registerEmail- value={formData.registerEmail} onChange={handleInputChange} required /></div></div>
-              <div className="form-row"><div className="form-group"><label className="form-label">"' Password *</label><input type="password- className="form-input- name="registerPassword- value={formData.registerPassword} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label">- Phone *</label><input type="tel- className="form-input- name="registerPhone- value={formData.registerPhone} onChange={handleInputChange} required /></div></div>
-              <div className="form-group"><label className="form-label">- Address *</label><input type="text- className="form-input- name="registerAddress- value={formData.registerAddress} onChange={handleInputChange} required /></div>
-              <div className="form-group"><label className="form-label"> City *</label><select className="form-select- name="registerCity- value={formData.registerCity} onChange={handleInputChange} required><option value="">Select</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-              <div className="form-group"><label className="checkbox-label"><input type="checkbox- required /> ... I agree to Ethiopian Trade Regulations</label></div>
-              <button type="submit- className="btn-submit">- Create Account</button>
+              <div className="form-row"><div className="form-group"><label className="form-label"> Full Name *</label><input type="text" className="form-input" name="registerFullName" value={formData.registerFullName} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label"> Email *</label><input type="email" className="form-input" name="registerEmail" value={formData.registerEmail} onChange={handleInputChange} required /></div></div>
+              <div className="form-row"><div className="form-group"><label className="form-label"> Password *</label><input type="password" className="form-input" name="registerPassword" value={formData.registerPassword} onChange={handleInputChange} required /></div><div className="form-group"><label className="form-label"> Phone *</label><input type="tel" className="form-input" name="registerPhone" value={formData.registerPhone} onChange={handleInputChange} required /></div></div>
+              <div className="form-group"><label className="form-label"> Address *</label><input type="text" className="form-input" name="registerAddress" value={formData.registerAddress} onChange={handleInputChange} required /></div>
+              <div className="form-group"><label className="form-label"> City *</label><select className="form-select" name="registerCity" value={formData.registerCity} onChange={handleInputChange} required><option value="">Select</option>{ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="form-group"><label className="checkbox-label"><input type="checkbox" required /> ... I agree to Ethiopian Trade Regulations</label></div>
+              <button type="submit" className="btn-submit"> Create Account</button>
             </form>
-            <div className="text-center"><p>Already have an account? <button className="link-btn- onClick={() => navigateTo('login')}>Login here</button></p></div>
+            <div className="text-center"><p>Already have an account? <button className="link-btn" onClick={() => navigateTo('login')}>Login here</button></p></div>
           </div>
         </div>
       </div>
@@ -4041,21 +4041,21 @@ function App() {
           <p className="dashboard-supplier-name">{company?.name}</p>
         </div>
         <div className="dashboard-grid">
-          <div className="dashboard-card glass"><div className="card-icon">"</div><div className="stat-value">{companyMaterials.length}</div><div className="stat-label">Products</div></div>
-          <div className="dashboard-card glass"><div className="card-icon">"</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
-          <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
-          <div className="dashboard-card glass"><div className="card-icon">'</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
+          <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{companyMaterials.length}</div><div className="stat-label">Products</div></div>
+          <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">3</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
+          <div className="dashboard-card glass"><div className="card-icon"> deg</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Revenue</div></div>
         </div>
         <div className="card glass stock-summary-card">
-          <div className="card-header"><h3>- My stock</h3><span className="stock-summary-hint">Visible to you only - customers never see stock levels</span></div>
+          <div className="card-header"><h3> My stock</h3><span className="stock-summary-hint">Visible to you only  customers never see stock levels</span></div>
           <div className="stock-summary-grid">
-            <div className="stock-summary-tile"><span className="stock-tile-icon">"</span><strong>{stockSummary.units}</strong><small>Units in stock</small></div>
-            <div className="stock-summary-tile"><span className="stock-tile-icon">'</span><strong>{formatCurrency(stockSummary.value)}</strong><small>Stock value</small></div>
-            <div className={'stock-summary-tile' + (stockSummary.low > 0 ? - warn' :)}><span className="stock-tile-icon"> </span><strong>{stockSummary.low}</strong><small>Low stock ( {LOW_STOCK_THRESHOLD})</small></div>
-            <div className={'stock-summary-tile' + (stockSummary.out > 0 ? - danger' :)}><span className="stock-tile-icon"></span><strong>{stockSummary.out}</strong><small>Out of stock</small></div>
+            <div className="stock-summary-tile"><span className="stock-tile-icon"></span><strong>{stockSummary.units}</strong><small>Units in stock</small></div>
+            <div className="stock-summary-tile"><span className="stock-tile-icon"></span><strong>{formatCurrency(stockSummary.value)}</strong><small>Stock value</small></div>
+            <div className={'stock-summary-tile' + (stockSummary.low > 0 ? ' warn' : '')}><span className="stock-tile-icon"> </span><strong>{stockSummary.low}</strong><small>Low stock ( {LOW_STOCK_THRESHOLD})</small></div>
+            <div className={'stock-summary-tile' + (stockSummary.out > 0 ? ' danger' : '')}><span className="stock-tile-icon"></span><strong>{stockSummary.out}</strong><small>Out of stock</small></div>
           </div>
         </div>
-        <div className="card glass"><div className="card-header"><h3>- Your Products</h3><button className="btn btn-primary- onClick={() => navigateTo('add-material')}>- Add Product</button><button className="btn btn-secondary- onClick={handleExportMaterials}>- Export</button></div>
+        <div className="card glass"><div className="card-header"><h3> Your Products</h3><button className="btn btn-primary" onClick={() => navigateTo('add-material')}>- Add Product</button><button className="btn btn-secondary" onClick={handleExportMaterials}> Export</button></div>
           <ScrollableTable minWidth="1000px">
             <table className="data-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Unit</th><th>In Stock</th><th>Stock Status</th><th>Stock Value</th><th>Rating</th><th>Actions</th></tr></thead><tbody>
               {companyMaterials.map(m => {
@@ -4081,9 +4081,9 @@ function App() {
                   <td className="stock-cell">{formatCurrency((m.quantity || 0) * m.price)}</td>
                   <td> {m.rating || 'N/A'}</td>
                   <td>
-                    <button className="btn-icon- title="View details- onClick={() => setSelectedMaterial(m)}>'</button>
-                    <button className="btn-icon edit- title="Edit product- onClick={() => handleEditMaterial(m)}></button>
-                    <button className="btn-icon danger- title="Delete product- onClick={() => handleDeleteMaterial(m.id)}>-'</button>
+                    <button className="btn-icon" title="View details" onClick={() => setSelectedMaterial(m)}></button>
+                    <button className="btn-icon edit" title="Edit product" onClick={() => handleEditMaterial(m)}></button>
+                    <button className="btn-icon danger" title="Delete product" onClick={() => handleDeleteMaterial(m.id)}>-</button>
                   </td>
                 </tr>
                 );
@@ -4091,7 +4091,7 @@ function App() {
             </tbody></table>
           </ScrollableTable>
         </div>
-        <button className="btn btn-secondary- onClick={handleEditCompany}> Edit Company Profile</button>
+        <button className="btn btn-secondary" onClick={handleEditCompany}> Edit Company Profile</button>
       </main>
     );
   };
@@ -4240,24 +4240,24 @@ function App() {
     const stats = calculateStats();
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">'</span><h1>{welcomeTitle('Customer Dashboard')}</h1></div><p>- {currentUser.address || currentUser.city}</p></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon"></span><h1>{welcomeTitle('Customer Dashboard')}</h1></div><p> {currentUser.address || currentUser.city}</p></div>
         <div className="dashboard-grid">
-          <div className="dashboard-card glass"><div className="card-icon">"</div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
-          <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
+          <div className="dashboard-card glass"><div className="card-icon"></div><div className="stat-value">{stats.totalOrders}</div><div className="stat-label">Orders</div></div>
+          <div className="dashboard-card glass"><div className="card-icon">3</div><div className="stat-value">{stats.pendingOrders}</div><div className="stat-label">Pending</div></div>
           <div className="dashboard-card glass"><div className="card-icon">...</div><div className="stat-value">{stats.deliveredOrders}</div><div className="stat-label">Delivered</div></div>
-          <div className="dashboard-card glass"><div className="card-icon">'</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
+          <div className="dashboard-card glass"><div className="card-icon"> deg</div><div className="stat-value">{formatCurrency(stats.totalRevenue)}</div><div className="stat-label">Spent</div></div>
         </div>
         <div className="card glass">
           <div className="card-header">
-            <h3>- My Location</h3>
-            <button className="btn btn-primary- onClick={() => setShowMyLocationPicker(true)}>- Edit / use current location</button>
+            <h3> My Location</h3>
+            <button className="btn btn-primary" onClick={() => setShowMyLocationPicker(true)}>- Edit / use current location</button>
           </div>
           <p className="my-location-text">
-            {currentUser.address || 'No address'}, {currentUser.city || 'No city'} - {Number.isFinite(currentUser.lat) && Number.isFinite(currentUser.lng) ? `Lat ${Number(currentUser.lat).toFixed(5)}, Lng ${Number(currentUser.lng).toFixed(5)}` : 'location not set - tap to pin it'}
+            {currentUser.address || 'No address'}, {currentUser.city || 'No city'} - {Number.isFinite(currentUser.lat) && Number.isFinite(currentUser.lng) ? `Lat ${Number(currentUser.lat).toFixed(5)}, Lng ${Number(currentUser.lng).toFixed(5)}` : 'location not set  tap to pin it'}
           </p>
           <small className="my-location-hint">Every delivery distance is calculated from this point. Update it whenever you move.</small>
         </div>
-        <div className="card glass"><div className="card-header"><h3>- Recent Orders</h3><button className="btn btn-primary- onClick={() => navigateTo('search-materials')}>- Find Products</button></div>
+        <div className="card glass"><div className="card-header"><h3> Recent Orders</h3><button className="btn btn-primary" onClick={() => navigateTo('search-materials')}> Find Products</button></div>
           <ScrollableTable minWidth="800px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th><th>Quantity</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>
               {userOrders.slice(0,5).map(order => {
@@ -4268,7 +4268,7 @@ function App() {
                     <td>{m?.name}</td>
                     <td>{order.quantity}</td>
                     <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
-                    <td>{order.status === 'delivered' ? '...' : order.status === 'pending' ? :} {order.status}</td>
+                    <td>{order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}</td>
                     <td>{formatDate(order.orderDate)}</td>
                   </tr>
                 );
@@ -4286,22 +4286,22 @@ function App() {
   const renderMaterialDetailFields = () => (
     <div className="delivery-terms">
       <div className="form-row">
-        <div className="form-group"><label>- Profit margin (%)</label><input type="number- className="form-input- name="materialProfitMargin- value={formData.materialProfitMargin} onChange={handleInputChange} min="0- step="0.1- /></div>
-        <div className="form-group"><label> Transport estimate (ETB)</label><input type="number- className="form-input- name="materialTransportCost- value={formData.materialTransportCost} onChange={handleInputChange} min="0- step="0.01- /></div>
+        <div className="form-group"><label> Profit margin (%)</label><input type="number" className="form-input" name="materialProfitMargin" value={formData.materialProfitMargin} onChange={handleInputChange} min="0" step="0.1" /></div>
+        <div className="form-group"><label> Transport estimate (ETB)</label><input type="number" className="form-input" name="materialTransportCost" value={formData.materialTransportCost} onChange={handleInputChange} min="0" step="0.01" /></div>
       </div>
       <div className="form-row">
-        <div className="form-group"><label>- Weight per unit (tonnes)</label><input type="number- className="form-input- name="materialWeightPerUnit- value={formData.materialWeightPerUnit} onChange={handleInputChange} min="0.001- step="0.001- /></div>
-        <div className="form-group"><label>- Model</label><input type="text- className="form-input- name="materialModel- value={formData.materialModel} onChange={handleInputChange} /></div>
+        <div className="form-group"><label>- Weight per unit (tonnes)</label><input type="number" className="form-input" name="materialWeightPerUnit" value={formData.materialWeightPerUnit} onChange={handleInputChange} min="0.001" step="0.001" /></div>
+        <div className="form-group"><label>- Model</label><input type="text" className="form-input" name="materialModel" value={formData.materialModel} onChange={handleInputChange} /></div>
       </div>
       <div className="form-row">
-        <div className="form-group"><label>- Packed weight</label><input type="text- className="form-input- name="materialWeight- value={formData.materialWeight} onChange={handleInputChange} placeholder="e.g. 50 kg- /></div>
-        <div className="form-group"><label>- Dimensions</label><input type="text- className="form-input- name="materialDimensions- value={formData.materialDimensions} onChange={handleInputChange} placeholder="e.g. 120 - 80 - 60 cm- /></div>
+        <div className="form-group"><label>- Packed weight</label><input type="text" className="form-input" name="materialWeight" value={formData.materialWeight} onChange={handleInputChange} placeholder="e.g. 50 kg" /></div>
+        <div className="form-group"><label> Dimensions</label><input type="text" className="form-input" name="materialDimensions" value={formData.materialDimensions} onChange={handleInputChange} placeholder="e.g. 120 - 80 - 60 cm" /></div>
       </div>
       <div className="form-row">
-        <div className="form-group"><label>... Grade</label><input type="text- className="form-input- name="materialGrade- value={formData.materialGrade} onChange={handleInputChange} /></div>
-        <div className="form-group"><label> Origin</label><input type="text- className="form-input- name="materialOrigin- value={formData.materialOrigin} onChange={handleInputChange} /></div>
+        <div className="form-group"><label>... Grade</label><input type="text" className="form-input" name="materialGrade" value={formData.materialGrade} onChange={handleInputChange} /></div>
+        <div className="form-group"><label> Origin</label><input type="text" className="form-input" name="materialOrigin" value={formData.materialOrigin} onChange={handleInputChange} /></div>
       </div>
-      <div className="form-group"><label>- Certifications <small className="form-hint">(comma separated)</small></label><input type="text- className="form-input- name="materialCertifications- value={formData.materialCertifications} onChange={handleInputChange} placeholder="e.g. ISO 9001, CE- /></div>
+      <div className="form-group"><label> Certifications <small className="form-hint">(comma separated)</small></label><input type="text" className="form-input" name="materialCertifications" value={formData.materialCertifications} onChange={handleInputChange} placeholder="e.g. ISO 9001, CE" /></div>
     </div>
   );
 
@@ -4311,19 +4311,19 @@ function App() {
       return (
         <main className="main-content">
           <div className="admin-settings glass">
-            <h2>"' Products belong to suppliers</h2>
+            <h2> Products belong to suppliers</h2>
             <p>
               {isAdmin
                 ? 'Administrators onboard suppliers; the supplier account then publishes its own products.'
                 : 'Sign in with a supplier account to list products in the marketplace.'}
             </p>
             {isAdmin ? (
-              <button type="button- className="btn btn-primary- onClick={handleAdminAddSupplier}>
+              <button type="button" className="btn btn-primary" onClick={handleAdminAddSupplier}>
                 - Add Supplier
               </button>
             ) : (
-              <button type="button- className="btn btn-primary- onClick={() => navigateTo(currentUser ? 'marketplace' : 'login')}>
-                {currentUser ? '> Browse Marketplace' : '- Sign In'}
+              <button type="button" className="btn btn-primary" onClick={() => navigateTo(currentUser ? 'marketplace' : 'login')}>
+                {currentUser ? ' Browse Marketplace' : ' Sign In'}
               </button>
             )}
           </div>
@@ -4333,15 +4333,15 @@ function App() {
     return (
     <main className="main-content"><div className="form-container glass"><h2>{welcomeTitle('Add New Product')}</h2>
       <form onSubmit={handleAddMaterial}>
-        <div className="form-group"><label>- Product Name *</label><input type="text- className="form-input- name="materialName- value={formData.materialName} onChange={handleInputChange} required /></div>
-        <div className="form-row"><div className="form-group"><label> Category *</label><select className="form-select- name="materialCategory- value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>- Unit *</label><input type="text- className="form-input- name="materialUnit- value={formData.materialUnit} onChange={handleInputChange} required list="unitList- /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
-        <div className="form-row"><div className="form-group"><label>' Base Price (ETB) *</label><input type="number- className="form-input- name="materialPrice- value={formData.materialPrice} onChange={handleInputChange} required step="0.01- /></div><div className="form-group"><label>- Quantity *</label><input type="number- className="form-input- name="materialQuantity- value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
-        <div className="form-row"><div className="form-group"><label>- Min Order <small className="form-hint">(optional - defaults to 1)</small></label><input type="number- className="form-input- name="materialMinOrder- value={formData.materialMinOrder} onChange={handleInputChange} min="1- placeholder="1- /></div><div className="form-group"><label>- Brand</label><input type="text- className="form-input- name="materialBrand- value={formData.materialBrand} onChange={handleInputChange} /></div></div>
-        <div className="form-group"><label>- Description *</label><textarea className="form-textarea- name="materialDescription- value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        <div className="form-group"><label> Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
+        <div className="form-row"><div className="form-group"><label> Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label> Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
+        <div className="form-row"><div className="form-group"><label> deg Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label> Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
+        <div className="form-row"><div className="form-group"><label> Min Order <small className="form-hint">(optional  defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>- Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
+        <div className="form-group"><label> Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
         {renderMaterialDetailFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
-        <div className="form-actions"><button type="submit- className="btn-submit">... Add Product</button><button type="button- className="btn-secondary- onClick={() => navigateTo('company-dashboard')}> Cancel</button></div>
+        <div className="form-actions"><button type="submit" className="btn-submit">... Add Product</button><button type="button" className="btn-secondary" onClick={() => navigateTo('company-dashboard')}> Cancel</button></div>
       </form>
     </div></main>
     );
@@ -4350,15 +4350,15 @@ function App() {
   const renderEditMaterial = () => (
     <main className="main-content"><div className="form-container glass"><h2>{welcomeTitle('Edit Product')}</h2>
       <form onSubmit={handleUpdateMaterial}>
-        <div className="form-group"><label>- Product Name *</label><input type="text- className="form-input- name="materialName- value={formData.materialName} onChange={handleInputChange} required /></div>
-        <div className="form-row"><div className="form-group"><label> Category *</label><select className="form-select- name="materialCategory- value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label>- Unit *</label><input type="text- className="form-input- name="materialUnit- value={formData.materialUnit} onChange={handleInputChange} required list="unitList- /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
-        <div className="form-row"><div className="form-group"><label>' Base Price (ETB) *</label><input type="number- className="form-input- name="materialPrice- value={formData.materialPrice} onChange={handleInputChange} required step="0.01- /></div><div className="form-group"><label>- Quantity *</label><input type="number- className="form-input- name="materialQuantity- value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
-        <div className="form-row"><div className="form-group"><label>- Min Order <small className="form-hint">(optional - defaults to 1)</small></label><input type="number- className="form-input- name="materialMinOrder- value={formData.materialMinOrder} onChange={handleInputChange} min="1- placeholder="1- /></div><div className="form-group"><label>- Brand</label><input type="text- className="form-input- name="materialBrand- value={formData.materialBrand} onChange={handleInputChange} /></div></div>
-        <div className="form-group"><label>- Description *</label><textarea className="form-textarea- name="materialDescription- value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
+        <div className="form-group"><label> Product Name *</label><input type="text" className="form-input" name="materialName" value={formData.materialName} onChange={handleInputChange} required /></div>
+        <div className="form-row"><div className="form-group"><label> Category *</label><select className="form-select" name="materialCategory" value={formData.materialCategory} onChange={handleInputChange} required><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select></div><div className="form-group"><label> Unit *</label><input type="text" className="form-input" name="materialUnit" value={formData.materialUnit} onChange={handleInputChange} required list="unitList" /><datalist id="unitList">{MEASUREMENT_UNITS.map(u => <option key={u} value={u} />)}</datalist></div></div>
+        <div className="form-row"><div className="form-group"><label> deg Base Price (ETB) *</label><input type="number" className="form-input" name="materialPrice" value={formData.materialPrice} onChange={handleInputChange} required step="0.01" /></div><div className="form-group"><label> Quantity *</label><input type="number" className="form-input" name="materialQuantity" value={formData.materialQuantity} onChange={handleInputChange} required /></div></div>
+        <div className="form-row"><div className="form-group"><label> Min Order <small className="form-hint">(optional  defaults to 1)</small></label><input type="number" className="form-input" name="materialMinOrder" value={formData.materialMinOrder} onChange={handleInputChange} min="1" placeholder="1" /></div><div className="form-group"><label>- Brand</label><input type="text" className="form-input" name="materialBrand" value={formData.materialBrand} onChange={handleInputChange} /></div></div>
+        <div className="form-group"><label> Description *</label><textarea className="form-textarea" name="materialDescription" value={formData.materialDescription} onChange={handleInputChange} required rows={4} /></div>
         {renderMaterialDetailFields()}
         {renderDeliveryTermsFields()}
         {renderMaterialImageUploader()}
-        <div className="form-actions"><button type="submit- className="btn-submit">... Update</button><button type="button- className="btn-secondary- onClick={handleCancelMaterialEdit}>Cancel</button></div>
+        <div className="form-actions"><button type="submit" className="btn-submit">... Update</button><button type="button" className="btn-secondary" onClick={handleCancelMaterialEdit}>Cancel</button></div>
       </form>
     </div></main>
   );
@@ -4381,37 +4381,37 @@ function App() {
     return (
       <main className="main-content">
         <div className="search-hero glass">
-          <h1>- {welcomeTitle('Find Products')}</h1>
+          <h1> {welcomeTitle('Find Products')}</h1>
           <p>Compare prices from verified suppliers</p>
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-input-group">
-              <input type="text- className="search-input-large- placeholder="Search products...- name="searchQuery- value={formData.searchQuery} onChange={handleInputChange} />
-              <button type="submit- className="search-btn">"</button>
+              <input type="text" className="search-input-large" placeholder="Search products..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} />
+              <button type="submit" className="search-btn"></button>
             </div>
             <div className="search-filters">
-              <select className="filter-select- name="searchCategory- value={formData.searchCategory} onChange={handleInputChange}>
+              <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}>
                 <option value="all">Dept</option>
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
-              <select className="filter-select- name="searchSupplier- value={formData.searchSupplier} onChange={handleInputChange} aria-label="Filter by supplier">
+              <select className="filter-select" name="searchSupplier" value={formData.searchSupplier} onChange={handleInputChange} aria-label="Filter by supplier">
                 <option value="all">Supplier</option>
                 {supplierOptions.map(company => (
-                  <option key={company.id} value={company.id}>{company.name} - {company.city}</option>
+                  <option key={company.id} value={company.id}>{company.name}  {company.city}</option>
                 ))}
               </select>
-              <select className="filter-select- name="searchCity- value={formData.searchCity} onChange={handleInputChange}>
+              <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}>
                 <option value="all">City</option>
                 {ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-              <input type="number- className="filter-input- placeholder="Max Price- name="searchMaxPrice- value={formData.searchMaxPrice} onChange={handleInputChange} />
-              <select className="filter-select- name="searchSortBy- value={formData.searchSortBy} onChange={handleInputChange}>
-                <option value="price_asc">Price '</option>
-                <option value="price_desc">Price -</option>
+              <input type="number" className="filter-input" placeholder="Max Price" name="searchMaxPrice" value={formData.searchMaxPrice} onChange={handleInputChange} />
+              <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}>
+                <option value="price_asc">Price </option>
+                <option value="price_desc">Price </option>
                 <option value="rating_desc">Rating</option>
                 <option value="newest">Newest</option>
                 <option value="nearest">Nearest</option>
               </select>
-              <button type="button- className="filter-clear- onClick={clearFilters}>-</button>
+              <button type="button" className="filter-clear" onClick={clearFilters}>-</button>
             </div>
           </form>
         </div>
@@ -4419,14 +4419,14 @@ function App() {
           <div className="results-header">
             <h2>
               {isSearchPerformed 
-                ? `- Results (${displayMaterials.length})` 
-                : '- All Products'}
-              {activeSupplierName ? ` -  ${activeSupplierName}` :}
+                ? ` Results (${displayMaterials.length})` 
+                : ' All Products'}
+              {activeSupplierName ? ` -  ${activeSupplierName}` : ''}
             </h2>
           </div>
           {displayMaterials.length === 0 ? (
             <div className="no-results glass">
-              <p>- No products found matching your criteria.</p>
+              <p> No products found matching your criteria.</p>
               <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Try adjusting your filters or search terms.</p>
             </div>
           ) : isMobile ? (
@@ -4481,21 +4481,21 @@ function App() {
                         )}
                         <td> {item.rating || 'N/A'}</td>
                         <td className="distance-cell">
-                          <span className="distance-badge- title={hasUserCoordinates(currentUser) ? 'Road distance from your current location' : 'Set your location to see the road distance'}>
-                            - {item.distance != null ? item.distance.toFixed(1) + - km' : '"'}
+                          <span className="distance-badge" title={hasUserCoordinates(currentUser) ? 'Road distance from your current location' : 'Set your location to see the road distance'}>
+                            - {item.distance != null ? item.distance.toFixed(1) + ' km' : ''}
                           </span>
                         </td>
                         <td>
-                          <button className={'btn-icon - + (favorites.includes(item.id) ? 'fav-active' :)} title="Toggle favorite- onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}>{favorites.includes(item.id) ? :}</button>
-                          <button className={'btn-icon - + (compareItems.includes(item.id) ? 'compare-active' :)} title="Compare- onClick={(e) => { e.stopPropagation(); toggleCompare(item.id); }}>-</button>
-                          <button className="btn-icon map- title="View route on map- onClick={(e) => { e.stopPropagation(); if (company) handleOpenMapWithRoute(company.id); }}>-</button>
-                          <button className="btn-icon- title="View details- onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>'</button>
-                          <button className="btn-icon contact- title="Call supplier- onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>"</button>
+                          <button className={'btn-icon ' + (favorites.includes(item.id) ? 'fav-active' : '')} title="Toggle favorite" onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}>{favorites.includes(item.id) ? '' : ''}</button>
+                          <button className={'btn-icon ' + (compareItems.includes(item.id) ? 'compare-active' : '')} title="Compare" onClick={(e) => { e.stopPropagation(); toggleCompare(item.id); }}>-</button>
+                          <button className="btn-icon map" title="View route on map" onClick={(e) => { e.stopPropagation(); if (company) handleOpenMapWithRoute(company.id); }}>-</button>
+                          <button className="btn-icon" title="View details" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}></button>
+                          <button className="btn-icon contact" title="Call supplier" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}></button>
                           {currentUser?.userType === 'customer' && (
-                            // Quantity - and whether the line includes delivery - is
+                            // Quantity  and whether the line includes delivery  is
                             // chosen in the product details, never from this row. The
                             // cart itself is reached from the header button.
-                            <button className="btn-icon add-to-cart- title="View product & choose quantity- onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>>'</button>
+                            <button className="btn-icon add-to-cart" title="View product & choose quantity" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}></button>
                           )}
                         </td>
                       </tr>
@@ -4522,7 +4522,7 @@ function App() {
     const totalValue = userOrders.reduce((s, o) => s + o.totalAmount, 0);
     return (
       <main className="main-content">
-        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon">>'</span><h1>{welcomeTitle(isAdmin ? 'Platform Orders' : isCompany ? 'Order Management' : 'My Orders')}</h1></div><div className="order-summary"><span>- Total: {userOrders.length} orders</span><span>' Value: {formatCurrency(totalValue)}</span>{canManage && <button className="btn btn-secondary- onClick={handleExportOrders}>- Export</button>}</div></div>
+        <div className="dashboard-header"><div className="dashboard-title"><span className="title-icon"></span><h1>{welcomeTitle(isAdmin ? 'Platform Orders' : isCompany ? 'Order Management' : 'My Orders')}</h1></div><div className="order-summary"><span> Total: {userOrders.length} orders</span><span> deg Value: {formatCurrency(totalValue)}</span>{canManage && <button className="btn btn-secondary" onClick={handleExportOrders}> Export</button>}</div></div>
         {userOrders.length === 0 ? <div className="no-orders glass">{isAdmin ? 'No orders on the platform yet' : 'No orders yet'}</div> : (
           <ScrollableTable minWidth="900px">
             <table className="data-table"><thead><tr><th>Order ID</th><th>Product</th>{isAdmin && <th>Buyer</th>}<th>Quantity</th><th>Unit Price</th><th>Transport</th><th>Total</th><th>Status</th><th>Date</th>{canManage && <th>Actions</th>}</tr></thead><tbody>
@@ -4537,13 +4537,13 @@ function App() {
                     <td className="price-cell">{formatCurrency(order.unitPrice)}</td>
                     <td className="price-cell">{formatCurrency(order.transportCost)}</td>
                     <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
-                    <td>{order.status === 'delivered' ? '...' : order.status === 'pending' ? :} {order.status}</td>
+                    <td>{order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}</td>
                     <td>{formatDate(order.orderDate)}</td>
                     {!canManage && (
-                      <td><button className="btn-icon- title="Quick Reorder- onClick={() => handleQuickReorder(order.materialId)}>"</button></td>
+                      <td><button className="btn-icon" title="Quick Reorder" onClick={() => handleQuickReorder(order.materialId)}></button></td>
                     )}
                     {canManage && (
-                      <td>{order.status === 'pending' ? <button className="btn-icon success- onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>... Confirm</button> : '"'}</td>
+                      <td>{order.status === 'pending' ? <button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>... Confirm</button> : ''}</td>
                     )}
                   </tr>
                 );
@@ -4561,7 +4561,7 @@ function App() {
     navigateTo('search-materials');
     setFormData(prev => ({
       ...prev,
-      searchQuery:,
+      searchQuery: '',
       searchCategory: 'all',
       searchCity: 'all',
       searchSupplier: company.id,
@@ -4601,9 +4601,9 @@ function App() {
     if (!lines) {
       const foreign = otherSupplierInCart(material.companyId, material.id);
       showAlert(
-        'Your cart can only contain items from one supplier. It currently holds - +
+        'Your cart can only contain items from one supplier. It currently holds ' +
         (foreign ? foreign.supplierName : 'another supplier') +
-        - - clear the cart before adding - + material.name + '.',
+        '  clear the cart before adding ' + material.name + '.',
         'warning'
       );
       return;
@@ -4615,8 +4615,8 @@ function App() {
     setSelectedMaterial(null);
     setShowCartSummary(true);
     showAlert(
-      material.name + - added to cart' +
-      (measuredKm !== undefined ? - with - + measuredKm.toFixed(1) + - km delivery' :),
+      material.name + ' added to cart' +
+      (measuredKm !== undefined ? ' with ' + measuredKm.toFixed(1) + ' km delivery' : ''),
       'success'
     );
   };
@@ -4655,7 +4655,7 @@ function App() {
     );
   };
 
-  // The quantity +/- control lives ONLY here, in the product details view - the
+  // The quantity +/- control lives ONLY here, in the product details view  the
   // step where a customer has actually seen the product and is ready to order.
   // Search results, product cards and carousels only ever open this view.
   // The Sample Layout's **Order Summary** block: the totals a buyer approves and
@@ -4675,44 +4675,44 @@ function App() {
     return (
       <section className="pd-section pd-summary">
         <div className="pd-head">
-          <span className="pd-head-icon"></span>
+          <span className="pd-head-icon">3/4</span>
           <h3>Order Summary</h3>
           {isInCart && <span className="pd-in-cart">In your cart</span>}
         </div>
         {!isCustomer ? (
           <p className="pd-summary-note">Sign in with a customer account to place this order.</p>
         ) : soldOut ? (
-          <p className="pd-summary-note">Currently unavailable - please contact the supplier.</p>
+          <p className="pd-summary-note">Currently unavailable  please contact the supplier.</p>
         ) : (
           <>
             {detailsQuoteBlock ? (
               /* The totals cannot be produced right now. Say why and give the one
-                 action that fixes it - a disabled -Calculating- button with no
+                 action that fixes it  a disabled "Calculating" button with no
                  explanation reads as an order that simply will not go through. */
               <div className={'pd-summary-block is-' + detailsQuoteBlock.kind} role="alert">
                 <span className="pd-summary-block-icon"> </span>
                 <div className="pd-summary-block-body">
                   <p>{detailsQuoteBlock.message}</p>
                   {detailsQuoteBlock.kind === 'conflict' ? (
-                    <button className="btn btn-secondary pd-summary-block-btn- onClick={() => clearCart()}>
-                      -' Clear cart &amp; order this product
+                    <button className="btn btn-secondary pd-summary-block-btn" onClick={() => clearCart()}>
+                      - Clear cart &amp; order this product
                     </button>
                   ) : detailsQuoteBlock.kind === 'location' ? (
                     <button
                       className="btn btn-primary pd-summary-block-btn"
                       onClick={() => {
-                        detailsLocationTried.current =;
+                        detailsLocationTried.current = '';
                         setDetailsQuoteRetry(n => n + 1);
                       }}
                     >
-                      - Use my current location
+                       Use my current location
                     </button>
                   ) : (
                     <button
                       className="btn btn-primary pd-summary-block-btn"
                       onClick={() => setDetailsQuoteRetry(n => n + 1)}
                     >
-                      - Retry calculating
+                       Retry calculating
                     </button>
                   )}
                 </div>
@@ -4722,7 +4722,7 @@ function App() {
                 <div className="pd-summary-rows">
               <div className="pd-summary-row">
                 <span>{subtotalLabel}</span>
-                <strong>{loading ? : formatCurrency(quote!.subtotal)}</strong>
+                <strong>{loading ? '' : formatCurrency(quote!.subtotal)}</strong>
               </div>
               <div className="pd-summary-row">
                 <span>
@@ -4731,7 +4731,7 @@ function App() {
                     <small className="pd-summary-sub">{deliveryBasisLabel(material.delivery, detailsDelivery)}</small>
                   )}
                 </span>
-                <strong>{loading ? : detailsDelivery ? formatCurrency(quote!.transportCost) : 'Not included'}</strong>
+                <strong>{loading ? '' : detailsDelivery ? formatCurrency(quote!.transportCost) : 'Not included'}</strong>
               </div>
               {systemSettings.vat.enabled && !loading && quote!.vatAmount > 0 && (
                 <div className="pd-summary-row">
@@ -4739,10 +4739,10 @@ function App() {
                   <strong>{formatCurrency(quote!.vatAmount)}</strong>
                 </div>
               )}
-              <div className="pd-summary-divider- />
+              <div className="pd-summary-divider" />
               <div className="pd-summary-row pd-summary-total">
                 <span>Total Payable</span>
-                <strong>{loading ? : formatCurrency(quote!.total)}</strong>
+                <strong>{loading ? '' : formatCurrency(quote!.total)}</strong>
               </div>
             </div>
             <button
@@ -4757,7 +4757,7 @@ function App() {
                 }
               }}
             >
-              >' {isDetailsOrdering || isPlacingOrder
+               {isDetailsOrdering || isPlacingOrder
                 ? 'Placing your order'
                 : loading ? 'Calculating' : 'Place Order'}
             </button>
@@ -4778,11 +4778,11 @@ function App() {
                 }
               }}
             >
-              >' Add to Cart &amp; Review
+               Add to Cart &amp; Review
             </button>
             <p className="pd-trust">... Secure Payment &nbsp;&nbsp;  Fast Delivery</p>
             <div className="pd-notice">
-              <span className="pd-notice-icon"></span>
+              <span className="pd-notice-icon">1</span>
               <span>You will receive an order confirmation with tracking details after payment.</span>
             </div>
           </>
@@ -4808,34 +4808,34 @@ function App() {
     const images = material.images || [];
     const imageIndex = Math.min(detailsImageIndex, Math.max(0, images.length - 1));
     const supplierUser = company ? getUserById(company.userId) : undefined;
-    const supplierPhone = company?.phone || supplierUser?.phone || '"';
+    const supplierPhone = company?.phone || supplierUser?.phone || '';
     const orderDate = new Date().toISOString().split('T')[0];
     const visibleReviews = showAllReviews ? productReviews : productReviews.slice(0, 3);
 
     return (
-      <div className="modal-overlay- onClick={() => setSelectedMaterial(null)}>
-        <div className="modal-content glass- onClick={e => e.stopPropagation()}>
+      <div className="modal-overlay" onClick={() => setSelectedMaterial(null)}>
+        <div className="modal-content glass" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <h2>{selectedMaterial.name}</h2>
-            <button className="modal-close- onClick={() => setSelectedMaterial(null)}>-</button>
+            <button className="modal-close" onClick={() => setSelectedMaterial(null)}>-</button>
           </div>
           <div className="modal-body">
-            {isLowStock && <div className="stock-flag stock-flag-low">  Low stock - only {material.quantity} {material.unit || 'units'} left</div>}
+            {isLowStock && <div className="stock-flag stock-flag-low">  Low stock  only {material.quantity} {material.unit || 'units'} left</div>}
 
             {/* ---------- 1. Product details (Sample Layout 1) ---------- */}
             <section className="pd-section">
-              <div className="pd-head"><span className="pd-head-icon">"</span><h3>Product Details</h3></div>
+              <div className="pd-head"><span className="pd-head-icon"></span><h3>Product Details</h3></div>
               <div className="pd-grid">
                 <div className="pd-media">
                   <div className="pd-media-frame">
-                    <span className={'pd-stock' + (soldOut ? - out' :)}>
-                      {soldOut ? 'Out of stock' : '- In Stock'}
+                    <span className={'pd-stock' + (soldOut ? ' out' : '')}>
+                      {soldOut ? 'Out of stock' : ' In Stock'}
                     </span>
                     {images.length > 0 ? (
                       <img
                         className="pd-media-img"
                         src={images[imageIndex]}
-                        alt={material.name + - photo - + (imageIndex + 1)}
+                        alt={material.name + ' photo ' + (imageIndex + 1)}
                         loading="lazy"
                       />
                     ) : (
@@ -4843,15 +4843,15 @@ function App() {
                     )}
                   </div>
                   {images.length > 1 && (
-                    <div className="pd-dots- role="tablist- aria-label="Product photos">
+                    <div className="pd-dots" role="tablist" aria-label="Product photos">
                       {images.map((_, i) => (
                         <button
                           key={i}
                           type="button"
                           role="tab"
                           aria-selected={i === imageIndex}
-                          aria-label={'Show photo - + (i + 1)}
-                          className={'pd-dot' + (i === imageIndex ? - on' :)}
+                          aria-label={'Show photo ' + (i + 1)}
+                          className={'pd-dot' + (i === imageIndex ? ' on' : '')}
                           onClick={() => setDetailsImageIndex(i)}
                         />
                       ))}
@@ -4866,24 +4866,24 @@ function App() {
 
                   <div className="pd-metrics">
                     <div className="pd-metric">
-                      <span className="pd-metric-icon">'</span>
+                      <span className="pd-metric-icon"> deg</span>
                       <div className="pd-metric-text">
                         <small>Unit Price</small>
                         <strong>{formatCurrency(material.price)} / {material.unit}</strong>
                       </div>
                     </div>
-                    <label className={'pd-metric pd-metric-delivery' + (detailsDelivery ? - on' :)}>
+                    <label className={'pd-metric pd-metric-delivery' + (detailsDelivery ? ' on' : '')}>
                       <span className="pd-metric-icon"></span>
                       <div className="pd-metric-text">
                         <small>Delivery Price</small>
-                        <strong>{quoteLoading ? : detailsDelivery ? formatCurrency(detailsQuote!.transportCost) : 'Not included'}</strong>
+                        <strong>{quoteLoading ? '' : detailsDelivery ? formatCurrency(detailsQuote!.transportCost) : 'Not included'}</strong>
                         <small className="pd-metric-note">{deliveryBasisLabel(material.delivery, detailsDelivery)}</small>
                       </div>
                       <input
                         type="checkbox"
                         checked={detailsDelivery}
                         onChange={e => setDetailsDelivery(e.target.checked)}
-                        aria-label={'Include delivery cost for - + material.name}
+                        aria-label={'Include delivery cost for ' + material.name}
                       />
                     </label>
                   </div>
@@ -4894,10 +4894,10 @@ function App() {
                       <div className="pd-qty-control">
                         <QuantityStepper value={detailsQty} min={1} unit={material.unit} onChange={setDetailsQty} />
                       </div>
-                      <span className="pd-row-hint">Any quantity - tap the number to type your own</span>
+                      <span className="pd-row-hint">Any quantity  tap the number to type your own</span>
                     </div>
                     <div className="pd-metric pd-subtotal">
-                      <span className="pd-metric-icon"></span>
+                      <span className="pd-metric-icon">3/4</span>
                       <div className="pd-metric-text">
                         <small>Material Subtotal</small>
                         <strong>{formatCurrency(material.price * detailsQty)}</strong>
@@ -4907,14 +4907,14 @@ function App() {
 
                   <div className="pd-row pd-row-dates">
                     <div className="pd-date">
-                      <span className="pd-metric-icon">"...</span>
+                      <span className="pd-metric-icon">...</span>
                       <div className="pd-metric-text"><small>Order Date</small><strong>{orderDate}</strong></div>
                     </div>
                     <div className="pd-date">
-                      <span className="pd-metric-icon">-'</span>
+                      <span className="pd-metric-icon">-</span>
                       <div className="pd-metric-text">
                         <small>Delivery Time</small>
-                        <strong>{distanceToSelected !== null ? '~ - + deliveryEta(distanceToSelected) : 'Confirmed with the supplier'}</strong>
+                        <strong>{distanceToSelected !== null ? '~ ' + deliveryEta(distanceToSelected) : 'Confirmed with the supplier'}</strong>
                       </div>
                     </div>
                   </div>
@@ -4929,7 +4929,7 @@ function App() {
                   <div className="rating-summary">
                     <StarRatingDisplay value={avgRating} />
                     <span className="rating-num">{avgRating.toFixed(1)}</span>
-                    <span className="rating-count">({productReviews.length} review{productReviews.length !== 1 ? 's' :})</span>
+                    <span className="rating-count">({productReviews.length} review{productReviews.length !== 1 ? 's' : ''})</span>
                   </div>
 
                   {history.length >= 2 && forecast && (
@@ -4937,17 +4937,17 @@ function App() {
                       <div className="forecast-header">
                         <h3>- AI Price Forecast</h3>
                         <span className={'trend-chip trend-' + forecast.trend}>
-                          {forecast.trend === 'up' ? '- Trending up' : forecast.trend === 'down' ? '- Trending down' : - Stable'}
+                          {forecast.trend === 'up' ? ' Trending up' : forecast.trend === 'down' ? ' Trending down' : ' Stable'}
                         </span>
                       </div>
                       <Sparkline points={history.map(p => p.price)} width={220} height={56} />
                       <div className="forecast-details">
                         <span>Predicted next price: <strong>{formatCurrency(forecast.next)}</strong></span>
-                        <span className={forecast.changePct > 0 ? 'forecast-pos' : forecast.changePct < 0 ? 'forecast-neg' :}>
-                          {forecast.changePct > 0 ? '+' :}{forecast.changePct.toFixed(1)}% vs today
+                        <span className={forecast.changePct > 0 ? 'forecast-pos' : forecast.changePct < 0 ? 'forecast-neg' : ''}>
+                          {forecast.changePct > 0 ? '+' : ''}{forecast.changePct.toFixed(1)}% vs today
                         </span>
                         {material.category === 'Fuel' && (
-                          <span className="forecast-note">  Fuel prices are volatile - order at current price when the trend is rising</span>
+                          <span className="forecast-note">  Fuel prices are volatile  order at current price when the trend is rising</span>
                         )}
                       </div>
                     </div>
@@ -4965,39 +4965,39 @@ function App() {
                   <div className="pd-supplier-id">
                     <strong className="pd-supplier-name">
                       {company?.name}
-                      <span className="pd-verified- title="Verified supplier">"</span>
+                      <span className="pd-verified" title="Verified supplier"></span>
                     </strong>
                     <div className="pd-supplier-rating">
                       <StarRatingDisplay value={avgRating} size={13} />
-                      <span>{avgRating.toFixed(1)}/5 ({productReviews.length} review{productReviews.length !== 1 ? 's' :})</span>
+                      <span>{avgRating.toFixed(1)}/5 ({productReviews.length} review{productReviews.length !== 1 ? 's' : ''})</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="pd-supplier-meta">
                   <div className="pd-meta">
-                    <span className="pd-meta-icon">"</span>
+                    <span className="pd-meta-icon"></span>
                     <div>
                       <small>Address</small>
-                      <strong>{company?.location || company?.city || '"'}</strong>
+                      <strong>{company?.location || company?.city || ''}</strong>
                       <span>{company?.city}, Ethiopia</span>
                     </div>
                   </div>
                   <div className="pd-meta">
-                    <span className="pd-meta-icon">"</span>
+                    <span className="pd-meta-icon"></span>
                     <div><small>Phone</small><strong>{supplierPhone}</strong></div>
                   </div>
                 </div>
 
                 <div className="pd-map-card">
-                  <div className="pd-route- aria-hidden="true">
+                  <div className="pd-route" aria-hidden="true">
                     <span className="pd-route-node from">Your location</span>
                     <span className="pd-route-line"><i /></span>
                     <span className="pd-route-node to">{company?.name || 'Supplier'}</span>
                   </div>
                   <div className="pd-map-info">
-                    <span className="pd-map-pill">- {distanceToSelected !== null ? distanceToSelected.toFixed(1) + - km' : '"'}</span>
-                    <span className="pd-map-pill">-' {distanceToSelected !== null ? '~ - + deliveryEta(distanceToSelected) : '"'}</span>
+                    <span className="pd-map-pill">- {distanceToSelected !== null ? distanceToSelected.toFixed(1) + ' km' : ''}</span>
+                    <span className="pd-map-pill">- {distanceToSelected !== null ? '~ ' + deliveryEta(distanceToSelected) : ''}</span>
                     {company && (
                       <button
                         className="pd-map-open"
@@ -5019,8 +5019,8 @@ function App() {
                 <span className="pd-head-icon"></span>
                 <h3>Customer Reviews</h3>
                 {productReviews.length > 3 && (
-                  <button className="pd-see-all- onClick={() => setShowAllReviews(v => !v)}>
-                    {showAllReviews ? 'Show less - : 'See all reviews '}
+                  <button className="pd-see-all" onClick={() => setShowAllReviews(v => !v)}>
+                    {showAllReviews ? 'Show less 1' : 'See all reviews '}
                   </button>
                 )}
               </div>
@@ -5035,11 +5035,11 @@ function App() {
                     rows={2}
                     onChange={(e) => setReviewDraft(prev => ({ ...prev, comment: e.target.value }))}
                   />
-                  <button className="btn btn-primary- disabled={!canReview} onClick={() => submitReview(material.id)}>Post Review</button>
+                  <button className="btn btn-primary" disabled={!canReview} onClick={() => submitReview(material.id)}>Post Review</button>
                 </div>
               )}
               {productReviews.length === 0 ? (
-                <p className="reviews-empty">No reviews yet - be the first to rate this product.</p>
+                <p className="reviews-empty">No reviews yet  be the first to rate this product.</p>
               ) : (
                 <div className="pd-reviews-scroll">
                   {visibleReviews.map(r => (
@@ -5075,10 +5075,10 @@ function App() {
     return (
       <footer className="footer glass">
         <div className="footer-content">
-          <div className="footer-section"><h3>E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p>- Serving all Ethiopian cities</p><p>... Compliant with Ethiopian Trade Regulations</p></div>
-          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('marketplace')}>Marketplace</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => navigateTo('analytics')}>Analytics &amp; Insights</button><button onClick={() => openCopilot()}>- Copilot</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button><button onClick={() => openInfo('about')}> About &amp; Help</button><button onClick={() => setShowInstallGuide(true)}>- Install App</button></div>
+          <div className="footer-section"><h3>E-SCON</h3><p>Ethio-Supply Chain Optimization Network</p><p> Serving all Ethiopian cities</p><p>... Compliant with Ethiopian Trade Regulations</p></div>
+          <div className="footer-section"><h3>Quick Links</h3><button onClick={() => navigateTo('home')}>Home</button><button onClick={() => navigateTo('marketplace')}>Marketplace</button><button onClick={() => navigateTo('search-materials')}>Find Products</button><button onClick={() => navigateTo('analytics')}>Analytics &amp; Insights</button><button onClick={() => openCopilot()}>- Copilot</button><button onClick={() => setShowSupplierMap(true)}>Supplier Map</button><button onClick={() => openInfo('about')}>1 About &amp; Help</button><button onClick={() => setShowInstallGuide(true)}>2 Install App</button></div>
           <div className="footer-section"><h3>Cities</h3><div className="city-tags">{ETHIOPIAN_CITIES.slice(0,6).map(c => <span key={c}>{c}</span>)}</div></div>
-          <div className="footer-section"><h3>Contact</h3><p>- meharinageb@gmail.com</p><p>- +251909919154</p></div>
+          <div className="footer-section"><h3>Contact</h3><p> meharinageb@gmail.com</p><p>+/- +251909919154</p></div>
         </div>
         <div className="copyright"><p> 2026 E-SCON | Master's Program Project</p></div>
       </footer>
@@ -5117,27 +5117,27 @@ function App() {
     if (currentPage === 'splash') return null;
     return (
       <header className="mobile-topbar">
-        <div className="mobile-topbar-brand- onClick={() => navigateTo('home')}>
+        <div className="mobile-topbar-brand" onClick={() => navigateTo('home')}>
           <span className="mobile-topbar-logo">-</span>
           <span className="mobile-topbar-title">{mobilePageTitle()}</span>
         </div>
         <div className="mobile-topbar-actions">
-          <button className="mobile-icon-btn- onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme">
-            {darkMode ? :}
+          <button className="mobile-icon-btn" onClick={() => setDarkMode(!darkMode)} aria-label="Toggle theme">
+            {darkMode ? '' : ''}
           </button>
           {currentUser && (
-            <button className="mobile-icon-btn- onClick={() => setShowNotifications(true)} aria-label="Notifications">
-              -"
+            <button className="mobile-icon-btn" onClick={() => setShowNotifications(true)} aria-label="Notifications">
+              
               {unreadNotifications() > 0 && <span className="mobile-badge">{unreadNotifications()}</span>}
             </button>
           )}
           {currentUser && (
-            <button className="mobile-icon-btn- onClick={() => setShowWallet(true)} aria-label="Wallet- title="Wallet">
-              '
+            <button className="mobile-icon-btn" onClick={() => setShowWallet(true)} aria-label="Wallet" title="Wallet">
+              3
             </button>
           )}
           {currentUser && (
-            <button className="mobile-avatar- onClick={() => setMobileMenuOpen(true)} aria-label="Account menu">
+            <button className="mobile-avatar" onClick={() => setMobileMenuOpen(true)} aria-label="Account menu">
               {currentUser.name?.charAt(0).toUpperCase() || '?'}
             </button>
           )}
@@ -5167,7 +5167,7 @@ function App() {
     const activeOrders = myOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length;
 
     const TabLink = ({ active, onClick, icon, label, badge }: { active: boolean; onClick: () => void; icon: string; label: string; badge?: number }) => (
-      <button className={'m-tab' + (active ? - active' :)} onClick={onClick}>
+      <button className={'m-tab' + (active ? ' active' : '')} onClick={onClick}>
         <span className="m-tab-icon">{icon}</span>
         <span className="m-tab-label">{label}</span>
         {badge ? <span className="m-tab-badge">{badge}</span> : null}
@@ -5178,48 +5178,48 @@ function App() {
       <nav className="mobile-tabbar">
         {!currentUser ? (
           <>
-            <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon=- - label="Home- />
-            <TabLink active={currentPage === 'marketplace'} onClick={() => navigateTo('marketplace')} icon=">- label="Market- />
-            <button className="m-fab- onClick={() => navigateTo('login')} aria-label="Login">
-              <span className="m-fab-icon">"'</span>
+            <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon=" " label="Home" />
+            <TabLink active={currentPage === 'marketplace'} onClick={() => navigateTo('marketplace')} icon="" label="Market" />
+            <button className="m-fab" onClick={() => navigateTo('login')} aria-label="Login">
+              <span className="m-fab-icon"></span>
               <span className="m-fab-label">Login</span>
             </button>
-            <TabLink active={currentPage === 'copilot'} onClick={() => openCopilot()} icon="-- label="Copilot- />
-            <button className={'m-tab' + (mobileMenuOpen ? - active' :)} onClick={() => setMobileMenuOpen(true)}>
-              <span className="m-tab-icon"></span>
+            <TabLink active={currentPage === 'copilot'} onClick={() => openCopilot()} icon="-" label="Copilot" />
+            <button className={'m-tab' + (mobileMenuOpen ? ' active' : '')} onClick={() => setMobileMenuOpen(true)}>
+              <span className="m-tab-icon"> deg</span>
               <span className="m-tab-label">More</span>
             </button>
           </>
         ) : (
           <>
-            <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon=- - label="Home- />
-            {isCustomer && <TabLink active={currentPage === 'search-materials'} onClick={() => navigateTo('search-materials')} icon=""- label="Search- />}
-            {!isCustomer && <TabLink active={currentPage === boardPage} onClick={() => navigateTo(boardPage)} icon=""- label={isAdmin ? 'Admin' : isTransporter ? 'Jobs' : 'Board'} />}
+            <TabLink active={currentPage === 'home'} onClick={() => navigateTo('home')} icon=" " label="Home" />
+            {isCustomer && <TabLink active={currentPage === 'search-materials'} onClick={() => navigateTo('search-materials')} icon="" label="Search" />}
+            {!isCustomer && <TabLink active={currentPage === boardPage} onClick={() => navigateTo(boardPage)} icon="" label={isAdmin ? 'Admin' : isTransporter ? 'Jobs' : 'Board'} />}
             {isCustomer ? (
-              <button className="m-fab m-fab-cart- onClick={handleCheckout} aria-label="Open cart">
-                <span className="m-fab-icon">>'</span>
+              <button className="m-fab m-fab-cart" onClick={handleCheckout} aria-label="Open cart">
+                <span className="m-fab-icon"></span>
                 <span className="m-fab-label">Cart</span>
                 {cart.length > 0 && <span className="m-fab-badge">{cart.reduce((s, i) => s + i.quantity, 0)}</span>}
               </button>
             ) : isAdmin ? (
-              <button className="m-fab- onClick={handleAdminAddSupplier} aria-label="Add supplier">
+              <button className="m-fab" onClick={handleAdminAddSupplier} aria-label="Add supplier">
                 <span className="m-fab-icon"></span>
                 <span className="m-fab-label">Supplier</span>
               </button>
             ) : isTransporter ? (
-              <button className="m-fab- onClick={() => navigateTo('transporter-dashboard')} aria-label="Delivery jobs">
+              <button className="m-fab" onClick={() => navigateTo('transporter-dashboard')} aria-label="Delivery jobs">
                 <span className="m-fab-icon"></span>
                 <span className="m-fab-label">Jobs</span>
               </button>
             ) : (
-              <button className="m-fab- onClick={() => navigateTo('add-material')} aria-label="Add product">
+              <button className="m-fab" onClick={() => navigateTo('add-material')} aria-label="Add product">
                 <span className="m-fab-icon">-</span>
                 <span className="m-fab-label">Add</span>
               </button>
             )}
-            <TabLink active={currentPage === 'orders'} onClick={() => navigateTo('orders')} icon=""- label="Orders- badge={activeOrders} />
-            <button className={'m-tab' + (mobileMenuOpen ? - active' :)} onClick={() => setMobileMenuOpen(true)}>
-              <span className="m-tab-icon">'</span>
+            <TabLink active={currentPage === 'orders'} onClick={() => navigateTo('orders')} icon="" label="Orders" badge={activeOrders} />
+            <button className={'m-tab' + (mobileMenuOpen ? ' active' : '')} onClick={() => setMobileMenuOpen(true)}>
+              <span className="m-tab-icon"></span>
               <span className="m-tab-label">More</span>
             </button>
           </>
@@ -5240,7 +5240,7 @@ function App() {
       : [];
 
     const Action = ({ icon, label, sub, onClick }: { icon: string; label: string; sub?: string; onClick: () => void }) => (
-      <button className="m-more-action- onClick={onClick}>
+      <button className="m-more-action" onClick={onClick}>
         <span className="m-more-icon">{icon}</span>
         <span className="m-more-text">{label}{sub && <small>{sub}</small>}</span>
         <span className="m-more-chevron"></span>
@@ -5248,9 +5248,9 @@ function App() {
     );
 
     return (
-      <div className="m-sheet-overlay- onClick={() => setMobileMenuOpen(false)}>
-        <div className="m-sheet- onClick={e => e.stopPropagation()}>
-          <div className="m-sheet-grabber- />
+      <div className="m-sheet-overlay" onClick={() => setMobileMenuOpen(false)}>
+        <div className="m-sheet" onClick={e => e.stopPropagation()}>
+          <div className="m-sheet-grabber" />
           {currentUser && (
             <div className="m-sheet-profile">
               <div className="m-sheet-avatar">{currentUser.name?.charAt(0).toUpperCase() || '?'}</div>
@@ -5258,48 +5258,48 @@ function App() {
                 <strong>{currentUser.name}</strong>
                 <small>{currentUser.email}</small>
               </div>
-              <button className="m-sheet-logout- onClick={() => { setMobileMenuOpen(false); handleLogout(); }}>Logout</button>
+              <button className="m-sheet-logout" onClick={() => { setMobileMenuOpen(false); handleLogout(); }}>Logout</button>
             </div>
           )}
           <div className="m-sheet-actions">
-            <Action icon=""- label="Quick Search- sub="Jump to a page or product- onClick={() => { setMobileMenuOpen(false); setShowCommandPalette(true); }} />
-            <Action icon=">- label="Marketplace- sub="Browse every verified product- onClick={() => { setMobileMenuOpen(false); navigateTo('marketplace'); }} />
-            <Action icon=""- label="Analytics & Insights- sub="KPIs, charts and CSV export- onClick={() => { setMobileMenuOpen(false); navigateTo('analytics'); }} />
-            <Action icon="-- label="Copilot AI- sub="Ask about your live data- onClick={() => { setMobileMenuOpen(false); openCopilot(); }} />
+            <Action icon="" label="Quick Search" sub="Jump to a page or product" onClick={() => { setMobileMenuOpen(false); setShowCommandPalette(true); }} />
+            <Action icon="" label="Marketplace" sub="Browse every verified product" onClick={() => { setMobileMenuOpen(false); navigateTo('marketplace'); }} />
+            <Action icon="" label="Analytics & Insights" sub="KPIs, charts and CSV export" onClick={() => { setMobileMenuOpen(false); navigateTo('analytics'); }} />
+            <Action icon="-" label="Copilot AI" sub="Ask about your live data" onClick={() => { setMobileMenuOpen(false); openCopilot(); }} />
             {currentUser && (
               <Action
-                icon="""
+                icon=""
                 label={MENUS[sheetMenu].title}
                 sub={isCompany ? 'Supplier' : isAdmin ? 'Admin' : isTransporter ? 'Transporter' : 'Customer'}
                 onClick={() => { setMobileMenuOpen(false); openWorkspace(sheetMenu); }}
               />
             )}
             {isAdmin && (
-              <Action icon="- label="Add Supplier- sub="Create a supplier login & company profile- onClick={() => { setMobileMenuOpen(false); handleAdminAddSupplier(); }} />
+              <Action icon="" label="Add Supplier" sub="Create a supplier login & company profile" onClick={() => { setMobileMenuOpen(false); handleAdminAddSupplier(); }} />
             )}
-            <Action icon="-- label="Supplier Map- sub="Show suppliers with routes- onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
-            <Action icon="- label="About & Help- sub="How E-SCON works, transport and support- onClick={() => { setMobileMenuOpen(false); openInfo('about'); }} />
+            <Action icon="-" label="Supplier Map" sub="Show suppliers with routes" onClick={() => { setMobileMenuOpen(false); setShowSupplierMap(true); }} />
+            <Action icon="1" label="About & Help" sub="How E-SCON works, transport and support" onClick={() => { setMobileMenuOpen(false); openInfo('about'); }} />
             {currentUser && (
-              <Action icon="'- label="E-SCON Wallet- sub={'Balance - + formatCurrency(walletBalance(currentUser.id))} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
+              <Action icon="3" label="E-SCON Wallet" sub={'Balance ' + formatCurrency(walletBalance(currentUser.id))} onClick={() => { setMobileMenuOpen(false); setShowWallet(true); }} />
             )}
             {currentUser && (
-              <Action icon="""- label="Notifications- sub={unreadNotifications() > 0 ? unreadNotifications() + - unread' : 'All caught up'} onClick={() => { setMobileMenuOpen(false); setShowNotifications(true); }} />
+              <Action icon="" label="Notifications" sub={unreadNotifications() > 0 ? unreadNotifications() + ' unread' : 'All caught up'} onClick={() => { setMobileMenuOpen(false); setShowNotifications(true); }} />
             )}
             <Action
               icon="-"
               label="Compare Products"
-              sub={compareItems.length >= 2 ? compareItems.length + - selected - tap to compare' : 'Pick 2"4 products to compare'}
+              sub={compareItems.length >= 2 ? compareItems.length + ' selected  tap to compare' : 'Pick 24 products to compare'}
               onClick={() => { setMobileMenuOpen(false); setShowCompare(true); }}
             />
-            <Action icon=""- label="Install App- sub="Work offline, home-screen icon- onClick={() => { setMobileMenuOpen(false); setShowInstallGuide(true); }} />
-            <Action icon={darkMode ? :} label={darkMode ? 'Light Theme' : 'Dark Theme'} onClick={() => setDarkMode(!darkMode)} />
+            <Action icon="2" label="Install App" sub="Work offline, home-screen icon" onClick={() => { setMobileMenuOpen(false); setShowInstallGuide(true); }} />
+            <Action icon={darkMode ? '' : ''} label={darkMode ? 'Light Theme' : 'Dark Theme'} onClick={() => setDarkMode(!darkMode)} />
             {currentUser && currentUser.userType !== 'customer' && (
-              <Action icon=""- label="Export Orders- sub="Download your orders as CSV- onClick={() => { setMobileMenuOpen(false); handleExportOrders(); }} />
+              <Action icon="" label="Export Orders" sub="Download your orders as CSV" onClick={() => { setMobileMenuOpen(false); handleExportOrders(); }} />
             )}
             {currentUser && (
-              <Action icon=">- label="Data Center- sub="JSON backup & restore- onClick={() => { setMobileMenuOpen(false); setShowDataCenter(true); }} />
+              <Action icon="" label="Data Center" sub="JSON backup & restore" onClick={() => { setMobileMenuOpen(false); setShowDataCenter(true); }} />
             )}
-            {isAdmin && <Action icon="- label="Platform Settings- sub="Delivery, VAT, accounts & catalogue- onClick={() => { setMobileMenuOpen(false); navigateTo('settings'); }} />}
+            {isAdmin && <Action icon="" label="Platform Settings" sub="Delivery, VAT, accounts & catalogue" onClick={() => { setMobileMenuOpen(false); navigateTo('settings'); }} />}
           </div>
           <div className="m-sheet-menu">
             <h4>- {t(MENUS[sheetMenu].title)}</h4>
@@ -5329,7 +5329,7 @@ function App() {
               <h4> Saved products</h4>
               <div className="m-sheet-fav-row">
                 {favouriteMaterials.map(m => (
-                  <button key={m.id} className="m-sheet-fav-chip- onClick={() => { setMobileMenuOpen(false); setSelectedMaterial(m); }}>
+                  <button key={m.id} className="m-sheet-fav-chip" onClick={() => { setMobileMenuOpen(false); setSelectedMaterial(m); }}>
                     <span className="m-sheet-fav-emoji">{renderProductImage(m.images, m.category, 'xs')}</span>
                     <span className="m-sheet-fav-name">{m.name.split(' ').slice(0, 3).join(' ')}</span>
                   </button>
@@ -5354,21 +5354,21 @@ function App() {
   }) => {
     const outOfStock = material.quantity <= 0;
     return (
-      <div className={'m-product-card - + variant}>
-        <button className="m-pc-img- onClick={onOpen} aria-label={'View details of - + material.name}>
+      <div className={'m-product-card ' + variant}>
+        <button className="m-pc-img" onClick={onOpen} aria-label={'View details of ' + material.name}>
           {renderProductImage(material.images, material.category, 'md')}
-          <span className="m-pc-view-hint- aria-hidden="true">
-            <span className="m-pc-view-icon">'</span>
+          <span className="m-pc-view-hint" aria-hidden="true">
+            <span className="m-pc-view-icon"></span>
             <span className="m-pc-view-text">View details</span>
           </span>
         </button>
         {!isFav && (
-          <button className="m-pc-fav- onClick={onToggleFav} aria-label="Save for later"></button>
+          <button className="m-pc-fav" onClick={onToggleFav} aria-label="Save for later"></button>
         )}
         <div className="m-pc-body">
-          <button className="m-pc-name- onClick={onOpen}>{material.name}</button>
+          <button className="m-pc-name" onClick={onOpen}>{material.name}</button>
           {material.brand && <div className="m-pc-brand">{material.brand}</div>}
-          <div className="m-pc-supplier">{company?.name || 'Unknown'}{company?.city ? - - - + company.city :}</div>
+          <div className="m-pc-supplier">{company?.name || 'Unknown'}{company?.city ? ' - ' + company.city : ''}</div>
           {distanceKm != null && <div className="m-pc-distance">- {distanceKm.toFixed(1)} km</div>}
           <div className="m-pc-price-row">
             <div className="m-pc-price">{formatCurrency(material.price)}<span className="m-pc-unit"> / {material.unit}</span></div>
@@ -5386,10 +5386,10 @@ function App() {
                 className="m-pc-map-btn"
                 onClick={() => company && handleOpenMapWithRoute(company.id)}
                 disabled={!company}
-                aria-label={'Open GPS route to - + (company?.name || 'supplier')}
+                aria-label={'Open GPS route to ' + (company?.name || 'supplier')}
               >- GPS</button>
-              <button className={'m-pc-add-btn' + (isInCart ? - ordered' :)} onClick={onOpen}>
-                {isInCart ? '>' Ordered - edit' : '>' Order'}
+              <button className={'m-pc-add-btn' + (isInCart ? ' ordered' : '')} onClick={onOpen}>
+                {isInCart ? ' Ordered  edit' : ' Order'}
               </button>
             </div>
           )}
@@ -5419,7 +5419,7 @@ function App() {
     const favouriteMaterials = currentUser ? favorites.map(id => getMaterialById(id)).filter((m): m is Material => Boolean(m)).slice(0, 8) : [];
 
     const Quick = ({ icon, label, sub, onClick, badge }: { icon: string; label: string; sub: string; onClick: () => void; badge?: number }) => (
-      <button className="m-quick-item- onClick={onClick}>
+      <button className="m-quick-item" onClick={onClick}>
         <span className="m-quick-icon">{icon}</span>
         <span className="m-quick-label">{label}</span>
         <span className="m-quick-sub">{sub}</span>
@@ -5432,12 +5432,12 @@ function App() {
         <section className="m-hero">
           <div className="m-hero-top">
             <div>
-              <div className="m-hero-greeting">{greeting}{currentUser ? ', - + currentUser.name.split(' ')[0] : '}</div>
+              <div className="m-hero-greeting">{greeting}{currentUser ? ', ' + currentUser.name.split(' ')[0] : ' '}</div>
               <div className="m-hero-role">
-                {currentUser ? (isCompany ? 'Supplier' : isCustomer ? 'Customer' : 'Administrator') : -Explore Ethiopia's materials marketplace"}
+                {currentUser ? (isCompany ? 'Supplier' : isCustomer ? 'Customer' : 'Administrator') : "Explore Ethiopia's materials marketplace"}
               </div>
             </div>
-            <span className="m-hero-flag"></span>
+            <span className="m-hero-flag">1</span>
           </div>
 
           {currentUser ? (
@@ -5457,40 +5457,40 @@ function App() {
             </div>
           ) : (
             <div className="m-hero-cta">
-              <button className="m-hero-btn ghost- onClick={() => navigateTo('login')}>Login</button>
+              <button className="m-hero-btn ghost" onClick={() => navigateTo('login')}>Login</button>
             </div>
           )}
         </section>
 
         {!currentUser && (
           <div className="m-quick-grid">
-            <Quick icon=">- label="Marketplace- sub="All products- onClick={() => navigateTo('marketplace')} />
-            <Quick icon=""- label="Browse- sub="Compare prices- onClick={() => navigateTo('search-materials')} />
-            <Quick icon=""- label="Insights- sub="Live analytics- onClick={() => navigateTo('analytics')} />
-            <Quick icon="-- label="Copilot- sub="Ask anything- onClick={() => openCopilot('What products are trending?')} />
-            <Quick icon="-- label="Supplier Map- sub="Nearby suppliers- onClick={() => setShowSupplierMap(true)} />
+            <Quick icon="" label="Marketplace" sub="All products" onClick={() => navigateTo('marketplace')} />
+            <Quick icon="" label="Browse" sub="Compare prices" onClick={() => navigateTo('search-materials')} />
+            <Quick icon="" label="Insights" sub="Live analytics" onClick={() => navigateTo('analytics')} />
+            <Quick icon="-" label="Copilot" sub="Ask anything" onClick={() => openCopilot('What products are trending?')} />
+            <Quick icon="-" label="Supplier Map" sub="Nearby suppliers" onClick={() => setShowSupplierMap(true)} />
           </div>
         )}
 
         {currentUser && isCustomer && (
           <div className="m-quick-grid">
-            <Quick icon=">- label="Market- sub="All products- onClick={() => navigateTo('marketplace')} />
-            <Quick icon=""- label="Find- sub="Materials- onClick={() => navigateTo('search-materials')} />
-            <Quick icon=""- label="Insights- sub="My spending- onClick={() => navigateTo('analytics')} />
-            <Quick icon="-- label="Copilot- sub="Ask my data- onClick={() => openCopilot('How much have I spent?')} />
-            <Quick icon=""- label="Orders- sub={myOrders.length + - total'} onClick={() => navigateTo('orders')} />
-            <Quick icon="-- label="Map- sub="Suppliers- onClick={() => setShowSupplierMap(true)} />
+            <Quick icon="" label="Market" sub="All products" onClick={() => navigateTo('marketplace')} />
+            <Quick icon="" label="Find" sub="Materials" onClick={() => navigateTo('search-materials')} />
+            <Quick icon="" label="Insights" sub="My spending" onClick={() => navigateTo('analytics')} />
+            <Quick icon="-" label="Copilot" sub="Ask my data" onClick={() => openCopilot('How much have I spent?')} />
+            <Quick icon="" label="Orders" sub={myOrders.length + ' total'} onClick={() => navigateTo('orders')} />
+            <Quick icon="-" label="Map" sub="Suppliers" onClick={() => setShowSupplierMap(true)} />
           </div>
         )}
         {currentUser && isCompany && (
           <div className="m-quick-grid">
-            <Quick icon=""- label="Products- sub={materials.filter(m => m.companyId === getCompanyByUserId(currentUser.id)?.id).length + - listed'} onClick={() => navigateTo('company-dashboard')} />
-            <Quick icon="-- label="Add Product- sub="List new item- onClick={() => navigateTo('add-material')} />
-            <Quick icon=">- label="Market- sub="All products- onClick={() => navigateTo('marketplace')} />
-            <Quick icon=""- label="Insights- sub="My performance- onClick={() => navigateTo('analytics')} />
-            <Quick icon="-- label="Copilot- sub="Ask my data- onClick={() => openCopilot('What should I restock?')} />
-            <Quick icon=""- label="Orders- sub={myOrders.length + - total'} onClick={() => navigateTo('orders')} />
-            <Quick icon="-- label="Map- sub="Suppliers- onClick={() => setShowSupplierMap(true)} />
+            <Quick icon="" label="Products" sub={materials.filter(m => m.companyId === getCompanyByUserId(currentUser.id)?.id).length + ' listed'} onClick={() => navigateTo('company-dashboard')} />
+            <Quick icon="-" label="Add Product" sub="List new item" onClick={() => navigateTo('add-material')} />
+            <Quick icon="" label="Market" sub="All products" onClick={() => navigateTo('marketplace')} />
+            <Quick icon="" label="Insights" sub="My performance" onClick={() => navigateTo('analytics')} />
+            <Quick icon="-" label="Copilot" sub="Ask my data" onClick={() => openCopilot('What should I restock?')} />
+            <Quick icon="" label="Orders" sub={myOrders.length + ' total'} onClick={() => navigateTo('orders')} />
+            <Quick icon="-" label="Map" sub="Suppliers" onClick={() => setShowSupplierMap(true)} />
           </div>
         )}
 
@@ -5498,11 +5498,11 @@ function App() {
           <section className="m-section">
             <div className="m-section-head">
               <h3> Saved for later</h3>
-              <button className="m-section-more- onClick={() => navigateTo('search-materials')}>See all</button>
+              <button className="m-section-more" onClick={() => navigateTo('search-materials')}>See all</button>
             </div>
             <div className="m-saved-strip">
               {favouriteMaterials.map(m => (
-                <button key={m.id} className="m-saved-chip- onClick={() => setSelectedMaterial(m)}>
+                <button key={m.id} className="m-saved-chip" onClick={() => setSelectedMaterial(m)}>
                   {renderProductImage(m.images, m.category, 'xs')}
                   <span>{m.name.split(' ').slice(0, 3).join(' ')}</span>
                   <strong>{formatCurrency(m.price)}</strong>
@@ -5515,7 +5515,7 @@ function App() {
         <section className="m-section">
           <div className="m-section-head">
             <h3 className="m-trending-title"> Trending products</h3>
-            <button className="m-section-more- onClick={() => navigateTo('search-materials')}>Browse all</button>
+            <button className="m-section-more" onClick={() => navigateTo('search-materials')}>Browse all</button>
           </div>
           {trending.length === 0 ? (
             <div className="no-results glass"><p>No products listed yet.</p></div>
@@ -5544,8 +5544,8 @@ function App() {
         {recentOrders.length > 0 && (
           <section className="m-section">
             <div className="m-section-head">
-              <h3>- Recent orders</h3>
-              <button className="m-section-more- onClick={() => navigateTo('orders')}>All orders</button>
+              <h3> Recent orders</h3>
+              <button className="m-section-more" onClick={() => navigateTo('orders')}>All orders</button>
             </div>
             <div className="m-recent-orders">
               {recentOrders.map(order => {
@@ -5555,9 +5555,9 @@ function App() {
                     <div className="m-recent-order-icon">{m ? renderProductImage(m.images, m.category, 'xs') : null}</div>
                     <div className="m-recent-order-info">
                       <strong>{m?.name || order.materialId}</strong>
-                      <small>{order.quantity} {m?.unit ||} - {formatCurrency(order.totalAmount)}</small>
+                      <small>{order.quantity} {m?.unit || ''} - {formatCurrency(order.totalAmount)}</small>
                     </div>
-                    <span className={'m-status-pill - + order.status}>{order.status === 'delivered' ? '...' : order.status === 'pending' ? :} {order.status}</span>
+                    <span className={'m-status-pill ' + order.status}>{order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}</span>
                   </div>
                 );
               })}
@@ -5569,14 +5569,14 @@ function App() {
           <section className="m-section">
             <div className="m-section-head">
               <h3> Administration</h3>
-              <button className="m-section-more- onClick={() => navigateTo('settings')}>Settings</button>
+              <button className="m-section-more" onClick={() => navigateTo('settings')}>Settings</button>
             </div>
             <div className="m-quick-grid">
-              <Quick icon=">- label="Marketplace- sub="All products- onClick={() => navigateTo('marketplace')} />
-              <Quick icon=""- label="Insights- sub="Platform analytics- onClick={() => navigateTo('analytics')} />
-              <Quick icon="-- label="Copilot- sub="Ask platform data- onClick={() => openCopilot('Give me an executive summary')} />
-              <Quick icon=""- label="Search- sub="All materials- onClick={() => navigateTo('search-materials')} />
-              <Quick icon=""- label="Orders- sub="Platform orders- onClick={() => navigateTo('orders')} />
+              <Quick icon="" label="Marketplace" sub="All products" onClick={() => navigateTo('marketplace')} />
+              <Quick icon="" label="Insights" sub="Platform analytics" onClick={() => navigateTo('analytics')} />
+              <Quick icon="-" label="Copilot" sub="Ask platform data" onClick={() => openCopilot('Give me an executive summary')} />
+              <Quick icon="" label="Search" sub="All materials" onClick={() => navigateTo('search-materials')} />
+              <Quick icon="" label="Orders" sub="Platform orders" onClick={() => navigateTo('orders')} />
             </div>
           </section>
         )}
@@ -5617,46 +5617,46 @@ function App() {
                         <small>Order {order.id}</small>
                       </div>
                     </div>
-                    <span className={'m-status-pill - + order.status}>
-                      {order.status === 'delivered' ? '...' : order.status === 'pending' ? :} {order.status}
+                    <span className={'m-status-pill ' + order.status}>
+                      {order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}
                     </span>
                   </div>
-                  <OrderTimeline status={order.status} size="sm- />
+                  <OrderTimeline status={order.status} size="sm" />
                   {canManage && customer && (
-                    <div className="m-order-customer">' {customer.name} - - {customer.city}</div>
+                    <div className="m-order-customer"> {customer.name} -  {customer.city}</div>
                   )}
                   <div className="m-order-meta">
-                    <span>{order.quantity} {m?.unit ||} - {formatCurrency(order.unitPrice)}</span>
+                    <span>{order.quantity} {m?.unit || ''} - {formatCurrency(order.unitPrice)}</span>
                     <span> {formatCurrency(order.transportCost)}</span>
                     <strong>Total {formatCurrency(order.totalAmount)}</strong>
                     <small>{formatDate(order.orderDate)}</small>
                   </div>
                   <div className="m-order-pay">
                     <span className={'pay-pill pay-' + order.paymentStatus}>
-                      {order.paymentStatus === 'paid' ? Paid' : order.paymentStatus === 'refunded' ? - Refunded' : - Payment pending'}
+                      {order.paymentStatus === 'paid' ? '3 Paid' : order.paymentStatus === 'refunded' ? ' Refunded' : '3 Payment pending'}
                     </span>
                     <span className="pay-method">{order.paymentMethod}</span>
                   </div>
                   <div className="m-order-actions">
                     {!canManage && (
-                      <button className="m-order-btn- onClick={() => handleQuickReorder(order.materialId)}>- Reorder</button>
+                      <button className="m-order-btn" onClick={() => handleQuickReorder(order.materialId)}> Reorder</button>
                     )}
                     {!canManage && order.status === 'delivered' && m && (
-                      <button className="m-order-btn primary- onClick={() => setSelectedMaterial(m)}> Rate product</button>
+                      <button className="m-order-btn primary" onClick={() => setSelectedMaterial(m)}> Rate product</button>
                     )}
                     {canManage && order.status === 'pending' && (
-                      <button className="m-order-btn primary- onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>... Confirm</button>
+                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>... Confirm</button>
                     )}
                     {canManage && order.status === 'confirmed' && (
-                      <button className="m-order-btn primary- onClick={() => handleUpdateOrderStatus(order.id, 'shipped')}> Ship</button>
+                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'shipped')}> Ship</button>
                     )}
                     {canManage && order.status === 'shipped' && (
-                      <button className="m-order-btn primary- onClick={() => handleUpdateOrderStatus(order.id, 'delivered')}>- Delivered</button>
+                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'delivered')}> Delivered</button>
                     )}
                     {canManage && (order.status === 'pending' || order.status === 'confirmed') && (
-                      <button className="m-order-btn danger- onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}> Cancel</button>
+                      <button className="m-order-btn danger" onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}> Cancel</button>
                     )}
-                    {canManage && <button className="m-order-btn- onClick={handleExportOrders}>- Export</button>}
+                    {canManage && <button className="m-order-btn" onClick={handleExportOrders}> Export</button>}
                   </div>
                 </div>
               );
@@ -5693,27 +5693,27 @@ function App() {
             <p>Supplier Dashboard</p>
           </div>
           <div className="m-stat-grid">
-            <div className="m-stat-tile"><span className="m-stat-icon">"</span><strong>{companyMaterials.length}</strong><small>Products</small></div>
-            <div className="m-stat-tile"><span className="m-stat-icon">"</span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
-            <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
-            <div className="m-stat-tile"><span className="m-stat-icon">'</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Revenue</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{companyMaterials.length}</strong><small>Products</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon">3</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
+            <div className="m-stat-tile"><span className="m-stat-icon"> deg</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Revenue</small></div>
           </div>
           <div className="m-section">
-            <div className="m-section-head"><h3>- My stock</h3></div>
+            <div className="m-section-head"><h3> My stock</h3></div>
             <div className="m-stock-grid">
               <div className="m-stock-tile"><strong>{mobileStock.units}</strong><small>Units in stock</small></div>
               <div className="m-stock-tile"><strong>{formatCurrency(mobileStock.value)}</strong><small>Stock value</small></div>
-              <div className={'m-stock-tile' + (mobileStock.low > 0 ? - warn' :)}><strong>{mobileStock.low}</strong><small>Low stock</small></div>
-              <div className={'m-stock-tile' + (mobileStock.out > 0 ? - danger' :)}><strong>{mobileStock.out}</strong><small>Out of stock</small></div>
+              <div className={'m-stock-tile' + (mobileStock.low > 0 ? ' warn' : '')}><strong>{mobileStock.low}</strong><small>Low stock</small></div>
+              <div className={'m-stock-tile' + (mobileStock.out > 0 ? ' danger' : '')}><strong>{mobileStock.out}</strong><small>Out of stock</small></div>
             </div>
           </div>
           <div className="m-section">
             <div className="m-section-head">
-              <h3>- Your products</h3>
-              <button className="m-section-more- onClick={() => navigateTo('add-material')}>+ Add</button>
+              <h3> Your products</h3>
+              <button className="m-section-more" onClick={() => navigateTo('add-material')}>+ Add</button>
             </div>
             {companyMaterials.length === 0 ? (
-              <div className="no-results glass"><p>No products yet - add your first one.</p></div>
+              <div className="no-results glass"><p>No products yet  add your first one.</p></div>
             ) : (
               <div className="m-dash-list">
                 {companyMaterials.map(m => (
@@ -5729,17 +5729,17 @@ function App() {
                           : <span className="stock-chip stock-chip-in">... In stock</span>}
                     </div>
                     <strong className="m-dash-row-price">{formatCurrency(m.price)}</strong>
-                    <button className="btn-icon edit- onClick={() => handleEditMaterial(m)}></button>
+                    <button className="btn-icon edit" onClick={() => handleEditMaterial(m)}></button>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <button className="btn btn-secondary- style={{ width: '100%' }} onClick={handleEditCompany}> Edit Company Profile</button>
+          <button className="btn btn-secondary" style={{ width: '100%' }} onClick={handleEditCompany}> Edit Company Profile</button>
           <div className="m-section">
             <div className="m-section-head">
-              <h3>- Recent orders</h3>
-              <button className="m-section-more- onClick={() => navigateTo('orders')}>All</button>
+              <h3> Recent orders</h3>
+              <button className="m-section-more" onClick={() => navigateTo('orders')}>All</button>
             </div>
             {companyOrders.length === 0 ? (
               <div className="no-results glass"><p>No orders yet.</p></div>
@@ -5752,9 +5752,9 @@ function App() {
                       {m ? renderProductImage(m.images, m.category, 'xs') : null}
                       <div className="m-recent-order-info">
                         <strong>{m?.name || order.materialId}</strong>
-                        <small>{order.quantity} {m?.unit ||} - {formatCurrency(order.totalAmount)}</small>
+                        <small>{order.quantity} {m?.unit || ''} - {formatCurrency(order.totalAmount)}</small>
                       </div>
-                      <span className={'m-status-pill - + order.status}>{order.status}</span>
+                      <span className={'m-status-pill ' + order.status}>{order.status}</span>
                     </div>
                   );
                 })}
@@ -5776,19 +5776,19 @@ function App() {
     return (
       <main className="main-content mobile-dashboard">
         <div className="mobile-page-head">
-          <h2>' {welcomeTitle('Customer Dashboard')}</h2>
-          <p>- {currentUser.address || currentUser.city}</p>
+          <h2> {welcomeTitle('Customer Dashboard')}</h2>
+          <p> {currentUser.address || currentUser.city}</p>
         </div>
         <div className="m-stat-grid">
-          <div className="m-stat-tile"><span className="m-stat-icon">"</span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
-          <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
+          <div className="m-stat-tile"><span className="m-stat-icon"></span><strong>{stats.totalOrders}</strong><small>Orders</small></div>
+          <div className="m-stat-tile"><span className="m-stat-icon">3</span><strong>{stats.pendingOrders}</strong><small>Pending</small></div>
           <div className="m-stat-tile"><span className="m-stat-icon">...</span><strong>{stats.deliveredOrders}</strong><small>Delivered</small></div>
-          <div className="m-stat-tile"><span className="m-stat-icon">'</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Spent</small></div>
+          <div className="m-stat-tile"><span className="m-stat-icon"> deg</span><strong>{formatCurrency(stats.totalRevenue)}</strong><small>Spent</small></div>
         </div>
         <div className="m-section">
           <div className="m-section-head">
-            <h3>- My location</h3>
-            <button className="m-section-more- onClick={() => setShowMyLocationPicker(true)}>Edit</button>
+            <h3> My location</h3>
+            <button className="m-section-more" onClick={() => setShowMyLocationPicker(true)}>Edit</button>
           </div>
           <div className="m-location-card">
             <strong>{currentUser.address || currentUser.city}</strong>
@@ -5796,13 +5796,13 @@ function App() {
           </div>
         </div>
         <div className="m-quick-grid">
-          <div className="m-section-head- style={{ gridColumn: '1 / -1' }}>
-            <h3>- Recent orders</h3>
-            <button className="m-section-more- onClick={() => navigateTo('orders')}>All</button>
+          <div className="m-section-head" style={{ gridColumn: '1 / -1' }}>
+            <h3> Recent orders</h3>
+            <button className="m-section-more" onClick={() => navigateTo('orders')}>All</button>
           </div>
         </div>
         {userOrders.length === 0 ? (
-          <div className="no-results glass"><p>No orders yet - start shopping!</p></div>
+          <div className="no-results glass"><p>No orders yet  start shopping!</p></div>
         ) : (
           <div className="m-recent-orders">
             {userOrders.slice(0, 4).map(order => {
@@ -5812,15 +5812,15 @@ function App() {
                   {m ? renderProductImage(m.images, m.category, 'xs') : null}
                   <div className="m-recent-order-info">
                     <strong>{m?.name || order.materialId}</strong>
-                    <small>{order.quantity} {m?.unit ||} - {formatCurrency(order.totalAmount)}</small>
+                    <small>{order.quantity} {m?.unit || ''} - {formatCurrency(order.totalAmount)}</small>
                   </div>
-                  <span className={'m-status-pill - + order.status}>{order.status}</span>
+                  <span className={'m-status-pill ' + order.status}>{order.status}</span>
                 </div>
               );
             })}
           </div>
         )}
-        <button className="m-order-btn primary- style={{ width: '100%' }} onClick={() => navigateTo('search-materials')}>- Find Products</button>
+        <button className="m-order-btn primary" style={{ width: '100%' }} onClick={() => navigateTo('search-materials')}> Find Products</button>
       </main>
     );
   };
@@ -5833,7 +5833,7 @@ function App() {
       const user = currentUser;
       // The profile record can be missing (older build dropped it, or a cloud
       // row arrived without it) - rebuild it here rather than silently falling
-      // back to the previous page, which looked like -profile not found".
+      // back to the previous page, which looked like "profile not found".
       const company = user ? (getCompanyByUserId(user.id) || companyFromUser(user)) : null;
       if (company && user) {
         return <EditCompany company={company} user={user} onSave={handleSaveCompany} onClose={() => setShowEditCompany(false)} />;
@@ -5923,7 +5923,7 @@ function App() {
           reviews={reviews}
           settings={systemSettings}
           seedPrompt={copilotSeed}
-          onSeedConsumed={() => setCopilotSeed()}
+          onSeedConsumed={() => setCopilotSeed('')}
           onOpenAnalytics={() => navigateTo('analytics')}
           onOpenMarketplace={() => navigateTo('marketplace')}
         />
@@ -5946,7 +5946,7 @@ function App() {
             onDeleteMaterial={handleDeleteMaterial}
           />
         ) : (
-          <div className="main-content"><div className="admin-settings glass"><h2>>- Welcome - Access restricted</h2><p>Only platform administrators can change system settings.</p></div></div>
+          <div className="main-content"><div className="admin-settings glass"><h2> Welcome  Access restricted</h2><p>Only platform administrators can change system settings.</p></div></div>
         )
       );
       default: return renderHome();
@@ -5954,59 +5954,59 @@ function App() {
   };
 
   const commandItems: CommandItem[] = [
-    { id: 'nav-home', group: 'Navigate', label: 'Home', hint: 'Dashboard, trends and quick actions', icon: - ', keywords: 'start overview dashboard', run: () => navigateTo('home') },
-    { id: 'nav-market', group: 'Navigate', label: 'Marketplace', hint: 'Browse, compare and order verified materials', icon: '>', keywords: 'shop catalogue products store', run: () => navigateTo('marketplace') },
-    { id: 'nav-search', group: 'Navigate', label: 'Find Products', hint: 'Search by material, supplier, city or price', icon: '"', keywords: 'search filter catalogue', run: () => navigateTo('search-materials') },
-    { id: 'nav-analytics', group: 'Navigate', label: 'Analytics & Insights', hint: 'Role-scoped KPIs, charts and reports', icon: '"', keywords: 'insights reports charts analytics', run: () => navigateTo('analytics') },
+    { id: 'nav-home', group: 'Navigate', label: 'Home', hint: 'Dashboard, trends and quick actions', icon: ' ', keywords: 'start overview dashboard', run: () => navigateTo('home') },
+    { id: 'nav-market', group: 'Navigate', label: 'Marketplace', hint: 'Browse, compare and order verified materials', icon: '', keywords: 'shop catalogue products store', run: () => navigateTo('marketplace') },
+    { id: 'nav-search', group: 'Navigate', label: 'Find Products', hint: 'Search by material, supplier, city or price', icon: '', keywords: 'search filter catalogue', run: () => navigateTo('search-materials') },
+    { id: 'nav-analytics', group: 'Navigate', label: 'Analytics & Insights', hint: 'Role-scoped KPIs, charts and reports', icon: '', keywords: 'insights reports charts analytics', run: () => navigateTo('analytics') },
     { id: 'nav-copilot', group: 'Navigate', label: 'Copilot AI', hint: 'Ask questions about your live supply-chain data', icon: '-', keywords: 'ai assistant ask forecast', run: () => openCopilot() },
     { id: 'nav-map', group: 'Navigate', label: 'Supplier Map', hint: 'Explore suppliers, pins and delivery routes', icon: '-', keywords: 'gps route location map', run: () => setShowSupplierMap(true) },
-    { id: 'nav-info', group: 'Navigate', label: 'About & Help', hint: 'How E-SCON works, transport services and support', icon:, keywords: 'about help faq how it works transport support', run: () => openInfo('about') },
-    { id: 'nav-install', group: 'Navigate', label: 'Install App', hint: 'Add E-SCON to your home screen', icon: '"', keywords: 'pwa offline home screen', run: () => setShowInstallGuide(true) },
-    { id: 'pref-theme', group: 'Preferences', label: darkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme', hint: 'Theme is saved on this device', icon: darkMode ? :, keywords: 'appearance dark light mode', run: () => setDarkMode(value => !value) },
+    { id: 'nav-info', group: 'Navigate', label: 'About & Help', hint: 'How E-SCON works, transport services and support', icon: '1', keywords: 'about help faq how it works transport support', run: () => openInfo('about') },
+    { id: 'nav-install', group: 'Navigate', label: 'Install App', hint: 'Add E-SCON to your home screen', icon: '2', keywords: 'pwa offline home screen', run: () => setShowInstallGuide(true) },
+    { id: 'pref-theme', group: 'Preferences', label: darkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme', hint: 'Theme is saved on this device', icon: darkMode ? '' : '', keywords: 'appearance dark light mode', run: () => setDarkMode(value => !value) },
   ];
   if (currentUser) {
     const menuKey = menuForRole(currentUser.userType);
     commandItems.push(
       {
-        id: 'nav-workspace', group: 'Navigate', label: MENUS[menuKey].title + - Workspace',
-        hint: 'Open the role menu: - + MENUS[menuKey].subtitle,
-        icon: '-', keywords: 'workspace dashboard menu - + menuKey,
+        id: 'nav-workspace', group: 'Navigate', label: MENUS[menuKey].title + ' Workspace',
+        hint: 'Open the role menu: ' + MENUS[menuKey].subtitle,
+        icon: '-', keywords: 'workspace dashboard menu ' + menuKey,
         run: () => openWorkspace(menuKey),
       },
-      { id: 'nav-directory', group: 'Navigate', label: 'Supplier Directory', hint: 'Browse approved supplier businesses', icon:, keywords: 'suppliers directory companies', run: () => navigateTo('supplier-directory') },
-      { id: 'nav-language', group: 'Preferences', label: 'Language Settings', hint: 'English and Amharic', icon:, keywords: 'language amharic english translation', run: () => navigateTo('language') },
-      { id: 'nav-orders', group: 'Navigate', label: 'Orders', hint: 'Track, inspect and manage orders', icon: '"', keywords: 'purchase delivery status', run: () => navigateTo('orders') },
-      { id: 'nav-wallet', group: 'Account', label: 'E-SCON Wallet', hint: `Balance ${formatCurrency(walletBalance(currentUser.id))}`, icon:', keywords: 'money balance payment', run: () => setShowWallet(true) },
-      { id: 'nav-notifications', group: 'Account', label: 'Notifications', hint: unreadNotifications() > 0 ? `${unreadNotifications()} unread` : 'All caught up', icon: '""', keywords: 'alerts messages inbox', run: () => setShowNotifications(true) },
-      { id: 'nav-data', group: 'Account', label: 'Data Center', hint: 'Back up or restore your data', icon: '>', keywords: 'backup restore export json', run: () => setShowDataCenter(true) }
+      { id: 'nav-directory', group: 'Navigate', label: 'Supplier Directory', hint: 'Browse approved supplier businesses', icon: '', keywords: 'suppliers directory companies', run: () => navigateTo('supplier-directory') },
+      { id: 'nav-language', group: 'Preferences', label: 'Language Settings', hint: 'English and Amharic', icon: '', keywords: 'language amharic english translation', run: () => navigateTo('language') },
+      { id: 'nav-orders', group: 'Navigate', label: 'Orders', hint: 'Track, inspect and manage orders', icon: '', keywords: 'purchase delivery status', run: () => navigateTo('orders') },
+      { id: 'nav-wallet', group: 'Account', label: 'E-SCON Wallet', hint: `Balance ${formatCurrency(walletBalance(currentUser.id))}`, icon: '3', keywords: 'money balance payment', run: () => setShowWallet(true) },
+      { id: 'nav-notifications', group: 'Account', label: 'Notifications', hint: unreadNotifications() > 0 ? `${unreadNotifications()} unread` : 'All caught up', icon: '', keywords: 'alerts messages inbox', run: () => setShowNotifications(true) },
+      { id: 'nav-data', group: 'Account', label: 'Data Center', hint: 'Back up or restore your data', icon: '', keywords: 'backup restore export json', run: () => setShowDataCenter(true) }
     );
   }
   if (currentUser?.userType === 'customer') {
-    commandItems.push({ id: 'nav-cart', group: 'Account', label: 'Open Cart', hint: 'Review delivery, VAT and your proforma', icon: '>, keywords: 'basket checkout order', run: () => handleCheckout() });
+    commandItems.push({ id: 'nav-cart', group: 'Account', label: 'Open Cart', hint: 'Review delivery, VAT and your proforma', icon: '', keywords: 'basket checkout order', run: () => handleCheckout() });
   }
   if (currentUser?.userType === 'company') {
     commandItems.push(
       { id: 'nav-add-product', group: 'Supplier', label: 'Add Product', hint: 'List a new material for buyers', icon: '-', keywords: 'new listing material', run: () => navigateTo('add-material') },
-      { id: 'nav-company', group: 'Supplier', label: 'Company Profile', hint: 'Update your supplier profile and location', icon:, keywords: 'supplier profile company edit', run: () => handleEditCompany() }
+      { id: 'nav-company', group: 'Supplier', label: 'Company Profile', hint: 'Update your supplier profile and location', icon: '', keywords: 'supplier profile company edit', run: () => handleEditCompany() }
     );
   }
   if (currentUser?.userType === 'transporter') {
     commandItems.push(
-      { id: 'nav-transporter', group: 'Transport', label: 'Transporter Dashboard', hint: 'Delivery requests, dispatch, fleet and earnings', icon: '>', keywords: 'transport delivery jobs dispatch fleet driver earnings', run: () => navigateTo('transporter-dashboard') },
-      { id: 'nav-transport-info', group: 'Transport', label: 'Transport Services', hint: 'How delivery matching and pricing work', icon: '"', keywords: 'transport services coverage rates truck', run: () => openInfo('transport') }
+      { id: 'nav-transporter', group: 'Transport', label: 'Transporter Dashboard', hint: 'Delivery requests, dispatch, fleet and earnings', icon: '', keywords: 'transport delivery jobs dispatch fleet driver earnings', run: () => navigateTo('transporter-dashboard') },
+      { id: 'nav-transport-info', group: 'Transport', label: 'Transport Services', hint: 'How delivery matching and pricing work', icon: '', keywords: 'transport services coverage rates truck', run: () => openInfo('transport') }
     );
   }
   if (currentUser?.userType === 'admin') {
     commandItems.push(
-      { id: 'nav-dashboard', group: 'Admin', label: 'Admin Control Room', hint: 'Platform health, compliance and accounts', icon: '"', keywords: 'dashboard overview admin analytics', run: () => navigateTo('analytics') },
-      { id: 'admin-add-supplier', group: 'Admin', label: 'Add Supplier', hint: 'Create a supplier login and company profile', icon:, keywords: 'supplier vendor onboard create account', run: handleAdminAddSupplier },
-      { id: 'nav-settings', group: 'Admin', label: 'Platform Settings', hint: 'Delivery, VAT, users and catalogue controls', icon:, keywords: 'configuration admin delivery vat', run: () => navigateTo('settings') }
+      { id: 'nav-dashboard', group: 'Admin', label: 'Admin Control Room', hint: 'Platform health, compliance and accounts', icon: '', keywords: 'dashboard overview admin analytics', run: () => navigateTo('analytics') },
+      { id: 'admin-add-supplier', group: 'Admin', label: 'Add Supplier', hint: 'Create a supplier login and company profile', icon: '', keywords: 'supplier vendor onboard create account', run: handleAdminAddSupplier },
+      { id: 'nav-settings', group: 'Admin', label: 'Platform Settings', hint: 'Delivery, VAT, users and catalogue controls', icon: '', keywords: 'configuration admin delivery vat', run: () => navigateTo('settings') }
     );
   }
   if (!currentUser) {
     commandItems.push(
-      { id: 'auth-login', group: 'Account', label: 'Login', hint: 'Sign in to your E-SCON account', icon: '", keywords: 'sign in account', run: () => navigateTo('login') },
-      { id: 'auth-register', group: 'Account', label: 'Create Account', hint: 'Register as a buyer, supplier or transporter', icon:', keywords: 'register sign up new transporter supplier buyer', run: () => navigateTo('register') }
+      { id: 'auth-login', group: 'Account', label: 'Login', hint: 'Sign in to your E-SCON account', icon: '', keywords: 'sign in account', run: () => navigateTo('login') },
+      { id: 'auth-register', group: 'Account', label: 'Create Account', hint: 'Register as a buyer, supplier or transporter', icon: '', keywords: 'register sign up new transporter supplier buyer', run: () => navigateTo('register') }
     );
   }
   materials.forEach(material => {
@@ -6015,44 +6015,44 @@ function App() {
       id: 'product-' + material.id,
       group: 'Products',
       label: material.name,
-      hint: `${company?.name || 'Supplier'}${company?.city ? - - - + company.city :} - ${formatCurrency(material.price)} / ${material.unit}`,
-      icon: '"',
-      keywords: `${material.category} ${material.brand ||} ${company?.name ||} ${company?.city ||}`,
+      hint: `${company?.name || 'Supplier'}${company?.city ? ' - ' + company.city : ''} - ${formatCurrency(material.price)} / ${material.unit}`,
+      icon: '',
+      keywords: `${material.category} ${material.brand || ''} ${company?.name || ''} ${company?.city || ''}`,
       run: () => setSelectedMaterial(material),
     });
   });
 
   // ---------- Main render ----------
   return (
-    <div className={'app-container - + (darkMode ? 'dark-mode' :) + (isMobile ? - mobile-view' :)}>
-      <a className="skip-link- href="#main-content">Skip to content</a>
+    <div className={'app-container ' + (darkMode ? 'dark-mode' : '') + (isMobile ? ' mobile-view' : '')}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       {isMobile ? renderMobileTopBar() : renderHeader()}
       {!isOnline && (
-        <div className="offline-banner- role="status">
-          <span>- You are offline. Saved data stays available; reconnect to sync with the cloud.</span>
+        <div className="offline-banner" role="status">
+          <span> You are offline. Saved data stays available; reconnect to sync with the cloud.</span>
         </div>
       )}
       {renderAlert()}
 
       {/* PWA Install Banner */}
       {showInstallBanner && deferredPrompt && (
-        <div className="pwa-install-banner- role="alert">
+        <div className="pwa-install-banner" role="alert">
           <div className="pwa-install-text">
-            <span className="pwa-install-icon">"</span>
+            <span className="pwa-install-icon">2</span>
             <div>
               <strong>Install E-SCON App</strong>
-              <p>Add to your home screen for the best experience - works offline!</p>
+              <p>Add to your home screen for the best experience  works offline!</p>
             </div>
           </div>
           <div className="pwa-install-actions">
-            <button className="btn btn-primary btn-sm- onClick={handleInstallPWA}>Install</button>
-            <button className="btn btn-secondary btn-sm- onClick={() => setShowInstallGuide(true)}>How to install</button>
-            <button className="pwa-install-dismiss- onClick={dismissInstallBanner} title="Dismiss">-</button>
+            <button className="btn btn-primary btn-sm" onClick={handleInstallPWA}>Install</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowInstallGuide(true)}>How to install</button>
+            <button className="pwa-install-dismiss" onClick={dismissInstallBanner} title="Dismiss">-</button>
           </div>
         </div>
       )}
 
-      {/* Install guide modal - always reachable via ?install link behaviour */}
+      {/* Install guide modal  always reachable via ?install link behaviour */}
       {showInstallGuide && <InstallGuide onClose={() => setShowInstallGuide(false)} />}
 
       {/* Public proforma opened by scanning a QR code (#escon=...) */}
@@ -6079,7 +6079,7 @@ function App() {
         />
       )}
 
-      <div id="main-content- tabIndex={-1} className={'page-transition - + (pageAnimating ? 'page-enter' :)}>
+      <div id="main-content" tabIndex={-1} className={'page-transition ' + (pageAnimating ? 'page-enter' : '')}>
       {renderCurrentPage()}
       {renderMaterialDetails()}
       {renderCartSummary()}
@@ -6114,8 +6114,8 @@ function App() {
               })}
             </div>
             <div className="compare-bar-actions">
-              <button className="btn btn-primary btn-sm- onClick={() => setShowCompare(true)} disabled={compareItems.length < 2}>Compare Now</button>
-              <button className="btn btn-secondary btn-sm- onClick={clearCompare}>Clear</button>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCompare(true)} disabled={compareItems.length < 2}>Compare Now</button>
+              <button className="btn btn-secondary btn-sm" onClick={clearCompare}>Clear</button>
             </div>
           </div>
         </div>
@@ -6123,9 +6123,9 @@ function App() {
 
       {/* Compare Modal */}
       {showCompare && compareItems.length >= 2 && (
-        <div className="modal-overlay- onClick={() => setShowCompare(false)}>
-          <div className="modal-content compare-modal- onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2>- Product Comparison</h2><button className="modal-close- onClick={() => setShowCompare(false)}>-</button></div>
+        <div className="modal-overlay" onClick={() => setShowCompare(false)}>
+          <div className="modal-content compare-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h2>- Product Comparison</h2><button className="modal-close" onClick={() => setShowCompare(false)}>-</button></div>
             <div className="modal-body">
               <div className="compare-grid">
                 {compareItems.map(id => {
@@ -6147,11 +6147,11 @@ function App() {
                         <div className="compare-row"><span>Stock</span><span className={m.quantity > 0 ? 'in-stock' : 'out-stock'}>{m.quantity}</span></div>
                       )}
                       <div className="compare-row"><span>Rating</span><span> {ratingForMaterial(m)}</span></div>
-                      <div className="compare-row"><span>Brand</span><span>{m.brand || '"'}</span></div>
-                      <div className="compare-row"><span>Weight</span><span>{m.specifications?.weight || '"'}</span></div>
+                      <div className="compare-row"><span>Brand</span><span>{m.brand || ''}</span></div>
+                      <div className="compare-row"><span>Weight</span><span>{m.specifications?.weight || ''}</span></div>
                       <div className="compare-row"><span>Origin</span><span>{m.specifications?.origin || 'Ethiopia'}</span></div>
                       {currentUser?.userType === 'customer' && (
-                        <button className="btn btn-primary btn-sm- style={{ marginTop: 8, width: '100%' }} onClick={() => {
+                        <button className="btn btn-primary btn-sm" style={{ marginTop: 8, width: '100%' }} onClick={() => {
                           setShowCompare(false);
                           setSelectedMaterial(m);
                         }}>View & Order</button>
@@ -6171,23 +6171,23 @@ function App() {
 
       {/* ---------- Notifications drawer ---------- */}
       {showNotifications && currentUser && (
-        <div className="modal-overlay- onClick={() => setShowNotifications(false)}>
-          <div className={'notifications-panel' + (isMobile ? - notifications-panel-mobile' :)} onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setShowNotifications(false)}>
+          <div className={'notifications-panel' + (isMobile ? ' notifications-panel-mobile' : '')} onClick={e => e.stopPropagation()}>
             <div className="notifications-header">
-              <h3>"- Notifications</h3>
+              <h3> Notifications</h3>
               <div>
-                <button className="btn-secondary btn-sm- onClick={markAllNotificationsRead}>Mark all read</button>
-                <button className="modal-close- onClick={() => setShowNotifications(false)}>-</button>
+                <button className="btn-secondary btn-sm" onClick={markAllNotificationsRead}>Mark all read</button>
+                <button className="modal-close" onClick={() => setShowNotifications(false)}>-</button>
               </div>
             </div>
             <div className="notifications-body">
               {notifications.filter(n => currentUser.userType === 'admin' || n.userId === currentUser.id).length === 0 ? (
-                <div className="notif-empty"><span>"-</span><p>You're all caught up - no notifications yet.</p></div>
+                <div className="notif-empty"><span>-</span><p>You're all caught up  no notifications yet.</p></div>
               ) : (
                 notifications.filter(n => currentUser.userType === 'admin' || n.userId === currentUser.id).slice().sort((a, b) => b.createdAt - a.createdAt).map(n => (
-                  <button key={n.id} className={'notif-item' + (n.read ? : - unread')} onClick={() => markNotificationRead(n.id)}>
+                  <button key={n.id} className={'notif-item' + (n.read ? '' : ' unread')} onClick={() => markNotificationRead(n.id)}>
                     <span className="notif-icon">
-                      {n.type === 'order' ? '"' : n.type === 'payment' ?' : n.type === 'stock' ? - ' : n.type === 'rating' ? :}
+                      {n.type === 'order' ? '' : n.type === 'payment' ? '3' : n.type === 'stock' ? ' ' : n.type === 'rating' ? '' : '1'}
                     </span>
                     <span className="notif-content">
                       {currentUser.userType === 'admin' && n.userId !== currentUser.id && (
@@ -6195,9 +6195,9 @@ function App() {
                       )}
                       <span className="notif-title">{n.title}</span>
                       <span className="notif-msg">{n.message}</span>
-                      <span className="notif-time">{(n.category || n.type)}{n.supplierName ? ` - ${n.supplierName}` :} - {timeAgo(n.createdAt)}</span>
+                      <span className="notif-time">{(n.category || n.type)}{n.supplierName ? ` - ${n.supplierName}` : ''} - {timeAgo(n.createdAt)}</span>
                     </span>
-                    {!n.read && <span className="notif-dot- />}
+                    {!n.read && <span className="notif-dot" />}
                   </button>
                 ))
               )}
@@ -6208,36 +6208,36 @@ function App() {
 
       {/* ---------- Wallet modal ---------- */}
       {showWallet && currentUser && (
-        <div className="modal-overlay- onClick={() => setShowWallet(false)}>
-          <div className="modal-content wallet-modal- onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2>' E-SCON Wallet</h2><button className="modal-close- onClick={() => setShowWallet(false)}>-</button></div>
+        <div className="modal-overlay" onClick={() => setShowWallet(false)}>
+          <div className="modal-content wallet-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h2>3 E-SCON Wallet</h2><button className="modal-close" onClick={() => setShowWallet(false)}>-</button></div>
             <div className="modal-body">
               <div className="wallet-hero">
                 <div className="wallet-balance">{formatCurrency(walletBalance(currentUser.id))}</div>
                 <div className="wallet-balance-label">Available balance</div>
-                <button className="btn btn-primary- onClick={() => setShowTopUp(true)}>- Top Up</button>
+                <button className="btn btn-primary" onClick={() => setShowTopUp(true)}>- Top Up</button>
               </div>
               <div className="wallet-methods-note">
-                - Wallet payments settle instantly. Suppliers are credited automatically on delivery (net of an 8% platform fee).
+                 Wallet payments settle instantly. Suppliers are credited automatically on delivery (net of an 8% platform fee).
               </div>
               {showTopUp && (
                 <div className="topup-panel">
                   <h4>Top up your wallet</h4>
                   <div className="topup-quick">
                     {[5000, 10000, 20000, 50000].map(amt => (
-                      <button key={amt} className={'topup-quick-btn' + (topUpAmount === amt ? - active' :)} onClick={() => setTopUpAmount(amt)}>{formatCurrency(amt)}</button>
+                      <button key={amt} className={'topup-quick-btn' + (topUpAmount === amt ? ' active' : '')} onClick={() => setTopUpAmount(amt)}>{formatCurrency(amt)}</button>
                     ))}
                   </div>
-                  <input type="number- className="form-input- value={topUpAmount} min={100} onChange={(e) => setTopUpAmount(parseInt(e.target.value))} />
+                  <input type="number" className="form-input" value={topUpAmount} min={100} onChange={(e) => setTopUpAmount(parseInt(e.target.value))} />
                   <div className="topup-methods">
                     {['Telebirr', 'Chappa', 'CBE Birr', 'Awash Bank'].map(m => (
-                      <label key={m} className={'topup-method' + (topUpMethod === m ? - active' :)}>
-                        <input type="radio- name="topupMethod- checked={topUpMethod === m} onChange={() => setTopUpMethod(m)} />
+                      <label key={m} className={'topup-method' + (topUpMethod === m ? ' active' : '')}>
+                        <input type="radio" name="topupMethod" checked={topUpMethod === m} onChange={() => setTopUpMethod(m)} />
                         {m}
                       </label>
                     ))}
                   </div>
-                  <button className="btn btn-primary btn-block- onClick={() => topUpWallet(topUpAmount, topUpMethod)}>
+                  <button className="btn btn-primary btn-block" onClick={() => topUpWallet(topUpAmount, topUpMethod)}>
                     Confirm {formatCurrency(topUpAmount)} via {topUpMethod}
                   </button>
                 </div>
@@ -6251,14 +6251,14 @@ function App() {
                     {transactions.filter(t => t.userId === currentUser.id).slice(0, 15).map(tx => (
                       <div key={tx.id} className="ledger-item">
                         <span className={'ledger-icon ledger-' + tx.kind}>
-                          {tx.kind === 'topup' ? '-' : tx.kind === 'payment' ? '-' : tx.kind === 'income' ?' :}
+                          {tx.kind === 'topup' ? '-' : tx.kind === 'payment' ? '-' : tx.kind === 'income' ? ' deg' : ''}
                         </span>
                         <span className="ledger-info">
                           <strong>{tx.note}</strong>
                           <small>{timeAgo(tx.date)} - Balance {formatCurrency(tx.balanceAfter)}</small>
                         </span>
-                        <span className={'ledger-amount - + (tx.kind === 'topup' || tx.kind === 'income' || tx.kind === 'refund' ? 'positive' : 'negative')}>
-                          {tx.kind === 'topup' || tx.kind === 'income' || tx.kind === 'refund' ? '+' :'}{formatCurrency(tx.amount)}
+                        <span className={'ledger-amount ' + (tx.kind === 'topup' || tx.kind === 'income' || tx.kind === 'refund' ? 'positive' : 'negative')}>
+                          {tx.kind === 'topup' || tx.kind === 'income' || tx.kind === 'refund' ? '+' : ''}{formatCurrency(tx.amount)}
                         </span>
                       </div>
                     ))}
@@ -6272,15 +6272,15 @@ function App() {
 
       {/* ---------- Data Center (backup & restore) ---------- */}
       {showDataCenter && currentUser && (
-        <div className="modal-overlay- onClick={() => setShowDataCenter(false)}>
-          <div className="modal-content data-center-modal- onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2>> Data Center</h2><button className="modal-close- onClick={() => setShowDataCenter(false)}>-</button></div>
+        <div className="modal-overlay" onClick={() => setShowDataCenter(false)}>
+          <div className="modal-content data-center-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h2> Data Center</h2><button className="modal-close" onClick={() => setShowDataCenter(false)}>-</button></div>
             <div className="modal-body">
               <div className="dc-card">
-                <div className="dc-icon">"</div>
+                <div className="dc-icon"></div>
                 <h4>Export backup</h4>
                 <p>Download all products, orders, wallet, notifications and settings as a portable JSON file.</p>
-                <button className="btn btn-primary- onClick={handleBackupExport}> Download JSON backup</button>
+                <button className="btn btn-primary" onClick={handleBackupExport}> Download JSON backup</button>
               </div>
               <div className="dc-card dc-danger">
                 <div className="dc-icon"></div>
@@ -6288,7 +6288,7 @@ function App() {
                 <p>Load a previous backup file. This replaces the current app data on this device.</p>
                 <label className="btn btn-secondary">
                    Choose backup file
-                  <input type="file- accept=".json,application/json- style={{ display: 'none' }} onChange={(e) => {
+                  <input type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) handleBackupRestore(file);
                   }} />
@@ -6314,6 +6314,4 @@ function App() {
 }
 
 export default App;
-
-
 

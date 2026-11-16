@@ -804,7 +804,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
                   <li key={order.id}>
                     <div>
                       <strong>{order.invoiceNumber}</strong>
-                      <small>{companyById.get(order.companyId)?.city || 'Origin'} -> {order.address}</small>
+                      <small>{companyById.get(order.companyId)?.city || 'Origin'}  to  {order.address}</small>
                     </div>
                     <span>{TRANSPORT_STATUS_LABELS[jobStatus(order)]}</span>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenMap(order.companyId)}> Open route</button>
@@ -873,7 +873,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
                   <li key={order.id}>
                     <div>
                       <strong>{order.invoiceNumber}</strong>
-                      <small>{materialById.get(order.materialId)?.name || 'Cargo'} -> {order.address}</small>
+                      <small>{materialById.get(order.materialId)?.name || 'Cargo'}  to  {order.address}</small>
                     </div>
                     <span>{TRANSPORT_STATUS_LABELS[jobStatus(order)]}</span>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => changeTab('dispatch')}>Update status</button>

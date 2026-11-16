@@ -34,14 +34,14 @@ A **Guest / Public View** lets anyone browse featured materials, public prices, 
    service areas.
 4. Enter your address and city. E-SCON geocodes them so your account starts with
    a real location; you can refine it at any time:
-   - **Customers:** **Dashboard -> My Location -> Edit / use current location**, then
+   - **Customers:** **Dashboard  to  My Location  to  Edit / use current location**, then
      drag the pin or press **Locate Me**.
-   - **Suppliers:** **Profile -> Edit Company Profile** (or **Edit Company Profile**
+   - **Suppliers:** **Profile  to  Edit Company Profile** (or **Edit Company Profile**
      on the dashboard) and click/drag the marker.
    Buyers use that saved pin for search previews; pressing **Place Order** on a
    product refreshes it with the device's current GPS position before pricing
    delivery. Admins can also
-   correct any account from **Settings -> Data Manager -> Location**.
+   correct any account from **Settings  to  Data Manager  to  Location**.
 
 ### Demo accounts (sample data)
 
@@ -103,7 +103,7 @@ account.
 ## 4. Ordering (customers)
 
 1. Open a product (tap the row or its  button) to see its **details**.
-2. Set the **quantity** with `` / `+`, or tap the number to type an exact
+2. Set the **quantity** with `-` / `+`, or tap the number to type an exact
    amount. There is **no per-product minimum** - any quantity of 1 or more is
    allowed.
 3. If the supplier offers delivery for that item, the **Delivery Price** card
@@ -125,8 +125,8 @@ Adding never waits for GPS: the line is saved first. When the cart needs to pric
 delivery it asks for your location once. If permission is denied, your lines stay
 in the cart and you can press **Use my current location** or **Retry calculating**.
 
-The product page is laid out in four sections, in this order: **Product Details ->
-Supplier Information -> Customer Reviews -> Order Summary**. Product Details holds
+The product page is laid out in four sections, in this order: **Product Details  to 
+Supplier Information  to  Customer Reviews  to  Order Summary**. Product Details holds
 the photo gallery with its **[OK] In Stock** badge, the category tag, title,
 description, the **Unit Price** and **Delivery Price** cards, the quantity row
 with the live **Material Subtotal**, and the **Order Date** / **Delivery Time**
@@ -170,7 +170,7 @@ stays full-screen.
 
 In the cart you can:
 
-- Change the quantity of any line (number field with `` / `+`).
+- Change the quantity of any line (number field with `-` / `+`).
 - Tick or untick **"With delivery"** per line.
 - Toggle a manual delivery-fee override where offered.
 - Press **View** or **Map** on an item card to re-open the product or its route.
@@ -235,7 +235,7 @@ every item**.
 ## 5. Your orders (customers)
 
 The **Orders** page and the **customer dashboard** show your past orders, with a
-**shipment progress stepper** (Ordered -> Confirmed -> In Transit -> Delivered).
+**shipment progress stepper** (Ordered  to  Confirmed  to  In Transit  to  Delivered).
 
 - On mobile, orders appear as cards with the same progress stepper.
 - Use the  **quick reorder** button on a past order to jump back to search with
@@ -266,7 +266,7 @@ The **Supplier Dashboard** leads with your company name and shows:
   **Grade**, **Origin** and **Certifications** (comma-separated). They appear on
   the product-details page next to the photos.
 - ** Upload Photos** - attach up to **6 photos** per product. They show as
-  thumbnails with an  to remove before saving, and appear in search results,
+  thumbnails with an [X] to remove before saving, and appear in search results,
   your dashboard and the product-details gallery.
 - ** This item is delivered by me (supplier)** - tick this and publish a
   **price per km** plus a **starting service fee**. Buyers then get a "With
@@ -353,8 +353,8 @@ the mobile **More** sheet, the Home transport card or Quick Search.
 - **Requests** are confirmed orders that need transport. Search, sort and filter
   them; matching service areas and suitable vehicle capacity are highlighted.
   Claim a request to assign it to your company.
-- **Dispatch** lets you advance a job through **accepted -> picked up -> in
-  transit -> delivered**, choose a vehicle and driver, and record who received
+- **Dispatch** lets you advance a job through **accepted  to  picked up  to  in
+  transit  to  delivered**, choose a vehicle and driver, and record who received
   the goods as proof of delivery.
 - **Vehicles** and **Drivers** are your own fleet records. Vehicles track plate,
   capacity and service status; drivers track licence and duty status.
@@ -412,10 +412,10 @@ automatically if it is ever removed.
 
 E-SCON is an **installable app** (PWA) and works offline for the app shell.
 
-- On **Android/Chrome**: tap the install banner, or browser menu -> **Install
+- On **Android/Chrome**: tap the install banner, or browser menu  to  **Install
   app** / **Add to Home screen**.
-- On **iPhone/Safari**: Share -> **Add to Home Screen**.
-- On **Windows/Edge**: the install icon in the address bar, or the app menu ->
+- On **iPhone/Safari**: Share  to  **Add to Home Screen**.
+- On **Windows/Edge**: the install icon in the address bar, or the app menu  to 
   **Install**.
 
 Inside the app, the ** Install App** link in the footer (or the install banner)

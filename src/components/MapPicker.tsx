@@ -165,7 +165,7 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
       <div className="map-picker-content" onClick={e => e.stopPropagation()}>
         <div className="map-picker-header">
           <h2> Select Location on Map</h2>
-          <button className="map-picker-close" onClick={onClose}></button>
+          <button className="map-picker-close" onClick={onClose}>[X]</button>
         </div>
         
         <div className="map-picker-search">

@@ -93,10 +93,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       ? reviews.map(r => Number(r.rating) || 0)
       : materials.map(m => Number(m.rating) || 0);
     const ratingMix = [
-      { label: '4.5-5 ', value: ratings.filter(r => r >= 4.5).length, color: '#2ecc71' },
-      { label: '3.5-4.4 ', value: ratings.filter(r => r >= 3.5 && r < 4.5).length, color: '#3498db' },
-      { label: '2.5-3.4 ', value: ratings.filter(r => r >= 2.5 && r < 3.5).length, color: '#f1c40f' },
-      { label: 'Below 2.5 ', value: ratings.filter(r => r < 2.5).length, color: '#e74c3c' },
+      { label: '4.5-5 *', value: ratings.filter(r => r >= 4.5).length, color: '#2ecc71' },
+      { label: '3.5-4.4 *', value: ratings.filter(r => r >= 3.5 && r < 4.5).length, color: '#3498db' },
+      { label: '2.5-3.4 *', value: ratings.filter(r => r >= 2.5 && r < 3.5).length, color: '#f1c40f' },
+      { label: 'Below 2.5 *', value: ratings.filter(r => r < 2.5).length, color: '#e74c3c' },
     ].filter(slice => slice.value > 0);
     const suppliers = companies.map(company => ({
       ...company,
@@ -534,7 +534,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <h2>{isGuest ? 'Top rated products' : 'Top products'}</h2>
             {!isGuest ? (
               <button type="button" className="escon-link" onClick={() => onAskCopilot('What are my top-selling products?')}>
-                Ask Copilot about products ->
+                Ask Copilot about products  to 
               </button>
             ) : (
               <span className="escon-badge">{guestData.topRated.length} featured</span>
@@ -580,7 +580,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           ) : analytics.topProducts.length === 0 ? (
             <div className="escon-empty">
               <span></span>
-              <p>No product sales in this period yet. Place an order or switch to "All time".</p>
+              <p>No product sales in this period yet. Place an order or switch to All time.</p>
               <button type="button" className="escon-btn ghost" onClick={onOpenMarketplace}>Browse the marketplace</button>
             </div>
           ) : (
@@ -783,7 +783,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <div className="escon-section-head">
               <h2>Price intelligence</h2>
               <button type="button" className="escon-link" onClick={() => onAskCopilot('Show price forecasts')}>
-                Open Copilot forecast ->
+                Open Copilot forecast  to 
               </button>
             </div>
             {analytics.priceBoard.length === 0 ? (
@@ -806,7 +806,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       <div className="price-card-foot">
                         <span className={'price-trend ' + tone}>
                           {forecast
-                            ? `${tone === 'up' ? '' : tone === 'down' ? '' : ''} ${Math.abs(forecast.changePct).toFixed(1)}%`
+                            ? `${tone === 'up' ? '^' : tone === 'down' ? 'v' : ''} ${Math.abs(forecast.changePct).toFixed(1)}%`
                             : 'Tracking'}
                         </span>
                         {product.marginPct > 0 && <span className="price-margin">{product.marginPct.toFixed(0)}% margin</span>}

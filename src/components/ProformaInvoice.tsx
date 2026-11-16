@@ -529,7 +529,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                       onChange={(e) => setDeliveryEta(e.target.value)}
                       aria-label="Delivery ETA"
                     /> from order confirmation. Subject to stock availability.
-                    <em className="pf-term-note">Priced per line as marked in the Delivery column: items marked "Included" use the supplier's own rate (starting fee + per km) over the measured distance; the rest are collected by the buyer.</em>
+                    <em className="pf-term-note">Priced per line as marked in the Delivery column: items marked Included use the supplier's own rate (starting fee + per km) over the measured distance; the rest are collected by the buyer.</em>
                   </span>)}
                 {termItem('', 'Warranty',
                   <span>Standard manufacturer warranty applies. Damaged goods must be reported within 48 hours.</span>)}

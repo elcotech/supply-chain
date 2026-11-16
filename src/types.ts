@@ -50,7 +50,7 @@ export interface Company {
  *
  * When `offered` is true the buyer can tick "include delivery cost" on that cart
  * line and the fee is the supplier's own rate: a flat *delivery service starting
- * fee* plus a *per-kilometre* charge applied to the real supplier -> buyer
+ * fee* plus a *per-kilometre* charge applied to the real supplier  to  buyer
  * distance, which is only known later (at cart/proforma time). When the supplier
  * leaves it off, the platform's admin-configured delivery rules apply instead.
  */
@@ -540,7 +540,7 @@ export interface Complaint {
   updatedAt: number;
 }
 
-/** Append-only security/audit entry shown in Administration -> Security & Audit. */
+/** Append-only security/audit entry shown in Administration  to  Security & Audit. */
 export interface AuditEvent {
   id: string;
   at: number;
@@ -558,7 +558,7 @@ export interface PlatformProfile {
   taxLabel: string;
   supportPhone: string;
   supportEmail: string;
-  /** Security policy surfaced in Administration -> Security & Audit. */
+  /** Security policy surfaced in Administration  to  Security & Audit. */
   mfaRequired: boolean;
 }
 

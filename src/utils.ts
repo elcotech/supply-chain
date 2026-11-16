@@ -27,7 +27,7 @@ export const formatCurrency = (amount: number): string => {
 /**
  * Supplier prices are VAT-exclusive (`Material.taxIncluded` is false), so VAT is
  * added on top of the net goods amount at purchase / proforma time.
- * 100.00 at 15% -> 15.00.
+ * 100.00 at 15%  to  15.00.
  */
 export const addedVat = (netAmount: number, vatPercentage: number): number => {
   const net = typeof netAmount === 'number' && isFinite(netAmount) ? netAmount : 0;
@@ -339,7 +339,7 @@ export interface LineDeliveryInput {
   includeDelivery: boolean;
   /** The supplier's published per-km rate for this item, if it offers delivery. */
   rate?: MaterialDelivery;
-  /** Real supplier -> buyer road distance in km (only known at cart time). */
+  /** Real supplier  to  buyer road distance in km (only known at cart time). */
   distanceKm: number;
   /** Platform fee already resolved by computeDeliveryFee; used as the fallback. */
   platformFee?: number;

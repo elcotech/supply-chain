@@ -362,7 +362,7 @@ describe('computeDeliveryFee', () => {
   });
 
   it('calculates distance-based fee from base + per-km-per-tonne', async () => {
-    // OSRM returns a fixed 100 km route -> deterministic fee.
+    // OSRM returns a fixed 100 km route  to  deterministic fee.
     (global.fetch as jest.Mock).mockResolvedValue({
       json: async () => ({ routes: [{ distance: 100000 }] }),
     });
@@ -403,7 +403,7 @@ describe('proforma QR payload', () => {
     c: 'ETB',
   };
 
-  it('round-trips encode -> decode without data loss', () => {
+  it('round-trips encode  to  decode without data loss', () => {
     const token = encodeProformaPayload(sample);
     const decoded = decodeProformaPayload(token);
     expect(decoded).toEqual(sample);
@@ -548,7 +548,7 @@ describe('buildProformaShareData (multi-item cart)', () => {
     expect(data.tc).toBeUndefined();
   });
 
-  it('still round-trips through encode -> decode after truncation', () => {
+  it('still round-trips through encode  to  decode after truncation', () => {
     const items = Array.from({ length: MAX_QR_LINE_ITEMS + 2 }, (_, i) => line('Item ' + i, 1));
     const data = buildProformaShareData({ ...base, suppliers: [], items, deliveryLines: [] });
     expect(decodeProformaPayload(encodeProformaPayload(data))).toEqual(data);
@@ -602,7 +602,7 @@ describe('vatOnSubtotal (one calculation for the whole cart)', () => {
 
   it('rounds once at the end instead of per line', () => {
     // Three 33.33 lines would each round to 5.00 (15.00 total) if VAT were
-    // applied per line; the aggregate is 99.99 -> 15.00 as well, but the
+    // applied per line; the aggregate is 99.99  to  15.00 as well, but the
     // aggregate is computed from one value, so tests with awkward numbers stay
     // consistent across cart, proforma and orders.
     expect(vatOnSubtotal(99.99, 15).vatAmount).toBe(15);
