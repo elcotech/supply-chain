@@ -284,7 +284,7 @@ export interface DeliveryFeeInput {
   customerCity: string | null;
   /** Combined weight for a single supplier's items (tonnes). */
   weightTons: number;
-  /** Cart goods subtotal (VAT-exclusive, before delivery) — used for free-delivery. */
+  /** Cart goods subtotal (VAT-exclusive, before delivery) - used for free-delivery. */
   orderSubtotal: number;
   /** Exact road distance already measured for this line, when there is one. */
   distanceKm?: number;
@@ -349,8 +349,8 @@ export interface LineDeliveryInput {
  * Delivery fee for a single cart line.
  *
  * The buyer's checkbox is the master switch: unticked, nothing is charged for the
- * line. Ticked, the supplier's own published rate wins — a flat delivery service
- * starting fee plus a per-kilometre charge on the measured distance — and only
+ * line. Ticked, the supplier's own published rate wins - a flat delivery service
+ * starting fee plus a per-kilometre charge on the measured distance - and only
  * when the supplier has not published a rate does the platform's admin
  * configuration (free threshold / zones / distance rules) apply instead.
  */
@@ -370,7 +370,7 @@ export const computeLineDeliveryFee = (input: LineDeliveryInput): number => {
 
 /**
  * Which pricing rule a line will be billed under. The distance and the platform
- * fee are irrelevant here — only the checkbox and the supplier's rate matter.
+ * fee are irrelevant here - only the checkbox and the supplier's rate matter.
  */
 export const lineDeliveryMode = (input: Pick<LineDeliveryInput, 'includeDelivery' | 'rate'>): DeliveryMode => {
   if (!input.includeDelivery) return 'none';
@@ -379,14 +379,14 @@ export const lineDeliveryMode = (input: Pick<LineDeliveryInput, 'includeDelivery
 
 /** Short, human-readable explanation of how a line's delivery fee is priced. */
 export const deliveryBasisLabel = (rate?: MaterialDelivery, includeDelivery = true): string => {
-  if (!includeDelivery) return 'No delivery cost — you arrange the transport';
+  if (!includeDelivery) return 'No delivery cost - you arrange the transport';
   if (rate && rate.offered) {
     const parts: string[] = [];
     if (numberOr(rate.startFee, 0) > 0) parts.push(`${formatCurrency(rate.startFee)} starting fee`);
     if (numberOr(rate.perKm, 0) > 0) parts.push(`${formatCurrency(rate.perKm)}/km`);
     return parts.length > 0
-      ? `Supplier delivery · ${parts.join(' + ')}`
-      : 'Supplier delivery · free of charge';
+      ? `Supplier delivery - ${parts.join(' + ')}`
+      : 'Supplier delivery - free of charge';
   }
   return 'Platform delivery rate';
 };
@@ -448,7 +448,7 @@ export const cartHasOtherSupplier = (
  * Build the cart that results from adding `material` to `current`.
  *
  * Pure, so the cart modal, the product-details **Place Order** action and the
- * unit tests all share one definition of a cart line — the proforma, the order
+ * unit tests all share one definition of a cart line - the proforma, the order
  * rows and the on-screen summary can therefore never disagree about what was
  * bought. Returns `null` when the add would introduce a second supplier; the
  * caller must then leave the cart exactly as it was.
@@ -675,7 +675,7 @@ export const printCartReport = async (reportData: any) => {
   const supplierBlocks = suppliers.length > 0
     ? suppliers.map((sup: any, idx: number) => `
         <div class="supplier-info">
-          <h3>🏢 ${idx + 1}. ${sup.supplierName}</h3>
+          <h3> ${idx + 1}. ${sup.supplierName}</h3>
           <p><strong>Location:</strong> ${sup.supplierCity || 'N/A'}</p>
           <p><strong>Distance:</strong> ${sup.distanceKm.toFixed(1)} km</p>
           <p><strong>Delivery Fee:</strong> ${formatCurrency(sup.transportCost)}</p>
@@ -703,22 +703,22 @@ export const printCartReport = async (reportData: any) => {
           </table>
           ${idx === 0 && qrDataUrl ? `<div class="qr-block">
             <img src="${qrDataUrl}" alt="QR code to verify this cart report" />
-            <p>🔍 Scan to verify this cart report</p>
+            <p> Scan to verify this cart report</p>
           </div>` : ''}
         </div>
       `).join('')
     : `
         <div class="supplier-info">
-          <h3>🏢 Supplier Information</h3>
+          <h3> Supplier Information</h3>
           <p><strong>Name:</strong> ${reportData.supplierName}</p>
           <p><strong>Location:</strong> ${reportData.supplierCity}</p>
           <p><strong>Distance:</strong> ${reportData.distanceKm.toFixed(1)} km</p>
           ${qrDataUrl ? `<div class="qr-block">
             <img src="${qrDataUrl}" alt="QR code to verify this cart report" />
-            <p>🔍 Scan to verify this cart report</p>
+            <p> Scan to verify this cart report</p>
           </div>` : ''}
         </div>
-        <h3>📦 Cart Items</h3>
+        <h3> Cart Items</h3>
         <table class="items-table">
           <thead>
             <tr>
@@ -772,7 +772,7 @@ export const printCartReport = async (reportData: any) => {
     <body>
       <div class="report-container">
         <div class="header">
-          <h1>🏗️ E-SCON Cart Report</h1>
+          <h1> E-SCON Cart Report</h1>
           <p>Ethio-Supply Chain Optimization Network</p>
           <p>Report Date: ${reportData.reportDate}</p>
         </div>
@@ -784,7 +784,7 @@ export const printCartReport = async (reportData: any) => {
           <div class="summary-row total"><span>Total Amount:</span><strong>${formatCurrency(reportData.total)}</strong></div>
         </div>
         <div class="footer">
-          <p>© 2026 E-SCON | Ethio-Supply Chain Optimization Network</p>
+          <p> 2026 E-SCON | Ethio-Supply Chain Optimization Network</p>
           <p>This is a system-generated report.</p>
         </div>
       </div>
@@ -996,10 +996,10 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string |
 };
 
 // ----------------------------------------------------------------//
-// v6 — Advanced features: forecasts, wallets, ETA, ratings, backup //
+// v6 - Advanced features: forecasts, wallets, ETA, ratings, backup //
 // ----------------------------------------------------------------//
 
-/** Deterministic ID generator for notifications, wallet txs, reviews… */
+/** Deterministic ID generator for notifications, wallet txs, reviews... */
 export const genId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -1051,7 +1051,7 @@ export const effectiveRating = (base: number, reviews: ProductReview[] | undefin
 };
 
 /**
- * Wallet ledger helper — validates the operation and returns the new balance,
+ * Wallet ledger helper - validates the operation and returns the new balance,
  * or null when the operation is not allowed (e.g. overdrawing).
  */
 export const applyWalletOp = (
@@ -1072,7 +1072,7 @@ export const applyWalletOp = (
 
 /** Estimated delivery time from a driving distance (avg 50 km/h + margin). */
 export const deliveryEta = (distanceKm: number, avgSpeedKmh = 50): string => {
-  if (!isFinite(distanceKm) || distanceKm <= 0) return '—';
+  if (!isFinite(distanceKm) || distanceKm <= 0) return '-';
   const hours = distanceKm / avgSpeedKmh;
   if (hours < 1) return `~${Math.max(30, Math.round(hours * 60))} min`;
   if (hours < 24) {

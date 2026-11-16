@@ -1,6 +1,6 @@
 // ===== src/hooks/useIsMobile.ts =====
 // Subscribes to the viewport width so mobile-only UI chrome (bottom tab bar,
-// compact header, card lists) renders only on small screens — desktop layout
+// compact header, card lists) renders only on small screens - desktop layout
 // stays completely unchanged.
 import { useEffect, useState } from 'react';
 

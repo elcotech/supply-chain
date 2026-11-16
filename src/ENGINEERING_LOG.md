@@ -96,14 +96,14 @@
 //   .doc, src/__mocks__, or build logs.
 // - Keep versionCode/versionName/sw VERSION in lockstep on every release.
 
-// ===== v3.0.0 — Role workspaces, all device support =====
+// ===== v3.0.0 - Role workspaces, all device support =====
 // Released: 2026-11-14
 // versionCode 25 / versionName "3.0.0" / sw.js VERSION "e-scon-v3.0.0"
 // Source of truth: "ESCON WEB & App Design & Feature.doc" (all five role menus).
 //
 // New deliverables
 // - src/lib/i18n.ts: bilingual EN/AM dictionary + useLanguage hook.
-// - src/lib/menu.ts: the five role menus exactly as spec §8.
+// - src/lib/menu.ts: the five role menus exactly as spec 8.
 // - src/hooks/useLocalCollection.ts: persisted, cloud-mirrored collections.
 // - src/components/workspace/*: UI kit, shell, Admin/Supplier/Customer workspaces.
 // - src/components/SupplierDirectory.tsx, LanguagePage.tsx.

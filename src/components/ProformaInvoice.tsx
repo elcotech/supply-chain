@@ -10,7 +10,7 @@ interface ProformaInvoiceProps {
   cart: CartItem[];
   report: CartReport;
   currentUser: User | null;
-  /** Every supplier appearing on the proforma — one entry per cart group. */
+  /** Every supplier appearing on the proforma - one entry per cart group. */
   suppliers: Company[];
   /**
    * "To Proforma" leaves this false and opens the document for reading.
@@ -39,7 +39,7 @@ function specString(item: CartItem): string {
   if (s.weight) parts.push(s.weight);
   if (s.origin) parts.push(s.origin);
   if (s.certification && s.certification.length > 0) parts.push(s.certification.join(', '));
-  return parts.join(' · ');
+  return parts.join(' - ');
 }
 
 const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
@@ -66,7 +66,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     : suppliers;
   const primarySupplier = supplierList.length === 1 ? supplierList[0] : null;
 
-  // Capture the timestamp once for a stable proforma number / date — not a ticking clock
+  // Capture the timestamp once for a stable proforma number / date - not a ticking clock
   const [now] = useState(() => new Date());
 
   // Flexible delivery & remarks (editable per order/proforma). Editable inputs
@@ -117,7 +117,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     now.getFullYear();
 
   // QR encodes a URL + compact, non-sensitive proforma data so it works both on
-  // screen and when paper-printed — scanning opens a mobile-friendly view. The QR
+  // screen and when paper-printed - scanning opens a mobile-friendly view. The QR
   // is generated once from the full cart and is rendered in the document header,
   // so its position never depends on the cart.
   useEffect(() => {
@@ -205,7 +205,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
     };
   }, [fitToPage]);
 
-  // "To Preview" — fire the print dialog once the modal has actually painted,
+  // "To Preview" - fire the print dialog once the modal has actually painted,
   // otherwise the browser prints the page behind the overlay. One shot per open
   // (the ref is set immediately) so a re-render cannot open a second dialog.
   const autoPrintFired = useRef(false);
@@ -224,7 +224,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   const supplierNotes = items
     .filter((i) => i.minOrder > 1)
     .map((i) => i.materialName + ': ' + i.minOrder + ' ' + i.unit)
-    .join(' · ');
+    .join(' - ');
 
   const box = (title: string, icon: string, children: React.ReactNode) => (
     <div className="pf-box">
@@ -239,7 +239,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
   const infoRow = (label: string, value: React.ReactNode) => (
     <div className="pf-info-row">
       <span className="pf-info-label">{label}</span>
-      <span className="pf-info-value">{value || '—'}</span>
+      <span className="pf-info-value">{value || '-'}</span>
     </div>
   );
 
@@ -258,14 +258,14 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
         {/* Action Bar */}
         <div className="proforma-actions no-print">
           <button className="btn btn-primary" onClick={handlePrint}>
-            🖨️ Print Proforma
+             Print Proforma
           </button>
           <button
             className="btn btn-secondary"
             onClick={onBackToPurchase || onClose}
             title="Return to step 1 of the cart and place this order"
           >
-            🛒 Back to To Purchase
+             Back to To Purchase
           </button>
         </div>
 
@@ -303,7 +303,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                   <span className="pf-meta-label">{supplierList.length > 1 ? 'Suppliers' : 'Supplier'}</span>
                   <span className="pf-meta-value">
                     {supplierList.length === 0
-                      ? '—'
+                      ? '-'
                       : supplierList.length === 1
                         ? primarySupplier!.name
                         : supplierList.length + ' suppliers'}
@@ -315,11 +315,11 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                 </div>
                 <div className="pf-meta-row">
                   <span className="pf-meta-label">Date &amp; Time</span>
-                  <span className="pf-meta-value">{dt.date} – {dt.time}</span>
+                  <span className="pf-meta-value">{dt.date} - {dt.time}</span>
                 </div>
                 <div className="pf-meta-row">
                   <span className="pf-meta-label">Currency</span>
-                  <span className="pf-meta-value">ETB – Ethiopian Birr</span>
+                  <span className="pf-meta-value">ETB - Ethiopian Birr</span>
                 </div>
                 <div className="pf-meta-row">
                   <span className="pf-meta-label">Valid Until</span>
@@ -332,7 +332,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               {qrStatus === 'generating' && (
                 <div className="pf-qr">
                   <div className="pf-qr-img pf-qr-img-placeholder" />
-                  <p className="pf-qr-caption">Generating…</p>
+                  <p className="pf-qr-caption">Generating...</p>
                 </div>
               )}
               {qrStatus === 'failed' && (
@@ -345,7 +345,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                     src={qrDataUrl}
                     alt={'QR code to view Proforma ' + proformaNumber}
                   />
-                  <p className="pf-qr-caption">🔍 Scan to verify</p>
+                  <p className="pf-qr-caption"> Scan to verify</p>
                 </div>
               )}
             </div>
@@ -353,17 +353,17 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
 
           {/* ============================= PARTIES ============================= */}
           <div className="pf-parties">
-            {box(supplierList.length > 1 ? `SUPPLIER DETAILS (${supplierList.length})` : 'SUPPLIER DETAILS', '🏢',
+            {box(supplierList.length > 1 ? `SUPPLIER DETAILS (${supplierList.length})` : 'SUPPLIER DETAILS', '',
               supplierList.length === 0 ? (
                 <>
-                  {infoRow('Company Name', <strong>—</strong>)}
-                  {infoRow('Address', '—')}
+                  {infoRow('Company Name', <strong>-</strong>)}
+                  {infoRow('Address', '-')}
                 </>
               ) : supplierList.map((company, index) => (
                 <div key={company.id} className={index > 0 ? 'pf-supplier-alt' : undefined}>
                   {index > 0 && <div className="pf-supplier-index">SUPPLIER {index + 1}</div>}
                   {infoRow('Company Name', <strong>{company.name}</strong>)}
-                  {infoRow('Address', company.city + (company.location ? ' – ' + company.location : ''))}
+                  {infoRow('Address', company.city + (company.location ? ' - ' + company.location : ''))}
                   {infoRow('TIN', company.tinNumber)}
                   {infoRow('VAT No.', company.vatNumber)}
                   {infoRow('Phone', company.phone)}
@@ -372,13 +372,13 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               ))
             )}
 
-            {box('BUYER DETAILS', '👤',
+            {box('BUYER DETAILS', '',
               <>
-                {infoRow('Company Name', <strong>{currentUser?.name || '—'}</strong>)}
-                {infoRow('Address', currentUser?.city ? currentUser.city + (currentUser.address ? ' – ' + currentUser.address : '') : '—')}
+                {infoRow('Company Name', <strong>{currentUser?.name || '-'}</strong>)}
+                {infoRow('Address', currentUser?.city ? currentUser.city + (currentUser.address ? ' - ' + currentUser.address : '') : '-')}
                 {infoRow('TIN', currentUser?.tinNumber)}
                 {infoRow('VAT No.', currentUser?.vatNumber)}
-                {infoRow('Contact Person', currentUser?.name || '—')}
+                {infoRow('Contact Person', currentUser?.name || '-')}
                 {infoRow('Phone', currentUser?.phone)}
                 {infoRow('Email', currentUser?.email)}
               </>
@@ -388,11 +388,11 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
           {/* ============================= ITEMS ============================= */}
           <div className="pf-items">
             <div className="pf-section-head">
-              <span className="pf-section-icon">🛒</span>
+              <span className="pf-section-icon"></span>
               <span>Order Items</span>
               <span className="pf-section-count">
-                {items.length} item{items.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units
-                {supplierList.length > 1 ? ' · ' + supplierList.length + ' suppliers' : ''}
+                {items.length} item{items.length === 1 ? '' : 's'} - {totalQuantity.toLocaleString()} units
+                {supplierList.length > 1 ? ' - ' + supplierList.length + ' suppliers' : ''}
               </span>
             </div>
             <div className="pf-table-wrap">
@@ -421,11 +421,11 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                           {item.materialName}
                           {supplierList.length > 1 && <small className="pf-line-supplier">{item.supplierName}</small>}
                         </td>
-                        <td className="pf-col-spec">{specString(item) || '—'}</td>
+                        <td className="pf-col-spec">{specString(item) || '-'}</td>
                         <td className="pf-col-unit pf-center">{item.unit}</td>
                         <td className="pf-col-qty pf-numeric">{item.quantity.toLocaleString()}</td>
                         <td className="pf-col-deliv pf-center">
-                          {withDelivery ? '🚚 Included' : '—'}
+                          {withDelivery ? ' Included' : '-'}
                         </td>
                         <td className="pf-col-price pf-numeric">{formatCurrency(unitPrice)}</td>
                         <td className="pf-col-amount pf-numeric pf-bold">{formatCurrency(amount)}</td>
@@ -442,8 +442,8 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             {minOrderCheck.enabled && (
               <div className={minOrderCheck.below ? 'pf-min-order pf-min-order-warn' : 'pf-min-order'}>
                 {minOrderCheck.below
-                  ? <>⚠️ Order below the configured minimum goods value of {formatCurrency(minOrderCheck.amount)} — subtotal is {formatCurrency(minOrderCheck.subtotal)}.</>
-                  : <>✅ Meets the minimum order requirement ({formatCurrency(minOrderCheck.amount)}).</>}
+                  ? <>[!] Order below the configured minimum goods value of {formatCurrency(minOrderCheck.amount)} - subtotal is {formatCurrency(minOrderCheck.subtotal)}.</>
+                  : <>[OK] Meets the minimum order requirement ({formatCurrency(minOrderCheck.amount)}).</>}
               </div>
             )}
           </div>
@@ -490,7 +490,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             {/* The words sit directly under the numeric total. */}
             <div className="pf-words">
               <div className="pf-words-label">
-                <span className="pf-words-icon">💰</span>
+                <span className="pf-words-icon"></span>
                 Amount in Words
               </div>
               <div className="pf-words-text">{words}</div>
@@ -500,16 +500,16 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
           {/* ============================= TERMS ============================= */}
           <div className="pf-terms">
             <div className="pf-section-head">
-              <span className="pf-section-icon">📋</span>
+              <span className="pf-section-icon"></span>
               <span>Terms, Conditions, Delivery &amp; Remarks</span>
             </div>
             <div className="pf-terms-grid">
               <div className="pf-terms-col">
-                {termItem('💳', 'Payment Terms',
+                {termItem('', 'Payment Terms',
                   <span className="pf-editable-inline">
                     50% advance required. Balance due upon delivery.
                   </span>)}
-                {termItem('🚚', 'Delivery',
+                {termItem('', 'Delivery',
                   <span className="pf-editable-inline">
                     <select
                       className="pf-inline-edit pf-inline-select"
@@ -522,24 +522,24 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
                       <option value="Courier Service">Courier Service</option>
                       <option value="Custom Arrangement">Custom Arrangement</option>
                     </select>{' '}
-                    — <input
+                    - <input
                       className="pf-inline-edit pf-inline-input"
                       type="text"
                       value={deliveryEta}
                       onChange={(e) => setDeliveryEta(e.target.value)}
                       aria-label="Delivery ETA"
                     /> from order confirmation. Subject to stock availability.
-                    <em className="pf-term-note">Priced per line as marked in the Delivery column: items marked “Included” use the supplier's own rate (starting fee + per km) over the measured distance; the rest are collected by the buyer.</em>
+                    <em className="pf-term-note">Priced per line as marked in the Delivery column: items marked "Included" use the supplier's own rate (starting fee + per km) over the measured distance; the rest are collected by the buyer.</em>
                   </span>)}
-                {termItem('🛡️', 'Warranty',
+                {termItem('', 'Warranty',
                   <span>Standard manufacturer warranty applies. Damaged goods must be reported within 48 hours.</span>)}
               </div>
               <div className="pf-terms-col">
-                {termItem('↩️', 'Returns',
+                {termItem('', 'Returns',
                   <span>Unopened items may be returned within 7 days. Restocking fee of 10% may apply.</span>)}
-                {termItem('💱', 'Pricing',
+                {termItem('', 'Pricing',
                   <span>Prices are subject to change without prior notice.</span>)}
-                {termItem('📝', 'Remarks',
+                {termItem('', 'Remarks',
                   <textarea
                     className="pf-inline-edit pf-inline-textarea"
                     rows={2}
@@ -550,7 +550,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
               </div>
             </div>
             {supplierNotes && (
-              <div className="pf-min-order">🗒️ Minimum order per item: {supplierNotes}</div>
+              <div className="pf-min-order"> Minimum order per item: {supplierNotes}</div>
             )}
           </div>
 
@@ -560,7 +560,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             {supplierList.length === 0 ? (
               <div className="pf-sig-box">
                 <div className="pf-sig-head">Authorized Supplier Signature</div>
-                <div className="pf-sig-name">—</div>
+                <div className="pf-sig-name">-</div>
                 <div className="pf-sig-line" />
                 <div className="pf-sig-date">Date: {signatureDate}</div>
               </div>
@@ -574,7 +574,7 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             ))}
             <div className="pf-sig-box">
               <div className="pf-sig-head">Buyer's Acknowledgment</div>
-              <div className="pf-sig-name">{currentUser?.name || '—'}</div>
+              <div className="pf-sig-name">{currentUser?.name || '-'}</div>
               <div className="pf-sig-line" />
               <div className="pf-sig-date">Date: {signatureDate}</div>
             </div>
@@ -588,15 +588,15 @@ const ProformaInvoice: React.FC<ProformaInvoiceProps> = ({
             </div>
             <div className="pf-footer-center">
               <p className="pf-footer-contact">
-                <span>📧 meharinageb@gmail.com</span>
+                <span> meharinageb@gmail.com</span>
                 <span className="pf-footer-divider">|</span>
-                <span>📱 +251909919154</span>
+                <span> +251909919154</span>
               </p>
               <p className="pf-footer-legal">
                 This document was generated electronically and is valid without signature or stamp.
               </p>
               <p className="pf-footer-copy">
-                Proforma {proformaNumber} · Generated {dt.date} {dt.time}
+                Proforma {proformaNumber} - Generated {dt.date} {dt.time}
               </p>
             </div>
             <div className="pf-footer-right" aria-hidden="true">

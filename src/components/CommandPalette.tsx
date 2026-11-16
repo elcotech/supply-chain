@@ -52,7 +52,7 @@ const CommandPalette = ({ open, items, onClose, onSearch }: CommandPaletteProps)
       group: 'Search',
       label: `Search all products for "${trimmed}"`,
       hint: 'Open the catalogue filtered by this term',
-      icon: '🔍',
+      icon: '',
       keywords: trimmed,
       run: () => onSearch(trimmed),
     };
@@ -129,7 +129,7 @@ const CommandPalette = ({ open, items, onClose, onSearch }: CommandPaletteProps)
         onMouseDown={event => event.stopPropagation()}
       >
         <div className="command-input-row">
-          <span className="command-search-icon" aria-hidden="true">🔎</span>
+          <span className="command-search-icon" aria-hidden="true"></span>
           <input
             ref={inputRef}
             className="command-input"
@@ -137,7 +137,7 @@ const CommandPalette = ({ open, items, onClose, onSearch }: CommandPaletteProps)
             value={query}
             onChange={event => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search pages, actions and products…"
+            placeholder="Search pages, actions and products..."
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="none"
@@ -172,20 +172,20 @@ const CommandPalette = ({ open, items, onClose, onSearch }: CommandPaletteProps)
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => choose(item)}
                 >
-                  <span className="command-item-icon" aria-hidden="true">{item.icon || '•'}</span>
+                  <span className="command-item-icon" aria-hidden="true">{item.icon || '-'}</span>
                   <span className="command-item-copy">
                     <span className="command-item-label">{item.label}</span>
                     {item.hint && <span className="command-item-hint">{item.hint}</span>}
                   </span>
-                  <span className="command-item-enter" aria-hidden="true">↵</span>
+                  <span className="command-item-enter" aria-hidden="true"></span>
                 </button>
               </React.Fragment>
             );
           })}
         </div>
         <div className="command-footer">
-          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span><kbd>↵</kbd> open</span>
+          <span><kbd>^</kbd><kbd>v</kbd> navigate</span>
+          <span><kbd></kbd> open</span>
           <span><kbd>Esc</kbd> close</span>
           <span className="command-footer-brand">E-SCON Quick Search</span>
         </div>

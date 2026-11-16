@@ -362,7 +362,7 @@ describe('computeDeliveryFee', () => {
   });
 
   it('calculates distance-based fee from base + per-km-per-tonne', async () => {
-    // OSRM returns a fixed 100 km route → deterministic fee.
+    // OSRM returns a fixed 100 km route -> deterministic fee.
     (global.fetch as jest.Mock).mockResolvedValue({
       json: async () => ({ routes: [{ distance: 100000 }] }),
     });
@@ -403,7 +403,7 @@ describe('proforma QR payload', () => {
     c: 'ETB',
   };
 
-  it('round-trips encode → decode without data loss', () => {
+  it('round-trips encode -> decode without data loss', () => {
     const token = encodeProformaPayload(sample);
     const decoded = decodeProformaPayload(token);
     expect(decoded).toEqual(sample);
@@ -486,12 +486,12 @@ describe('deliveryBasisLabel', () => {
   const supplierRate: MaterialDelivery = { offered: true, perKm: 12, startFee: 300 };
 
   it('explains the supplier rate in both parts', () => {
-    expect(deliveryBasisLabel(supplierRate, true)).toBe('Supplier delivery · ETB 300.00 starting fee + ETB 12.00/km');
+    expect(deliveryBasisLabel(supplierRate, true)).toBe('Supplier delivery - ETB 300.00 starting fee + ETB 12.00/km');
   });
 
   it('mentions the starting fee alone when only that is charged', () => {
     expect(deliveryBasisLabel({ offered: true, perKm: 0, startFee: 250 }, true))
-      .toBe('Supplier delivery · ETB 250.00 starting fee');
+      .toBe('Supplier delivery - ETB 250.00 starting fee');
   });
 
   it('says the platform rate applies when the supplier has none', () => {
@@ -499,7 +499,7 @@ describe('deliveryBasisLabel', () => {
   });
 
   it('states plainly that nothing is charged without delivery', () => {
-    expect(deliveryBasisLabel(supplierRate, false)).toBe('No delivery cost — you arrange the transport');
+    expect(deliveryBasisLabel(supplierRate, false)).toBe('No delivery cost - you arrange the transport');
   });
 });
 
@@ -548,7 +548,7 @@ describe('buildProformaShareData (multi-item cart)', () => {
     expect(data.tc).toBeUndefined();
   });
 
-  it('still round-trips through encode → decode after truncation', () => {
+  it('still round-trips through encode -> decode after truncation', () => {
     const items = Array.from({ length: MAX_QR_LINE_ITEMS + 2 }, (_, i) => line('Item ' + i, 1));
     const data = buildProformaShareData({ ...base, suppliers: [], items, deliveryLines: [] });
     expect(decodeProformaPayload(encodeProformaPayload(data))).toEqual(data);

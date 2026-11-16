@@ -20,7 +20,7 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
       <div className="public-proforma">
         <div className="public-proforma-top">
           <div className="public-proforma-brand">E-SCON</div>
-          <button className="btn-secondary no-print" onClick={onClose}>✕ Close</button>
+          <button className="btn-secondary no-print" onClick={onClose}> Close</button>
         </div>
 
         <div className="public-proforma-doc">
@@ -39,7 +39,7 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
           {data.s && data.s.length > 0 && (
             <div className="public-proforma-suppliers">
               {data.s.map((s, idx) => (
-                <span key={idx}>🏢 {s.n}{s.c ? ` · ${s.c}` : ''}</span>
+                <span key={idx}> {s.n}{s.c ? ` - ${s.c}` : ''}</span>
               ))}
             </div>
           )}
@@ -66,7 +66,7 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
                     <td>{item.n}</td>
                     <td>{qty.toLocaleString()}</td>
                     <td>{item.u}</td>
-                    <td>{item.d ? '🚚 Yes' : '—'}</td>
+                    <td>{item.d ? ' Yes' : '-'}</td>
                     <td>{formatCurrency(unitPrice)}</td>
                     <td className="p-pf-price">{formatCurrency(unitPrice * qty)}</td>
                   </tr>
@@ -77,18 +77,18 @@ const PublicProforma: React.FC<PublicProformaProps> = ({ data, onClose }) => {
 
           {data.tc !== undefined && data.tc > data.i.length && (
             <p className="public-proforma-note">
-              Showing the first {data.i.length} of {data.tc} line items — the printed
+              Showing the first {data.i.length} of {data.tc} line items - the printed
               proforma lists every item.
             </p>
           )}
 
           <div className="public-proforma-summary">
-            <div><span>Items:</span><strong>{data.i.length} line item{data.i.length === 1 ? '' : 's'} · {totalQuantity.toLocaleString()} units</strong></div>
+            <div><span>Items:</span><strong>{data.i.length} line item{data.i.length === 1 ? '' : 's'} - {totalQuantity.toLocaleString()} units</strong></div>
             <div><span>Amount Before VAT:</span><strong>{formatCurrency(data.sub)}</strong></div>
             <div><span>VAT ({vatPercent}% added once on goods):</span><strong>{formatCurrency(data.vat)}</strong></div>
             <div><span>Delivery Fee:</span><strong>{formatCurrency(data.del)}</strong></div>
             <div className="p-pf-grand"><span>GRAND TOTAL:</span><strong>{formatCurrency(data.tot)}</strong></div>
-            <div className="p-pf-currency">All amounts in ETB – Ethiopian Birr</div>
+            <div className="p-pf-currency">All amounts in ETB - Ethiopian Birr</div>
           </div>
 
           <p className="public-proforma-note">

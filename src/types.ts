@@ -467,7 +467,7 @@ export interface ProductReview {
 
 /**
  * A customer construction project. Groups material requirements, budget and a
- * delivery site so procurement can be tracked per project (spec §4.3).
+ * delivery site so procurement can be tracked per project (spec 4.3).
  */
 export interface Project {
   id: string;
@@ -522,7 +522,7 @@ export interface Quotation {
   createdAt: number;
 }
 
-/** Complaint or dispute raised by any platform role (spec §2.14, §4.18). */
+/** Complaint or dispute raised by any platform role (spec 2.14, 4.18). */
 export interface Complaint {
   id: string;
   userId: string;
@@ -540,7 +540,7 @@ export interface Complaint {
   updatedAt: number;
 }
 
-/** Append-only security/audit entry shown in Administration → Security & Audit. */
+/** Append-only security/audit entry shown in Administration -> Security & Audit. */
 export interface AuditEvent {
   id: string;
   at: number;
@@ -550,7 +550,7 @@ export interface AuditEvent {
   detail: string;
 }
 
-/** Platform-level localisation and support configuration (spec §2.17). */
+/** Platform-level localisation and support configuration (spec 2.17). */
 export interface PlatformProfile {
   country: string;
   defaultLanguage: 'en' | 'am';
@@ -558,7 +558,7 @@ export interface PlatformProfile {
   taxLabel: string;
   supportPhone: string;
   supportEmail: string;
-  /** Security policy surfaced in Administration → Security & Audit. */
+  /** Security policy surfaced in Administration -> Security & Audit. */
   mfaRequired: boolean;
 }
 

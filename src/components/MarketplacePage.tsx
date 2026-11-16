@@ -25,14 +25,14 @@ export interface MarketplacePageProps {
 }
 
 const CATEGORY_EMOJI: Record<string, string> = {
-  Construction: '🏗️', Transport: '🚚', Health: '💊', Education: '📚',
-  Agriculture: '🌾', Manufacturing: '🏭', Energy: '⚡', Mining: '⛏️',
-  Technology: '💻', Retail: '🛍️', Services: '🛠️', Hospitality: '🏨',
-  Logistics: '📦', Pharmaceutical: '💉', Automotive: '🚗',
-  Environmental: '🌱', Water: '💧', Telecom: '📡', 'Food & Beverage': '🍽️',
+  Construction: '', Transport: '', Health: '', Education: '',
+  Agriculture: '', Manufacturing: '', Energy: '', Mining: '',
+  Technology: '', Retail: '', Services: '', Hospitality: '',
+  Logistics: '', Pharmaceutical: '', Automotive: '',
+  Environmental: '', Water: '', Telecom: '', 'Food & Beverage': '',
 };
 
-const categoryIcon = (category: string): string => CATEGORY_EMOJI[category] || '📦';
+const categoryIcon = (category: string): string => CATEGORY_EMOJI[category] || '';
 
 const ProductThumb: React.FC<{ material: Material; size?: 'xs' | 'sm' | 'md' | 'lg' }> = ({ material, size = 'md' }) => {
   const image = material.images && material.images.length > 0 ? material.images[0] : null;
@@ -166,7 +166,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
             <ProductThumb material={material} />
           </button>
           <div className="market-card-badges">
-            {rating >= 4.5 && <span className="market-pill gold">★ Top rated</span>}
+            {rating >= 4.5 && <span className="market-pill gold"> Top rated</span>}
             {canSeeStock && outOfStock && <span className="market-pill danger">Out of stock</span>}
             {!canSeeStock && outOfStock && <span className="market-pill">Unavailable</span>}
           </div>
@@ -177,24 +177,24 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
               onClick={() => onToggleFavorite(material.id)}
               aria-label={isFav ? 'Remove from saved' : 'Save product'}
               title={isFav ? 'Saved' : 'Save'}
-            >❤️</button>
+            ></button>
             <button
               type="button"
               className={'market-tool' + (comparing ? ' active' : '')}
               onClick={() => onToggleCompare(material.id)}
               aria-label={comparing ? 'Remove from comparison' : 'Add to comparison'}
               title="Compare"
-            >⚖️</button>
+            ></button>
           </div>
         </div>
         <div className="market-card-body">
           <button type="button" className="market-card-name" onClick={() => onOpenProduct(material)}>{material.name}</button>
           <button type="button" className="market-card-supplier" onClick={() => company && setStoreId(company.id)} disabled={!company}>
-            {company?.name || 'Unknown supplier'}{company?.city ? ' · ' + company.city : ''}
+            {company?.name || 'Unknown supplier'}{company?.city ? ' - ' + company.city : ''}
           </button>
           <div className="market-card-meta">
             <span className="market-cat-chip">{categoryIcon(material.category)} {material.category}</span>
-            <span className="market-rating">⭐ {rating.toFixed(1)} <small>({reviewCount.get(material.id) || 0})</small></span>
+            <span className="market-rating">* {rating.toFixed(1)} <small>({reviewCount.get(material.id) || 0})</small></span>
           </div>
           <div className="market-card-price-row">
             <div className="market-card-price">
@@ -210,17 +210,17 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
               onClick={() => company && onOpenMap(company.id)}
               disabled={!company}
               aria-label={'Open route to ' + (company?.name || 'supplier')}
-            >🗺️ Route</button>
+            > Route</button>
             {canOrder ? (
               <button
                 type="button"
                 className={'market-add-btn' + (inCart ? ' in-cart' : '')}
                 onClick={() => inCart ? onOpenProduct(material) : onAddToCart(material)}
               >
-                {inCart ? '🛒 In cart — review' : '🛒 Add to cart'}
+                {inCart ? ' In cart - review' : ' Add to cart'}
               </button>
             ) : (
-              <button type="button" className="market-add-btn ghost" onClick={() => onOpenProduct(material)}>👁️ View</button>
+              <button type="button" className="market-add-btn ghost" onClick={() => onOpenProduct(material)}> View</button>
             )}
           </div>
         </div>
@@ -233,23 +233,23 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
       <div className="escon-sheet market-sheet">
         <header className="market-hero">
           <div className="market-hero-copy">
-            <span className="escon-kicker">E-SCON · Marketplace</span>
+            <span className="escon-kicker">E-SCON - Marketplace</span>
             <h1>Ethiopia's verified materials marketplace</h1>
-            <p>Compare real suppliers, published prices and road distances — then order with a single-supplier proforma and track delivery.</p>
+            <p>Compare real suppliers, published prices and road distances - then order with a single-supplier proforma and track delivery.</p>
             <form className="market-search" onSubmit={e => e.preventDefault()}>
-              <span className="market-search-icon">🔍</span>
+              <span className="market-search-icon"></span>
               <input
                 type="search"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search products, brands, suppliers or cities…"
+                placeholder="Search products, brands, suppliers or cities..."
                 aria-label="Search marketplace"
               />
-              {query && <button type="button" className="market-search-clear" onClick={() => setQuery('')} aria-label="Clear search">✕</button>}
+              {query && <button type="button" className="market-search-clear" onClick={() => setQuery('')} aria-label="Clear search"></button>}
             </form>
             <div className="market-hero-actions">
-              <button type="button" className="escon-btn ghost" onClick={onOpenAnalytics}>📊 Marketplace analytics</button>
-              <button type="button" className="escon-btn ghost" onClick={() => onAskCopilot('What products are trending?')}>🤖 Ask Copilot</button>
+              <button type="button" className="escon-btn ghost" onClick={onOpenAnalytics}> Marketplace analytics</button>
+              <button type="button" className="escon-btn ghost" onClick={() => onAskCopilot('What products are trending?')}> Ask Copilot</button>
             </div>
           </div>
           <aside className="market-hero-stats">
@@ -302,7 +302,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
             className={'market-cat' + (category === 'all' ? ' active' : '')}
             onClick={() => setCategory('all')}
           >
-            <span>🌍</span><strong>All</strong><small>{materials.length}</small>
+            <span></span><strong>All</strong><small>{materials.length}</small>
           </button>
           {categories.map(item => (
             <button
@@ -320,7 +320,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
           <section className="market-section">
             <div className="escon-section-head">
               <h2>Supplier storefronts</h2>
-              <button type="button" className="escon-link" onClick={() => onAskCopilot('Who are the top suppliers?')}>Ask Copilot →</button>
+              <button type="button" className="escon-link" onClick={() => onAskCopilot('Who are the top suppliers?')}>Ask Copilot -></button>
             </div>
             <div className="supplier-spotlight">
               {supplierSummaries.slice(0, 8).map(summary => (
@@ -333,11 +333,11 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
                   <span className="supplier-spot-avatar">{summary.company.name.charAt(0).toUpperCase()}</span>
                   <span className="supplier-spot-info">
                     <strong>{summary.company.name}</strong>
-                    <small>📍 {summary.company.city || 'Ethiopia'} · {summary.productCount} products</small>
-                    <span className="supplier-spot-rating">⭐ {summary.rating.toFixed(1)}</span>
+                    <small> {summary.company.city || 'Ethiopia'} - {summary.productCount} products</small>
+                    <span className="supplier-spot-rating">* {summary.rating.toFixed(1)}</span>
                   </span>
                   <span className={'supplier-spot-badge ' + (summary.company.complianceStatus || 'pending')}>
-                    {summary.company.complianceStatus === 'compliant' ? '✅ Verified' : summary.company.complianceStatus === 'non-compliant' ? '⚠️ Review' : '⏳ Pending'}
+                    {summary.company.complianceStatus === 'compliant' ? '[OK] Verified' : summary.company.complianceStatus === 'non-compliant' ? '[!] Review' : ' Pending'}
                   </span>
                 </button>
               ))}
@@ -347,12 +347,12 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
 
         <section className="market-section">
           <div className="escon-section-head">
-            <h2>{query ? `Results for “${query}”` : category === 'all' ? 'All products' : category}</h2>
+            <h2>{query ? `Results for "${query}"` : category === 'all' ? 'All products' : category}</h2>
             <span className="escon-badge">{filtered.length} items</span>
           </div>
           {visible.length === 0 ? (
             <div className="escon-empty">
-              <span>🛍️</span>
+              <span></span>
               <p>No products match these filters. Try another category, city or search.</p>
               <button type="button" className="escon-btn ghost" onClick={() => { setQuery(''); setCategory('all'); setCity('all'); }}>Reset filters</button>
             </div>
@@ -381,8 +381,8 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
         </section>
 
         <footer className="escon-sheet-foot">
-          <span>E-SCON · Ethio-Supply Chain Optimization Network</span>
-          <span>{currentUser ? 'Signed in as ' + (currentUser.userType === 'company' ? 'supplier' : currentUser.userType) : 'Browse freely — sign in to order'}</span>
+          <span>E-SCON - Ethio-Supply Chain Optimization Network</span>
+          <span>{currentUser ? 'Signed in as ' + (currentUser.userType === 'company' ? 'supplier' : currentUser.userType) : 'Browse freely - sign in to order'}</span>
         </footer>
       </div>
 
@@ -391,21 +391,21 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
           <div className="modal-content market-store-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{storeSupplier.company.name}</h2>
-              <button className="modal-close" onClick={() => setStoreId(null)}>✕</button>
+              <button className="modal-close" onClick={() => setStoreId(null)}></button>
             </div>
             <div className="modal-body">
               <div className="market-store-head">
                 <span className="supplier-spot-avatar large">{storeSupplier.company.name.charAt(0).toUpperCase()}</span>
                 <div>
-                  <p className="market-store-location">📍 {storeSupplier.company.location || storeSupplier.company.city || 'Ethiopia'}</p>
+                  <p className="market-store-location"> {storeSupplier.company.location || storeSupplier.company.city || 'Ethiopia'}</p>
                   <p className="market-store-desc">{storeSupplier.company.description || 'Verified E-SCON supplier.'}</p>
                   <div className="market-store-stats">
-                    <span>⭐ {storeSupplier.rating.toFixed(1)} rating</span>
-                    <span>📦 {storeSupplier.productCount} products</span>
-                    <span>{storeSupplier.company.complianceStatus === 'compliant' ? '✅ Compliant' : '⏳ ' + (storeSupplier.company.complianceStatus || 'pending')}</span>
+                    <span>* {storeSupplier.rating.toFixed(1)} rating</span>
+                    <span> {storeSupplier.productCount} products</span>
+                    <span>{storeSupplier.company.complianceStatus === 'compliant' ? '[OK] Compliant' : ' ' + (storeSupplier.company.complianceStatus || 'pending')}</span>
                   </div>
                 </div>
-                <button type="button" className="escon-btn" onClick={() => onOpenMap(storeSupplier.company.id)}>🗺️ Map & route</button>
+                <button type="button" className="escon-btn" onClick={() => onOpenMap(storeSupplier.company.id)}> Map & route</button>
               </div>
               <div className="market-store-products">
                 {storeSupplier.products.map(material => (
@@ -413,7 +413,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
                     <ProductThumb material={material} size="sm" />
                     <div className="market-store-row-info">
                       <strong>{material.name}</strong>
-                      <small>{material.category} · {formatCurrency(material.price)} / {material.unit || 'unit'}</small>
+                      <small>{material.category} - {formatCurrency(material.price)} / {material.unit || 'unit'}</small>
                     </div>
                     <button type="button" className="escon-btn ghost" onClick={() => { setStoreId(null); onOpenProduct(material); }}>View</button>
                   </div>

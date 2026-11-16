@@ -98,7 +98,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <SectionHeader eyebrow={t('Administration')} title="Home" hint="Vision, Mission and Services of E-SCON, with advertisements and graphics." />
       <div className="ws-grid-2">
         <Panel title="Vision" subtitle="E-SCON vision">
-          <p style={{ lineHeight: 1.7 }}>To be Ethiopiaâ€™s most trusted integrated construction supply-chain network, enabling transparent, efficient and data-driven sourcing of quality materials for projects of every scale and beyond.</p>
+          <p style={{ lineHeight: 1.7 }}>To be Ethiopias most trusted integrated construction supply-chain network, enabling transparent, efficient and data-driven sourcing of quality materials for projects of every scale and beyond.</p>
         </Panel>
         <Panel title="Mission" subtitle="E-SCON mission">
           <p style={{ lineHeight: 1.7 }}>To connect verified suppliers, contractors and transporters through a secure digital marketplace that simplifies discovery, price comparison, quotations, ordering, payments and delivery tracking with accountability at every step.</p>
@@ -107,12 +107,12 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <Panel title="Services of E-SCON" subtitle="Core platform services">
         <div className="ws-quick-grid">
           {[
-            { icon: 'ðŸ›ï¸', t: 'Digital Marketplace', d: 'Browse verified construction materials with advertised prices and supplier details.' },
-            { icon: 'ðŸ“', t: 'RFQ & Quotations', d: 'Request, receive, compare and manage supplier quotations as recorded ledgers.' },
-            { icon: 'ðŸ“¦', t: 'Orders & Proformas', d: 'Place orders, generate proformas and track detailed buyerâ€“supplier transactions.' },
-            { icon: 'ðŸšš', t: 'Logistics & Delivery', d: 'Coordinate transport, delivery progress and fulfillment status.' },
-            { icon: 'ðŸ“ˆ', t: 'Market Intelligence', d: 'Price trends, demand insights and geographic comparisons.' },
-            { icon: 'âœ…', t: 'Verification & Trust', d: 'Verification of suppliers, vehicles, licenses and compliance.' },
+            { icon: '>', t: 'Digital Marketplace', d: 'Browse verified construction materials with advertised prices and supplier details.' },
+            { icon: '"', t: 'RFQ & Quotations', d: 'Request, receive, compare and manage supplier quotations as recorded ledgers.' },
+            { icon: '"', t: 'Orders & Proformas', d: 'Place orders, generate proformas and track detailed buyer"supplier transactions.' },
+            { icon: '', t: 'Logistics & Delivery', d: 'Coordinate transport, delivery progress and fulfillment status.' },
+            { icon: '"', t: 'Market Intelligence', d: 'Price trends, demand insights and geographic comparisons.' },
+            { icon: '...', t: 'Verification & Trust', d: 'Verification of suppliers, vehicles, licenses and compliance.' },
           ].map(s => (
             <div key={s.t} className="ws-card" style={{ padding: 14 }}>
               <div style={{ fontSize: 22 }}>{s.icon}</div>
@@ -177,26 +177,26 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     const approvalCols: Column<Company>[] = [
       { key: 'name', header: 'Business Name', value: c => c.name, render: c => <div className="ws-cell-stack"><strong>{c.name}</strong><small>{c.city}</small></div> },
       { key: 'req', header: 'Request ID', value: c => c.id, render: c => <span className="ws-mono">{(c.businessLicense || c.id).slice(-8).toUpperCase()}</span> },
-      { key: 'date', header: 'Date', value: c => c.tradeLicenseExpiry || '', render: c => c.tradeLicenseExpiry ? formatDate(c.tradeLicenseExpiry) : 'â€”' },
+      { key: 'date', header: 'Date', value: c => c.tradeLicenseExpiry || '', render: c => c.tradeLicenseExpiry ? formatDate(c.tradeLicenseExpiry) : '"' },
       { key: 'status', header: 'Status', value: c => c.complianceStatus, render: c => <StatusPill label={t(c.complianceStatus)} tone={toneFor(c.complianceStatus)} /> },
       { key: 'progress', header: 'Progress', value: c => c.complianceStatus === 'compliant' ? 100 : c.complianceStatus === 'pending' ? 55 : 18, render: c => { const pct = c.complianceStatus === 'compliant' ? 100 : c.complianceStatus === 'pending' ? 55 : 18; return <div className="ws-pill-stack"><ProgressBar value={pct} tone={c.complianceStatus === 'compliant' ? 'good' : c.complianceStatus === 'pending' ? 'warn' : 'bad'} /><small className="ws-muted">{pct}%</small></div>; } },
       { key: 'action', header: '', noExport: true, render: c => <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{c.complianceStatus === 'compliant' ? 'View' : 'Review'}</button> },
     ];
     const queues = [
-      { label: 'User Verification Queue', value: users.filter(u => isUserLocked(u)).length, hint: 'Attention required', id: 'users', icon: 'ðŸ‘¥' },
-      { label: 'Supplier Verification Queue', value: companies.filter(c => c.complianceStatus !== 'compliant').length, hint: 'Applications to review', id: 'suppliers', icon: 'ðŸ¢' },
-      { label: 'Transport Verification Queue', value: transporterProfiles.filter(p => !p.verified).length, hint: 'Vehicles and operators', id: 'transporters', icon: 'ðŸšš' },
-      { label: 'Product Statistics', value: materials.length, hint: `${materials.filter(m => m.quantity <= 0).length} out of stock`, id: 'products', icon: 'ðŸ“¦' },
+      { label: 'User Verification Queue', value: users.filter(u => isUserLocked(u)).length, hint: 'Attention required', id: 'users', icon: ''' },
+      { label: 'Supplier Verification Queue', value: companies.filter(c => c.complianceStatus !== 'compliant').length, hint: 'Applications to review', id: 'suppliers', icon: '' },
+      { label: 'Transport Verification Queue', value: transporterProfiles.filter(p => !p.verified).length, hint: 'Vehicles and operators', id: 'transporters', icon: '' },
+      { label: 'Product Statistics', value: materials.length, hint: `${materials.filter(m => m.quantity <= 0).length} out of stock`, id: 'products', icon: '"' },
     ];
     return (
       <>
         <SectionHeader eyebrow={t('Administration')} title="Administration Dashboard" hint="Platform-wide users, suppliers, vehicles, RFQs and orders with real-time analytics." actions={<RangeSelect label="Period" value={dashRange} onChange={setDashRange} options={[{ value: '3', label: '3 months' }, { value: '6', label: '6 months' }, { value: '12', label: '12 months' }]} />} />
         <KpiGrid>
-          <Kpi label="Active Users" value={activeUsers.length.toLocaleString()} hint="Registered active accounts" icon="ðŸ‘¥" />
-          <Kpi label="Registered Suppliers" value={companies.length.toLocaleString()} hint={`${companies.filter(c => c.complianceStatus === 'compliant').length} verified`} icon="ðŸ¢" tone="good" />
-          <Kpi label="Verified Vehicles" value={transporterProfiles.filter(p => p.verified).length.toLocaleString()} hint="Approved transport fleet" icon="ðŸšš" />
-          <Kpi label="RFQs" value={rfqs.length.toLocaleString()} hint="Total quotation requests" icon="ðŸ“" tone="warn" />
-          <Kpi label="Total Orders" value={orders.length.toLocaleString()} hint="Platform-wide orders" icon="ðŸ›’" tone="accent" />
+          <Kpi label="Active Users" value={activeUsers.length.toLocaleString()} hint="Registered active accounts" icon="'" />
+          <Kpi label="Registered Suppliers" value={companies.length.toLocaleString()} hint={`${companies.filter(c => c.complianceStatus === 'compliant').length} verified`} icon="" tone="good" />
+          <Kpi label="Verified Vehicles" value={transporterProfiles.filter(p => p.verified).length.toLocaleString()} hint="Approved transport fleet" icon="" />
+          <Kpi label="RFQs" value={rfqs.length.toLocaleString()} hint="Total quotation requests" icon=""" tone="warn" />
+          <Kpi label="Total Orders" value={orders.length.toLocaleString()} hint="Platform-wide orders" icon=">'" tone="accent" />
         </KpiGrid>
         <Panel title="Platform-wide Real-time Analytics" subtitle="Construction material demand and transaction activity"><LineChart series={chartSeries} height={220} valueFormatter={money} showArea /></Panel>
         <div className="ws-grid-2">
@@ -205,7 +205,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
             <div className="ws-quick-grid">
               {queues.map(q => (
                 <button key={q.label} className="ws-card" style={{ textAlign: 'left', padding: 14, cursor: 'pointer' }} onClick={() => onSection(q.id)}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontSize: 22 }}>{q.icon}</span><span style={{ color: 'var(--es-gold, #D9B45B)' }}>â€º</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontSize: 22 }}>{q.icon}</span><span style={{ color: 'var(--es-gold, #D9B45B)' }}></span></div>
                   <strong style={{ display: 'block', marginTop: 8 }}>{q.label}</strong>
                   <div style={{ fontSize: 26, fontWeight: 800, margin: '4px 0' }}>{q.value}</div>
                   <small className="ws-muted">{q.hint}</small>
@@ -223,8 +223,8 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     const cols: Column<User>[] = [
       { key: 'name', header: 'Name', value: u => u.name, render: u => <div className="ws-cell-stack"><strong>{u.name}</strong><small>{u.email}</small></div> },
       { key: 'role', header: 'Role', value: u => u.userType, render: u => <StatusPill label={u.userType} tone="info" /> },
-      { key: 'city', header: 'City', value: u => u.city || 'â€”' },
-      { key: 'phone', header: 'Phone', value: u => u.phone || 'â€”' },
+      { key: 'city', header: 'City', value: u => u.city || '"' },
+      { key: 'phone', header: 'Phone', value: u => u.phone || '"' },
       { key: 'status', header: 'Status', value: u => isUserLocked(u) ? 'suspended' : 'active', render: u => isUserLocked(u) ? <StatusPill label="Suspended" tone="bad" /> : <StatusPill label="Active" tone="good" /> },
       { key: 'actions', header: 'Actions', align: 'right', noExport: true, render: u => <div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => toggleSuspend(u)}>{isUserLocked(u) ? 'Activate' : 'Suspend'}</button><button className="btn btn-secondary btn-sm" onClick={() => { if (window.confirm(`Delete ${u.name}?`)) { onDeleteUser(u.id); logEvent('user.delete', u.name); } }}>Delete</button></div> },
     ];
@@ -232,10 +232,10 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <>
         <SectionHeader eyebrow={t('Administration')} title="User Management" hint="Search, filter, view, activate, suspend and manage roles." actions={<select className="ws-select" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}><option value="all">All roles</option><option value="admin">Admin</option><option value="company">Supplier</option><option value="customer">Customer</option><option value="transporter">Transporter</option></select>} />
         <KpiGrid>
-          <Kpi label="Total users" value={users.length} icon="ðŸ‘¥" />
-          <Kpi label="Customers" value={customers.length} icon="ðŸ§‘" />
-          <Kpi label="Suppliers" value={supplierUsers.length} icon="ðŸ¢" />
-          <Kpi label="Admins" value={admins.length} icon="ðŸ›¡ï¸" />
+          <Kpi label="Total users" value={users.length} icon="'" />
+          <Kpi label="Customers" value={customers.length} icon="'" />
+          <Kpi label="Suppliers" value={supplierUsers.length} icon="" />
+          <Kpi label="Admins" value={admins.length} icon=">" />
         </KpiGrid>
         <Panel><DataTable rows={rows} columns={cols} searchText={u => `${u.name} ${u.email} ${u.city} ${u.userType}`} exportName="users" pageSize={12} /></Panel>
       </>
@@ -244,8 +244,8 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
 
   const renderSuppliers = () => {
     const cols: Column<Company>[] = [
-      { key: 'name', header: 'Supplier', value: c => c.name, render: c => <div className="ws-cell-stack"><strong>{c.name}</strong><small>{c.city} â€¢ {c.tinNumber || 'No TIN'}</small></div> },
-      { key: 'license', header: 'License / TIN', value: c => c.businessLicense || c.tinNumber || 'â€”' },
+      { key: 'name', header: 'Supplier', value: c => c.name, render: c => <div className="ws-cell-stack"><strong>{c.name}</strong><small>{c.city}  {c.tinNumber || 'No TIN'}</small></div> },
+      { key: 'license', header: 'License / TIN', value: c => c.businessLicense || c.tinNumber || '"' },
       { key: 'compliance', header: 'Compliance', value: c => c.complianceStatus, render: c => <StatusPill label={t(c.complianceStatus)} tone={toneFor(c.complianceStatus)} /> },
       { key: 'products', header: 'Products', align: 'right', value: c => materials.filter(m => m.companyId === c.id).length },
       { key: 'orders', header: 'Orders', align: 'right', value: c => orders.filter(o => o.companyId === c.id).length },
@@ -255,10 +255,10 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <>
         <SectionHeader eyebrow={t('Administration')} title="Supplier Verification" hint="Review applications, licenses and documents; approve or reject suppliers." actions={<button className="btn btn-primary btn-sm" onClick={onAddSupplier}>+ Add Supplier</button>} />
         <KpiGrid>
-          <Kpi label="Total suppliers" value={companies.length} icon="ðŸ¢" />
-          <Kpi label="Compliant" value={companies.filter(c => c.complianceStatus === 'compliant').length} icon="âœ…" tone="good" />
-          <Kpi label="Pending" value={companies.filter(c => c.complianceStatus === 'pending').length} icon="â³" tone="warn" />
-          <Kpi label="Non-compliant" value={companies.filter(c => c.complianceStatus === 'non-compliant').length} icon="âš ï¸" tone="bad" />
+          <Kpi label="Total suppliers" value={companies.length} icon="" />
+          <Kpi label="Compliant" value={companies.filter(c => c.complianceStatus === 'compliant').length} icon="..." tone="good" />
+          <Kpi label="Pending" value={companies.filter(c => c.complianceStatus === 'pending').length} icon="" tone="warn" />
+          <Kpi label="Non-compliant" value={companies.filter(c => c.complianceStatus === 'non-compliant').length} icon=" " tone="bad" />
         </KpiGrid>
         <Panel><DataTable rows={companies} columns={cols} searchText={c => `${c.name} ${c.city} ${c.tinNumber} ${c.complianceStatus}`} exportName="supplier_verification" pageSize={12} /></Panel>
       </>
@@ -269,12 +269,12 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     <>
       <SectionHeader eyebrow={t('Administration')} title="Transport Verification" hint="Verify vehicle registrations, ownership and transport operators." />
       <KpiGrid>
-        <Kpi label="Profiles" value={transporterProfiles.length} icon="ðŸšš" />
-        <Kpi label="Verified vehicles/operators" value={transporterProfiles.filter(p => p.verified).length} icon="âœ…" tone="good" />
-        <Kpi label="Pending verification" value={transporterProfiles.filter(p => !p.verified).length} icon="â³" tone="warn" />
+        <Kpi label="Profiles" value={transporterProfiles.length} icon="" />
+        <Kpi label="Verified vehicles/operators" value={transporterProfiles.filter(p => p.verified).length} icon="..." tone="good" />
+        <Kpi label="Pending verification" value={transporterProfiles.filter(p => !p.verified).length} icon="" tone="warn" />
       </KpiGrid>
       <Panel>
-        {transporterProfiles.length === 0 ? <EmptyState icon="ðŸšš" title="No transporter profiles" text="Transport operators will appear here for verification." /> : (
+        {transporterProfiles.length === 0 ? <EmptyState icon="" title="No transporter profiles" text="Transport operators will appear here for verification." /> : (
           <div className="table-scroll-container"><table className="data-table ws-table"><thead><tr><th>Company</th><th>City</th><th>Vehicles</th><th>Status</th><th>Actions</th></tr></thead><tbody>
             {transporterProfiles.map(p => (
               <tr key={p.id}>
@@ -295,14 +295,14 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     <>
       <SectionHeader eyebrow={t('Administration')} title="Product Management" hint="View, categorize and monitor all material listings, prices and availability." />
       <KpiGrid>
-        <Kpi label="Products" value={materials.length} icon="ðŸ“¦" />
-        <Kpi label="Categories" value={new Set(materials.map(m => m.category)).size} icon="ðŸ·ï¸" />
-        <Kpi label="Out of stock" value={materials.filter(m => m.quantity <= 0).length} icon="âš ï¸" tone="bad" />
+        <Kpi label="Products" value={materials.length} icon=""" />
+        <Kpi label="Categories" value={new Set(materials.map(m => m.category)).size} icon="-" />
+        <Kpi label="Out of stock" value={materials.filter(m => m.quantity <= 0).length} icon=" " tone="bad" />
       </KpiGrid>
       <Panel>
         <DataTable rows={materials} columns={[
           { key: 'name', header: 'Product', value: m => m.name, render: m => <div className="ws-cell-stack"><strong>{m.name}</strong><small>{m.category}</small></div> },
-          { key: 'supplier', header: 'Supplier', value: m => companyById(m.companyId)?.name || 'â€”' },
+          { key: 'supplier', header: 'Supplier', value: m => companyById(m.companyId)?.name || '"' },
           { key: 'price', header: 'Price', align: 'right', value: m => m.price, render: m => <strong>{money(m.price)}</strong> },
           { key: 'qty', header: 'Stock', align: 'right', value: m => m.quantity },
           { key: 'actions', header: 'Actions', align: 'right', noExport: true, render: m => <div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => onEditMaterial(m)}>Edit</button><button className="btn btn-secondary btn-sm" onClick={() => { if (window.confirm('Delete this product?')) onDeleteMaterial(m.id); }}>Delete</button></div> },
@@ -315,9 +315,9 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     <>
       <SectionHeader eyebrow={t('Administration')} title="RFQ Management" hint="Monitor all quotation requests, responses and status." />
       <KpiGrid>
-        <Kpi label="RFQs" value={rfqs.length} icon="ðŸ“" />
-        <Kpi label="Open" value={rfqs.filter(r => r.status === 'open').length} icon="ðŸ“¬" tone="warn" />
-        <Kpi label="Quotations received" value={quotations.length} icon="ðŸ“‹" />
+        <Kpi label="RFQs" value={rfqs.length} icon=""" />
+        <Kpi label="Open" value={rfqs.filter(r => r.status === 'open').length} icon=""" tone="warn" />
+        <Kpi label="Quotations received" value={quotations.length} icon=""" />
       </KpiGrid>
       <Panel>
         <DataTable rows={rfqs} columns={[
@@ -336,7 +336,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     const cols: Column<Order>[] = [
       { key: 'invoice', header: 'Order', value: o => o.invoiceNumber, render: o => <div className="ws-cell-stack"><strong>{o.invoiceNumber}</strong><small>{formatDate(o.orderDate)}</small></div> },
       { key: 'buyer', header: 'Buyer', value: o => userById(o.customerId)?.name || o.customerId },
-      { key: 'supplier', header: 'Supplier', value: o => companyById(o.companyId)?.name || 'â€”' },
+      { key: 'supplier', header: 'Supplier', value: o => companyById(o.companyId)?.name || '"' },
       { key: 'total', header: 'Total', align: 'right', value: o => o.totalAmount, render: o => <strong>{money(o.totalAmount)}</strong> },
       { key: 'payment', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
       { key: 'status', header: 'Status', value: o => o.status, render: o => <select className="ws-status-select" value={o.status} onChange={e => setOrderStatus(o, e.target.value)}>{['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].map(s => <option key={s} value={s}>{t(s)}</option>)}</select> },
@@ -344,12 +344,12 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     const ordered = [...orders].sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
     return (
       <>
-        <SectionHeader eyebrow={t('Administration')} title="Order Management" hint="All orders with detailed buyerâ€“supplier transactions, summaries and export." />
+        <SectionHeader eyebrow={t('Administration')} title="Order Management" hint="All orders with detailed buyer"supplier transactions, summaries and export." />
         <KpiGrid>
-          <Kpi label="Orders" value={orders.length} icon="ðŸ›’" />
-          <Kpi label="Pending" value={orders.filter(o => o.status === 'pending').length} icon="â³" tone="warn" />
-          <Kpi label="Delivered" value={orders.filter(o => o.status === 'delivered').length} icon="âœ…" tone="good" />
-          <Kpi label="GMV" value={money(gmv)} icon="ðŸ’°" />
+          <Kpi label="Orders" value={orders.length} icon=">'" />
+          <Kpi label="Pending" value={orders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
+          <Kpi label="Delivered" value={orders.filter(o => o.status === 'delivered').length} icon="..." tone="good" />
+          <Kpi label="GMV" value={money(gmv)} icon="'" />
         </KpiGrid>
         <Panel title="All transactions"><DataTable rows={ordered} columns={cols} searchText={o => `${o.invoiceNumber} ${userById(o.customerId)?.name || ''} ${companyById(o.companyId)?.name || ''} ${o.status}`} exportName="orders_transactions" pageSize={12} /></Panel>
         <Panel title="Detailed buyer & supplier transactions" subtitle="Preview and download per-order summaries">
@@ -365,9 +365,9 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
                     <div className="ws-muted">{formatDate(o.orderDate)}</div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8, marginTop: 8, fontSize: 13 }}>
-                    <div><span className="ws-muted">Buyer</span><div><strong>{buyer?.name || 'â€”'}</strong><div className="ws-muted">{buyer?.phone || ''}</div></div></div>
-                    <div><span className="ws-muted">Supplier</span><div><strong>{sup?.name || 'â€”'}</strong><div className="ws-muted">{sup?.city || ''}</div></div></div>
-                    <div><span className="ws-muted">Item</span><div>{mat?.name || o.materialId} Ã— {o.quantity}</div></div>
+                    <div><span className="ws-muted">Buyer</span><div><strong>{buyer?.name || '"'}</strong><div className="ws-muted">{buyer?.phone || ''}</div></div></div>
+                    <div><span className="ws-muted">Supplier</span><div><strong>{sup?.name || '"'}</strong><div className="ws-muted">{sup?.city || ''}</div></div></div>
+                    <div><span className="ws-muted">Item</span><div>{mat?.name || o.materialId} - {o.quantity}</div></div>
                     <div><span className="ws-muted">Total</span><div><strong>{money(o.totalAmount)}</strong></div></div>
                   </div>
                   <div className="ws-row-actions" style={{ marginTop: 8 }}>
@@ -376,7 +376,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
                 </div>
               );
             })}
-            {orders.length === 0 && <EmptyState icon="ðŸ›’" title="No orders yet" text="Orders will appear here with full transaction details." />}
+            {orders.length === 0 && <EmptyState icon=">'" title="No orders yet" text="Orders will appear here with full transaction details." />}
           </div>
         </Panel>
       </>
@@ -390,10 +390,10 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <>
         <SectionHeader eyebrow={t('Administration')} title="Market Intelligence" hint="Monitor material prices, demand, categories and geographic markets." />
         <KpiGrid>
-          <Kpi label="Products" value={materials.length} icon="ðŸ“¦" />
-          <Kpi label="Categories" value={cats.length} icon="ðŸ·ï¸" />
-          <Kpi label="Avg price" value={money(avg)} icon="ðŸ’²" />
-          <Kpi label="Cities" value={new Set(companies.map(c => c.city)).size} icon="ðŸ“" />
+          <Kpi label="Products" value={materials.length} icon=""" />
+          <Kpi label="Categories" value={cats.length} icon="-" />
+          <Kpi label="Avg price" value={money(avg)} icon="'" />
+          <Kpi label="Cities" value={new Set(companies.map(c => c.city)).size} icon=""" />
         </KpiGrid>
         <div className="ws-grid-2">
           <Panel title="By category"><BarList items={cats.map(cat => ({ label: cat, value: materials.filter(m => m.category === cat).length })).sort((a,b)=>b.value-a.value).slice(0,10)} /></Panel>
@@ -403,8 +403,8 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           <DataTable rows={materials} columns={[
             { key: 'name', header: 'Material', value: m => m.name },
             { key: 'category', header: 'Category', value: m => m.category },
-            { key: 'supplier', header: 'Supplier', value: m => companyById(m.companyId)?.name || 'â€”' },
-            { key: 'city', header: 'Place', value: m => companyById(m.companyId)?.city || 'â€”' },
+            { key: 'supplier', header: 'Supplier', value: m => companyById(m.companyId)?.name || '"' },
+            { key: 'city', header: 'Place', value: m => companyById(m.companyId)?.city || '"' },
             { key: 'price', header: 'Price', align: 'right', value: m => m.price, render: m => money(m.price) },
             { key: 'qty', header: 'Stock', align: 'right', value: m => m.quantity },
           ] as Column<Material>[]} searchText={m => `${m.name} ${m.category} ${companyById(m.companyId)?.name || ''} ${companyById(m.companyId)?.city || ''}`} exportName="market_intelligence" pageSize={12} />
@@ -417,10 +417,10 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     <>
       <SectionHeader eyebrow={t('Administration')} title="Financial Management" hint="Transactions, payments and platform financial summaries." actions={<button className="btn btn-secondary btn-sm" onClick={() => exportCsv('financial_transactions.csv', transactions.map(t => ({ date: new Date(t.date).toISOString(), user: userById(t.userId)?.name || t.userId, type: t.kind, amount: t.amount, note: t.note })))}>Export</button>} />
       <KpiGrid>
-        <Kpi label="GMV" value={money(gmv)} icon="ðŸ’°" />
-        <Kpi label="Delivered revenue" value={money(deliveredRevenue)} icon="âœ…" tone="good" />
-        <Kpi label="Est. commission" value={money(deliveredRevenue * COMMISSION_RATE)} icon="ðŸ“Š" />
-        <Kpi label="Wallet transactions" value={transactions.length} icon="ðŸ’³" />
+        <Kpi label="GMV" value={money(gmv)} icon="'" />
+        <Kpi label="Delivered revenue" value={money(deliveredRevenue)} icon="..." tone="good" />
+        <Kpi label="Est. commission" value={money(deliveredRevenue * COMMISSION_RATE)} icon=""" />
+        <Kpi label="Wallet transactions" value={transactions.length} icon="'" />
       </KpiGrid>
       <Panel title="Wallet transactions">
         <DataTable rows={transactions} columns={[
@@ -428,7 +428,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           { key: 'user', header: 'Account', value: (tx: any) => userById(tx.userId)?.name || tx.userId },
           { key: 'kind', header: 'Type', value: (tx: any) => tx.kind },
           { key: 'amount', header: 'Amount', align: 'right', value: (tx: any) => tx.amount, render: (tx: any) => money(tx.amount) },
-          { key: 'note', header: 'Note', value: (tx: any) => tx.note || 'â€”' },
+          { key: 'note', header: 'Note', value: (tx: any) => tx.note || '"' },
         ] as Column<any>[]} searchText={(tx: any) => `${tx.kind} ${tx.note || ''} ${userById(tx.userId)?.name || ''}`} exportName="financial_transactions" pageSize={12} />
       </Panel>
     </>
@@ -438,12 +438,12 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     <>
       <SectionHeader eyebrow={t('Administration')} title="Reports" hint="Platform reports with downloadable summaries." actions={<div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('orders_report.csv', orders.map(o => ({ invoice: o.invoiceNumber, buyer: userById(o.customerId)?.name || '', supplier: companyById(o.companyId)?.name || '', total: o.totalAmount, status: o.status, payment: o.paymentStatus, date: o.orderDate })))}>Orders CSV</button><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('quotations_report.csv', quotations.map(q => ({ id: q.id, supplier: q.supplierName, rfq: q.rfqId, unit_price: q.unitPrice, quantity: q.quantity, total: q.unitPrice * q.quantity + q.deliveryFee, status: q.status })))}>Quotations CSV</button></div>} />
       <KpiGrid>
-        <Kpi label="Users" value={users.length} icon="ðŸ‘¥" />
-        <Kpi label="Suppliers" value={companies.length} icon="ðŸ¢" />
-        <Kpi label="Products" value={materials.length} icon="ðŸ“¦" />
-        <Kpi label="Orders" value={orders.length} icon="ðŸ›’" />
-        <Kpi label="RFQs" value={rfqs.length} icon="ðŸ“" />
-        <Kpi label="Quotations" value={quotations.length} icon="ðŸ“‹" />
+        <Kpi label="Users" value={users.length} icon="'" />
+        <Kpi label="Suppliers" value={companies.length} icon="" />
+        <Kpi label="Products" value={materials.length} icon=""" />
+        <Kpi label="Orders" value={orders.length} icon=">'" />
+        <Kpi label="RFQs" value={rfqs.length} icon=""" />
+        <Kpi label="Quotations" value={quotations.length} icon=""" />
       </KpiGrid>
       <Panel title="Platform summary"><BarList items={[{ label: 'Users', value: users.length }, { label: 'Suppliers', value: companies.length }, { label: 'Products', value: materials.length }, { label: 'Orders', value: orders.length }, { label: 'RFQs', value: rfqs.length }, { label: 'Quotations', value: quotations.length }, { label: 'Complaints', value: complaints.length }, { label: 'Notifications', value: notifications.length }]} /></Panel>
     </>
@@ -453,7 +453,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     <>
       <SectionHeader eyebrow={t('Administration')} title="Complaints" hint="Manage and resolve customer and supplier complaints and disputes." />
       <Panel>
-        {complaints.length === 0 ? <EmptyState icon="âš ï¸" title="No complaints" text="Submitted complaints will appear here for review and resolution." /> : (
+        {complaints.length === 0 ? <EmptyState icon=" " title="No complaints" text="Submitted complaints will appear here for review and resolution." /> : (
           <div style={{ display: 'grid', gap: 10 }}>
             {[...complaints].sort((a, b) => b.updatedAt - a.updatedAt).map(c => (
               <div key={c.id} className="ws-card" style={{ padding: 12 }}>
@@ -484,7 +484,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <div key={n.id} className="ws-card" style={{ padding: 10, fontSize: 13 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><strong>{n.title}</strong><small className="ws-muted">{timeAgo(n.createdAt)}</small></div>
         <div>{n.message}</div>
-        <small className="ws-muted">{[n.category || n.type, n.supplierName ? `Supplier: ${n.supplierName}` : '', userById(n.userId)?.name ? `To: ${userById(n.userId)?.name}` : ''].filter(Boolean).join(' â€¢ ')}</small>
+        <small className="ws-muted">{[n.category || n.type, n.supplierName ? `Supplier: ${n.supplierName}` : '', userById(n.userId)?.name ? `To: ${userById(n.userId)?.name}` : ''].filter(Boolean).join('  ')}</small>
       </div>
     );
     return (
@@ -503,19 +503,19 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           </Panel>
           <Panel title="Notification summary">
             <KpiGrid>
-              <Kpi label="Total records" value={notifications.length} icon="ðŸ””" />
-              <Kpi label="Categories" value={catEntries.length} icon="ðŸ·ï¸" />
-              <Kpi label="Suppliers tagged" value={supEntries.filter(s => s[0] !== 'No supplier').length} icon="ðŸ¢" />
+              <Kpi label="Total records" value={notifications.length} icon="""" />
+              <Kpi label="Categories" value={catEntries.length} icon="-" />
+              <Kpi label="Suppliers tagged" value={supEntries.filter(s => s[0] !== 'No supplier').length} icon="" />
             </KpiGrid>
           </Panel>
         </div>
         <Panel title="Listed by category (history ledger)">
-          {catEntries.length === 0 ? <EmptyState icon="ðŸ””" title="No notifications recorded" /> : catEntries.map(([cat, items]) => (
+          {catEntries.length === 0 ? <EmptyState icon="""" title="No notifications recorded" /> : catEntries.map(([cat, items]) => (
             <details key={cat} className="ws-fold" open={catEntries.length <= 3}><summary><strong>{cat}</strong> <span className="ws-muted">({items.length})</span></summary><div className="ws-fold-body" style={{ display: 'grid', gap: 6 }}>{[...items].sort((a: any, b: any) => b.createdAt - a.createdAt).slice(0, 50).map(row)}</div></details>
           ))}
         </Panel>
         <Panel title="Listed by supplier (history ledger)">
-          {supEntries.length === 0 ? <EmptyState icon="ðŸ¢" title="No supplier notifications" /> : supEntries.map(([sup, items]) => (
+          {supEntries.length === 0 ? <EmptyState icon="" title="No supplier notifications" /> : supEntries.map(([sup, items]) => (
             <details key={sup} className="ws-fold"><summary><strong>{sup}</strong> <span className="ws-muted">({items.length})</span></summary><div className="ws-fold-body" style={{ display: 'grid', gap: 6 }}>{[...items].sort((a: any, b: any) => b.createdAt - a.createdAt).slice(0, 50).map(row)}</div></details>
           ))}
         </Panel>
@@ -531,10 +531,10 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <>
         <SectionHeader eyebrow={t('Administration')} title="Quotations Ledger" hint="All quotations recorded separately with status and transaction history (by supplier)." actions={<button className="btn btn-secondary btn-sm" onClick={() => exportCsv('quotations_ledger.csv', quotations.map(q => ({ id: q.id, supplier: q.supplierName, rfq: q.rfqId, unit_price: q.unitPrice, quantity: q.quantity, delivery_fee: q.deliveryFee, total: q.unitPrice * q.quantity + q.deliveryFee, status: q.status })))}>Export ledger</button>} />
         <KpiGrid>
-          <Kpi label="Total quotations" value={quotations.length} icon="ðŸ“‹" />
-          <Kpi label="Submitted" value={submitted} icon="ðŸ“¨" tone="warn" />
-          <Kpi label="Accepted" value={accepted} icon="âœ…" tone="good" />
-          <Kpi label="Suppliers quoted" value={bySupplier.length} icon="ðŸ¢" />
+          <Kpi label="Total quotations" value={quotations.length} icon=""" />
+          <Kpi label="Submitted" value={submitted} icon=""" tone="warn" />
+          <Kpi label="Accepted" value={accepted} icon="..." tone="good" />
+          <Kpi label="Suppliers quoted" value={bySupplier.length} icon="" />
         </KpiGrid>
         <Panel title="Quotation records">
           <DataTable rows={quotations} columns={[
@@ -547,11 +547,11 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           ] as Column<Quotation>[]} searchText={q => `${q.supplierName} ${q.status} ${q.rfqId}`} exportName="quotations_ledger" pageSize={12} />
         </Panel>
         <Panel title="By supplier (history)">
-          {bySupplier.length === 0 ? <EmptyState icon="ðŸ“‹" title="No quotations recorded" text="Supplier quotations will be listed here by supplier as a ledger." /> : bySupplier.map(g => (
+          {bySupplier.length === 0 ? <EmptyState icon=""" title="No quotations recorded" text="Supplier quotations will be listed here by supplier as a ledger." /> : bySupplier.map(g => (
             <details key={g.c.id} className="ws-fold" open={bySupplier.length <= 3}><summary><strong>{g.c.name}</strong> <span className="ws-muted">({g.qs.length} quotations)</span></summary>
               <div className="ws-fold-body" style={{ display: 'grid', gap: 6 }}>{g.qs.map(q => (
                 <div key={q.id} className="ws-card" style={{ padding: 10, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                  <div><strong className="ws-mono">{q.id.slice(-8).toUpperCase()}</strong> â€¢ RFQ {q.rfqId.slice(-8).toUpperCase()} â€¢ Qty {q.quantity}</div>
+                  <div><strong className="ws-mono">{q.id.slice(-8).toUpperCase()}</strong>  RFQ {q.rfqId.slice(-8).toUpperCase()}  Qty {q.quantity}</div>
                   <div><strong>{money(q.unitPrice * q.quantity + q.deliveryFee)}</strong> <StatusPill label={q.status} tone={toneFor(q.status)} /></div>
                 </div>
               ))}</div>

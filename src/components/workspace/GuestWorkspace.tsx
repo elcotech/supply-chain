@@ -1,4 +1,4 @@
-// ===== Guests — Public View =====
+// ===== Guests - Public View =====
 //
 // The guest workspace is the unauthenticated version of the marketplace: it
 // reuses the same live catalogue and supplier records, but every transactional
@@ -60,7 +60,7 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
       render: row => (
         <span className="ws-approval-name">
           <strong>{row.name}</strong>
-          <small>{row.category} · {row.quantity} {row.unit} available</small>
+          <small>{row.category} - {row.quantity} {row.unit} available</small>
         </span>
       ),
     },
@@ -68,7 +68,7 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
       key: 'supplier',
       header: t('Supplier'),
       value: row => supplierFor(row.companyId)?.name || '',
-      render: row => <span>{supplierFor(row.companyId)?.name || '—'}</span>,
+      render: row => <span>{supplierFor(row.companyId)?.name || '-'}</span>,
     },
     {
       key: 'price',
@@ -153,15 +153,15 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
         hint={t('No registration required for browsing. Compare public prices and discover verified suppliers.')}
         actions={
           <>
-            <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('login')}>🔐 {t('Sign In')}</button>
-            <button className="btn btn-primary btn-sm" onClick={() => onNavigate('register')}>👤 {t('Register')}</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('login')}> {t('Sign In')}</button>
+            <button className="btn btn-primary btn-sm" onClick={() => onNavigate('register')}> {t('Register')}</button>
           </>
         }
       />
 
       <div className="ws-public-hero">
         <span className="ws-hero-eyebrow">{t('Build Smarter. Source Better.')}</span>
-        <h2>{t('Ethiopia’s construction supply chain, open to everyone.')}</h2>
+        <h2>{t('Ethiopia's construction supply chain, open to everyone.')}</h2>
         <p>
           {t('Browse verified suppliers, compare live material prices and explore market insights before you create an account.')}
         </p>
@@ -170,18 +170,18 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
           <button className="btn btn-secondary" onClick={() => onNavigate('supplier-directory')}>{t('Supplier Directory')}</button>
         </div>
         <div className="ws-pill-stack">
-          <StatusPill label={`✅ ${t('No registration required')}`} tone="good" />
-          <StatusPill label={`🏢 ${verifiedCompanies.length} ${t('verified suppliers')}`} tone="info" />
-          <StatusPill label={`📦 ${materials.length} ${t('public products')}`} tone="muted" />
+          <StatusPill label={`[OK] ${t('No registration required')}`} tone="good" />
+          <StatusPill label={` ${verifiedCompanies.length} ${t('verified suppliers')}`} tone="info" />
+          <StatusPill label={` ${materials.length} ${t('public products')}`} tone="muted" />
         </div>
       </div>
 
       <KpiGrid>
-        <Kpi label={t('Verified Suppliers')} value={verifiedCompanies.length} hint={`${companies.length} ${t('registered')}`} icon="🏢" tone="good" />
-        <Kpi label={t('Public Products')} value={materials.length} hint={`${categories.length} ${t('categories')}`} icon="📦" />
-        <Kpi label={t('Cities Covered')} value={cities.length} hint={cities.slice(0, 3).join(' · ') || '—'} icon="📍" />
-        <Kpi label={t('Average Rating')} value={`${averageRating.toFixed(1)} ★`} hint={`${reviews.length} ${t('reviews')}`} icon="⭐" tone="accent" />
-        <Kpi label={t('Marketplace')} value={t('Open')} hint={t('Browse without an account')} icon="🌐" tone="good" />
+        <Kpi label={t('Verified Suppliers')} value={verifiedCompanies.length} hint={`${companies.length} ${t('registered')}`} icon="" tone="good" />
+        <Kpi label={t('Public Products')} value={materials.length} hint={`${categories.length} ${t('categories')}`} icon="" />
+        <Kpi label={t('Cities Covered')} value={cities.length} hint={cities.slice(0, 3).join(' - ') || '-'} icon="" />
+        <Kpi label={t('Average Rating')} value={`${averageRating.toFixed(1)} `} hint={`${reviews.length} ${t('reviews')}`} icon="*" tone="accent" />
+        <Kpi label={t('Marketplace')} value={t('Open')} hint={t('Browse without an account')} icon="" tone="good" />
       </KpiGrid>
 
       <DashboardGrid
@@ -193,7 +193,7 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
               actions={<button className="btn btn-secondary btn-sm" onClick={() => onNavigate('marketplace')}>{t('Browse all')}</button>}
             >
               {featured.length === 0 ? (
-                <EmptyState icon="🏗️" title={t('Catalogue coming soon')} text={t('Verified suppliers will publish materials here.')} />
+                <EmptyState icon="" title={t('Catalogue coming soon')} text={t('Verified suppliers will publish materials here.')} />
               ) : (
                 <div className="ws-material-grid">
                   {featured.map(material => (
@@ -204,7 +204,7 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
                           : material.category.slice(0, 2).toUpperCase()}
                       </span>
                       <strong>{material.name}</strong>
-                      <small>{supplierFor(material.companyId)?.name || t('Supplier')} · {material.quantity} {material.unit}</small>
+                      <small>{supplierFor(material.companyId)?.name || t('Supplier')} - {material.quantity} {material.unit}</small>
                       <span className="ws-material-price">{money(material.price)}<em>/{material.unit}</em></span>
                     </button>
                   ))}
@@ -220,8 +220,8 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
               <div className="ws-chart-note">
                 <span>{categories.length} {t('categories tracked')}</span>
                 <span className="ws-pill-stack">
-                  <StatusPill label={`● ${t('Average price')}`} tone="info" />
-                  <StatusPill label={`● ${t('Lowest price')}`} tone="good" />
+                  <StatusPill label={`* ${t('Average price')}`} tone="info" />
+                  <StatusPill label={`* ${t('Lowest price')}`} tone="good" />
                 </span>
               </div>
               <div className="ws-chart-box">
@@ -255,7 +255,7 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
               actions={<button className="btn btn-secondary btn-sm" onClick={() => onNavigate('search-materials')}>{t('Compare products')}</button>}
             >
               {priceRows.length === 0 ? (
-                <EmptyState icon="💱" title={t('No prices yet')} text={t('Supplier listings will appear here once approved.')} />
+                <EmptyState icon="" title={t('No prices yet')} text={t('Supplier listings will appear here once approved.')} />
               ) : (
                 <DataTable
                   rows={priceRows}
@@ -281,19 +281,19 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
                     className={'ws-map-pin ' + pin.tone}
                     key={pin.company.id}
                     style={{ left: pin.x + '%', top: pin.y + '%' }}
-                    title={`${pin.company.name} · ${pin.company.city}`}
+                    title={`${pin.company.name} - ${pin.company.city}`}
                   >
-                    <b>🏢</b>
+                    <b></b>
                     {pin.company.city}
                   </span>
                 ))}
                 {mapPins.length === 0 && (
-                  <span className="ws-map-pin" style={{ left: '50%', top: '55%' }}><b>📍</b>{t('No suppliers yet')}</span>
+                  <span className="ws-map-pin" style={{ left: '50%', top: '55%' }}><b></b>{t('No suppliers yet')}</span>
                 )}
               </div>
               <div className="ws-mini-grid" style={{ marginTop: 10 }}>
-                <MiniStat label={t('Cities')} value={cities.length} hint={t('coverage')} icon="📍" />
-                <MiniStat label={t('Suppliers')} value={verifiedCompanies.length} hint={t('verified')} tone="good" icon="✅" />
+                <MiniStat label={t('Cities')} value={cities.length} hint={t('coverage')} icon="" />
+                <MiniStat label={t('Suppliers')} value={verifiedCompanies.length} hint={t('verified')} tone="good" icon="[OK]" />
               </div>
             </Panel>
 
@@ -303,14 +303,14 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
               actions={<button className="btn btn-secondary btn-sm" onClick={() => onNavigate('supplier-directory')}>{t('View all')}</button>}
             >
               {topSuppliers.length === 0 ? (
-                <EmptyState icon="🏢" title={t('No suppliers yet')} text={t('Approved suppliers will be listed here.')} />
+                <EmptyState icon="" title={t('No suppliers yet')} text={t('Approved suppliers will be listed here.')} />
               ) : (
                 <div className="ws-stat-list">
                   {topSuppliers.map(company => (
                     <div className="ws-stat-row" key={company.id}>
                       <div>
                         <strong>{company.name}</strong>
-                        <small>{company.city} · {company.totalOrders} {t('orders')} · ⭐ {effectiveRating(company.rating, reviews).toFixed(1)}</small>
+                        <small>{company.city} - {company.totalOrders} {t('orders')} - * {effectiveRating(company.rating, reviews).toFixed(1)}</small>
                       </div>
                       <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('supplier-directory')}>{t('View')}</button>
                     </div>
@@ -321,10 +321,10 @@ const GuestWorkspace: React.FC<GuestWorkspaceProps> = ({
 
             <Panel title={t('Create an Account to Trade')} subtitle={t('Registration is free for buyers and suppliers')}>
               <ul className="ws-detail-list">
-                <li><span>📨</span><strong>{t('Send RFQs and collect quotations')}</strong></li>
-                <li><span>🛒</span><strong>{t('Order materials with delivery')}</strong></li>
-                <li><span>🚚</span><strong>{t('Track deliveries in real time')}</strong></li>
-                <li><span>💳</span><strong>{t('Pay securely through the platform')}</strong></li>
+                <li><span></span><strong>{t('Send RFQs and collect quotations')}</strong></li>
+                <li><span></span><strong>{t('Order materials with delivery')}</strong></li>
+                <li><span></span><strong>{t('Track deliveries in real time')}</strong></li>
+                <li><span></span><strong>{t('Pay securely through the platform')}</strong></li>
               </ul>
               <div className="ws-hero-actions">
                 <button className="btn btn-primary" onClick={() => onNavigate('register')}>{t('Create account')}</button>

@@ -47,7 +47,7 @@ const SHARED_KEYS = new Set<string>([
   'reviews',
   'system_settings',
   'transporter_profiles',
-  // v7 workspace collections (spec §2-§6).
+  // v7 workspace collections (spec 2-6).
   'projects',
   'rfqs',
   'quotations',
@@ -71,7 +71,7 @@ export const isSharedKey = (key: string): boolean =>
 // Why this matters: a change poll is a read-modify-write. Its query can execute
 // *before* a local push commits while the response arrives *after* it, so the
 // row it carries still holds the previous value. Applying that row would not
-// only revert React state, it would push the reverted copy back to Supabase —
+// only revert React state, it would push the reverted copy back to Supabase -
 // a just-placed order would vanish a few seconds after the success message.
 // Rows older than our own last write for that key are therefore dropped.
 const lastLocalWrite = new Map<string, number>();
@@ -103,7 +103,7 @@ export const pullCloudToCache = async (): Promise<boolean> => {
         localStorage.setItem(row.key, JSON.stringify(row.data));
         trackCursor(row.updated_at);
       } catch {
-        /* storage quota — ignore, the app falls back to defaults */
+        /* storage quota - ignore, the app falls back to defaults */
       }
     });
     return true;

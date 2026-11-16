@@ -11,7 +11,7 @@ E-SCON ("we", "us", "the app") is operated by **_[COMPANY / DEVELOPER NAME]_**
 ("the Developer"). This policy explains what information the app collects, how
 it is used and stored, and the choices you have.
 
-**Contact:** **_[CONTACT EMAIL]_** · **_[POSTAL ADDRESS, if required]_**
+**Contact:** **_[CONTACT EMAIL]_** - **_[POSTAL ADDRESS, if required]_**
 
 ---
 
@@ -19,29 +19,29 @@ it is used and stored, and the choices you have.
 
 ### Information you provide
 
-- **Account details** — name, email address, phone number (if provided),
+- **Account details** - name, email address, phone number (if provided),
   account type (customer or supplier) and password. On the current version,
-  passwords are stored only on your device (see §3).
-- **Company / business details** (suppliers) — company name, TIN, VAT and
+  passwords are stored only on your device (see 3).
+- **Company / business details** (suppliers) - company name, TIN, VAT and
   business-licence details, address and a map location you pick.
-- **Product and order details** — products you list, cart contents, orders and
+- **Product and order details** - products you list, cart contents, orders and
   proforma data.
 
 ### Information collected automatically
 
-- **Approximate and precise location** — only when you grant the app's location
+- **Approximate and precise location** - only when you grant the app's location
   permission, used to show your position on the map, calculate distances and
   draw delivery routes. If you deny permission, the app uses a default location
   (Addis Ababa). You can withdraw permission at any time in your device
   settings.
-- **Basic technical data** — the app is a client-side application; it does not
+- **Basic technical data** - the app is a client-side application; it does not
   run analytics or advertising trackers.
 
 ### Data from third-party services
 
 Maps, routing and geocoding use public OpenStreetMap-based services (CARTO map
 tiles, the OSRM demo router and Nominatim geocoding). Requests to these services
-include the coordinates needed to render a map or route. See §5.
+include the coordinates needed to render a map or route. See 5.
 
 ---
 
@@ -65,9 +65,9 @@ include the coordinates needed to render a map or route. See §5.
   in your browser's / app's local storage (`localStorage`). Passwords are stored
   in plain text **on your device only** in the current demo version.
 - **In the cloud (optional):** when the operator configures Supabase, shared
-  data — accounts (including the demo plaintext password field), companies,
+  data - accounts (including the demo plaintext password field), companies,
   products, orders, notifications, wallet balances, transactions, reviews,
-  platform settings and each user's cart/favourites — is mirrored to a Supabase
+  platform settings and each user's cart/favourites - is mirrored to a Supabase
   table so every device sees the same data. The database is hosted by
   **Supabase** on the operator's project. With no Supabase configuration, all of
   this data stays on the device only.
@@ -95,9 +95,9 @@ To delete your data:
 
 | Service | Purpose | Their privacy policy |
 | --- | --- | --- |
-| OpenStreetMap / CARTO | Map tiles | <https://osmfoundation.org/wiki/Privacy_Policy> · <https://carto.com/privacy/> |
+| OpenStreetMap / CARTO | Map tiles | <https://osmfoundation.org/wiki/Privacy_Policy> - <https://carto.com/privacy/> |
 | OSRM demo server | Driving routes & distances | <https://project-osrm.org/> |
-| Nominatim | Address ↔ coordinate lookup | <https://osmfoundation.org/wiki/Privacy_Policy> |
+| Nominatim | Address  coordinate lookup | <https://osmfoundation.org/wiki/Privacy_Policy> |
 | Supabase (optional) | Cloud database hosting | <https://supabase.com/privacy> |
 
 These services receive only the data needed to fulfil the request (for example,
@@ -112,7 +112,7 @@ coordinates for a route). We do not control their practices.
 - We take reasonable measures to protect data, but **no method of transmission
   or storage is 100% secure**. The current cloud configuration uses a public
   anonymous key with permissive access rules suitable for a demo or closed
-  pilot — see the security note in
+  pilot - see the security note in
   [CLOUD_DATABASE.md](./CLOUD_DATABASE.md) before using real customer data.
 - The **Android app allows screenshots and screen recordings** in v2.0 (it no
   longer sets the Android `FLAG_SECURE` window flag). You can capture prices,

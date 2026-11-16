@@ -1,7 +1,7 @@
 // ===== src/components/Charts.tsx =====
 // Lightweight dependency-free SVG charts used by dashboards, the product
 // details modal (price forecast) and analytics. Pure presentational
-// components — they accept plain numbers and render with CSS variables so
+// components - they accept plain numbers and render with CSS variables so
 // dark/light themes are handled automatically.
 import React from 'react';
 
@@ -19,7 +19,7 @@ export const Sparkline: React.FC<{ points: number[]; width?: number; height?: nu
   stroke = 'var(--secondary)',
 }) => {
   if (!points || points.length < 2) {
-    return <div className="chart-sparkline chart-sparkline-empty">—</div>;
+    return <div className="chart-sparkline chart-sparkline-empty">-</div>;
   }
   const min = Math.min(...points);
   const max = Math.max(...points);
@@ -145,7 +145,7 @@ export const LineChart: React.FC<{
               />
               {points.map((p, i) => (
                 <circle key={i} cx={p.x} cy={p.y} r={3.2} fill={seriesItem.color}>
-                  <title>{`${seriesItem.label} · ${p.label}: ${fmt(p.value)}`}</title>
+                  <title>{`${seriesItem.label} - ${p.label}: ${fmt(p.value)}`}</title>
                 </circle>
               ))}
             </g>
@@ -279,7 +279,7 @@ export const StarRatingDisplay: React.FC<{ value: number; size?: number }> = ({ 
     <span className="star-row" aria-label={`${value} out of 5`}>
       {[1, 2, 3, 4, 5].map(i => (
         <span key={i} style={{ fontSize: size }} className={i <= full ? 'star on' : 'star'}>
-          ★
+          
         </span>
       ))}
     </span>
@@ -303,7 +303,7 @@ export const StarRatingInput: React.FC<{ value: number; onChange: (v: number) =>
         role="radio"
         aria-checked={i <= value}
       >
-        ★
+        
       </button>
     ))}
   </div>

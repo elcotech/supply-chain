@@ -1,6 +1,6 @@
 // ===== Persisted, cloud-mirrored collections =====
 //
-// The original v6 collections (users, companies, materials, …) are declared with
+// The original v6 collections (users, companies, materials, ...) are declared with
 // `useState` in App.tsx and persisted by dedicated effects. The new v3.0
 // workspaces add five more collections (projects, RFQs, quotations, complaints,
 // audit events). This hook gives them the same behaviour with far less wiring:
@@ -34,7 +34,7 @@ export const writeCollection = (key: string, value: unknown): void => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* quota or private mode — the in-memory state remains usable */
+    /* quota or private mode - the in-memory state remains usable */
   }
   cloudPush(key, value);
 };

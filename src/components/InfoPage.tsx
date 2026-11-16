@@ -15,10 +15,10 @@ export interface InfoPageProps {
 }
 
 const TABS: { id: InfoTab; label: string; icon: string }[] = [
-  { id: 'about', label: 'About E-SCON', icon: 'ℹ️' },
-  { id: 'how', label: 'How it works', icon: '🧭' },
-  { id: 'transport', label: 'Transport services', icon: '🚛' },
-  { id: 'help', label: 'Help & support', icon: '🛟' },
+  { id: 'about', label: 'About E-SCON', icon: '' },
+  { id: 'how', label: 'How it works', icon: '' },
+  { id: 'transport', label: 'Transport services', icon: '' },
+  { id: 'help', label: 'Help & support', icon: '' },
 ];
 
 const STEPS = [
@@ -47,16 +47,16 @@ const InfoPage: React.FC<InfoPageProps> = ({
     <main className="main-content info-page">
       <section className="info-hero glass">
         <span className="hero-badge">ET Ethio-Supply Chain Optimization Network</span>
-        <h1>E-SCON — one integrated supply-chain network</h1>
+        <h1>E-SCON - one integrated supply-chain network</h1>
         <p>
           A single platform for administration, suppliers, customers, guests and transport
           companies: verified businesses, transparent prices, GPS logistics and AI-assisted
           procurement.
         </p>
         <div className="cta-buttons">
-          <button type="button" className="btn btn-primary" onClick={onOpenMarketplace}>🛍️ Browse marketplace</button>
-          <button type="button" className="btn btn-secondary" onClick={onRegister}>📝 Create account</button>
-          <button type="button" className="btn btn-secondary" onClick={onLogin}>🔑 Sign in</button>
+          <button type="button" className="btn btn-primary" onClick={onOpenMarketplace}> Browse marketplace</button>
+          <button type="button" className="btn btn-secondary" onClick={onRegister}> Create account</button>
+          <button type="button" className="btn btn-secondary" onClick={onLogin}> Sign in</button>
         </div>
       </section>
 
@@ -78,7 +78,7 @@ const InfoPage: React.FC<InfoPageProps> = ({
       {tab === 'about' && (
         <>
           <div className="card glass">
-            <div className="card-header"><h3>🎯 Vision, mission and objectives</h3></div>
+            <div className="card-header"><h3> Vision, mission and objectives</h3></div>
             <p>
               E-SCON connects Ethiopia&apos;s construction material buyers with verified suppliers
               and transport companies. The platform makes prices, availability, distances and
@@ -93,7 +93,7 @@ const InfoPage: React.FC<InfoPageProps> = ({
             </div>
           </div>
           <div className="card glass">
-            <div className="card-header"><h3>🧩 Five connected areas</h3></div>
+            <div className="card-header"><h3> Five connected areas</h3></div>
             <div className="info-grid">
               <div><strong>Administration</strong><span>Governance, verification, finance, AI control and platform settings.</span></div>
               <div><strong>Suppliers</strong><span>Business profile, products, inventory, prices, quotations, orders and invoices.</span></div>
@@ -107,7 +107,7 @@ const InfoPage: React.FC<InfoPageProps> = ({
 
       {tab === 'how' && (
         <div className="card glass">
-          <div className="card-header"><h3>🧭 From search to final delivery</h3></div>
+          <div className="card-header"><h3> From search to final delivery</h3></div>
           <div className="info-steps">
             {STEPS.map((step, index) => (
               <div className="info-step" key={step.title}>
@@ -126,7 +126,7 @@ const InfoPage: React.FC<InfoPageProps> = ({
       {tab === 'transport' && (
         <>
           <div className="card glass">
-            <div className="card-header"><h3>🚛 Transport services and coverage</h3></div>
+            <div className="card-header"><h3> Transport services and coverage</h3></div>
             <p>
               Verified transport companies publish their vehicles, drivers, service areas and
               rates. E-SCON matches confirmed delivery requests with an available transporter
@@ -140,7 +140,7 @@ const InfoPage: React.FC<InfoPageProps> = ({
             </div>
           </div>
           <div className="card glass">
-            <div className="card-header"><h3>📦 For transport companies</h3></div>
+            <div className="card-header"><h3> For transport companies</h3></div>
             <p>Register a transporter account to receive delivery requests, manage your fleet and track earnings.</p>
             <div className="cta-buttons">
               <button type="button" className="btn btn-primary" onClick={onRegister}>Register as a transporter</button>
@@ -153,7 +153,7 @@ const InfoPage: React.FC<InfoPageProps> = ({
       {tab === 'help' && (
         <>
           <div className="card glass">
-            <div className="card-header"><h3>🛟 Frequently asked questions</h3></div>
+            <div className="card-header"><h3> Frequently asked questions</h3></div>
             <div className="info-faq">
               <details><summary>How do I place an order?</summary><p>Search or browse the marketplace, open a product, choose your quantity and delivery option, then review the cart and proforma before confirming.</p></details>
               <details><summary>Who can see stock levels?</summary><p>Stock counts are visible only to the supplier who owns the product and platform administrators. Buyers see availability, not internal quantities.</p></details>
@@ -164,15 +164,15 @@ const InfoPage: React.FC<InfoPageProps> = ({
             </div>
           </div>
           <div className="card glass">
-            <div className="card-header"><h3>📞 Contact and support</h3></div>
+            <div className="card-header"><h3> Contact and support</h3></div>
             <div className="info-grid">
               <div><strong>Platform administrator</strong><span>Use this device&apos;s registered administrator account for account and compliance issues.</span></div>
               <div><strong>Supplier or transporter</strong><span>Open your dashboard to update your profile, fleet, prices and delivery availability.</span></div>
               <div><strong>Install help</strong><span>Follow the step-by-step installation guide for Android, iPhone and desktop.</span></div>
             </div>
             <div className="cta-buttons">
-              <button type="button" className="btn btn-primary" onClick={onOpenInstallGuide}>📲 Installation guide</button>
-              <button type="button" className="btn btn-secondary" onClick={onOpenAnalytics}>📊 Public market insights</button>
+              <button type="button" className="btn btn-primary" onClick={onOpenInstallGuide}> Installation guide</button>
+              <button type="button" className="btn btn-secondary" onClick={onOpenAnalytics}> Public market insights</button>
             </div>
           </div>
         </>

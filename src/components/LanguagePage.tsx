@@ -1,4 +1,4 @@
-// Language settings (spec §5 "Language Settings").
+// Language settings (spec 5 "Language Settings").
 //
 // The interface ships in English with an Amharic dictionary covering the
 // navigation, headings, common actions and the workspace labels. Anything not
@@ -23,7 +23,7 @@ const LanguagePage: React.FC<LanguagePageProps> = ({ onBack }) => {
           <h1>{t('Language Settings')}</h1>
           <p>{t('English, Amharic and other supported languages.')}</p>
         </div>
-        <button className="btn btn-secondary" onClick={onBack}>← {t('Home Page')}</button>
+        <button className="btn btn-secondary" onClick={onBack}><- {t('Home Page')}</button>
       </section>
 
       <div className="ws-language-grid">
@@ -38,13 +38,13 @@ const LanguagePage: React.FC<LanguagePageProps> = ({ onBack }) => {
             <span className="ws-language-code">{language.code.toUpperCase()}</span>
             <strong>{language.native}</strong>
             <small>{language.label}</small>
-            {lang === language.code && <span className="ws-language-check">✓ {t('Active')}</span>}
+            {lang === language.code && <span className="ws-language-check">[OK] {t('Active')}</span>}
           </button>
         ))}
       </div>
 
       <section className="card glass">
-        <div className="card-header"><h2>🌐 {t('About translations')}</h2></div>
+        <div className="card-header"><h2> {t('About translations')}</h2></div>
         <p>
           {t('Menus, page headings, buttons, table controls and the workspace labels are translated. Product names, supplier descriptions and free-text messages stay in the language they were entered.')}
         </p>

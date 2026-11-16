@@ -1,9 +1,9 @@
-﻿/* ===== App.css – Optimized, Production‑Ready ===== */
+/* ===== App.css - Optimized, ProductionReady ===== */
 
 /* ---------- CSS Variables (Light / Dark) ----------
    Both themes are LIGHT BLUE: the page background is a soft blue wash, cards are
-   frosted white and the text is deep navy. The ☀️/🌙 toggle still works, it just
-   switches between two blue tints instead of light/dark — nothing in the app is
+   frosted white and the text is deep navy. The / toggle still works, it just
+   switches between two blue tints instead of light/dark - nothing in the app is
    navy or black any more. */
 :root {
   --bg: #e4f0fd;
@@ -35,7 +35,7 @@
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* "Dark" theme — a slightly deeper light-blue wash (never navy, never black). */
+/* "Dark" theme - a slightly deeper light-blue wash (never navy, never black). */
 [data-theme="dark"] {
   --bg: #cbe0f8;
   --bg-alt: #bcd6f3;
@@ -1514,7 +1514,7 @@ body {
   font-size: 0.75rem;
   color: var(--text-muted, #6b7280);
 }
-/* "With delivery" checkbox — the buyer's per-line delivery decision. */
+/* "With delivery" checkbox - the buyer's per-line delivery decision. */
 .cart-delivery-toggle {
   display: inline-flex;
   align-items: center;
@@ -1862,7 +1862,7 @@ body {
   animation: bounce 2s ease-in-out infinite;
 }
 
-/* ---------- No route animation – removed for performance ---------- */
+/* ---------- No route animation - removed for performance ---------- */
 
 /* ---------- PWA Install Banner ---------- */
 .pwa-install-banner {
@@ -1933,12 +1933,12 @@ body {
   background: rgba(255, 255, 255, 0.88) !important;
   border-color: rgba(11, 63, 109, 0.18) !important;
 }
-/* Hero banner stays deep blue in both themes — it carries white text. */
+/* Hero banner stays deep blue in both themes - it carries white text. */
 .dark-mode .search-hero {
   background: linear-gradient(135deg, var(--primary), var(--primary-light), var(--primary)) !important;
   color: #ffffff;
 }
-/* Alerts stay light in both themes — the dark variants used to be dark boxes. */
+/* Alerts stay light in both themes - the dark variants used to be dark boxes. */
 .dark-mode .alert-success {
   background: #d1fae5;
   color: #065f46;
@@ -2226,7 +2226,7 @@ body {
   }
 }
 /* =====================================================================
-   E-SCON UI v2 – Professional Polish (added on top of existing styles)
+   E-SCON UI v2 - Professional Polish (added on top of existing styles)
    ===================================================================== */
 
 /* ---------- Icon Buttons (table actions) ---------- */
@@ -2466,7 +2466,7 @@ body {
 .map-route-btn { margin-top: 8px; }
 
 /* ---------- DateTime widget (shown on every screen) ---------- */
-/* Light frosted chip — both themes are light blue now, so the widget needs a
+/* Light frosted chip - both themes are light blue now, so the widget needs a
    light surface with dark text (it used to be white text on a dark page). */
 .datetime-widget {
   display: inline-flex;
@@ -4029,10 +4029,10 @@ a:focus-visible {
 /* Page transition
    BUG FIX: the base state must stay VISIBLE (opacity: 1).
    Previously the base state was opacity:0 and the app only toggled
-   the `.page-enter` class for 500ms — so the entire page faded out
+   the `.page-enter` class for 500ms - so the entire page faded out
    and disappeared right after entering it. The entrance effect is
    now a self-contained keyframe animation instead.
-   Note: the base transform must be `none` (not translateY(0)) — any
+   Note: the base transform must be `none` (not translateY(0)) - any
    non-none transform makes this div the containing block for
    `position: fixed` children (the map modal overlay), which would
    shrink the full-screen overlay and leave the footer floating
@@ -4375,7 +4375,7 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   Cart — Minimum Order & Free Delivery
+   Cart - Minimum Order & Free Delivery
    ===================================================================== */
 .min-order-notice {
   font-size: 0.82rem;
@@ -4614,7 +4614,7 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   MOBILE UX — banking-app style (desktop untouched).
+   MOBILE UX - banking-app style (desktop untouched).
    All rules below apply ONLY under 768px viewports.
    ===================================================================== */
 @media (max-width: 768px) {
@@ -4937,7 +4937,7 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   MOBILE UX — components (still inside the 768px breakpoint later)
+   MOBILE UX - components (still inside the 768px breakpoint later)
    ===================================================================== */
 @media (max-width: 768px) {
   .mobile-home { display: flex; flex-direction: column; gap: 14px; padding: 12px 12px 84px; }
@@ -5374,7 +5374,7 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   Proforma Invoice — blue & white corporate layout
+   Proforma Invoice - blue & white corporate layout
    ===================================================================== */
 .pf-document {
   background: #ffffff;
@@ -5387,7 +5387,7 @@ a:focus-visible {
 /* ------------------------- Header ------------------------- */
 /* The header is a 3-column GRID, not a flex row. With flex, the long tagline in
    .pf-brand plus the meta block could not shrink far enough on a mid-width
-   screen, and the QR — which must never shrink — was pushed out of the row and
+   screen, and the QR - which must never shrink - was pushed out of the row and
    wrapped onto a new line at the left. An explicit grid with the QR in the last
    column makes "always top-right" structural: the QR cannot be displaced by the
    width of the other two columns at any viewport width, and `justify-self: end`
@@ -5972,7 +5972,7 @@ a:focus-visible {
     padding-top: 10px;
     border-top: 1px solid #b8dff2;
   }
-  /* Supplier and buyer stay side by side on phones too (explicitly requested) —
+  /* Supplier and buyer stay side by side on phones too (explicitly requested) -
      the label column and the box chrome shrink so both columns stay readable.
      The signature/authorization block follows the same rule: supplier name and
      buyer name side by side, each with its own date. Only the terms keep the
@@ -6027,7 +6027,7 @@ a:focus-visible {
     page-break-inside: avoid;
   }
   /* The print page box is narrower than the desktop app, which would trigger the
-     phone layout — re-assert the 3-column GRID (never flex) so the QR always
+     phone layout - re-assert the 3-column GRID (never flex) so the QR always
      prints at the top right, opposite the logo, and cannot wrap under the
      narrower page width. */
   .pf-header {
@@ -6247,7 +6247,7 @@ a:focus-visible {
   text-align: center;
   font-weight: 800;
   font-size: 0.95rem;
-  /* input reset — it has to sit flush inside the pill, not look like a form box */
+  /* input reset - it has to sit flush inside the pill, not look like a form box */
   background: transparent;
   border: none;
   color: var(--text);
@@ -6256,7 +6256,7 @@ a:focus-visible {
 }
 /* The middle of the product-details stepper is a typed field, not a label: it
    looks identical to the old read-only value but takes a custom number. The
-   native spinner is hidden so the only controls are − / + (and typing). */
+   native spinner is hidden so the only controls are  / + (and typing). */
 .qty-value::-webkit-outer-spin-button,
 .qty-value::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .qty-value { -moz-appearance: textfield; appearance: textfield; }
@@ -6347,7 +6347,7 @@ a:focus-visible {
    `.form-group label` is display:block and `.form-group input` is
    width:100%, which stretched every checkbox into a full-width bar and
    pushed its label onto the next line. The higher-specificity pair below
-   puts the box and the text back together (VAT Registered, I agree to …).
+   puts the box and the text back together (VAT Registered, I agree to ...).
    ===================================================================== */
 .form-group label.checkbox-label {
   display: flex;
@@ -6372,11 +6372,11 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   Form controls — base styles for .form-input / .form-select /
+   Form controls - base styles for .form-input / .form-select /
    .form-textarea / .form-label / .btn-submit
    These classes are used by the sign-in form, the create-account form, the
    add/edit product forms and the wallet top-up, but they only had a mobile
-   font-size rule — on a desktop they rendered as raw browser inputs. The
+   font-size rule - on a desktop they rendered as raw browser inputs. The
    16px / 46px touch sizes are re-asserted for phones further down so iOS
    does not zoom on focus.
    ===================================================================== */
@@ -6440,7 +6440,7 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   Auth pages (sign in / create account) — centered card
+   Auth pages (sign in / create account) - centered card
    The .auth-* classes had no layout rules at all, so the form sat in the
    top-left of the page. This centers the card horizontally and vertically
    and gives it the same glass language as the rest of the app.
@@ -6522,7 +6522,7 @@ a:focus-visible {
 }
 
 /* =====================================================================
-   Cart quantity editor — a real editable field with − / + keys
+   Cart quantity editor - a real editable field with  / + keys
    ===================================================================== */
 .cart-item-quantity input {
   background: var(--surface);
@@ -6806,7 +6806,7 @@ a:focus-visible {
 .m-stock-tile.danger strong { color: #b91c1c; }
 
 /* =====================================================================
-   Supplier "My Business" — profile, location & products in one place
+   Supplier "My Business" - profile, location & products in one place
    ===================================================================== */
 .supplier-logo {
   width: 40px;
@@ -6937,7 +6937,7 @@ a:focus-visible {
   letter-spacing: 0.04em;
 }
 /* ===========================================================================
-   Sample Layout — product details & order (v7.0)
+   Sample Layout - product details & order (v7.0)
    ---------------------------------------------------------------------------
    Implements the four sections of `Sample Layout.jpg`:
      1. Product Details      (.pd-grid / .pd-media / .pd-info)
@@ -7341,7 +7341,7 @@ a:focus-visible {
 .pd-summary-note { margin: 0; color: var(--text-light); font-size: 0.88rem; }
 
 /* A summary that cannot quote yet: the reason in words plus the one action
-   that unblocks it, instead of a Place Order button frozen on "Calculating…". */
+   that unblocks it, instead of a Place Order button frozen on "Calculating...". */
 .pd-summary-block {
   display: flex;
   align-items: flex-start;
@@ -7779,7 +7779,7 @@ a:focus-visible {
 }
 
 @media (max-width: 900px) and (min-width: 768px) {
-  /* Tablet landscape — keep two columns where possible */
+  /* Tablet landscape - keep two columns where possible */
   .cart-new-delivery-row {
     grid-template-columns: 1fr 1fr;
   }
@@ -7807,7 +7807,7 @@ a:focus-visible {
   }
 }
 
-/* Small phones — single column, stacked everything */
+/* Small phones - single column, stacked everything */
 @media (max-width: 640px) {
   .cart-new-layout {
     font-size: 0.7rem;
@@ -8007,7 +8007,7 @@ a:focus-visible {
   }
 }
 
-/* Very small phones (≤400px) — extra compact */
+/* Very small phones (400px) - extra compact */
 @media (max-width: 400px) {
   .cart-new-layout {
     font-size: 0.65rem;

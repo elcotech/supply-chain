@@ -106,7 +106,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     const fee = numberField(newZoneFee);
     const existing = form.delivery.zones.find(z => z.name === newZoneCity);
     if (existing) {
-      alert('A zone for ' + newZoneCity + ' already exists — edit it instead.');
+      alert('A zone for ' + newZoneCity + ' already exists - edit it instead.');
       return;
     }
     const zone: DeliveryZone = {
@@ -129,9 +129,9 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
   };
 
   const previewTests = [
-    { label: '1 tonne × 100 km', fee: d.distanceBaseFee + 100 * d.distancePerKmPerTon * 1 },
-    { label: '5 tonnes × 100 km', fee: d.distanceBaseFee + 100 * d.distancePerKmPerTon * 5 },
-    { label: '1 tonne × 250 km', fee: d.distanceBaseFee + 250 * d.distancePerKmPerTon * 1 },
+    { label: '1 tonne x 100 km', fee: d.distanceBaseFee + 100 * d.distancePerKmPerTon * 1 },
+    { label: '5 tonnes x 100 km', fee: d.distanceBaseFee + 100 * d.distancePerKmPerTon * 5 },
+    { label: '1 tonne x 250 km', fee: d.distanceBaseFee + 250 * d.distancePerKmPerTon * 1 },
   ];
 
   const query = catalogueQuery.trim().toLowerCase();
@@ -147,14 +147,14 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
     <main className="main-content">
       <section className="admin-settings glass">
         <div className="admin-settings-header">
-          <h1>⚙️ Welcome — Platform Settings</h1>
+          <h1> Welcome - Platform Settings</h1>
           <p>Configure business rules that apply to every user. Changes save instantly to your device and take effect immediately.</p>
-          {savedFlash && <div className="alert alert-success">✅ Settings saved and applied immediately.</div>}
+          {savedFlash && <div className="alert alert-success">[OK] Settings saved and applied immediately.</div>}
         </div>
 
         <form onSubmit={handleSave} className="settings-form">
           <div className="settings-card">
-            <h2>💰 Delivery Fee</h2>
+            <h2> Delivery Fee</h2>
 
             <div className="settings-field">
               <label>Pricing model</label>
@@ -199,7 +199,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
             )}
 
             <div className="settings-field">
-              <label>Free delivery threshold (ETB) — 0 disables</label>
+              <label>Free delivery threshold (ETB) - 0 disables</label>
               <input
                 type="number" min="0" step="100"
                 value={d.freeDeliveryThreshold}
@@ -224,7 +224,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
           </div>
 
           <div className="settings-card">
-            <h2>📍 Delivery Zones</h2>
+            <h2> Delivery Zones</h2>
             <p className="settings-hint">
               A zone overrides the delivery fee for the matched city / area.
               Keep zones empty to use the pricing model above.
@@ -249,7 +249,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                           updateZone(zone.id, { cities, name: cities.join(', ') });
                         }}
                       >
-                        <option value="">—</option>
+                        <option value="">-</option>
                         {ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     ))}
@@ -272,7 +272,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                     onChange={e => updateZone(zone.id, { fee: numberField(e.target.value) })}
                     title="Zone delivery fee (ETB)"
                   />
-                  <button type="button" className="btn-icon danger" onClick={() => removeZone(zone.id)}>🗑️</button>
+                  <button type="button" className="btn-icon danger" onClick={() => removeZone(zone.id)}></button>
                 </div>
               </div>
             ))}
@@ -286,12 +286,12 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                 value={newZoneFee}
                 onChange={e => setNewZoneFee(e.target.value)}
               />
-              <button type="button" className="btn btn-primary btn-sm" onClick={addZone}>➕ Add Zone</button>
+              <button type="button" className="btn btn-primary btn-sm" onClick={addZone}> Add Zone</button>
             </div>
           </div>
 
           <div className="settings-card">
-            <h2>⚖️ Minimum Order Value</h2>
+            <h2> Minimum Order Value</h2>
             <label className="settings-check">
               <input
                 type="checkbox"
@@ -353,8 +353,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                 <div key={user.id} className="admin-data-row">
                   <div className="admin-data-main">
                     <strong>{user.name}</strong>
-                    <small>{user.email} · {user.userType}{user.companyName ? ' · ' + user.companyName : ''}</small>
-                    <small>📍 {user.address || 'No address'}, {user.city || 'No city'} · {Number.isFinite(user.lat) && Number.isFinite(user.lng) ? `${Number(user.lat).toFixed(5)}, ${Number(user.lng).toFixed(5)}` : 'location not set'}</small>
+                    <small>{user.email} - {user.userType}{user.companyName ? ' - ' + user.companyName : ''}</small>
+                    <small> {user.address || 'No address'}, {user.city || 'No city'} - {Number.isFinite(user.lat) && Number.isFinite(user.lng) ? `${Number(user.lat).toFixed(5)}, ${Number(user.lng).toFixed(5)}` : 'location not set'}</small>
                   </div>
                   <div className="admin-data-actions">
                     {onUpdateUser && (
@@ -413,7 +413,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
               <h2>Suppliers</h2>
               {onAddSupplier && (
                 <button type="button" className="btn btn-primary btn-sm" onClick={onAddSupplier}>
-                  ➕ Add Supplier
+                   Add Supplier
                 </button>
               )}
             </div>
@@ -428,7 +428,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   <div key={company.id} className="admin-data-row">
                     <div className="admin-data-main">
                       <strong>{company.name}</strong>
-                      <small>{company.city || 'No city'} · {productCount} product{productCount === 1 ? '' : 's'}</small>
+                      <small>{company.city || 'No city'} - {productCount} product{productCount === 1 ? '' : 's'}</small>
                     </div>
                     <div className="admin-data-actions">
                       {onEditCompany && <button type="button" className="btn-icon" onClick={() => onEditCompany(company)}>Edit</button>}
@@ -448,7 +448,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
             <input
               type="search"
               className="form-input"
-              placeholder="Search products or suppliers…"
+              placeholder="Search products or suppliers..."
               value={catalogueQuery}
               onChange={e => setCatalogueQuery(e.target.value)}
             />
@@ -460,7 +460,7 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   <div key={material.id} className="admin-data-row">
                     <div className="admin-data-main">
                       <strong>{material.name}</strong>
-                      <small>{company?.name || 'Unknown supplier'} · {formatCurrency(material.price)} · {material.quantity} {material.unit}</small>
+                      <small>{company?.name || 'Unknown supplier'} - {formatCurrency(material.price)} - {material.quantity} {material.unit}</small>
                     </div>
                     <div className="admin-data-actions">
                       {onEditMaterial && <button type="button" className="btn-icon" onClick={() => onEditMaterial(material)}>Edit</button>}
@@ -473,8 +473,8 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
           </div>
 
           <div className="settings-actions">
-            <button type="submit" className="btn btn-primary">💾 Save Settings</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setForm(settings)}>↩️ Reset to Last Saved</button>
+            <button type="submit" className="btn btn-primary"> Save Settings</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setForm(settings)}> Reset to Last Saved</button>
           </div>
         </form>
       </section>

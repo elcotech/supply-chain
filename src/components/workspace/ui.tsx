@@ -1,6 +1,6 @@
 // ===== Shared workspace UI kit =====
 //
-// Spec §9 requires every menu to offer useful KPIs, recent activity, alerts and
+// Spec 9 requires every menu to offer useful KPIs, recent activity, alerts and
 // quick actions, and data tables with search, filter, sort, pagination and
 // export permissions. These primitives provide exactly that, so all five role
 // menus behave the same way on desktop, tablet and phone.
@@ -95,7 +95,7 @@ export const RouteStrip: React.FC<{ from: string; to: string; progress: number }
     <span className="ws-route-node">{from}</span>
     <span className="ws-route-line">
       <span className="ws-route-fill" style={{ width: Math.max(4, Math.min(100, progress)) + '%' }} />
-      <span className="ws-route-pin" style={{ left: Math.max(2, Math.min(98, progress)) + '%' }}>🚚</span>
+      <span className="ws-route-pin" style={{ left: Math.max(2, Math.min(98, progress)) + '%' }}></span>
     </span>
     <span className="ws-route-node">{to}</span>
   </div>
@@ -139,7 +139,7 @@ export const Panel: React.FC<{
 );
 
 export const EmptyState: React.FC<{ icon?: string; title: string; text?: string; action?: React.ReactNode }> = ({
-  icon = '📭', title, text, action,
+  icon = '', title, text, action,
 }) => (
   <div className="ws-empty">
     <span aria-hidden="true">{icon}</span>
@@ -279,17 +279,17 @@ export function DataTable<T extends { id: string }>({
     <div className="ws-table-wrap">
       <div className="ws-table-tools">
         <div className="ws-table-search">
-          <span aria-hidden="true">🔍</span>
+          <span aria-hidden="true"></span>
           <input
             type="search"
             value={query}
-            placeholder={t('Search…')}
-            aria-label={t('Search…')}
+            placeholder={t('Search...')}
+            aria-label={t('Search...')}
             onChange={event => { setQuery(event.target.value); setPage(0); }}
           />
           {query && (
             <button type="button" className="ws-clear" onClick={() => setQuery('')} aria-label={t('Clear')}>
-              ✕
+              
             </button>
           )}
         </div>
@@ -309,13 +309,13 @@ export function DataTable<T extends { id: string }>({
         {toolbarExtra}
         {exportEnabled && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={handleExport} disabled={filtered.length === 0}>
-            📥 {t('Export CSV')}
+             {t('Export CSV')}
           </button>
         )}
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState icon="🔍" title={emptyTitle || t('No matching records')} text={emptyText} />
+        <EmptyState icon="" title={emptyTitle || t('No matching records')} text={emptyText} />
       ) : (
         <>
           <div className="table-scroll-container">
@@ -332,7 +332,7 @@ export function DataTable<T extends { id: string }>({
                       <button type="button" className="ws-sort" onClick={() => toggleSort(column.key)}>
                         {t(column.header)}
                         <span aria-hidden="true" className="ws-sort-arrow">
-                          {sortKey === column.key ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+                          {sortKey === column.key ? (sortDir === 'asc' ? '' : '') : ''}
                         </span>
                       </button>
                     </th>
@@ -363,11 +363,11 @@ export function DataTable<T extends { id: string }>({
             </span>
             <div className="ws-pager">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={safePage === 0}>
-                ← {t('Previous')}
+                <- {t('Previous')}
               </button>
               <span className="ws-page-indicator">{t('Page')} {safePage + 1} {t('of')} {pageCount}</span>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))} disabled={safePage >= pageCount - 1}>
-                {t('Next')} →
+                {t('Next')} ->
               </button>
             </div>
           </div>
@@ -440,7 +440,7 @@ export const Modal: React.FC<{
       >
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="modal-close" onClick={onClose} aria-label={t('Close')}>✕</button>
+          <button className="modal-close" onClick={onClose} aria-label={t('Close')}></button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="ws-modal-footer">{footer}</div>}

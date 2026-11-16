@@ -225,16 +225,16 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
       <div className="escon-sheet copilot-sheet">
         <header className="escon-sheet-head copilot-head">
           <div className="escon-sheet-brand">
-            <span className="escon-sheet-logo copilot-logo">🤖</span>
+            <span className="escon-sheet-logo copilot-logo"></span>
             <div>
-              <span className="escon-kicker">E-SCON · Copilot AI</span>
+              <span className="escon-kicker">E-SCON - Copilot AI</span>
               <h1 className="escon-sheet-title">Ask your supply chain</h1>
-              <p className="escon-sheet-sub">Grounded in {snapshot.orderCount} orders, {snapshot.productCount} products and {snapshot.supplierCount} suppliers · private to this device</p>
+              <p className="escon-sheet-sub">Grounded in {snapshot.orderCount} orders, {snapshot.productCount} products and {snapshot.supplierCount} suppliers - private to this device</p>
             </div>
           </div>
           <div className="escon-sheet-meta">
             <span className={'escon-role-chip role-' + role}>{roleLabel} view</span>
-            <span className="copilot-live"><i /> On-device · no cloud AI</span>
+            <span className="copilot-live"><i /> On-device - no cloud AI</span>
             <button type="button" className="escon-link" onClick={clearChat}>Clear conversation</button>
           </div>
         </header>
@@ -244,7 +244,7 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
             <div className="copilot-scroll" ref={scrollRef}>
               {messages.map(message => (
                 <div key={message.id} className={'copilot-msg ' + message.role}>
-                  <span className="copilot-avatar" aria-hidden="true">{message.role === 'user' ? '🧑' : '🤖'}</span>
+                  <span className="copilot-avatar" aria-hidden="true">{message.role === 'user' ? '' : ''}</span>
                   <div className="copilot-bubble">
                     {message.role === 'assistant' ? renderAnswer(message) : <p className="copilot-text">{message.text}</p>}
                     <span className="copilot-time">{new Date(message.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -254,7 +254,7 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
 
               {typing && (
                 <div className="copilot-msg assistant">
-                  <span className="copilot-avatar" aria-hidden="true">🤖</span>
+                  <span className="copilot-avatar" aria-hidden="true"></span>
                   <div className="copilot-bubble copilot-typing" aria-label="Copilot is typing">
                     <span /><span /><span />
                   </div>
@@ -266,7 +266,7 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
                   <h3>Try a question</h3>
                   <div className="copilot-starter-grid">
                     {suggestions.map(prompt => (
-                      <button key={prompt} type="button" onClick={() => send(prompt)}>{prompt}<span>→</span></button>
+                      <button key={prompt} type="button" onClick={() => send(prompt)}>{prompt}<span>-></span></button>
                     ))}
                   </div>
                 </div>
@@ -287,12 +287,12 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
                 type="text"
                 value={draft}
                 onChange={event => setDraft(event.target.value)}
-                placeholder={`Ask about orders, stock, prices, suppliers…`}
+                placeholder={`Ask about orders, stock, prices, suppliers...`}
                 aria-label="Ask Copilot"
                 disabled={typing}
               />
               <button type="submit" className="copilot-send" disabled={typing || !draft.trim()} aria-label="Send question">
-                {typing ? '…' : 'Send ↑'}
+                {typing ? '...' : 'Send ^'}
               </button>
             </form>
             <p className="copilot-disclaimer">Answers use your live E-SCON records only. Copilot never sends data to an external AI service.</p>
@@ -305,21 +305,21 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
                 <div><dt>Scope</dt><dd>{snapshot.scopeLabel}</dd></div>
                 <div><dt>Period</dt><dd>{snapshot.periodLabel}</dd></div>
                 <div><dt>Revenue tracked</dt><dd>{formatCurrency(snapshot.gmv)}</dd></div>
-                <div><dt>Orders</dt><dd>{snapshot.orderCount} · {snapshot.activeOrders} active</dd></div>
-                <div><dt>Products</dt><dd>{snapshot.productCount} · {snapshot.lowStockCount} low</dd></div>
+                <div><dt>Orders</dt><dd>{snapshot.orderCount} - {snapshot.activeOrders} active</dd></div>
+                <div><dt>Products</dt><dd>{snapshot.productCount} - {snapshot.lowStockCount} low</dd></div>
                 <div><dt>Suppliers</dt><dd>{snapshot.supplierCount} in {snapshot.cityCount} cities</dd></div>
-                <div><dt>Reviews</dt><dd>{snapshot.reviewCount} · ⭐ {snapshot.avgRating.toFixed(1)}</dd></div>
+                <div><dt>Reviews</dt><dd>{snapshot.reviewCount} - * {snapshot.avgRating.toFixed(1)}</dd></div>
               </dl>
             </div>
 
             <div className="copilot-side-card">
               <h2>Open a full report</h2>
               <button type="button" className="copilot-side-action" onClick={onOpenAnalytics}>
-                <span>📊</span>
+                <span></span>
                 <div><strong>Analytics &amp; Insights</strong><small>Charts, KPIs and export</small></div>
               </button>
               <button type="button" className="copilot-side-action" onClick={onOpenMarketplace}>
-                <span>🛍️</span>
+                <span></span>
                 <div><strong>Marketplace</strong><small>Products and suppliers</small></div>
               </button>
             </div>
@@ -338,8 +338,8 @@ const CopilotPage: React.FC<CopilotPageProps> = ({
         </div>
 
         <footer className="escon-sheet-foot">
-          <span>E-SCON Copilot · deterministic business intelligence</span>
-          <span>{user ? 'Signed in · answers scoped to your account' : 'Visitor view · browse-only data'}</span>
+          <span>E-SCON Copilot - deterministic business intelligence</span>
+          <span>{user ? 'Signed in - answers scoped to your account' : 'Visitor view - browse-only data'}</span>
         </footer>
       </div>
     </main>

@@ -64,7 +64,7 @@ const DateTime: React.FC<DateTimeProps> = ({ className = '' }) => {
           title="Toggle inverted colors"
           aria-label="Toggle inverted colors"
         >
-          🎨
+          
         </button>
         <button
           type="button"
@@ -73,7 +73,7 @@ const DateTime: React.FC<DateTimeProps> = ({ className = '' }) => {
           title="Toggle transparency"
           aria-label="Toggle transparency"
         >
-          👻
+          
         </button>
       </div>
     </div>

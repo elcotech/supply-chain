@@ -81,9 +81,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       .slice(0, 6);
     const priceBands = [
       { label: 'Under 1k', min: 0, max: 1000 },
-      { label: '1k–5k', min: 1000, max: 5000 },
-      { label: '5k–10k', min: 5000, max: 10000 },
-      { label: '10k–50k', min: 10000, max: 50000 },
+      { label: '1k-5k', min: 1000, max: 5000 },
+      { label: '5k-10k', min: 5000, max: 10000 },
+      { label: '10k-50k', min: 10000, max: 50000 },
       { label: '50k+', min: 50000, max: Infinity },
     ].map(band => ({
       label: band.label,
@@ -93,10 +93,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       ? reviews.map(r => Number(r.rating) || 0)
       : materials.map(m => Number(m.rating) || 0);
     const ratingMix = [
-      { label: '4.5–5 ★', value: ratings.filter(r => r >= 4.5).length, color: '#2ecc71' },
-      { label: '3.5–4.4 ★', value: ratings.filter(r => r >= 3.5 && r < 4.5).length, color: '#3498db' },
-      { label: '2.5–3.4 ★', value: ratings.filter(r => r >= 2.5 && r < 3.5).length, color: '#f1c40f' },
-      { label: 'Below 2.5 ★', value: ratings.filter(r => r < 2.5).length, color: '#e74c3c' },
+      { label: '4.5-5 ', value: ratings.filter(r => r >= 4.5).length, color: '#2ecc71' },
+      { label: '3.5-4.4 ', value: ratings.filter(r => r >= 3.5 && r < 4.5).length, color: '#3498db' },
+      { label: '2.5-3.4 ', value: ratings.filter(r => r >= 2.5 && r < 3.5).length, color: '#f1c40f' },
+      { label: 'Below 2.5 ', value: ratings.filter(r => r < 2.5).length, color: '#e74c3c' },
     ].filter(slice => slice.value > 0);
     const suppliers = companies.map(company => ({
       ...company,
@@ -252,7 +252,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           ForecastChangePercent: p.forecast ? p.forecast.changePct.toFixed(1) : '',
         }));
     if (rows.length === 0) {
-      onNotify('Nothing to export yet — add products or place an order first.', 'warning');
+      onNotify('Nothing to export yet - add products or place an order first.', 'warning');
       return;
     }
     exportToCSV(rows, `escon-analytics-${analytics.role}-${new Date().toISOString().slice(0, 10)}`);
@@ -278,17 +278,17 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       <div className="escon-sheet analytics-sheet">
         <header className="escon-sheet-head">
           <div className="escon-sheet-brand">
-            <span className="escon-sheet-logo">🏗️</span>
+            <span className="escon-sheet-logo"></span>
             <div>
-              <span className="escon-kicker">E-SCON · Business Intelligence</span>
+              <span className="escon-kicker">E-SCON - Business Intelligence</span>
               <h1 className="escon-sheet-title">Analytics &amp; Insights</h1>
-              <p className="escon-sheet-sub">{analytics.scopeLabel} · {isGuest ? 'Public catalogue' : analytics.periodLabel}</p>
+              <p className="escon-sheet-sub">{analytics.scopeLabel} - {isGuest ? 'Public catalogue' : analytics.periodLabel}</p>
             </div>
           </div>
           <div className="escon-sheet-meta">
             <span className={'escon-role-chip role-' + analytics.role}>{analytics.role === 'company' ? 'Supplier' : analytics.role === 'customer' ? 'Buyer' : analytics.role === 'admin' ? 'Administrator' : analytics.role === 'transporter' ? 'Transporter' : 'Visitor'} view</span>
             <span>Generated {new Date(analytics.generatedAt).toLocaleString()}</span>
-            <span>{isGuest ? `${analytics.productCount} products · ${analytics.supplierCount} suppliers` : `${analytics.orderCount} orders · ${analytics.productCount} products`}</span>
+            <span>{isGuest ? `${analytics.productCount} products - ${analytics.supplierCount} suppliers` : `${analytics.orderCount} orders - ${analytics.productCount} products`}</span>
           </div>
         </header>
 
@@ -304,15 +304,15 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </p>
           )}
           <div className="escon-toolbar-actions">
-            <button type="button" className="escon-btn ghost" onClick={onOpenMarketplace}>🛍️ Marketplace</button>
+            <button type="button" className="escon-btn ghost" onClick={onOpenMarketplace}> Marketplace</button>
             {!isGuest && (
               <>
-                <button type="button" className="escon-btn ghost" onClick={() => onAskCopilot('Give me an executive summary')}>🤖 Ask Copilot</button>
-                <button type="button" className="escon-btn" onClick={exportAnalytics}>📥 Export CSV</button>
+                <button type="button" className="escon-btn ghost" onClick={() => onAskCopilot('Give me an executive summary')}> Ask Copilot</button>
+                <button type="button" className="escon-btn" onClick={exportAnalytics}> Export CSV</button>
               </>
             )}
             {isGuest && (
-              <button type="button" className="escon-btn" onClick={onOpenSupplierMap}>📍 Explore supplier map</button>
+              <button type="button" className="escon-btn" onClick={onOpenSupplierMap}> Explore supplier map</button>
             )}
           </div>
         </div>
@@ -320,7 +320,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         {analytics.insights.length > 0 && (
           <section className="escon-insights" aria-label={isGuest ? 'Marketplace snapshot' : 'Key insights'}>
             <div className="escon-insights-head">
-              <span className="escon-insights-icon">✨</span>
+              <span className="escon-insights-icon"></span>
               <h2>{isGuest ? 'Marketplace snapshot' : 'AI insights'}</h2>
               <span className="escon-insights-live">{isGuest ? 'Public data' : 'Live data'}</span>
             </div>
@@ -534,7 +534,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <h2>{isGuest ? 'Top rated products' : 'Top products'}</h2>
             {!isGuest ? (
               <button type="button" className="escon-link" onClick={() => onAskCopilot('What are my top-selling products?')}>
-                Ask Copilot about products →
+                Ask Copilot about products ->
               </button>
             ) : (
               <span className="escon-badge">{guestData.topRated.length} featured</span>
@@ -569,7 +569,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         <td>{material.category || 'Other'}</td>
                         <td>{companies.find(c => c.id === material.companyId)?.name || 'Supplier'}</td>
                         <td className="num strong">{formatCurrency(material.price)}</td>
-                        <td className="num">⭐ {rating.toFixed(1)}</td>
+                        <td className="num">* {rating.toFixed(1)}</td>
                         <td className="num">{reviewCount}</td>
                       </tr>
                     ))}
@@ -579,8 +579,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             )
           ) : analytics.topProducts.length === 0 ? (
             <div className="escon-empty">
-              <span>📊</span>
-              <p>No product sales in this period yet. Place an order or switch to “All time”.</p>
+              <span></span>
+              <p>No product sales in this period yet. Place an order or switch to "All time".</p>
               <button type="button" className="escon-btn ghost" onClick={onOpenMarketplace}>Browse the marketplace</button>
             </div>
           ) : (
@@ -614,7 +614,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         <td className="num">{product.units}</td>
                         <td className="num">{product.orders}</td>
                         <td className="num strong">{formatCurrency(product.revenue)}</td>
-                        <td className="num">⭐ {product.rating.toFixed(1)}</td>
+                        <td className="num">* {product.rating.toFixed(1)}</td>
                       </tr>
                     );
                   })}
@@ -637,10 +637,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                     <span className="escon-rank">{index + 1}</span>
                     <div className="escon-list-main">
                       <strong>{supplier.name}</strong>
-                      <small>{supplier.city || '—'} · {supplier.productCount} products</small>
+                      <small>{supplier.city || '-'} - {supplier.productCount} products</small>
                     </div>
                     <div className="escon-list-figure">
-                      <strong>⭐ {(supplier.rating || 0).toFixed(1)}</strong>
+                      <strong>* {(supplier.rating || 0).toFixed(1)}</strong>
                       <small>{supplier.complianceStatus || 'pending'}</small>
                     </div>
                   </div>
@@ -686,7 +686,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       <span className="escon-rank">{index + 1}</span>
                       <div className="escon-list-main">
                         <strong>{supplier.name}</strong>
-                        <small>{supplier.city} · {supplier.products} products · ⭐ {supplier.rating.toFixed(1)}</small>
+                        <small>{supplier.city} - {supplier.products} products - * {supplier.rating.toFixed(1)}</small>
                       </div>
                       <div className="escon-list-figure">
                         <strong>{formatCurrency(supplier.revenue)}</strong>
@@ -713,7 +713,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         <span className="escon-rank">{index + 1}</span>
                         <div className="escon-list-main">
                           <strong>{customer.name}</strong>
-                          <small>{customer.city} · {customer.orders} orders</small>
+                          <small>{customer.city} - {customer.orders} orders</small>
                         </div>
                         <div className="escon-list-figure">
                           <strong>{formatCurrency(customer.spend)}</strong>
@@ -733,10 +733,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         <span className="escon-rank">{index + 1}</span>
                         <div className="escon-list-main">
                           <strong>{supplier.name}</strong>
-                          <small>{supplier.city || '—'} · {materials.filter(m => m.companyId === supplier.id).length} products</small>
+                          <small>{supplier.city || '-'} - {materials.filter(m => m.companyId === supplier.id).length} products</small>
                         </div>
                         <div className="escon-list-figure">
-                          <strong>⭐ {(supplier.rating || 0).toFixed(1)}</strong>
+                          <strong>* {(supplier.rating || 0).toFixed(1)}</strong>
                           <small>{supplier.complianceStatus || 'pending'}</small>
                         </div>
                       </div>
@@ -783,7 +783,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <div className="escon-section-head">
               <h2>Price intelligence</h2>
               <button type="button" className="escon-link" onClick={() => onAskCopilot('Show price forecasts')}>
-                Open Copilot forecast →
+                Open Copilot forecast ->
               </button>
             </div>
             {analytics.priceBoard.length === 0 ? (
@@ -806,7 +806,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                       <div className="price-card-foot">
                         <span className={'price-trend ' + tone}>
                           {forecast
-                            ? `${tone === 'up' ? '▲' : tone === 'down' ? '▼' : '■'} ${Math.abs(forecast.changePct).toFixed(1)}%`
+                            ? `${tone === 'up' ? '' : tone === 'down' ? '' : ''} ${Math.abs(forecast.changePct).toFixed(1)}%`
                             : 'Tracking'}
                         </span>
                         {product.marginPct > 0 && <span className="price-margin">{product.marginPct.toFixed(0)}% margin</span>}
@@ -828,10 +828,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <div className="restock-grid">
               {criticalStock.map(material => (
                 <div key={material.id} className={'restock-card' + ((material.quantity || 0) <= 0 ? ' out' : '')}>
-                  <span className="restock-icon">{(material.quantity || 0) <= 0 ? '🚫' : '⚠️'}</span>
+                  <span className="restock-icon">{(material.quantity || 0) <= 0 ? '' : '[!]'}</span>
                   <div>
                     <strong>{material.name}</strong>
-                    <small>{material.quantity || 0} {material.unit || 'units'} left · {formatCurrency((material.quantity || 0) * material.price)}</small>
+                    <small>{material.quantity || 0} {material.unit || 'units'} left - {formatCurrency((material.quantity || 0) * material.price)}</small>
                   </div>
                   <button type="button" className="escon-link" onClick={() => onOpenProduct(material)}>View</button>
                 </div>
@@ -866,8 +866,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         )}
 
         <footer className="escon-sheet-foot">
-          <span>E-SCON · Ethio-Supply Chain Optimization Network</span>
-          <span>{analytics.role === 'guest' ? 'Public catalogue data' : 'Private to this account'} · Generated on this device</span>
+          <span>E-SCON - Ethio-Supply Chain Optimization Network</span>
+          <span>{analytics.role === 'guest' ? 'Public catalogue data' : 'Private to this account'} - Generated on this device</span>
         </footer>
       </div>
     </main>

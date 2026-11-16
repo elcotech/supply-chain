@@ -58,7 +58,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ({ menu, section, onSectio
             onClick={() => setCollapsed(c => !c)}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
-            {collapsed ? '›' : '‹'}
+            {collapsed ? '>' : ''}
           </button>
         </div>
         <nav className="ws-sidebar-nav">
@@ -92,7 +92,7 @@ const WorkspaceShell: React.FC<WorkspaceShellProps> = ({ menu, section, onSectio
             aria-expanded={drawerOpen}
             onClick={() => setDrawerOpen(o => !o)}
           >
-            {drawerOpen ? '✕' : '☰'}
+            {drawerOpen ? '' : ''}
           </button>
           <div className="ws-topstrip-title">
             <strong>{t(activeLabel)}</strong>

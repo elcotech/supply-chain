@@ -1,4 +1,4 @@
-# E-SCON — Deployment
+# E-SCON - Deployment
 
 E-SCON ships in two forms: a **static web app** and an **Android app**. Both are
 built from the same source.
@@ -9,11 +9,11 @@ built from the same source.
 
 ```bash
 npm install
-npm run build            # → ./build  (static site)
+npm run build            # -> ./build  (static site)
 npx tsc --noEmit         # typecheck without building
 ```
 
-`build/` is a plain static folder — no server runtime is required.
+`build/` is a plain static folder - no server runtime is required.
 
 > `.env.local` is optional; when present, the Supabase values are compiled in and
 > all shared business data syncs across devices. Without them the app stays
@@ -106,7 +106,7 @@ For a quick internal install, build a debug APK and use `adb install`
 | `REACT_APP_SUPABASE_URL` | web + Android bundle | `.env.local` (gitignored) |
 | `REACT_APP_SUPABASE_ANON_KEY` | web + Android bundle | `.env.local` (gitignored) |
 
-There is no runtime server configuration — the app is fully client-side, so the
+There is no runtime server configuration - the app is fully client-side, so the
 values are baked in at build time.
 
 

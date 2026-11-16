@@ -13,7 +13,7 @@ L.Icon.Default.mergeOptions({
 
 const supplierIcon = L.divIcon({
   className: 'supplier-marker',
-  html: '<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));">🏗️</div>',
+  html: '<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));"></div>',
   iconSize: [32, 32],
   iconAnchor: [16, 32],
   popupAnchor: [0, -28],
@@ -21,7 +21,7 @@ const supplierIcon = L.divIcon({
 
 const selectedSupplierIcon = L.divIcon({
   className: 'supplier-marker-selected',
-  html: '<div style="font-size:34px;filter:drop-shadow(0 2px 6px rgba(46,204,113,.6));">🏗️</div>',
+  html: '<div style="font-size:34px;filter:drop-shadow(0 2px 6px rgba(46,204,113,.6));"></div>',
   iconSize: [36, 36],
   iconAnchor: [18, 36],
   popupAnchor: [0, -34],
@@ -97,7 +97,7 @@ interface MapComponentProps {
   /**
    * Reports a meaningful GPS fix so the rest of the app measures from the same
    * position the map is drawing from. Called on the first fix and again only
-   * when the buyer moves (≈50 m) or accuracy improves substantially.
+   * when the buyer moves (50 m) or accuracy improves substantially.
    */
   onLocationFix?: (coords: { lat: number; lng: number; accuracy: number }) => void;
 }
@@ -137,7 +137,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const supplierMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   // True only once the map has a trustworthy origin: the saved buyer pin or a
   // live GPS fix. Without it we refuse to invent an Addis distance, because the
-  // search list and product page show "—" instead of that fake measurement.
+  // search list and product page show "-" instead of that fake measurement.
   const hasOriginRef = useRef(hasRealPosition(currentUser));
   const userPositionRef = useRef<{ lat: number; lng: number; accuracy: number }>(
     hasRealPosition(currentUser)
@@ -183,14 +183,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
     onLocationFixRef.current = onLocationFix;
   }, [onLocationFix]);
 
-  // Remove ALL overlays from map — no stale closure issues
+  // Remove ALL overlays from map - no stale closure issues
   const clearAllOverlays = useCallback(() => {
     if (overlayGroupRef.current && leafletMap.current) {
       leafletMap.current.removeLayer(overlayGroupRef.current);
       overlayGroupRef.current = null;
     }
     // The first "Your Location" marker is placed straight on the map (before any
-    // route exists), so it has to be dropped explicitly — otherwise a leftover
+    // route exists), so it has to be dropped explicitly - otherwise a leftover
     // marker survives the next redraw.
     if (userMarkerRef.current && leafletMap.current) {
       leafletMap.current.removeLayer(userMarkerRef.current);
@@ -201,7 +201,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setDistance(null);
   }, []);
 
-  // Browser Geolocation — watches real-time position
+  // Browser Geolocation - watches real-time position
   useEffect(() => {
     if (!navigator.geolocation) {
       setGeoLocationStatus('unsupported');
@@ -247,7 +247,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     return () => navigator.geolocation.clearWatch(watchId);
   }, [reportLocationFix]);
 
-  // OSRM routing — returns road-following route with accurate distance. Two
+  // OSRM routing - returns road-following route with accurate distance. Two
   // independent public servers are tried so one slow/blocked endpoint does not
   // silently fall back to a straight line.
   const fetchRoute = useCallback(async (
@@ -286,7 +286,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     return null;
   }, []);
 
-  // Draw route for a supplier — clears everything first, then draws fresh
+  // Draw route for a supplier - clears everything first, then draws fresh
   const drawRouteForSupplier = useCallback(async (company: Company) => {
     const map = leafletMap.current;
     if (!map) return;
@@ -310,7 +310,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       setIsDistanceLoading(false);
       setDistance(null);
       setRouteInfo(null);
-      setLocateMeMsg('📍 Set your location to measure the road distance (tap Locate Me).');
+      setLocateMeMsg(' Set your location to measure the road distance (tap Locate Me).');
       return;
     }
 
@@ -369,7 +369,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       setDistance(route.distanceKm);
       setRouteInfo({ distance: route.distanceKm, duration: route.durationMin });
     } else {
-      // OSRM failed — draw dashed fallback line with haversine distance
+      // OSRM failed - draw dashed fallback line with haversine distance
       L.polyline(
         [[origin.lat, origin.lng], [dest.lat, dest.lng]] as L.LatLngExpression[],
         { color: '#ef4444', weight: 3, opacity: 0.7, dashArray: '8, 8' }
@@ -400,7 +400,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     setIsDistanceLoading(false);
   }, [clearAllOverlays, fetchRoute, getCoords, getUserPosition]);
 
-  // Handle supplier click — always clears the previous route and draws a fresh
+  // Handle supplier click - always clears the previous route and draws a fresh
   // one, even when the same supplier is picked again.
   const handleSupplierSelect = useCallback(async (company: Company) => {
     // Highlight the selected supplier marker
@@ -428,7 +428,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   }, [drawRouteForSupplier]);
 
   // The search list and product page measure from the saved buyer pin. Whenever
-  // that pin changes — a location refresh, a manual pin, a login — move the
+  // that pin changes - a location refresh, a manual pin, a login - move the
   // map's origin to the same point and redraw, so pre-click and post-click
   // distances agree. Live GPS fixes take precedence over a saved pin.
   useEffect(() => {
@@ -584,21 +584,21 @@ const MapComponent: React.FC<MapComponentProps> = ({
           leafletMap.current.setView([latitude, longitude], 14, { animate: true });
         }
         if (selectedCompany) drawRouteForSupplier(selectedCompany);
-        setLocateMeMsg('📍 Your location is now centered on the map.');
+        setLocateMeMsg(' Your location is now centered on the map.');
       },
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
           setGeoLocationStatus('denied');
-          setLocateMeMsg('⛔ Location permission denied. Please enable it in your browser settings, then tap Locate Me again.');
+          setLocateMeMsg(' Location permission denied. Please enable it in your browser settings, then tap Locate Me again.');
         } else if (error.code === error.TIMEOUT) {
           setGeoLocationStatus('timeout');
-          setLocateMeMsg('⏳ Locating timed out. GPS signal may be weak — check location services and retry.');
+          setLocateMeMsg(' Locating timed out. GPS signal may be weak - check location services and retry.');
         } else if (error.code === error.POSITION_UNAVAILABLE) {
           setGeoLocationStatus('error');
-          setLocateMeMsg('⚠️ Your position is unavailable right now. Check GPS/Wi-Fi and retry.');
+          setLocateMeMsg('[!] Your position is unavailable right now. Check GPS/Wi-Fi and retry.');
         } else {
           setGeoLocationStatus('error');
-          setLocateMeMsg('⚠️ Could not determine your location.');
+          setLocateMeMsg('[!] Could not determine your location.');
         }
       },
       { enableHighAccuracy: true, timeout: 10000 }
@@ -609,25 +609,25 @@ const MapComponent: React.FC<MapComponentProps> = ({
     <div className="map-modal-overlay" onClick={onClose}>
       <div className="map-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="map-modal-header">
-          <h2>🗺️ Supplier Locations — Ethiopia</h2>
+          <h2> Supplier Locations - Ethiopia</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, opacity: 0.6 }}>
-              {geoLocationStatus === 'granted' && '🟢 GPS Active'}
-              {geoLocationStatus === 'requesting' && '🟡 Requesting GPS…'}
+              {geoLocationStatus === 'granted' && ' GPS Active'}
+              {geoLocationStatus === 'requesting' && ' Requesting GPS...'}
               {(geoLocationStatus === 'denied' || geoLocationStatus === 'error' || geoLocationStatus === 'timeout') &&
                 (hasRealPosition(currentUser)
-                  ? '🟠 Using your saved location'
-                  : '🔴 Set your location to measure')}
-              {geoLocationStatus === 'unsupported' && '⚪ GPS Unsupported'}
+                  ? ' Using your saved location'
+                  : ' Set your location to measure')}
+              {geoLocationStatus === 'unsupported' && ' GPS Unsupported'}
             </span>
             <button
               className="locate-me-btn"
               onClick={handleLocateMe}
               title="Center map on my current location"
             >
-              🎯 Locate Me
+               Locate Me
             </button>
-            <button className="map-modal-close" onClick={onClose}>✕</button>
+            <button className="map-modal-close" onClick={onClose}></button>
           </div>
         </div>
 
@@ -673,8 +673,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 gap: 8,
               }}
             >
-              <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span>
-              Calculating route via OSRM…
+              <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}></span>
+              Calculating route via OSRM...
             </div>
           )}
         </div>
@@ -685,9 +685,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
               <div>
                 <h3 style={{ margin: 0 }}>{selectedCompany.name}</h3>
                 <p style={{ margin: '2px 0 0', opacity: 0.6, fontSize: 13 }}>
-                  📍 {selectedCompany.location || selectedCompany.city}
-                  {' '}&nbsp;|&nbsp;⭐ {selectedCompany.rating || 'N/A'}/5
-                  {' '}&nbsp;|&nbsp;📦 {companyMaterials.length} items
+                   {selectedCompany.location || selectedCompany.city}
+                  {' '}&nbsp;|&nbsp;* {selectedCompany.rating || 'N/A'}/5
+                  {' '}&nbsp;|&nbsp; {companyMaterials.length} items
                 </p>
               </div>
               <button
@@ -705,30 +705,30 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 }}
                 title="Recalculate route from your current location"
               >
-                🔄 Refresh Route
+                 Refresh Route
               </button>
             </div>
 
             <div style={{ marginTop: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {isDistanceLoading ? (
                 <div style={{ background: 'rgba(59,130,246,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #3b82f6', fontSize: 13 }}>
-                  Calculating distance…
+                  Calculating distance...
                 </div>
               ) : distance !== null ? (
                 <div style={{ background: 'rgba(59,130,246,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #3b82f6', fontSize: 13 }}>
-                  🚗 <strong>{distance.toFixed(1)} km</strong> road distance
+                   <strong>{distance.toFixed(1)} km</strong> road distance
                 </div>
               ) : null}
 
               {routeInfo && (
                 <div style={{ background: 'rgba(46,204,113,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #22c55e', fontSize: 13 }}>
-                  ⏱️ <strong>{Math.round(routeInfo.duration)} min</strong> estimated drive
+                   <strong>{Math.round(routeInfo.duration)} min</strong> estimated drive
                 </div>
               )}
 
               {userPositionRef.current.accuracy > 0 && (
                 <div style={{ background: 'rgba(168,85,247,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #a855f7', fontSize: 13 }}>
-                  📡 GPS accuracy: <strong>±{userPositionRef.current.accuracy.toFixed(0)}m</strong>
+                   GPS accuracy: <strong>{userPositionRef.current.accuracy.toFixed(0)}m</strong>
                 </div>
               )}
             </div>
@@ -751,11 +751,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
                       >
                         <span className="map-product-name">{m.name}</span>
                         <span className="map-product-distance">
-                          {distance !== null ? distance.toFixed(1) + ' km' : isDistanceLoading ? 'Measuring…' : 'Add to cart'}
+                          {distance !== null ? distance.toFixed(1) + ' km' : isDistanceLoading ? 'Measuring...' : 'Add to cart'}
                         </span>
                         <span className="map-product-price">
                           {m.price.toLocaleString()} ETB/{m.unit}
-                          <span aria-hidden="true">›</span>
+                          <span aria-hidden="true">></span>
                         </span>
                       </button>
                     </li>

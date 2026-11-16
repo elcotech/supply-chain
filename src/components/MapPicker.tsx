@@ -12,7 +12,7 @@ L.Icon.Default.mergeOptions({
 
 const pickerIcon = L.divIcon({
   className: 'picker-marker',
-  html: '📍',
+  html: '',
   iconSize: [40, 40],
   popupAnchor: [0, -20]
 });
@@ -45,7 +45,7 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
     }
   }, []);
 
-  // Locate Me — browser geolocation with graceful handling of every
+  // Locate Me - browser geolocation with graceful handling of every
   // permission outcome instead of an uncaught rejection.
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
@@ -164,43 +164,43 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
     <div className="map-picker-overlay" onClick={onClose}>
       <div className="map-picker-content" onClick={e => e.stopPropagation()}>
         <div className="map-picker-header">
-          <h2>📍 Select Location on Map</h2>
-          <button className="map-picker-close" onClick={onClose}>✕</button>
+          <h2> Select Location on Map</h2>
+          <button className="map-picker-close" onClick={onClose}></button>
         </div>
         
         <div className="map-picker-search">
           <form onSubmit={handleSearch}>
             <input type="text" placeholder="Search for a location..." className="search-input" />
-            <button type="submit" className="btn-primary">🔍 Search</button>
+            <button type="submit" className="btn-primary"> Search</button>
             <button
               type="button"
               className="btn-locate-me"
               onClick={handleLocateMe}
               disabled={locateStatus === 'locating'}
             >
-              {locateStatus === 'locating' ? '⏳ Locating…' : '🎯 Locate Me'}
+              {locateStatus === 'locating' ? ' Locating...' : ' Locate Me'}
             </button>
           </form>
         </div>
 
         {locateStatus === 'denied' && (
           <div className="locate-me-notice danger">
-            ⛔ Location permission was denied. Allow location in your browser settings, or click the map to pick your location manually.
+             Location permission was denied. Allow location in your browser settings, or click the map to pick your location manually.
           </div>
         )}
         {locateStatus === 'unavailable' && (
           <div className="locate-me-notice warning">
-            ⚠️ Your current position is unavailable. You can still click the map to select a location.
+            [!] Your current position is unavailable. You can still click the map to select a location.
           </div>
         )}
         {locateStatus === 'timeout' && (
           <div className="locate-me-notice warning">
-            ⏳ Locating timed out. Position may be weak — check GPS/Wi-Fi, or click the map to select a location.
+             Locating timed out. Position may be weak - check GPS/Wi-Fi, or click the map to select a location.
           </div>
         )}
         {locateStatus === 'unsupported' && (
           <div className="locate-me-notice warning">
-            ℹ️ This browser does not support geolocation. Click the map to select a location instead.
+             This browser does not support geolocation. Click the map to select a location instead.
           </div>
         )}
 
@@ -209,7 +209,7 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
         </div>
 
         <div className="map-picker-info">
-          <p><strong>📍 Selected Location:</strong></p>
+          <p><strong> Selected Location:</strong></p>
           <p className="selected-address">{selectedAddress || 'Click on the map to select a location'}</p>
         </div>
 

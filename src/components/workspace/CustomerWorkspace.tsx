@@ -1,4 +1,4 @@
-// ===== Customers — Procurement Workspace (spec §4) =====
+// ===== Customers - Procurement Workspace (spec 4) =====
 //
 // Twenty customer submenus: dashboard, profile, projects, sites, smart search,
 // supplier discovery, comparison, AI, price intelligence, RFQs, quotation
@@ -281,7 +281,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         render: row => (
           <span className="ws-approval-name">
             <strong>{row.name}</strong>
-            <small>{row.category} · {row.quantity} {row.unit} available</small>
+            <small>{row.category} - {row.quantity} {row.unit} available</small>
           </span>
         ),
       },
@@ -289,7 +289,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         key: 'supplier',
         header: t('Supplier'),
         value: row => supplierFor(row.companyId)?.name || '',
-        render: row => <span>{supplierFor(row.companyId)?.name || '—'}</span>,
+        render: row => <span>{supplierFor(row.companyId)?.name || '-'}</span>,
       },
       {
         key: 'price',
@@ -307,7 +307,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         render: row => {
           const company = supplierFor(row.companyId);
           const distance = company ? distanceTo(company) : null;
-          return <span>{distance !== null ? `${distance.toFixed(0)} km` : '—'}</span>;
+          return <span>{distance !== null ? `${distance.toFixed(0)} km` : '-'}</span>;
         },
       },
       {
@@ -334,21 +334,21 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         <SectionHeader
           eyebrow={t('Customer / Contractor')}
           title={t('Customer Dashboard')}
-          hint={`${t('Welcome back')}, ${user.name.split(' ')[0]} · ${t('Track RFQs, quotations, orders and live deliveries.')}`}
+          hint={`${t('Welcome back')}, ${user.name.split(' ')[0]} - ${t('Track RFQs, quotations, orders and live deliveries.')}`}
           actions={
             <>
-              <button className="btn btn-secondary btn-sm" onClick={() => onSection('search')}>🔍 {t('Marketplace')}</button>
-              <button className="btn btn-primary btn-sm" onClick={() => onSection('rfqs')}>📨 {t('Request for Quotation')}</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => onSection('search')}> {t('Marketplace')}</button>
+              <button className="btn btn-primary btn-sm" onClick={() => onSection('rfqs')}> {t('Request for Quotation')}</button>
             </>
           }
         />
 
         <KpiGrid>
-          <Kpi label={t('Open RFQs')} value={myRfqs.filter(r => r.status === 'open').length} hint={`${myQuotes.length} quotations received`} icon="📨" tone="warn" />
-          <Kpi label={t('New Quotations')} value={pendingQuotes.length} hint={t('awaiting your decision')} icon="📝" />
-          <Kpi label={t('Pending Orders')} value={myOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length} hint={`${myOrders.filter(o => o.status === 'shipped').length} shipped`} icon="🕒" tone="warn" />
-          <Kpi label={t('Completed Orders')} value={myOrders.filter(o => o.status === 'delivered').length} hint={t('delivered to site')} icon="✅" tone="good" />
-          <Kpi label={t('Total Spend')} value={money(spend)} hint={`${cart.length} ${t('items in cart')}`} icon="💰" tone="accent" />
+          <Kpi label={t('Open RFQs')} value={myRfqs.filter(r => r.status === 'open').length} hint={`${myQuotes.length} quotations received`} icon="" tone="warn" />
+          <Kpi label={t('New Quotations')} value={pendingQuotes.length} hint={t('awaiting your decision')} icon="" />
+          <Kpi label={t('Pending Orders')} value={myOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length} hint={`${myOrders.filter(o => o.status === 'shipped').length} shipped`} icon="" tone="warn" />
+          <Kpi label={t('Completed Orders')} value={myOrders.filter(o => o.status === 'delivered').length} hint={t('delivered to site')} icon="[OK]" tone="good" />
+          <Kpi label={t('Total Spend')} value={money(spend)} hint={`${cart.length} ${t('items in cart')}`} icon="" tone="accent" />
         </KpiGrid>
 
         <DashboardGrid
@@ -371,10 +371,10 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                 }
               >
                 <div className="ws-chart-note">
-                  <span>{t('Total spend')} · {money(spend)}</span>
+                  <span>{t('Total spend')} - {money(spend)}</span>
                   <span className="ws-pill-stack">
-                    <StatusPill label={`● ${t('Delivered spend')}`} tone="good" />
-                    <StatusPill label={`● ${t('Order value')}`} tone="info" />
+                    <StatusPill label={`* ${t('Delivered spend')}`} tone="good" />
+                    <StatusPill label={`* ${t('Order value')}`} tone="info" />
                   </span>
                 </div>
                 <div className="ws-chart-box">
@@ -407,12 +407,12 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                           : material.category.slice(0, 2).toUpperCase()}
                       </span>
                       <strong>{material.name}</strong>
-                      <small>{supplierFor(material.companyId)?.name || t('Supplier')} · {material.quantity} {material.unit}</small>
+                      <small>{supplierFor(material.companyId)?.name || t('Supplier')} - {material.quantity} {material.unit}</small>
                       <span className="ws-material-price">{money(material.price)}<em>/{material.unit}</em></span>
                     </button>
                   ))}
                   {marketplace.length === 0 && (
-                    <EmptyState icon="🛒" title={t('Marketplace is empty')} text={t('Products will appear here as suppliers publish their catalogue.')} />
+                    <EmptyState icon="" title={t('Marketplace is empty')} text={t('Products will appear here as suppliers publish their catalogue.')} />
                   )}
                 </div>
                 {marketplace.length > 0 && (
@@ -435,7 +435,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                 actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('tracking')}>{t('Track all')}</button>}
               >
                 {activeDeliveries.length === 0 ? (
-                  <EmptyState icon="🚚" title={t('No active deliveries')} text={t('Live tracking appears once a supplier dispatches your order.')} />
+                  <EmptyState icon="" title={t('No active deliveries')} text={t('Live tracking appears once a supplier dispatches your order.')} />
                 ) : (
                   <div className="ws-delivery-list">
                     {activeDeliveries.map(order => {
@@ -448,7 +448,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                           <div className="ws-delivery-head">
                             <div>
                               <strong>{order.invoiceNumber}</strong>
-                              <small>{materialFor(order.materialId)?.name || t('Material')} · {order.quantity} {materialFor(order.materialId)?.unit || ''}</small>
+                              <small>{materialFor(order.materialId)?.name || t('Material')} - {order.quantity} {materialFor(order.materialId)?.unit || ''}</small>
                             </div>
                             <StatusPill label={t(TRANSPORT_STATUS_LABELS[stage])} tone={toneFor(stage)} />
                           </div>
@@ -458,7 +458,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                             progress={progress}
                           />
                           <div className="ws-delivery-meta">
-                            <span>{driver ? `🧑‍✈️ ${driver.name}` : `🚚 ${profile?.companyName || t('Transporter')}`}</span>
+                            <span>{driver ? ` ${driver.name}` : ` ${profile?.companyName || t('Transporter')}`}</span>
                             <span>{driver?.phone || profile?.phone || t('Contact pending')}</span>
                             <span>{order.deliveryDate ? `${t('ETA')} ${formatDate(order.deliveryDate)}` : t('ETA to confirm')}</span>
                           </div>
@@ -472,7 +472,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
 
               <Panel title={t('Quotations Awaiting Decision')} subtitle={`${pendingQuotes.length} ${t('new offers')}`}>
                 {pendingQuotes.length === 0 ? (
-                  <EmptyState icon="📝" title={t('Nothing to review')} text={t('Quotations appear here when suppliers respond to your RFQs.')} />
+                  <EmptyState icon="" title={t('Nothing to review')} text={t('Quotations appear here when suppliers respond to your RFQs.')} />
                 ) : (
                   <div className="ws-stat-list">
                     {pendingQuotes.slice(0, 4).map(quote => {
@@ -481,7 +481,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                         <div className="ws-stat-row" key={quote.id}>
                           <div>
                             <strong>{quote.supplierName}</strong>
-                            <small>{rfq?.materialName} · {money(quote.unitPrice)}/{rfq?.unit} · {t('delivered')} {money(quote.unitPrice * quote.quantity + quote.deliveryFee)}</small>
+                            <small>{rfq?.materialName} - {money(quote.unitPrice)}/{rfq?.unit} - {t('delivered')} {money(quote.unitPrice * quote.quantity + quote.deliveryFee)}</small>
                           </div>
                           <button className="btn btn-secondary btn-sm" onClick={() => onSection('quotation-compare')}>{t('Compare')}</button>
                         </div>
@@ -493,10 +493,10 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
 
               <Panel title={t('Procurement Snapshot')} subtitle={t('Budget, wallet and cart')}>
                 <div className="ws-mini-grid">
-                  <MiniStat label={t('Projects')} value={myProjects.filter(p => p.status === 'active').length} hint={`${myProjects.length} ${t('total')}`} icon="🏗️" />
-                  <MiniStat label={t('Cart')} value={cart.length} hint={money(cartSubtotal)} tone="accent" icon="🛒" />
-                  <MiniStat label={t('Wallet')} value={money(wallets[user.id] || 0)} hint={t('available balance')} tone="good" icon="💳" />
-                  <MiniStat label={t('Unread')} value={notifications.filter(n => n.userId === user.id && !n.read).length} hint={t('notifications')} icon="🔔" />
+                  <MiniStat label={t('Projects')} value={myProjects.filter(p => p.status === 'active').length} hint={`${myProjects.length} ${t('total')}`} icon="" />
+                  <MiniStat label={t('Cart')} value={cart.length} hint={money(cartSubtotal)} tone="accent" icon="" />
+                  <MiniStat label={t('Wallet')} value={money(wallets[user.id] || 0)} hint={t('available balance')} tone="good" icon="" />
+                  <MiniStat label={t('Unread')} value={notifications.filter(n => n.userId === user.id && !n.read).length} hint={t('notifications')} icon="" />
                 </div>
               </Panel>
 
@@ -520,25 +520,25 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Customers')}
         title={t('Customer Profile')}
         hint={t('Enter name, company details, contact information, delivery addresses, business documents and account settings.')}
-        actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('settings')}>⚙️ {t('Account settings')}</button>}
+        actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('settings')}> {t('Account settings')}</button>}
       />
       <div className="ws-grid-2">
         <Panel title={user.companyName || user.name} subtitle={user.email}>
           <ul className="ws-detail-list">
             <li><span>{t('Contact')}</span><strong>{user.name}</strong></li>
-            <li><span>{t('Phone')}</span><strong>{user.phone || '—'}</strong></li>
+            <li><span>{t('Phone')}</span><strong>{user.phone || '-'}</strong></li>
             <li><span>{t('Email')}</span><strong>{user.email}</strong></li>
-            <li><span>{t('Address')}</span><strong>{user.address || '—'}</strong></li>
-            <li><span>{t('City')}</span><strong>{user.city || '—'}</strong></li>
+            <li><span>{t('Address')}</span><strong>{user.address || '-'}</strong></li>
+            <li><span>{t('City')}</span><strong>{user.city || '-'}</strong></li>
             <li><span>GPS</span><strong>{user.lat ? `${user.lat.toFixed(4)}, ${user.lng.toFixed(4)}` : 'Not set'}</strong></li>
           </ul>
-          <button className="btn btn-secondary btn-sm" onClick={onSaveMyLocation}>📍 {t('Save my location')}</button>
+          <button className="btn btn-secondary btn-sm" onClick={onSaveMyLocation}> {t('Save my location')}</button>
         </Panel>
         <Panel title="Business documents" subtitle="Used on purchase orders and invoices">
           <ul className="ws-detail-list">
-            <li><span>TIN</span><strong>{user.tinNumber || '—'}</strong></li>
-            <li><span>Business licence</span><strong>{user.businessLicense || '—'}</strong></li>
-            <li><span>VAT</span><strong>{user.vatRegistered ? `Registered · ${user.vatNumber || '—'}` : 'Not registered'}</strong></li>
+            <li><span>TIN</span><strong>{user.tinNumber || '-'}</strong></li>
+            <li><span>Business licence</span><strong>{user.businessLicense || '-'}</strong></li>
+            <li><span>VAT</span><strong>{user.vatRegistered ? `Registered - ${user.vatNumber || '-'}` : 'Not registered'}</strong></li>
             <li><span>{t('Projects')}</span><strong>{myProjects.length}</strong></li>
             <li><span>{t('Orders')}</span><strong>{myOrders.length}</strong></li>
           </ul>
@@ -554,16 +554,16 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Customers')}
         title={t('Project Management')}
         hint={t('Create and manage projects, construction sites, budgets, timelines, project managers and material schedules.')}
-        actions={<button className="btn btn-primary btn-sm" onClick={() => openProject()}>➕ {t('New project')}</button>}
+        actions={<button className="btn btn-primary btn-sm" onClick={() => openProject()}> {t('New project')}</button>}
       />
       <KpiGrid>
-        <Kpi label="Projects" value={myProjects.length} icon="🏗️" />
-        <Kpi label={t('Active')} value={myProjects.filter(p => p.status === 'active').length} icon="🟢" tone="good" />
-        <Kpi label="Total budget" value={money(myProjects.reduce((s, p) => s + p.budget, 0))} icon="💰" tone="accent" />
-        <Kpi label={t('On hold')} value={myProjects.filter(p => p.status === 'on_hold').length} icon="⏸️" tone="warn" />
+        <Kpi label="Projects" value={myProjects.length} icon="" />
+        <Kpi label={t('Active')} value={myProjects.filter(p => p.status === 'active').length} icon="" tone="good" />
+        <Kpi label="Total budget" value={money(myProjects.reduce((s, p) => s + p.budget, 0))} icon="" tone="accent" />
+        <Kpi label={t('On hold')} value={myProjects.filter(p => p.status === 'on_hold').length} icon="" tone="warn" />
       </KpiGrid>
       {myProjects.length === 0 ? (
-        <Panel><EmptyState icon="🏗️" title="No projects yet" text="Create a project to organise budgets, sites and material requests." action={<button className="btn btn-primary" onClick={() => openProject()}>Create project</button>} /></Panel>
+        <Panel><EmptyState icon="" title="No projects yet" text="Create a project to organise budgets, sites and material requests." action={<button className="btn btn-primary" onClick={() => openProject()}>Create project</button>} /></Panel>
       ) : (
         <div className="ws-project-grid">
           {myProjects.map(project => {
@@ -579,15 +579,15 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                 <p>{project.description || 'No description'}</p>
                 <ul className="ws-detail-list">
                   <li><span>{t('Site')}</span><strong>{project.siteAddress}, {project.city}</strong></li>
-                  <li><span>{t('Manager')}</span><strong>{project.managerName} · {project.managerPhone}</strong></li>
-                  <li><span>{t('Schedule')}</span><strong>{formatDate(project.startDate)} → {project.endDate ? formatDate(project.endDate) : 'Open'}</strong></li>
+                  <li><span>{t('Manager')}</span><strong>{project.managerName} - {project.managerPhone}</strong></li>
+                  <li><span>{t('Schedule')}</span><strong>{formatDate(project.startDate)} -> {project.endDate ? formatDate(project.endDate) : 'Open'}</strong></li>
                   <li><span>{t('Budget')}</span><strong>{money(project.budget)}</strong></li>
                   <li><span>Spent</span><strong>{money(projectSpend)} ({used}%)</strong></li>
                 </ul>
                 <div className="ws-progress"><span style={{ width: `${used}%` }} /></div>
                 <div className="ws-row-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => openProject(project)}>{t('Edit')}</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => { setSiteDraft({ id: '', label: project.name, address: project.siteAddress, city: project.city, contact: project.managerPhone }); onSection('sites'); }}>📍 Site</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { setSiteDraft({ id: '', label: project.name, address: project.siteAddress, city: project.city, contact: project.managerPhone }); onSection('sites'); }}> Site</button>
                 </div>
               </div>
             );
@@ -656,13 +656,13 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Customers')}
         title={t('Site & GPS Location')}
         hint={t('Add construction-site GPS locations and saved delivery addresses. Measure distances from supplier warehouses.')}
-        actions={<button className="btn btn-secondary btn-sm" onClick={onSaveMyLocation}>📍 {t('Save my location')}</button>}
+        actions={<button className="btn btn-secondary btn-sm" onClick={onSaveMyLocation}> {t('Save my location')}</button>}
       />
       <div className="ws-grid-2">
         <Panel title="Add a site" subtitle="Sites are used on RFQs and delivery addresses">
           <div className="ws-form">
             <Field label={t('Label')} required>
-              <input value={siteDraft.label} onChange={e => setSiteDraft(prev => ({ ...prev, label: e.target.value }))} placeholder="Main site — Bole" />
+              <input value={siteDraft.label} onChange={e => setSiteDraft(prev => ({ ...prev, label: e.target.value }))} placeholder="Main site - Bole" />
             </Field>
             <Field label={t('Address')} required>
               <input value={siteDraft.address} onChange={e => setSiteDraft(prev => ({ ...prev, address: e.target.value }))} />
@@ -675,16 +675,16 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                 <input value={siteDraft.contact} onChange={e => setSiteDraft(prev => ({ ...prev, contact: e.target.value }))} />
               </Field>
             </div>
-            <button className="btn btn-primary" onClick={saveSite}>➕ {t('Save')}</button>
+            <button className="btn btn-primary" onClick={saveSite}> {t('Save')}</button>
           </div>
         </Panel>
         <Panel title="Saved sites" subtitle={`${sites.length} sites on this device`}>
-          {sites.length === 0 ? <EmptyState icon="📍" title="No saved sites" text="Add a site to reuse its address in RFQs." /> : (
+          {sites.length === 0 ? <EmptyState icon="" title="No saved sites" text="Add a site to reuse its address in RFQs." /> : (
             <ul className="ws-alert-list">
               {sites.map(site => (
                 <li key={site.id}>
-                  <span>📍</span>
-                  <div><strong>{site.label}</strong><small>{site.address}, {site.city}{site.contact ? ` · ${site.contact}` : ''}</small></div>
+                  <span></span>
+                  <div><strong>{site.label}</strong><small>{site.address}, {site.city}{site.contact ? ` - ${site.contact}` : ''}</small></div>
                   <button className="btn btn-secondary btn-sm" onClick={() => setSiteDraft(site)}>{t('Edit')}</button>
                 </li>
               ))}
@@ -703,7 +703,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Search by product name, category, specification, grade, price, availability and supplier location.')}
       />
       <div className="ws-searchbar">
-        <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t('Search products, grades, suppliers…')} aria-label="Search products" />
+        <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t('Search products, grades, suppliers...')} aria-label="Search products" />
         <select value={searchCategory} onChange={e => setSearchCategory(e.target.value)} aria-label="Category">
           <option value="all">All categories</option>
           {Array.from(new Set(materials.map(m => m.category))).map(category => <option key={category} value={category}>{category}</option>)}
@@ -715,8 +715,8 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           <option value="distance">Nearest supplier</option>
         </select>
       </div>
-      <p className="ws-muted">{catalogue.length} products · {compare.length} selected for comparison</p>
-      {catalogue.length === 0 ? <EmptyState icon="🔍" title="No products match" text="Try another grade, category or supplier." /> : (
+      <p className="ws-muted">{catalogue.length} products - {compare.length} selected for comparison</p>
+      {catalogue.length === 0 ? <EmptyState icon="" title="No products match" text="Try another grade, category or supplier." /> : (
         <div className="ws-product-grid">
           {catalogue.map(material => {
             const supplier = supplierFor(material.companyId);
@@ -725,23 +725,23 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             return (
               <div key={material.id} className="ws-product">
                 <div className="ws-product-media">
-                  {material.images?.[0] ? <img src={material.images[0]} alt={material.name} loading="lazy" /> : <span>{material.category?.slice(0, 2).toUpperCase() || '📦'}</span>}
+                  {material.images?.[0] ? <img src={material.images[0]} alt={material.name} loading="lazy" /> : <span>{material.category?.slice(0, 2).toUpperCase() || ''}</span>}
                 </div>
                 <div className="ws-product-body">
                   <div className="ws-product-head">
                     <strong>{material.name}</strong>
                     <span>{money(material.price)}<small>/{material.unit}</small></span>
                   </div>
-                  <small>{supplier?.name || 'Supplier'} · {supplier?.city || ''}{distance !== null ? ` · ${distance.toFixed(1)} km` : ''}</small>
+                  <small>{supplier?.name || 'Supplier'} - {supplier?.city || ''}{distance !== null ? ` - ${distance.toFixed(1)} km` : ''}</small>
                   <div className="ws-chip-row">
                     <StatusPill label={material.quantity > 10 ? t('Available') : material.quantity > 0 ? 'Low stock' : 'Out of stock'} tone={material.quantity > 10 ? 'good' : material.quantity > 0 ? 'warn' : 'bad'} />
-                    <StatusPill label={`⭐ ${rating.toFixed(1)}`} tone="muted" />
+                    <StatusPill label={`* ${rating.toFixed(1)}`} tone="muted" />
                     {material.brand && <StatusPill label={material.brand} tone="info" />}
                   </div>
                   <div className="ws-row-actions">
                     <button className="btn btn-secondary btn-sm" onClick={() => onOpenProduct(material)}>{t('View')}</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => onToggleCompare(material.id)} aria-pressed={compare.includes(material.id)}>{compare.includes(material.id) ? '✓ Comparing' : t('Compare')}</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => openRfqFor(material)}>📨</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => onToggleCompare(material.id)} aria-pressed={compare.includes(material.id)}>{compare.includes(material.id) ? '[OK] Comparing' : t('Compare')}</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openRfqFor(material)}></button>
                     <button className="btn btn-primary btn-sm" onClick={() => onAddToCart(material, material.minOrder || 1)}>{t('Add to cart')}</button>
                   </div>
                 </div>
@@ -761,10 +761,10 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Find verified suppliers by location, available products, distance, rating and price competitiveness.')}
       />
       <KpiGrid>
-        <Kpi label="Suppliers" value={companies.length} icon="🏢" />
-        <Kpi label={t('Verified')} value={companies.filter(c => c.complianceStatus === 'compliant').length} icon="✅" tone="good" />
-        <Kpi label="Within 25 km" value={companies.filter(c => { const d = distanceTo(c); return d !== null && d <= 25; }).length} icon="📍" />
-        <Kpi label="Cities" value={new Set(companies.map(c => c.city)).size} icon="🗺️" />
+        <Kpi label="Suppliers" value={companies.length} icon="" />
+        <Kpi label={t('Verified')} value={companies.filter(c => c.complianceStatus === 'compliant').length} icon="[OK]" tone="good" />
+        <Kpi label="Within 25 km" value={companies.filter(c => { const d = distanceTo(c); return d !== null && d <= 25; }).length} icon="" />
+        <Kpi label="Cities" value={new Set(companies.map(c => c.city)).size} icon="" />
       </KpiGrid>
       <div className="ws-supplier-grid">
         {companies.map(company => {
@@ -779,20 +779,20 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
               </div>
               <p>{company.description || 'No description'}</p>
               <ul className="ws-detail-list">
-                <li><span>{t('Location')}</span><strong>{company.city}{distance !== null ? ` · ${distance.toFixed(1)} km` : ''}</strong></li>
+                <li><span>{t('Location')}</span><strong>{company.city}{distance !== null ? ` - ${distance.toFixed(1)} km` : ''}</strong></li>
                 <li><span>{t('Products')}</span><strong>{products.length}</strong></li>
-                <li><span>{t('Rating')}</span><strong>⭐ {rating.toFixed(1)} · {company.totalOrders} orders</strong></li>
-                <li><span>{t('Working hours')}</span><strong>{company.workingHours || '—'}</strong></li>
+                <li><span>{t('Rating')}</span><strong>* {rating.toFixed(1)} - {company.totalOrders} orders</strong></li>
+                <li><span>{t('Working hours')}</span><strong>{company.workingHours || '-'}</strong></li>
               </ul>
               <div className="ws-row-actions">
-                <button className="btn btn-secondary btn-sm" onClick={() => onOpenMap(company.id)}>🗺️ {t('Supplier Map')}</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => setMessageDraft({ to: company.userId, title: '', body: '' })}>✉️</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => onOpenMap(company.id)}> {t('Supplier Map')}</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setMessageDraft({ to: company.userId, title: '', body: '' })}></button>
                 <button className="btn btn-primary btn-sm" onClick={() => { setSearchTerm(company.name); onSection('search'); }}>{t('View products')}</button>
               </div>
             </div>
           );
         })}
-        {companies.length === 0 && <EmptyState icon="🏢" title="No suppliers yet" />}
+        {companies.length === 0 && <EmptyState icon="" title="No suppliers yet" />}
       </div>
     </>
   );
@@ -803,10 +803,10 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Customers')}
         title={t('Product Comparison')}
         hint={t('Compare specifications, grades, prices, stock availability, supplier ratings and delivery terms side by side.')}
-        actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('search')}>➕ {t('Add')} products</button>}
+        actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('search')}> {t('Add')} products</button>}
       />
       {compareRows.length === 0 ? (
-        <Panel><EmptyState icon="⚖️" title="Nothing to compare" text="Choose Compare on any product in Smart Product Search." action={<button className="btn btn-primary" onClick={() => onSection('search')}>Browse products</button>} /></Panel>
+        <Panel><EmptyState icon="" title="Nothing to compare" text="Choose Compare on any product in Smart Product Search." action={<button className="btn btn-primary" onClick={() => onSection('search')}>Browse products</button>} /></Panel>
       ) : (
         <Panel title={`${compareRows.length} products`} subtitle="Lowest price in each row is highlighted">
           <div className="table-scroll-container">
@@ -819,15 +819,15 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
               </thead>
               <tbody>
                 {([
-                  ['Supplier', (m: Material) => supplierFor(m.companyId)?.name || '—'],
+                  ['Supplier', (m: Material) => supplierFor(m.companyId)?.name || '-'],
                   ['Price', (m: Material) => money(m.price) + ' / ' + m.unit],
                   ['Minimum order', (m: Material) => `${m.minOrder} ${m.unit}`],
                   ['Stock', (m: Material) => `${m.quantity.toLocaleString()} ${m.unit}`],
-                  ['Grade', (m: Material) => m.specifications?.grade || m.brand || '—'],
-                  ['Origin', (m: Material) => m.specifications?.origin || '—'],
-                  ['Rating', (m: Material) => `⭐ ${effectiveRating(m.rating, reviews.filter(r => r.materialId === m.id)).toFixed(1)}`],
+                  ['Grade', (m: Material) => m.specifications?.grade || m.brand || '-'],
+                  ['Origin', (m: Material) => m.specifications?.origin || '-'],
+                  ['Rating', (m: Material) => `* ${effectiveRating(m.rating, reviews.filter(r => r.materialId === m.id)).toFixed(1)}`],
                   ['Delivery', (m: Material) => m.delivery?.offered ? `${money(m.delivery.perKm)}/km` : 'Not offered'],
-                  ['Distance', (m: Material) => { const s = supplierFor(m.companyId); const d = s ? distanceTo(s) : null; return d !== null ? `${d.toFixed(1)} km` : '—'; }],
+                  ['Distance', (m: Material) => { const s = supplierFor(m.companyId); const d = s ? distanceTo(s) : null; return d !== null ? `${d.toFixed(1)} km` : '-'; }],
                 ] as [string, (m: Material) => string][]).map(([label, read]) => (
                   <tr key={label}>
                     <th scope="row">{label}</th>
@@ -844,7 +844,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                     <td key={material.id}>
                       <div className="ws-row-actions">
                         <button className="btn btn-primary btn-sm" onClick={() => onAddToCart(material, material.minOrder || 1)}>{t('Add to cart')}</button>
-                        <button className="btn btn-secondary btn-sm" onClick={() => onToggleCompare(material.id)}>✕</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => onToggleCompare(material.id)}></button>
                       </div>
                     </td>
                   ))}
@@ -863,24 +863,24 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Customers')}
         title={t('AI Procurement Assistant')}
         hint={t('Receive recommended suppliers, alternative products, offer comparisons and cost-saving opportunities based on your projects and order history.')}
-        actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('copilot')}>🤖 Ask Copilot</button>}
+        actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('copilot')}> Ask Copilot</button>}
       />
       <KpiGrid>
-        <Kpi label="Recommended suppliers" value={analytics.topSuppliers.length} icon="🏢" />
-        <Kpi label="Cost-saving leads" value={materials.filter(m => m.price < analytics.productCount && m.quantity > 20).length} hint="In-stock alternatives" icon="💡" tone="accent" />
-        <Kpi label="Average order" value={money(analytics.avgOrderValue)} icon="📊" />
-        <Kpi label="Open RFQs" value={myRfqs.filter(r => r.status === 'open').length} icon="📨" />
+        <Kpi label="Recommended suppliers" value={analytics.topSuppliers.length} icon="" />
+        <Kpi label="Cost-saving leads" value={materials.filter(m => m.price < analytics.productCount && m.quantity > 20).length} hint="In-stock alternatives" icon="" tone="accent" />
+        <Kpi label="Average order" value={money(analytics.avgOrderValue)} icon="" />
+        <Kpi label="Open RFQs" value={myRfqs.filter(r => r.status === 'open').length} icon="" />
       </KpiGrid>
       <Panel title="Recommended suppliers" subtitle="Ranked by delivered revenue and customer rating">
-        <BarList items={analytics.topSuppliers.slice(0, 8).map(s => ({ label: s.name, value: Math.round(s.revenue), hint: `${s.city} · ⭐ ${s.rating.toFixed(1)} · ${s.products} products` }))} format={money} emptyLabel="Not enough marketplace data yet" />
+        <BarList items={analytics.topSuppliers.slice(0, 8).map(s => ({ label: s.name, value: Math.round(s.revenue), hint: `${s.city} - * ${s.rating.toFixed(1)} - ${s.products} products` }))} format={money} emptyLabel="Not enough marketplace data yet" />
       </Panel>
       <div className="ws-grid-2">
         <Panel title="Best-value products" subtitle="Lowest unit price among in-stock listings">
           <ul className="ws-alert-list">
             {[...materials].filter(m => m.quantity > 0).sort((a, b) => a.price - b.price).slice(0, 6).map(material => (
               <li key={material.id}>
-                <span>💡</span>
-                <div><strong>{material.name}</strong><small>{money(material.price)}/{material.unit} · {supplierFor(material.companyId)?.name}</small></div>
+                <span></span>
+                <div><strong>{material.name}</strong><small>{money(material.price)}/{material.unit} - {supplierFor(material.companyId)?.name}</small></div>
                 <button className="btn btn-secondary btn-sm" onClick={() => onOpenProduct(material)}>{t('View')}</button>
               </li>
             ))}
@@ -888,9 +888,9 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         </Panel>
         <Panel title="Insights for your account">
           <ul className="ws-insight-list">
-            {analytics.insights.map((insight, index) => <li key={index}>💡 {insight}</li>)}
-            <li>💡 Sending one RFQ to three or more suppliers typically improves the delivered price.</li>
-            <li>💡 Compare delivered cost, not unit price: transport can reverse the ranking.</li>
+            {analytics.insights.map((insight, index) => <li key={index}> {insight}</li>)}
+            <li> Sending one RFQ to three or more suppliers typically improves the delivered price.</li>
+            <li> Compare delivered cost, not unit price: transport can reverse the ranking.</li>
           </ul>
         </Panel>
       </div>
@@ -905,10 +905,10 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Track current prices, historical movement, price alerts and the source of each price.')}
       />
       <KpiGrid>
-        <Kpi label="Tracked products" value={materials.length} icon="💹" />
-        <Kpi label="Rising" value={materials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'up').length} icon="📈" tone="warn" />
-        <Kpi label="Falling" value={materials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'down').length} icon="📉" tone="good" />
-        <Kpi label="Price snapshots" value={materials.reduce((s, m) => s + (m.priceHistory?.length || 0), 0)} icon="🗂️" />
+        <Kpi label="Tracked products" value={materials.length} icon="" />
+        <Kpi label="Rising" value={materials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'up').length} icon="" tone="warn" />
+        <Kpi label="Falling" value={materials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'down').length} icon="" tone="good" />
+        <Kpi label="Price snapshots" value={materials.reduce((s, m) => s + (m.priceHistory?.length || 0), 0)} icon="" />
       </KpiGrid>
       <Panel title="Market price board" subtitle="Source: supplier catalogue and price snapshots">
         <DataTable
@@ -916,7 +916,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           columns={[
             { key: 'name', header: 'Product', value: m => m.name },
             { key: 'category', header: 'Category', value: m => m.category },
-            { key: 'supplier', header: 'Supplier', value: m => supplierFor(m.companyId)?.name || '—' },
+            { key: 'supplier', header: 'Supplier', value: m => supplierFor(m.companyId)?.name || '-' },
             { key: 'price', header: 'Price', align: 'right', value: m => Math.round(m.price), render: m => <>{money(m.price)} <small>/{m.unit}</small></> },
             {
               key: 'change', header: 'Change', align: 'right',
@@ -936,7 +936,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
               value: m => forecastPrice(m.priceHistory, m.price)?.next || m.price,
               render: m => {
                 const forecast = forecastPrice(m.priceHistory, m.price);
-                return forecast ? money(forecast.next) : <span className="ws-muted">—</span>;
+                return forecast ? money(forecast.next) : <span className="ws-muted">-</span>;
               },
             },
             { key: 'updated', header: 'Updated', value: m => m.lastUpdated, render: m => <span className="ws-nowrap">{formatDate(m.lastUpdated)}</span> },
@@ -961,8 +961,8 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           <div className="ws-form">
             <Field label={t('Product')} required>
               <select value={rfqDraft.materialId} onChange={e => setRfqDraft(prev => ({ ...prev, materialId: e.target.value }))}>
-                <option value="">Choose a product…</option>
-                {materials.map(material => <option key={material.id} value={material.id}>{material.name} · {material.category} · {money(material.price)}/{material.unit}</option>)}
+                <option value="">Choose a product...</option>
+                {materials.map(material => <option key={material.id} value={material.id}>{material.name} - {material.category} - {money(material.price)}/{material.unit}</option>)}
               </select>
             </Field>
             <div className="ws-form-row">
@@ -991,18 +991,18 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
               </div>
             </Field>
             <Field label={t('Notes')}>
-              <textarea rows={2} value={rfqDraft.notes} onChange={e => setRfqDraft(prev => ({ ...prev, notes: e.target.value }))} placeholder="Grade, delivery conditions, payment terms…" />
+              <textarea rows={2} value={rfqDraft.notes} onChange={e => setRfqDraft(prev => ({ ...prev, notes: e.target.value }))} placeholder="Grade, delivery conditions, payment terms..." />
             </Field>
-            <button className="btn btn-primary" onClick={submitRfq}>📨 {t('Send')}</button>
+            <button className="btn btn-primary" onClick={submitRfq}> {t('Send')}</button>
           </div>
         </Panel>
         <Panel title="My requests" subtitle={`${myRfqs.length} total`}>
-          {myRfqs.length === 0 ? <EmptyState icon="📨" title="No RFQs yet" text="Send your first request to collect comparable offers." /> : (
+          {myRfqs.length === 0 ? <EmptyState icon="" title="No RFQs yet" text="Send your first request to collect comparable offers." /> : (
             <ul className="ws-feed">
               {myRfqs.map(rfq => (
                 <li key={rfq.id}>
-                  <span className="ws-feed-icon">📨</span>
-                  <div><strong>{rfq.materialName} · {rfq.quantity} {rfq.unit}</strong><small>{rfq.city} · required {formatDate(rfq.requiredBy)} · {quotations.filter(q => q.rfqId === rfq.id).length} quotes</small></div>
+                  <span className="ws-feed-icon"></span>
+                  <div><strong>{rfq.materialName} - {rfq.quantity} {rfq.unit}</strong><small>{rfq.city} - required {formatDate(rfq.requiredBy)} - {quotations.filter(q => q.rfqId === rfq.id).length} quotes</small></div>
                   <StatusPill label={t(rfq.status)} tone={toneFor(rfq.status)} />
                 </li>
               ))}
@@ -1028,11 +1028,11 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           hint={t('Compare supplier prices, transport charges, delivery times, terms and total delivered cost before accepting.')}
         />
         {grouped.length === 0 ? (
-          <Panel><EmptyState icon="📝" title="No quotations yet" text="Suppliers respond to your RFQs here." action={<button className="btn btn-primary" onClick={() => onSection('rfqs')}>Open RFQs</button>} /></Panel>
+          <Panel><EmptyState icon="" title="No quotations yet" text="Suppliers respond to your RFQs here." action={<button className="btn btn-primary" onClick={() => onSection('rfqs')}>Open RFQs</button>} /></Panel>
         ) : grouped.map(({ rfq, quotes }) => {
           const best = Math.min(...quotes.map(q => q.unitPrice * q.quantity + q.deliveryFee));
           return (
-            <Panel key={rfq.id} title={rfq.materialName} subtitle={`${rfq.quantity} ${rfq.unit} · ${rfq.city} · required ${formatDate(rfq.requiredBy)}`}>
+            <Panel key={rfq.id} title={rfq.materialName} subtitle={`${rfq.quantity} ${rfq.unit} - ${rfq.city} - required ${formatDate(rfq.requiredBy)}`}>
               <div className="table-scroll-container">
                 <table className="data-table ws-table">
                   <thead><tr><th>Supplier</th><th>Unit price</th><th>Subtotal</th><th>Delivery</th><th>Delivered total</th><th>Valid until</th><th>Status</th><th /></tr></thead>
@@ -1052,7 +1052,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                             <div className="ws-row-actions">
                               {quote.status === 'submitted' && <button className="btn btn-primary btn-sm" onClick={() => decideQuote(quote, true)}>{t('Accept')}</button>}
                               {quote.status === 'submitted' && <button className="btn btn-secondary btn-sm" onClick={() => decideQuote(quote, false)}>{t('Decline')}</button>}
-                              {quote.status === 'accepted' && <button className="btn btn-secondary btn-sm" onClick={() => prepareQuote(quote)}>🛒 {t('Order')}</button>}
+                              {quote.status === 'accepted' && <button className="btn btn-secondary btn-sm" onClick={() => prepareQuote(quote)}> {t('Order')}</button>}
                             </div>
                           </td>
                         </tr>
@@ -1077,7 +1077,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         actions={cart.length ? <button className="btn btn-secondary btn-sm" onClick={onClearCart}>{t('Clear cart')}</button> : undefined}
       />
       {cart.length === 0 ? (
-        <Panel><EmptyState icon="🛒" title="Your cart is empty" text="Products you add from search appear here." action={<button className="btn btn-primary" onClick={() => onSection('search')}>Find products</button>} /></Panel>
+        <Panel><EmptyState icon="" title="Your cart is empty" text="Products you add from search appear here." action={<button className="btn btn-primary" onClick={() => onSection('search')}>Find products</button>} /></Panel>
       ) : (
         <div className="ws-grid-2">
           <Panel title={`${cart.length} line${cart.length === 1 ? '' : 's'}`} subtitle="One supplier per order keeps delivery pricing honest">
@@ -1086,10 +1086,10 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                 <div key={item.id} className="ws-cart-line">
                   <div>
                     <strong>{item.materialName}</strong>
-                    <small>{item.supplierName} · {money(item.price)} / {item.unit} · {item.includeDelivery === false ? 'Collection' : 'Delivery included'}</small>
+                    <small>{item.supplierName} - {money(item.price)} / {item.unit} - {item.includeDelivery === false ? 'Collection' : 'Delivery included'}</small>
                   </div>
                   <div className="ws-qty">
-                    <button className="btn btn-secondary btn-sm" onClick={() => onUpdateCartQty(item.id, item.quantity - 1)} aria-label={'Decrease ' + item.materialName}>−</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => onUpdateCartQty(item.id, item.quantity - 1)} aria-label={'Decrease ' + item.materialName}></button>
                     <input
                       type="number"
                       min="1"
@@ -1100,7 +1100,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                     <button className="btn btn-secondary btn-sm" onClick={() => onUpdateCartQty(item.id, item.quantity + 1)} aria-label={'Increase ' + item.materialName}>+</button>
                   </div>
                   <strong className="ws-nowrap">{money(item.price * item.quantity)}</strong>
-                  <button className="btn btn-secondary btn-sm" onClick={() => onRemoveFromCart(item.id)} aria-label={'Remove ' + item.materialName}>✕</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => onRemoveFromCart(item.id)} aria-label={'Remove ' + item.materialName}></button>
                 </div>
               ))}
             </div>
@@ -1128,18 +1128,18 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Review supplier proformas, confirm procurement details and issue purchase orders.')}
       />
       <KpiGrid>
-        <Kpi label={t('Orders')} value={myOrders.length} icon="📋" />
-        <Kpi label="Awaiting supplier" value={myOrders.filter(o => o.status === 'pending').length} icon="🕒" tone="warn" />
-        <Kpi label={t('Confirmed')} value={myOrders.filter(o => o.status === 'confirmed').length} icon="✅" tone="good" />
-        <Kpi label="Order value" value={money(myOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.totalAmount, 0))} icon="💰" tone="accent" />
+        <Kpi label={t('Orders')} value={myOrders.length} icon="" />
+        <Kpi label="Awaiting supplier" value={myOrders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
+        <Kpi label={t('Confirmed')} value={myOrders.filter(o => o.status === 'confirmed').length} icon="[OK]" tone="good" />
+        <Kpi label="Order value" value={money(myOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.totalAmount, 0))} icon="" tone="accent" />
       </KpiGrid>
       <Panel>
         <DataTable
           rows={myOrders}
           columns={[
             { key: 'invoiceNumber', header: 'Reference', value: o => o.invoiceNumber, render: o => <strong>{o.invoiceNumber}</strong> },
-            { key: 'supplier', header: 'Supplier', value: o => supplierFor(o.companyId)?.name || '—' },
-            { key: 'material', header: 'Material', value: o => materialFor(o.materialId)?.name || '—' },
+            { key: 'supplier', header: 'Supplier', value: o => supplierFor(o.companyId)?.name || '-' },
+            { key: 'material', header: 'Material', value: o => materialFor(o.materialId)?.name || '-' },
             { key: 'quantity', header: 'Qty', align: 'right', value: o => o.quantity },
             { key: 'totalAmount', header: 'Total', align: 'right', value: o => Math.round(o.totalAmount), render: o => money(o.totalAmount) },
             { key: 'paymentStatus', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
@@ -1149,7 +1149,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
               render: o => (
                 <div className="ws-row-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order: o, kind: 'proforma' })}>Proforma</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order: o, kind: 'invoice' })}>🧾</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order: o, kind: 'invoice' })}></button>
                   {o.status === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'cancelled')}>{t('Cancel')}</button>}
                 </div>
               ),
@@ -1171,30 +1171,30 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           eyebrow={t('Customers')}
           title={t('Payment Centre')}
           hint={t('View payment instructions, supported methods, confirmations, receipts and complete payment history.')}
-          actions={<button className="btn btn-primary btn-sm" onClick={onCheckout}>🛒 {t('Checkout')}</button>}
+          actions={<button className="btn btn-primary btn-sm" onClick={onCheckout}> {t('Checkout')}</button>}
         />
         <KpiGrid>
-          <Kpi label="Wallet balance" value={money(wallets[user.id] || 0)} icon="💳" tone="accent" />
-          <Kpi label="Outstanding" value={money(unpaid.reduce((s, o) => s + o.totalAmount, 0))} hint={`${unpaid.length} unpaid orders`} icon="🕒" tone={unpaid.length ? 'warn' : 'good'} />
-          <Kpi label="Paid orders" value={myOrders.filter(o => o.paymentStatus === 'paid').length} icon="✅" />
-          <Kpi label="Transactions" value={myTransactions.length} icon="🧾" />
+          <Kpi label="Wallet balance" value={money(wallets[user.id] || 0)} icon="" tone="accent" />
+          <Kpi label="Outstanding" value={money(unpaid.reduce((s, o) => s + o.totalAmount, 0))} hint={`${unpaid.length} unpaid orders`} icon="" tone={unpaid.length ? 'warn' : 'good'} />
+          <Kpi label="Paid orders" value={myOrders.filter(o => o.paymentStatus === 'paid').length} icon="[OK]" />
+          <Kpi label="Transactions" value={myTransactions.length} icon="" />
         </KpiGrid>
         <div className="ws-grid-2">
           <Panel title="Payment methods" subtitle="Choose a method at checkout">
             <ul className="ws-detail-list">
-              <li><span>E-SCON Wallet</span><strong>Instant · {money(wallets[user.id] || 0)} available</strong></li>
+              <li><span>E-SCON Wallet</span><strong>Instant - {money(wallets[user.id] || 0)} available</strong></li>
               <li><span>Bank transfer</span><strong>Awaiting supplier confirmation</strong></li>
               <li><span>Cash on delivery</span><strong>Pay the supplier on arrival</strong></li>
             </ul>
             <p className="ws-note">Wallet payments are marked paid immediately. Bank transfers stay pending until the supplier confirms receipt.</p>
           </Panel>
           <Panel title="Receipts" subtitle="Latest wallet movements">
-            {myTransactions.length === 0 ? <EmptyState icon="🧾" title="No transactions yet" /> : (
+            {myTransactions.length === 0 ? <EmptyState icon="" title="No transactions yet" /> : (
               <ul className="ws-feed">
                 {myTransactions.slice(0, 6).map(tx => (
                   <li key={tx.id}>
-                    <span className="ws-feed-icon">{tx.kind === 'refund' ? '↩️' : tx.kind === 'payment' ? '💳' : '💰'}</span>
-                    <div><strong>{tx.kind} · {money(tx.amount)}</strong><small>{tx.note} · {new Date(tx.date).toLocaleDateString('en-GB')}</small></div>
+                    <span className="ws-feed-icon">{tx.kind === 'refund' ? '' : tx.kind === 'payment' ? '' : ''}</span>
+                    <div><strong>{tx.kind} - {money(tx.amount)}</strong><small>{tx.note} - {new Date(tx.date).toLocaleDateString('en-GB')}</small></div>
                     <small className="ws-nowrap">{money(tx.balanceAfter)}</small>
                   </li>
                 ))}
@@ -1228,7 +1228,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         title={t('Order Tracking')}
         hint={t('Follow supplier acceptance, preparation, loading, dispatch, GPS progress and arrival for every order.')}
       />
-      {myOrders.length === 0 ? <Panel><EmptyState icon="🚚" title="No orders to track" /></Panel> : (
+      {myOrders.length === 0 ? <Panel><EmptyState icon="" title="No orders to track" /></Panel> : (
         <div className="ws-track-list">
           {[...myOrders].sort((a, b) => Date.parse(b.orderDate) - Date.parse(a.orderDate)).map(order => {
             const steps = ['pending', 'confirmed', 'shipped', 'delivered'];
@@ -1237,22 +1237,22 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             return (
               <div key={order.id} className="ws-track">
                 <div className="ws-track-head">
-                  <div><strong>{order.invoiceNumber}</strong><small>{materialFor(order.materialId)?.name} · {order.quantity} {materialFor(order.materialId)?.unit} · {supplierFor(order.companyId)?.name}</small></div>
+                  <div><strong>{order.invoiceNumber}</strong><small>{materialFor(order.materialId)?.name} - {order.quantity} {materialFor(order.materialId)?.unit} - {supplierFor(order.companyId)?.name}</small></div>
                   <StatusPill label={t(order.status)} tone={toneFor(order.status)} />
                 </div>
                 <div className="ws-timeline">
                   {steps.map((step, stepIndex) => (
                     <div key={step} className={'ws-step' + (stepIndex <= index ? ' done' : '')}>
-                      <span>{stepIndex <= index ? '●' : '○'}</span>
+                      <span>{stepIndex <= index ? '*' : 'o'}</span>
                       {t(step.charAt(0).toUpperCase() + step.slice(1))}
                     </div>
                   ))}
                 </div>
                 <div className="ws-track-meta">
-                  <span>🚚 {transporter?.companyName || 'Transporter not assigned'}</span>
+                  <span> {transporter?.companyName || 'Transporter not assigned'}</span>
                   <span>{order.transportStatus ? TRANSPORT_STATUS_LABELS[jobStatus(order)] : 'Delivery not requested'}</span>
-                  <span>📍 {order.address}</span>
-                  {order.transportDeliveredAt && <span>✅ {formatDate(order.transportDeliveredAt)}</span>}
+                  <span> {order.address}</span>
+                  {order.transportDeliveredAt && <span>[OK] {formatDate(order.transportDeliveredAt)}</span>}
                   {order.deliveryDate && <span>ETA {formatDate(order.deliveryDate)}</span>}
                 </div>
               </div>
@@ -1271,18 +1271,18 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           eyebrow={t('Customers')}
           title={t('Delivery Management')}
           hint={t('Manage delivery address, schedule, transport charges and delivery receipt.')}
-          actions={<button className="btn btn-secondary btn-sm" onClick={onSaveMyLocation}>📍 {t('Save my location')}</button>}
+          actions={<button className="btn btn-secondary btn-sm" onClick={onSaveMyLocation}> {t('Save my location')}</button>}
         />
         <KpiGrid>
-          <Kpi label="Deliveries" value={deliveries.length} icon="🚚" />
-          <Kpi label="In transit" value={deliveries.filter(o => o.transportStatus === 'in_transit' || o.transportStatus === 'picked_up').length} icon="🛣️" />
-          <Kpi label={t('Completed')} value={deliveries.filter(o => o.transportStatus === 'delivered').length} icon="🏁" tone="good" />
-          <Kpi label="Transport paid" value={money(myOrders.reduce((s, o) => s + (o.transportCost || 0), 0))} icon="💵" />
+          <Kpi label="Deliveries" value={deliveries.length} icon="" />
+          <Kpi label="In transit" value={deliveries.filter(o => o.transportStatus === 'in_transit' || o.transportStatus === 'picked_up').length} icon="" />
+          <Kpi label={t('Completed')} value={deliveries.filter(o => o.transportStatus === 'delivered').length} icon="" tone="good" />
+          <Kpi label="Transport paid" value={money(myOrders.reduce((s, o) => s + (o.transportCost || 0), 0))} icon="" />
         </KpiGrid>
         <Panel title="Delivery address" subtitle="Used by default on new orders">
           <ul className="ws-detail-list">
-            <li><span>{t('Address')}</span><strong>{user.address || '—'}</strong></li>
-            <li><span>{t('City')}</span><strong>{user.city || '—'}</strong></li>
+            <li><span>{t('Address')}</span><strong>{user.address || '-'}</strong></li>
+            <li><span>{t('City')}</span><strong>{user.city || '-'}</strong></li>
             <li><span>GPS</span><strong>{user.lat ? `${user.lat.toFixed(4)}, ${user.lng.toFixed(4)}` : 'Not set'}</strong></li>
           </ul>
         </Panel>
@@ -1292,9 +1292,9 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             columns={[
               { key: 'invoiceNumber', header: 'Order', value: o => o.invoiceNumber },
               { key: 'address', header: t('Address'), value: o => o.address },
-              { key: 'transporter', header: 'Transporter', value: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || '—' },
+              { key: 'transporter', header: 'Transporter', value: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || '-' },
               { key: 'charge', header: 'Charge', align: 'right', value: o => Math.round(o.transportCost || 0), render: o => money(o.transportCost || 0) },
-              { key: 'date', header: 'Scheduled', value: o => o.deliveryDate || '', render: o => (o.deliveryDate ? formatDate(o.deliveryDate) : '—') },
+              { key: 'date', header: 'Scheduled', value: o => o.deliveryDate || '', render: o => (o.deliveryDate ? formatDate(o.deliveryDate) : '-') },
               { key: 'pod', header: 'Receipt', value: o => o.transportPod?.receivedBy || '', render: o => (o.transportPod ? <StatusPill label={`Received by ${o.transportPod.receivedBy}`} tone="good" /> : <span className="ws-muted">Pending</span>) },
             ]}
             searchText={o => `${o.invoiceNumber} ${o.address}`}
@@ -1312,16 +1312,16 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Customers')}
         title={t('Documents Centre')}
         hint={t('Access quotations, proformas, invoices, purchase orders, delivery notes and payment receipts.')}
-        actions={<button className="btn btn-secondary btn-sm" onClick={() => exportToCSV(myOrders, 'my_orders')}>⬇️ Export orders</button>}
+        actions={<button className="btn btn-secondary btn-sm" onClick={() => exportToCSV(myOrders, 'my_orders')}> Export orders</button>}
       />
       <div className="ws-grid-2">
         <Panel title={t('Quotations')} subtitle={`${myQuotes.length} received`}>
-          {myQuotes.length === 0 ? <EmptyState icon="📝" title="No quotations" /> : (
+          {myQuotes.length === 0 ? <EmptyState icon="" title="No quotations" /> : (
             <ul className="ws-feed">
               {myQuotes.map(quote => (
                 <li key={quote.id}>
-                  <span className="ws-feed-icon">📝</span>
-                  <div><strong>{quote.supplierName}</strong><small>{rfqById(quote.rfqId)?.materialName} · {money(quote.unitPrice)} · valid {formatDate(quote.validUntil)}</small></div>
+                  <span className="ws-feed-icon"></span>
+                  <div><strong>{quote.supplierName}</strong><small>{rfqById(quote.rfqId)?.materialName} - {money(quote.unitPrice)} - valid {formatDate(quote.validUntil)}</small></div>
                   <StatusPill label={t(quote.status)} tone={toneFor(quote.status)} />
                 </li>
               ))}
@@ -1329,12 +1329,12 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           )}
         </Panel>
         <Panel title="Orders & invoices" subtitle="Print a proforma or invoice from any order">
-          {myOrders.length === 0 ? <EmptyState icon="🧾" title="No documents" /> : (
+          {myOrders.length === 0 ? <EmptyState icon="" title="No documents" /> : (
             <ul className="ws-feed">
               {myOrders.slice(0, 8).map(order => (
                 <li key={order.id}>
-                  <span className="ws-feed-icon">🧾</span>
-                  <div><strong>{order.invoiceNumber}</strong><small>{money(order.totalAmount)} · {formatDate(order.orderDate)}</small></div>
+                  <span className="ws-feed-icon"></span>
+                  <div><strong>{order.invoiceNumber}</strong><small>{money(order.totalAmount)} - {formatDate(order.orderDate)}</small></div>
                   <div className="ws-row-actions">
                     <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order, kind: 'proforma' })}>Proforma</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order, kind: 'invoice' })}>Invoice</button>
@@ -1347,17 +1347,17 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
       </div>
       {docTarget && (
         <Modal
-          title={`${docTarget.kind === 'proforma' ? 'Proforma invoice' : 'Invoice'} · ${docTarget.order.invoiceNumber}`}
+          title={`${docTarget.kind === 'proforma' ? 'Proforma invoice' : 'Invoice'} - ${docTarget.order.invoiceNumber}`}
           onClose={() => setDocTarget(null)}
           wide
-          footer={<><button className="btn btn-secondary" onClick={() => setDocTarget(null)}>{t('Close')}</button><button className="btn btn-primary" onClick={() => window.print()}>🖨️ Print</button></>}
+          footer={<><button className="btn btn-secondary" onClick={() => setDocTarget(null)}>{t('Close')}</button><button className="btn btn-primary" onClick={() => window.print()}> Print</button></>}
         >
           <div className="ws-invoice">
             <div className="ws-invoice-head">
               <div>
                 <strong>{user.companyName || user.name}</strong>
                 <span>{user.address}, {user.city}</span>
-                <span>TIN {user.tinNumber || '—'} · VAT {user.vatNumber || '—'}</span>
+                <span>TIN {user.tinNumber || '-'} - VAT {user.vatNumber || '-'}</span>
               </div>
               <div>
                 <strong>{docTarget.kind === 'proforma' ? 'PROFORMA' : 'INVOICE'}</strong>
@@ -1366,7 +1366,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
               </div>
             </div>
             <div className="ws-invoice-parties">
-              <div><span>Supplier</span><strong>{supplierFor(docTarget.order.companyId)?.name || '—'}</strong><small>{supplierFor(docTarget.order.companyId)?.location}</small></div>
+              <div><span>Supplier</span><strong>{supplierFor(docTarget.order.companyId)?.name || '-'}</strong><small>{supplierFor(docTarget.order.companyId)?.location}</small></div>
               <div><span>Deliver to</span><strong>{docTarget.order.address}</strong><small>{t(docTarget.order.status)}</small></div>
             </div>
             <table className="data-table ws-table">
@@ -1386,7 +1386,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
               <li><span>Delivery</span><strong>{money(docTarget.order.transportCost || 0)}</strong></li>
               <li className="ws-total-row"><span>Total</span><strong>{money(docTarget.order.totalAmount)}</strong></li>
             </ul>
-            <p className="ws-note">Payment method: {docTarget.order.paymentMethod || '—'} · Status: {t(docTarget.order.paymentStatus)}</p>
+            <p className="ws-note">Payment method: {docTarget.order.paymentMethod || '-'} - Status: {t(docTarget.order.paymentStatus)}</p>
           </div>
         </Modal>
       )}
@@ -1402,12 +1402,12 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
       />
       <div className="ws-grid-2">
         <Panel title="Rate a purchase" subtitle="Delivered orders only">
-          {myOrders.filter(o => o.status === 'delivered').length === 0 ? <EmptyState icon="⭐" title="No delivered orders" text="You can review a product after delivery." /> : (
+          {myOrders.filter(o => o.status === 'delivered').length === 0 ? <EmptyState icon="*" title="No delivered orders" text="You can review a product after delivery." /> : (
             <ul className="ws-alert-list">
               {myOrders.filter(o => o.status === 'delivered').slice(0, 8).map(order => (
                 <li key={order.id}>
-                  <span>⭐</span>
-                  <div><strong>{materialFor(order.materialId)?.name}</strong><small>{supplierFor(order.companyId)?.name} · {order.invoiceNumber}</small></div>
+                  <span>*</span>
+                  <div><strong>{materialFor(order.materialId)?.name}</strong><small>{supplierFor(order.companyId)?.name} - {order.invoiceNumber}</small></div>
                   <button className="btn btn-secondary btn-sm" onClick={() => onReview(order.materialId)}>{t('Rate')}</button>
                 </li>
               ))}
@@ -1427,7 +1427,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             </Field>
             <Field label="Supplier">
               <select value={complaintDraft.againstId} onChange={e => setComplaintDraft(prev => ({ ...prev, againstId: e.target.value }))}>
-                <option value="">Select…</option>
+                <option value="">Select...</option>
                 {companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
               </select>
             </Field>
@@ -1437,17 +1437,17 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             <Field label={t('Message')} required>
               <textarea rows={4} value={complaintDraft.message} onChange={e => setComplaintDraft(prev => ({ ...prev, message: e.target.value }))} maxLength={500} />
             </Field>
-            <button className="btn btn-primary" onClick={submitComplaint}>⚖️ {t('Submit')}</button>
+            <button className="btn btn-primary" onClick={submitComplaint}> {t('Submit')}</button>
           </div>
         </Panel>
       </div>
       <Panel title="My complaints" subtitle={`${myComplaints.length} filed`}>
-        {myComplaints.length === 0 ? <EmptyState icon="⚖️" title="No complaints" /> : (
+        {myComplaints.length === 0 ? <EmptyState icon="" title="No complaints" /> : (
           <ul className="ws-feed">
             {myComplaints.map(complaint => (
               <li key={complaint.id}>
-                <span className="ws-feed-icon">⚖️</span>
-                <div><strong>{complaint.subject}</strong><small>{complaint.message}{complaint.response ? ` · Response: ${complaint.response}` : ''}</small></div>
+                <span className="ws-feed-icon"></span>
+                <div><strong>{complaint.subject}</strong><small>{complaint.message}{complaint.response ? ` - Response: ${complaint.response}` : ''}</small></div>
                 <StatusPill label={t(complaint.status)} tone={toneFor(complaint.status)} />
               </li>
             ))}
@@ -1463,15 +1463,15 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Customers')}
         title={t('Procurement Analytics')}
         hint={t('Review project expenditure, material quantities, price comparisons and supplier performance.')}
-        actions={<button className="btn btn-secondary btn-sm" onClick={() => onNavigate('analytics')}>📊 Full analytics</button>}
+        actions={<button className="btn btn-secondary btn-sm" onClick={() => onNavigate('analytics')}> Full analytics</button>}
       />
       <KpiGrid>
-        <Kpi label="Total spend" value={money(spend)} icon="💰" tone="accent" />
-        <Kpi label={t('Orders')} value={myOrders.length} icon="📋" />
-        <Kpi label="Units purchased" value={analytics.unitsSold.toLocaleString()} icon="📦" />
-        <Kpi label={t('Average order value')} value={money(analytics.avgOrderValue)} icon="📊" />
-        <Kpi label="Projects" value={myProjects.length} hint={money(myProjects.reduce((s, p) => s + p.budget, 0)) + ' budget'} icon="🏗️" />
-        <Kpi label="Growth (30d)" value={analytics.growthPct === null ? '—' : `${analytics.growthPct >= 0 ? '+' : ''}${analytics.growthPct.toFixed(1)}%`} icon="📈" tone={(analytics.growthPct || 0) >= 0 ? 'good' : 'bad'} />
+        <Kpi label="Total spend" value={money(spend)} icon="" tone="accent" />
+        <Kpi label={t('Orders')} value={myOrders.length} icon="" />
+        <Kpi label="Units purchased" value={analytics.unitsSold.toLocaleString()} icon="" />
+        <Kpi label={t('Average order value')} value={money(analytics.avgOrderValue)} icon="" />
+        <Kpi label="Projects" value={myProjects.length} hint={money(myProjects.reduce((s, p) => s + p.budget, 0)) + ' budget'} icon="" />
+        <Kpi label="Growth (30d)" value={analytics.growthPct === null ? '-' : `${analytics.growthPct >= 0 ? '+' : ''}${analytics.growthPct.toFixed(1)}%`} icon="" tone={(analytics.growthPct || 0) >= 0 ? 'good' : 'bad'} />
       </KpiGrid>
       <div className="ws-grid-2">
         <Panel title="Spend by month"><BarList items={analytics.monthlyRevenue.map(p => ({ label: p.label, value: p.value }))} format={money} /></Panel>
@@ -1485,7 +1485,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             { key: 'supplier', header: 'Supplier', value: p => p.supplierName },
             { key: 'units', header: 'Units', align: 'right', value: p => p.units },
             { key: 'revenue', header: 'Spend', align: 'right', value: p => Math.round(p.revenue), render: p => money(p.revenue) },
-            { key: 'rating', header: t('Rating'), align: 'right', value: p => p.rating, render: p => `⭐ ${p.rating.toFixed(1)}` },
+            { key: 'rating', header: t('Rating'), align: 'right', value: p => p.rating, render: p => `* ${p.rating.toFixed(1)}` },
           ]}
           searchText={p => `${p.name} ${p.supplierName}`}
           exportName="procurement_analytics"
@@ -1493,7 +1493,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         />
       </Panel>
       <Panel title={t('Supplier Performance')}>
-        <BarList items={analytics.topSuppliers.slice(0, 8).map(s => ({ label: s.name, value: Math.round(s.revenue), hint: `⭐ ${s.rating.toFixed(1)}` }))} format={money} />
+        <BarList items={analytics.topSuppliers.slice(0, 8).map(s => ({ label: s.name, value: Math.round(s.revenue), hint: `* ${s.rating.toFixed(1)}` }))} format={money} />
       </Panel>
     </>
   );
@@ -1513,7 +1513,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             <div className="ws-form">
               <Field label="Supplier" required>
                 <select value={messageDraft.to} onChange={e => setMessageDraft(prev => ({ ...prev, to: e.target.value }))}>
-                  <option value="">Select…</option>
+                  <option value="">Select...</option>
                   {suppliers.map(company => <option key={company.id} value={company.userId}>{company.name}</option>)}
                 </select>
               </Field>
@@ -1535,16 +1535,16 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
                   setMessageDraft({ to: '', title: '', body: '' });
                 }}
               >
-                ✉️ {t('Send')}
+                 {t('Send')}
               </button>
             </div>
           </Panel>
           <Panel title={t('Inbox')} subtitle={`${mine.filter(n => !n.read).length} unread`}>
-            {mine.length === 0 ? <EmptyState icon="🔔" title="No notifications yet" /> : (
+            {mine.length === 0 ? <EmptyState icon="" title="No notifications yet" /> : (
               <ul className="ws-feed">
                 {mine.slice(0, 10).map(item => (
                   <li key={item.id}>
-                    <span className="ws-feed-icon">{item.type === 'order' ? '📦' : item.type === 'payment' ? '💳' : item.type === 'stock' ? '⚠️' : 'ℹ️'}</span>
+                    <span className="ws-feed-icon">{item.type === 'order' ? '' : item.type === 'payment' ? '' : item.type === 'stock' ? '[!]' : ''}</span>
                     <div><strong>{item.title}</strong><small>{item.message}</small></div>
                     <small className="ws-nowrap">{timeAgo(item.createdAt)}</small>
                   </li>

@@ -1,7 +1,7 @@
 // ===== src/components/OrderTimeline.tsx =====
 // Visual shipment progress tracker (banking-app style stepper) for the
 // standard supply-chain order lifecycle:
-//   Ordered → Confirmed → In Transit → Delivered
+//   Ordered -> Confirmed -> In Transit -> Delivered
 // Cancelled orders render a distinct failed state.
 import React from 'react';
 
@@ -13,10 +13,10 @@ interface OrderTimelineProps {
 }
 
 const STEPS = [
-  { key: 'pending', label: 'Ordered', icon: '📝' },
-  { key: 'confirmed', label: 'Confirmed', icon: '✅' },
-  { key: 'shipped', label: 'In Transit', icon: '🚚' },
-  { key: 'delivered', label: 'Delivered', icon: '📦' },
+  { key: 'pending', label: 'Ordered', icon: '' },
+  { key: 'confirmed', label: 'Confirmed', icon: '[OK]' },
+  { key: 'shipped', label: 'In Transit', icon: '' },
+  { key: 'delivered', label: 'Delivered', icon: '' },
 ];
 
 const stepIndex = (status: string): number =>
@@ -31,8 +31,8 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status, size = 'md' }) =>
     <div className={'m-progress m-progress-' + size}>
       {cancelled ? (
         <div className="m-progress-cancelled">
-          <span className="m-progress-cancel-icon">🚫</span>
-          <span>Order cancelled{size === 'sm' ? '' : ' — no delivery in progress'}</span>
+          <span className="m-progress-cancel-icon"></span>
+          <span>Order cancelled{size === 'sm' ? '' : ' - no delivery in progress'}</span>
         </div>
       ) : (
         <>
@@ -51,7 +51,7 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status, size = 'md' }) =>
                   }
                 >
                   <div className="m-progress-dot">
-                    <span className="m-progress-icon">{reached ? step.icon : '·'}</span>
+                    <span className="m-progress-icon">{reached ? step.icon : '-'}</span>
                   </div>
                   <span className="m-progress-label">{step.label}</span>
                   {i < STEPS.length - 1 && <span className="m-progress-line" />}
@@ -61,10 +61,10 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status, size = 'md' }) =>
           </div>
           {size === 'md' && current >= 0 && (
             <div className="m-progress-note">
-              {current === 0 && '🧾 Order placed — awaiting supplier confirmation.'}
-              {current === 1 && '✅ Supplier confirmed — goods are being prepared.'}
-              {current === 2 && '🚚 In transit — on its way to your delivery address.'}
-              {current === 3 && '📦 Delivered — thank you for buying with E-SCON!'}
+              {current === 0 && ' Order placed - awaiting supplier confirmation.'}
+              {current === 1 && '[OK] Supplier confirmed - goods are being prepared.'}
+              {current === 2 && ' In transit - on its way to your delivery address.'}
+              {current === 3 && ' Delivered - thank you for buying with E-SCON!'}
             </div>
           )}
         </>

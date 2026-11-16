@@ -1,4 +1,4 @@
-// ===== Suppliers — Business Management (spec §3) =====
+// ===== Suppliers - Business Management (spec 3) =====
 //
 // Eighteen supplier submenus covering identity and verification, warehouses,
 // catalogue, inventory movements, pricing, RFQs, quotations, orders, invoices,
@@ -140,7 +140,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       lastUpdated: new Date().toISOString(),
       priceHistory: [...(priceTarget.priceHistory || []), { date: Date.now(), price }].slice(-24),
     });
-    logEvent('price.update', `${priceTarget.name} → ${price}`);
+    logEvent('price.update', `${priceTarget.name} -> ${price}`);
     onNotify('Price updated', 'success');
     setPriceTarget(null);
   };
@@ -198,7 +198,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
     ]);
     setRfqs(prev => prev.map(item => (item.id === rfqTarget.id ? { ...item, status: item.status === 'open' ? 'quoted' : item.status } : item)));
     onSendMessage(rfqTarget.customerId, 'New quotation received', `${company.name} quoted ${money(unitPrice)} / ${rfqTarget.unit} for ${rfqTarget.materialName}.`);
-    logEvent('quotation.submit', `${rfqTarget.materialName} → ${money(unitPrice)}`);
+    logEvent('quotation.submit', `${rfqTarget.materialName} -> ${money(unitPrice)}`);
     onNotify('Quotation submitted', 'success');
     setRfqTarget(null);
   };
@@ -233,7 +233,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         <SectionHeader eyebrow={t('Suppliers')} title={t('Business Profile')} hint="Your supplier profile is missing." />
         <Panel>
           <EmptyState
-            icon="🏢"
+            icon=""
             title="Create your business profile"
             text="A supplier profile stores your company name, licence, location and warehouse coverage. Buyers see it in the directory."
             action={<button className="btn btn-primary" onClick={onEditCompany}>Create profile</button>}
@@ -250,7 +250,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       render: m => (
         <div className="ws-cell-stack">
           <strong>{m.name}</strong>
-          <small>{m.category} · {m.brand || m.specifications?.grade || '—'}</small>
+          <small>{m.category} - {m.brand || m.specifications?.grade || '-'}</small>
         </div>
       ),
     },
@@ -263,8 +263,8 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       key: 'actions', header: 'Actions', align: 'right', noExport: true,
       render: m => (
         <div className="ws-row-actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => openPrice(m)}>💵</button>
-          <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}>🏭</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => openPrice(m)}></button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}></button>
           <button className="btn btn-secondary btn-sm" onClick={() => onEditMaterial(m)}>{t('Edit')}</button>
         </div>
       ),
@@ -273,8 +273,8 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
 
   const orderColumns: Column<Order>[] = [
     { key: 'invoiceNumber', header: 'Order', value: o => o.invoiceNumber, render: o => <div className="ws-cell-stack"><strong>{o.invoiceNumber}</strong><small>{formatDate(o.orderDate)}</small></div> },
-    { key: 'buyer', header: 'Buyer', value: o => buyerFor(o.customerId)?.name || '—', render: o => <div className="ws-cell-stack"><span>{buyerFor(o.customerId)?.name || '—'}</span><small>{o.address}</small></div> },
-    { key: 'material', header: 'Material', value: o => materialFor(o.materialId)?.name || '—', render: o => <div className="ws-cell-stack"><span>{materialFor(o.materialId)?.name || '—'}</span><small>{o.quantity} {materialFor(o.materialId)?.unit || ''}</small></div> },
+    { key: 'buyer', header: 'Buyer', value: o => buyerFor(o.customerId)?.name || '-', render: o => <div className="ws-cell-stack"><span>{buyerFor(o.customerId)?.name || '-'}</span><small>{o.address}</small></div> },
+    { key: 'material', header: 'Material', value: o => materialFor(o.materialId)?.name || '-', render: o => <div className="ws-cell-stack"><span>{materialFor(o.materialId)?.name || '-'}</span><small>{o.quantity} {materialFor(o.materialId)?.unit || ''}</small></div> },
     { key: 'totalAmount', header: 'Total', align: 'right', value: o => Math.round(o.totalAmount), render: o => <strong>{money(o.totalAmount)}</strong> },
     { key: 'paymentStatus', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
     { key: 'status', header: 'Status', value: o => o.status, render: o => <StatusPill label={t(o.status)} tone={toneFor(o.status)} /> },
@@ -283,10 +283,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       render: o => (
         <div className="ws-row-actions">
           {o.status === 'pending' && <button className="btn btn-primary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'confirmed')}>{t('Approve')}</button>}
-          {o.status === 'confirmed' && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'shipped')}>🚚 {t('Dispatch')}</button>}
-          {o.status === 'shipped' && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'delivered')}>✅ {t('Delivered')}</button>}
+          {o.status === 'confirmed' && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'shipped')}> {t('Dispatch')}</button>}
+          {o.status === 'shipped' && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'delivered')}>[OK] {t('Delivered')}</button>}
           {(o.status === 'pending') && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'cancelled')}>{t('Reject')}</button>}
-          <button className="btn btn-secondary btn-sm" onClick={() => setInvoiceTarget(o)}>🧾</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setInvoiceTarget(o)}></button>
         </div>
       ),
     },
@@ -318,7 +318,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         render: row => (
           <span className="ws-approval-name">
             <strong>{row.materialName}</strong>
-            <small>{row.quantity} {row.unit} · {row.city}</small>
+            <small>{row.quantity} {row.unit} - {row.city}</small>
           </span>
         ),
       },
@@ -357,21 +357,21 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         <SectionHeader
           eyebrow={t('Supplier')}
           title={t('Supplier Dashboard')}
-          hint={`${company.name} · ${t('Products, quotations, orders and stock health at a glance.')}`}
+          hint={`${company.name} - ${t('Products, quotations, orders and stock health at a glance.')}`}
           actions={
             <>
-              <button className="btn btn-secondary btn-sm" onClick={onEditCompany}>🏢 {t('Business Profile')}</button>
-              <button className="btn btn-primary btn-sm" onClick={onAddProduct}>➕ {t('Add product')}</button>
+              <button className="btn btn-secondary btn-sm" onClick={onEditCompany}> {t('Business Profile')}</button>
+              <button className="btn btn-primary btn-sm" onClick={onAddProduct}> {t('Add product')}</button>
             </>
           }
         />
 
         <KpiGrid>
-          <Kpi label={t('Active Products')} value={ownMaterials.length} hint={`${new Set(ownMaterials.map(m => m.category)).size} categories`} icon="📦" />
-          <Kpi label={t('Monthly Sales')} value={money(monthlySales)} hint="Delivered this month" icon="💰" tone="accent" />
-          <Kpi label={t('Open RFQs')} value={openRfqs.length} hint={`${ownQuotations.length} quotations sent`} icon="📨" tone={openRfqs.length ? 'warn' : 'good'} />
-          <Kpi label={t('Pending Orders')} value={ownOrders.filter(o => o.status === 'pending').length} hint={`${money(pipeline)} in pipeline`} icon="🕒" tone="warn" />
-          <Kpi label={t('Seller Rating')} value={`${companyRating.toFixed(1)} ★`} hint={`${reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} reviews`} icon="⭐" tone="good" />
+          <Kpi label={t('Active Products')} value={ownMaterials.length} hint={`${new Set(ownMaterials.map(m => m.category)).size} categories`} icon="" />
+          <Kpi label={t('Monthly Sales')} value={money(monthlySales)} hint="Delivered this month" icon="" tone="accent" />
+          <Kpi label={t('Open RFQs')} value={openRfqs.length} hint={`${ownQuotations.length} quotations sent`} icon="" tone={openRfqs.length ? 'warn' : 'good'} />
+          <Kpi label={t('Pending Orders')} value={ownOrders.filter(o => o.status === 'pending').length} hint={`${money(pipeline)} in pipeline`} icon="" tone="warn" />
+          <Kpi label={t('Seller Rating')} value={`${companyRating.toFixed(1)} `} hint={`${reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} reviews`} icon="*" tone="good" />
         </KpiGrid>
 
         <DashboardGrid
@@ -394,10 +394,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
                 }
               >
                 <div className="ws-chart-note">
-                  <span>{t('Delivered revenue')} · {money(revenue)}</span>
+                  <span>{t('Delivered revenue')} - {money(revenue)}</span>
                   <span className="ws-pill-stack">
-                    <StatusPill label={`● ${t('Delivered')}`} tone="good" />
-                    <StatusPill label={`● ${t('Pipeline')}`} tone="info" />
+                    <StatusPill label={`* ${t('Delivered')}`} tone="good" />
+                    <StatusPill label={`* ${t('Pipeline')}`} tone="info" />
                   </span>
                 </div>
                 <div className="ws-chart-box">
@@ -422,7 +422,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
                 actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('rfqs')}>{t('View all')}</button>}
               >
                 {rfqRows.length === 0 ? (
-                  <EmptyState icon="📨" title={t('No open RFQs')} text={t('New customer requests will appear here as soon as they are published.')} />
+                  <EmptyState icon="" title={t('No open RFQs')} text={t('New customer requests will appear here as soon as they are published.')} />
                 ) : (
                   <DataTable
                     rows={rfqRows}
@@ -439,27 +439,27 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
             <>
               <Panel title={t('Order Pipeline')} subtitle={t('Current commercial position')}>
                 <div className="ws-mini-grid">
-                  <MiniStat label={t('Pending')} value={ownOrders.filter(o => o.status === 'pending').length} hint={t('orders')} tone="warn" icon="🕒" />
-                  <MiniStat label={t('Delivered')} value={ownOrders.filter(o => o.status === 'delivered').length} hint={t('orders')} tone="good" icon="✅" />
-                  <MiniStat label={t('Quotes sent')} value={ownQuotations.length} hint={t('quotation records')} tone="accent" icon="📨" />
-                  <MiniStat label={t('Low stock')} value={lowStock.length} hint={t('products')} tone={lowStock.length ? 'bad' : 'good'} icon="⚠️" />
+                  <MiniStat label={t('Pending')} value={ownOrders.filter(o => o.status === 'pending').length} hint={t('orders')} tone="warn" icon="" />
+                  <MiniStat label={t('Delivered')} value={ownOrders.filter(o => o.status === 'delivered').length} hint={t('orders')} tone="good" icon="[OK]" />
+                  <MiniStat label={t('Quotes sent')} value={ownQuotations.length} hint={t('quotation records')} tone="accent" icon="" />
+                  <MiniStat label={t('Low stock')} value={lowStock.length} hint={t('products')} tone={lowStock.length ? 'bad' : 'good'} icon="[!]" />
                 </div>
               </Panel>
 
               <Panel
                 title={t('Inventory & Stock Alerts')}
-                subtitle={t('Lowest stock first · quick price update')}
+                subtitle={t('Lowest stock first - quick price update')}
                 actions={<button className="btn btn-secondary btn-sm" onClick={() => onSection('inventory')}>{t('Inventory')}</button>}
               >
                 {stockWatch.length === 0 ? (
-                  <EmptyState icon="📦" title={t('No products yet')} text={t('Add your first product to start receiving RFQs.')} />
+                  <EmptyState icon="" title={t('No products yet')} text={t('Add your first product to start receiving RFQs.')} />
                 ) : (
                   <div className="ws-stat-list">
                     {stockWatch.map(m => (
                       <div className="ws-stat-row" key={m.id}>
                         <div>
                           <strong>{m.name}</strong>
-                          <small>{m.quantity} {m.unit} left · {money(m.price)}/{m.unit}</small>
+                          <small>{m.quantity} {m.unit} left - {money(m.price)}/{m.unit}</small>
                           <span className="ws-stat-bar">
                             <ProgressBar
                               value={(m.quantity / maxStock) * 100}
@@ -468,7 +468,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
                           </span>
                         </div>
                         <button className="btn btn-secondary btn-sm" onClick={() => openPrice(m)}>{t('Price')}</button>
-                        <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}>＋</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}></button>
                       </div>
                     ))}
                   </div>
@@ -499,24 +499,24 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       <div className="ws-grid-2">
         <Panel title={company.name} subtitle={company.description || 'No description yet'}>
           <ul className="ws-detail-list">
-            <li><span>{t('Address')}</span><strong>{company.location || '—'}, {company.city}</strong></li>
-            <li><span>{t('Phone')}</span><strong>{company.phone || user.phone || '—'}</strong></li>
+            <li><span>{t('Address')}</span><strong>{company.location || '-'}, {company.city}</strong></li>
+            <li><span>{t('Phone')}</span><strong>{company.phone || user.phone || '-'}</strong></li>
             <li><span>{t('Email')}</span><strong>{company.email || user.email}</strong></li>
-            <li><span>Website</span><strong>{company.website || '—'}</strong></li>
-            <li><span>{t('Working hours')}</span><strong>{company.workingHours || '—'}</strong></li>
-            <li><span>Established</span><strong>{company.established || '—'}</strong></li>
+            <li><span>Website</span><strong>{company.website || '-'}</strong></li>
+            <li><span>{t('Working hours')}</span><strong>{company.workingHours || '-'}</strong></li>
+            <li><span>Established</span><strong>{company.established || '-'}</strong></li>
           </ul>
         </Panel>
         <Panel title="Registration & compliance" subtitle="Used for verification and invoices">
           <ul className="ws-detail-list">
-            <li><span>TIN</span><strong>{company.tinNumber || '—'}</strong></li>
-            <li><span>Business licence</span><strong>{company.businessLicense || '—'}</strong></li>
+            <li><span>TIN</span><strong>{company.tinNumber || '-'}</strong></li>
+            <li><span>Business licence</span><strong>{company.businessLicense || '-'}</strong></li>
             <li><span>VAT number</span><strong>{company.vatNumber || 'Not registered'}</strong></li>
-            <li><span>Licence expiry</span><strong>{company.tradeLicenseExpiry ? formatDate(company.tradeLicenseExpiry) : '—'}</strong></li>
+            <li><span>Licence expiry</span><strong>{company.tradeLicenseExpiry ? formatDate(company.tradeLicenseExpiry) : '-'}</strong></li>
             <li><span>{t('Compliance')}</span><strong><StatusPill label={t(company.complianceStatus)} tone={toneFor(company.complianceStatus)} /></strong></li>
-            <li><span>{t('Rating')}</span><strong>⭐ {companyRating.toFixed(1)} · {company.totalOrders} orders</strong></li>
+            <li><span>{t('Rating')}</span><strong>* {companyRating.toFixed(1)} - {company.totalOrders} orders</strong></li>
           </ul>
-          <button className="btn btn-secondary btn-sm" onClick={() => onOpenMap(company.id)}>🗺️ {t('Supplier Map')}</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onOpenMap(company.id)}> {t('Supplier Map')}</button>
         </Panel>
       </div>
     </>
@@ -544,16 +544,16 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           actions={<button className="btn btn-primary btn-sm" onClick={onEditCompany}>{t('Upload')} / {t('Edit')}</button>}
         />
         <KpiGrid>
-          <Kpi label="Verification status" value={t(company.complianceStatus)} icon="🛡️" tone={company.complianceStatus === 'compliant' ? 'good' : 'warn'} />
-          <Kpi label="Checklist" value={`${complete}/${checks.length}`} hint="Documents and details" icon="📋" />
-          <Kpi label="Products listed" value={ownMaterials.length} icon="📦" />
-          <Kpi label="Admin requests" value={company.complianceStatus === 'non-compliant' ? 1 : 0} icon="📨" tone={company.complianceStatus === 'non-compliant' ? 'bad' : 'good'} />
+          <Kpi label="Verification status" value={t(company.complianceStatus)} icon="" tone={company.complianceStatus === 'compliant' ? 'good' : 'warn'} />
+          <Kpi label="Checklist" value={`${complete}/${checks.length}`} hint="Documents and details" icon="" />
+          <Kpi label="Products listed" value={ownMaterials.length} icon="" />
+          <Kpi label="Admin requests" value={company.complianceStatus === 'non-compliant' ? 1 : 0} icon="" tone={company.complianceStatus === 'non-compliant' ? 'bad' : 'good'} />
         </KpiGrid>
         <Panel title="Verification checklist" subtitle="Every item is required before a supplier is marked compliant">
           <ul className="ws-checklist">
             {checks.map(check => (
               <li key={check.label} className={check.done ? 'done' : ''}>
-                <span aria-hidden="true">{check.done ? '✅' : '⬜'}</span>
+                <span aria-hidden="true">{check.done ? '[OK]' : ''}</span>
                 {check.label}
               </li>
             ))}
@@ -582,15 +582,15 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Suppliers')}
         title={t('Location & Warehouse')}
         hint={t('Register warehouse locations using GPS. Add warehouse addresses, service areas, operating hours and available delivery coverage.')}
-        actions={<button className="btn btn-secondary btn-sm" onClick={() => onOpenMap(company.id)}>🗺️ {t('Supplier Map')}</button>}
+        actions={<button className="btn btn-secondary btn-sm" onClick={() => onOpenMap(company.id)}> {t('Supplier Map')}</button>}
       />
       <div className="ws-grid-2">
         <Panel title="Primary location" subtitle="Used to measure delivery distance to buyers">
           <ul className="ws-detail-list">
-            <li><span>{t('Address')}</span><strong>{company.location || '—'}</strong></li>
-            <li><span>{t('City')}</span><strong>{company.city || '—'}</strong></li>
+            <li><span>{t('Address')}</span><strong>{company.location || '-'}</strong></li>
+            <li><span>{t('City')}</span><strong>{company.city || '-'}</strong></li>
             <li><span>GPS</span><strong>{company.lat.toFixed(4)}, {company.lng.toFixed(4)}</strong></li>
-            <li><span>{t('Working hours')}</span><strong>{company.workingHours || '—'}</strong></li>
+            <li><span>{t('Working hours')}</span><strong>{company.workingHours || '-'}</strong></li>
           </ul>
           <button className="btn btn-secondary btn-sm" onClick={onEditCompany}>{t('Edit')} location</button>
         </Panel>
@@ -607,19 +607,19 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
                 <input value={warehouseDraft.city} onChange={e => setWarehouseDraft(prev => ({ ...prev, city: e.target.value }))} />
               </Field>
               <Field label={t('Working hours')}>
-                <input value={warehouseDraft.hours} onChange={e => setWarehouseDraft(prev => ({ ...prev, hours: e.target.value }))} placeholder="Mon–Sat 08:00–18:00" />
+                <input value={warehouseDraft.hours} onChange={e => setWarehouseDraft(prev => ({ ...prev, hours: e.target.value }))} placeholder="Mon-Sat 08:00-18:00" />
               </Field>
             </div>
             <Field label="Delivery coverage" hint="Cities or zones served from this warehouse.">
               <input value={warehouseDraft.coverage} onChange={e => setWarehouseDraft(prev => ({ ...prev, coverage: e.target.value }))} placeholder="Addis Ababa, Adama" />
             </Field>
-            <button className="btn btn-primary" onClick={saveWarehouse}>➕ {t('Save')}</button>
+            <button className="btn btn-primary" onClick={saveWarehouse}> {t('Save')}</button>
           </div>
         </Panel>
       </div>
       <Panel title="Warehouses" subtitle={`${warehouses.length} registered`}>
         {warehouses.length === 0 ? (
-          <EmptyState icon="🏭" title="No extra warehouses" text="Add a second warehouse above to list it here." />
+          <EmptyState icon="" title="No extra warehouses" text="Add a second warehouse above to list it here." />
         ) : (
           <div className="table-scroll-container">
             <table className="data-table ws-table">
@@ -628,10 +628,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
                 {warehouses.map(warehouse => (
                   <tr key={warehouse.id}>
                     <td><strong>{warehouse.name}</strong></td>
-                    <td>{warehouse.address || '—'}</td>
-                    <td>{warehouse.city || '—'}</td>
-                    <td>{warehouse.hours || '—'}</td>
-                    <td>{warehouse.coverage || '—'}</td>
+                    <td>{warehouse.address || '-'}</td>
+                    <td>{warehouse.city || '-'}</td>
+                    <td>{warehouse.hours || '-'}</td>
+                    <td>{warehouse.coverage || '-'}</td>
                     <td><button className="btn btn-secondary btn-sm" onClick={() => { setWarehouseDraft(warehouse); }}>{t('Edit')}</button></td>
                   </tr>
                 ))}
@@ -649,13 +649,13 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Suppliers')}
         title={t('Product Management')}
         hint={t('Add, edit, update and remove products. Include product name, category, grade, specifications, images, unit, description and availability.')}
-        actions={<button className="btn btn-primary btn-sm" onClick={onAddProduct}>➕ {t('Add product')}</button>}
+        actions={<button className="btn btn-primary btn-sm" onClick={onAddProduct}> {t('Add product')}</button>}
       />
       <KpiGrid>
-        <Kpi label={t('Products')} value={ownMaterials.length} icon="📦" />
-        <Kpi label="Catalogue value" value={money(stockValue)} icon="💰" tone="accent" />
-        <Kpi label={t('Low stock')} value={lowStock.length} icon="⚠️" tone={lowStock.length ? 'warn' : 'good'} />
-        <Kpi label="Average price" value={money(ownMaterials.reduce((s, m) => s + m.price, 0) / (ownMaterials.length || 1))} icon="💵" />
+        <Kpi label={t('Products')} value={ownMaterials.length} icon="" />
+        <Kpi label="Catalogue value" value={money(stockValue)} icon="" tone="accent" />
+        <Kpi label={t('Low stock')} value={lowStock.length} icon="[!]" tone={lowStock.length ? 'warn' : 'good'} />
+        <Kpi label="Average price" value={money(ownMaterials.reduce((s, m) => s + m.price, 0) / (ownMaterials.length || 1))} icon="" />
       </KpiGrid>
       <Panel>
         <DataTable rows={ownMaterials} columns={materialColumns} searchText={m => `${m.name} ${m.category} ${m.brand || ''}`} exportName="my_products" emptyTitle="No products yet" emptyText="Add your first product to appear in the marketplace." />
@@ -671,12 +671,12 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Update available stock, reserved stock, minimum stock levels, warehouse quantities and stock movements. Receive low-stock alerts.')}
       />
       <KpiGrid>
-        <Kpi label="Units in stock" value={ownMaterials.reduce((s, m) => s + m.quantity, 0).toLocaleString()} icon="🏭" />
-        <Kpi label={t('Stock value')} value={money(stockValue)} icon="💰" tone="accent" />
-        <Kpi label={t('Low stock')} value={lowStock.length} icon="⚠️" tone={lowStock.length ? 'warn' : 'good'} />
-        <Kpi label="Movements" value={movements.length} icon="🔄" />
+        <Kpi label="Units in stock" value={ownMaterials.reduce((s, m) => s + m.quantity, 0).toLocaleString()} icon="" />
+        <Kpi label={t('Stock value')} value={money(stockValue)} icon="" tone="accent" />
+        <Kpi label={t('Low stock')} value={lowStock.length} icon="[!]" tone={lowStock.length ? 'warn' : 'good'} />
+        <Kpi label="Movements" value={movements.length} icon="" />
       </KpiGrid>
-      <Panel title="Stock levels" subtitle="Use 🏭 on a row to record a movement">
+      <Panel title="Stock levels" subtitle="Use  on a row to record a movement">
         <DataTable
           rows={ownMaterials}
           columns={[
@@ -687,7 +687,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
             { key: 'value', header: 'Value', align: 'right', value: m => Math.round(m.price * m.quantity), render: m => money(m.price * m.quantity) },
             {
               key: 'actions', header: 'Actions', align: 'right', noExport: true,
-              render: m => <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}>🏭 Adjust</button>,
+              render: m => <button className="btn btn-secondary btn-sm" onClick={() => { setStockTarget(m); setStockDraft({ delta: '0', reason: 'Restock' }); }}> Adjust</button>,
             },
           ]}
           searchText={m => `${m.name} ${m.category}`}
@@ -695,7 +695,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         />
       </Panel>
       <Panel title="Stock movements" subtitle="Device-local movement ledger for this business">
-        {movements.length === 0 ? <EmptyState icon="🔄" title="No movements recorded" /> : (
+        {movements.length === 0 ? <EmptyState icon="" title="No movements recorded" /> : (
           <div className="table-scroll-container">
             <table className="data-table ws-table">
               <thead><tr><th>{t('Date')}</th><th>{t('Product')}</th><th>Change</th><th>Reason</th></tr></thead>
@@ -724,10 +724,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Set product prices, unit prices, bulk discounts, minimum order quantities and price validity dates. Maintain price history.')}
       />
       <KpiGrid>
-        <Kpi label="Average price" value={money(ownMaterials.reduce((s, m) => s + m.price, 0) / (ownMaterials.length || 1))} icon="💵" />
-        <Kpi label="Price snapshots" value={ownMaterials.reduce((s, m) => s + (m.priceHistory?.length || 0), 0)} icon="🗂️" />
-        <Kpi label="Forecast rising" value={ownMaterials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'up').length} icon="📈" tone="warn" />
-        <Kpi label="Forecast falling" value={ownMaterials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'down').length} icon="📉" tone="good" />
+        <Kpi label="Average price" value={money(ownMaterials.reduce((s, m) => s + m.price, 0) / (ownMaterials.length || 1))} icon="" />
+        <Kpi label="Price snapshots" value={ownMaterials.reduce((s, m) => s + (m.priceHistory?.length || 0), 0)} icon="" />
+        <Kpi label="Forecast rising" value={ownMaterials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'up').length} icon="" tone="warn" />
+        <Kpi label="Forecast falling" value={ownMaterials.filter(m => (forecastPrice(m.priceHistory, m.price)?.trend || 'flat') === 'down').length} icon="" tone="good" />
       </KpiGrid>
       <Panel title="Price list" subtitle="Saving a price appends a snapshot to the forecast history">
         <DataTable
@@ -742,7 +742,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
               render: m => {
                 const forecast = forecastPrice(m.priceHistory, m.price);
                 if (!forecast) return <span className="ws-muted">No history</span>;
-                return <StatusPill label={`${forecast.trend === 'up' ? '▲' : forecast.trend === 'down' ? '▼' : '■'} ${money(forecast.next)}`} tone={forecast.trend === 'up' ? 'warn' : forecast.trend === 'down' ? 'good' : 'muted'} />;
+                return <StatusPill label={`${forecast.trend === 'up' ? '' : forecast.trend === 'down' ? '' : ''} ${money(forecast.next)}`} tone={forecast.trend === 'up' ? 'warn' : forecast.trend === 'down' ? 'good' : 'muted'} />;
               },
             },
             { key: 'updated', header: 'Updated', value: m => m.lastUpdated, render: m => <span className="ws-nowrap">{formatDate(m.lastUpdated)}</span> },
@@ -760,7 +760,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
 
   const renderRfqs = () => {
     const columns: Column<Rfq>[] = [
-      { key: 'materialName', header: 'Material', value: r => r.materialName, render: r => <div className="ws-cell-stack"><strong>{r.materialName}</strong><small>{r.quantity} {r.unit} · {r.category}</small></div> },
+      { key: 'materialName', header: 'Material', value: r => r.materialName, render: r => <div className="ws-cell-stack"><strong>{r.materialName}</strong><small>{r.quantity} {r.unit} - {r.category}</small></div> },
       { key: 'customerName', header: 'Buyer', value: r => r.customerName },
       { key: 'city', header: 'Delivery site', value: r => `${r.siteAddress}, ${r.city}` },
       { key: 'requiredBy', header: 'Required by', value: r => r.requiredBy, render: r => <span className="ws-nowrap">{formatDate(r.requiredBy)}</span> },
@@ -769,7 +769,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         key: 'quoted', header: 'My quote', value: r => ownQuotations.find(q => q.rfqId === r.id)?.unitPrice || 0,
         render: r => {
           const quote = ownQuotations.find(q => q.rfqId === r.id);
-          return quote ? money(quote.unitPrice) : <span className="ws-muted">—</span>;
+          return quote ? money(quote.unitPrice) : <span className="ws-muted">-</span>;
         },
       },
       {
@@ -789,10 +789,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           hint={t('Receive customer requests for quotations. Review required materials, quantities, delivery locations and requested dates.')}
         />
         <KpiGrid>
-          <Kpi label="Open RFQs" value={visibleRfqs.filter(r => r.status === 'open').length} icon="📨" tone="warn" />
-          <Kpi label="Awaiting my quote" value={visibleRfqs.filter(r => r.status === 'open' && !ownQuotations.some(q => q.rfqId === r.id)).length} icon="⏳" />
-          <Kpi label={t('Quotations')} value={ownQuotations.length} icon="📝" />
-          <Kpi label={t('Quotation acceptance')} value={`${ownQuotations.length ? Math.round((ownQuotations.filter(q => q.status === 'accepted').length / ownQuotations.length) * 100) : 0}%`} icon="✅" tone="good" />
+          <Kpi label="Open RFQs" value={visibleRfqs.filter(r => r.status === 'open').length} icon="" tone="warn" />
+          <Kpi label="Awaiting my quote" value={visibleRfqs.filter(r => r.status === 'open' && !ownQuotations.some(q => q.rfqId === r.id)).length} icon="" />
+          <Kpi label={t('Quotations')} value={ownQuotations.length} icon="" />
+          <Kpi label={t('Quotation acceptance')} value={`${ownQuotations.length ? Math.round((ownQuotations.filter(q => q.status === 'accepted').length / ownQuotations.length) * 100) : 0}%`} icon="[OK]" tone="good" />
         </KpiGrid>
         <Panel>
           <DataTable rows={visibleRfqs} columns={columns} searchText={r => `${r.materialName} ${r.customerName} ${r.city} ${r.status}`} exportName="rfqs" emptyTitle="No requests for quotation yet" />
@@ -804,7 +804,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
   const renderQuotations = () => {
     const columns: Column<Quotation>[] = [
       { key: 'rfq', header: 'Material', value: q => rfqs.find(r => r.id === q.rfqId)?.materialName || q.rfqId },
-      { key: 'buyer', header: 'Buyer', value: q => rfqs.find(r => r.id === q.rfqId)?.customerName || '—' },
+      { key: 'buyer', header: 'Buyer', value: q => rfqs.find(r => r.id === q.rfqId)?.customerName || '-' },
       { key: 'unitPrice', header: 'Unit price', align: 'right', value: q => Math.round(q.unitPrice), render: q => money(q.unitPrice) },
       { key: 'quantity', header: 'Qty', align: 'right', value: q => q.quantity },
       { key: 'deliveryFee', header: 'Delivery', align: 'right', value: q => Math.round(q.deliveryFee), render: q => money(q.deliveryFee) },
@@ -820,10 +820,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           hint={t('Prepare quotations showing product specifications, quantity, unit price, subtotal, taxes, delivery charges, validity and total amount.')}
         />
         <KpiGrid>
-          <Kpi label="Submitted" value={ownQuotations.filter(q => q.status === 'submitted').length} icon="📝" />
-          <Kpi label="Accepted" value={ownQuotations.filter(q => q.status === 'accepted').length} icon="✅" tone="good" />
-          <Kpi label="Declined" value={ownQuotations.filter(q => q.status === 'declined').length} icon="🚫" tone="bad" />
-          <Kpi label="Quoted value" value={money(ownQuotations.reduce((s, q) => s + q.unitPrice * q.quantity + q.deliveryFee, 0))} icon="💰" tone="accent" />
+          <Kpi label="Submitted" value={ownQuotations.filter(q => q.status === 'submitted').length} icon="" />
+          <Kpi label="Accepted" value={ownQuotations.filter(q => q.status === 'accepted').length} icon="[OK]" tone="good" />
+          <Kpi label="Declined" value={ownQuotations.filter(q => q.status === 'declined').length} icon="" tone="bad" />
+          <Kpi label="Quoted value" value={money(ownQuotations.reduce((s, q) => s + q.unitPrice * q.quantity + q.deliveryFee, 0))} icon="" tone="accent" />
         </KpiGrid>
         <Panel>
           <DataTable rows={ownQuotations} columns={columns} searchText={q => `${q.supplierName} ${q.status}`} exportName="my_quotations" emptyTitle="No quotations yet" emptyText="Open an RFQ and submit your first quotation." />
@@ -840,12 +840,12 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Accept, reject or update orders. Confirm stock, prepare products, update order status and coordinate dispatch.')}
       />
       <KpiGrid>
-        <Kpi label={t('Pending orders')} value={ownOrders.filter(o => o.status === 'pending').length} icon="🕒" tone="warn" />
-        <Kpi label={t('Confirmed')} value={ownOrders.filter(o => o.status === 'confirmed').length} icon="✅" />
-        <Kpi label={t('Shipped')} value={ownOrders.filter(o => o.status === 'shipped').length} icon="🚚" />
-        <Kpi label={t('Delivered')} value={ownOrders.filter(o => o.status === 'delivered').length} icon="🏁" tone="good" />
-        <Kpi label={t('Revenue')} value={money(revenue)} icon="💰" tone="accent" />
-        <Kpi label="Pipeline" value={money(pipeline)} icon="📈" />
+        <Kpi label={t('Pending orders')} value={ownOrders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
+        <Kpi label={t('Confirmed')} value={ownOrders.filter(o => o.status === 'confirmed').length} icon="[OK]" />
+        <Kpi label={t('Shipped')} value={ownOrders.filter(o => o.status === 'shipped').length} icon="" />
+        <Kpi label={t('Delivered')} value={ownOrders.filter(o => o.status === 'delivered').length} icon="" tone="good" />
+        <Kpi label={t('Revenue')} value={money(revenue)} icon="" tone="accent" />
+        <Kpi label="Pipeline" value={money(pipeline)} icon="" />
       </KpiGrid>
       <Panel>
         <DataTable rows={ownOrders} columns={orderColumns} searchText={o => `${o.invoiceNumber} ${buyerFor(o.customerId)?.name || ''} ${o.status}`} exportName="my_orders" pageSize={12} emptyTitle="No orders yet" />
@@ -861,17 +861,17 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         hint={t('Generate proforma invoices, commercial invoices, receipts and transaction documents.')}
       />
       <KpiGrid>
-        <Kpi label={t('Invoices')} value={ownOrders.length} icon="🧾" />
-        <Kpi label={t('Paid')} value={ownOrders.filter(o => o.paymentStatus === 'paid').length} icon="✅" tone="good" />
-        <Kpi label={t('Unpaid')} value={ownOrders.filter(o => o.paymentStatus === 'pending').length} icon="🕒" tone="warn" />
-        <Kpi label="Invoiced value" value={money(ownOrders.reduce((s, o) => s + o.totalAmount, 0))} icon="💰" tone="accent" />
+        <Kpi label={t('Invoices')} value={ownOrders.length} icon="" />
+        <Kpi label={t('Paid')} value={ownOrders.filter(o => o.paymentStatus === 'paid').length} icon="[OK]" tone="good" />
+        <Kpi label={t('Unpaid')} value={ownOrders.filter(o => o.paymentStatus === 'pending').length} icon="" tone="warn" />
+        <Kpi label="Invoiced value" value={money(ownOrders.reduce((s, o) => s + o.totalAmount, 0))} icon="" tone="accent" />
       </KpiGrid>
       <Panel>
         <DataTable
           rows={ownOrders}
           columns={[
             { key: 'invoiceNumber', header: 'Invoice', value: o => o.invoiceNumber, render: o => <strong>{o.invoiceNumber}</strong> },
-            { key: 'buyer', header: 'Buyer', value: o => buyerFor(o.customerId)?.name || '—' },
+            { key: 'buyer', header: 'Buyer', value: o => buyerFor(o.customerId)?.name || '-' },
             { key: 'date', header: 'Date', value: o => o.orderDate, render: o => <span className="ws-nowrap">{formatDate(o.orderDate)}</span> },
             { key: 'subtotal', header: 'Net', align: 'right', value: o => Math.round(o.totalAmount - (o.vatAmount || 0) - (o.transportCost || 0)), render: o => money(o.totalAmount - (o.vatAmount || 0) - (o.transportCost || 0)) },
             { key: 'vat', header: 'VAT', align: 'right', value: o => Math.round(o.vatAmount || 0), render: o => money(o.vatAmount || 0) },
@@ -880,7 +880,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
             { key: 'paymentStatus', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
             {
               key: 'actions', header: 'Actions', align: 'right', noExport: true,
-              render: o => <button className="btn btn-secondary btn-sm" onClick={() => setInvoiceTarget(o)}>🧾 {t('Open')}</button>,
+              render: o => <button className="btn btn-secondary btn-sm" onClick={() => setInvoiceTarget(o)}> {t('Open')}</button>,
             },
           ]}
           searchText={o => `${o.invoiceNumber} ${buyerFor(o.customerId)?.name || ''}`}
@@ -901,7 +901,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
       { key: 'phone', header: 'Phone', value: u => u.phone },
       {
         key: 'actions', header: 'Actions', align: 'right', noExport: true,
-        render: u => <button className="btn btn-secondary btn-sm" onClick={() => setMessageDraft({ to: u.id, title: '', body: '' })}>✉️</button>,
+        render: u => <button className="btn btn-secondary btn-sm" onClick={() => setMessageDraft({ to: u.id, title: '', body: '' })}></button>,
       },
     ];
     return (
@@ -912,10 +912,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           hint={t('View customer enquiries, purchasing history, reviews and communication records.')}
         />
         <KpiGrid>
-          <Kpi label={t('Customers')} value={rows.length} icon="👤" />
-          <Kpi label="Repeat buyers" value={rows.filter(u => ownOrders.filter(o => o.customerId === u.id).length > 1).length} icon="🔁" tone="good" />
-          <Kpi label="Reviews" value={reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} icon="⭐" />
-          <Kpi label="Top buyer" value={rows.length ? (() => { const top = [...rows].sort((a, b) => ownOrders.filter(o => o.customerId === b.id).reduce((s, o) => s + o.totalAmount, 0) - ownOrders.filter(o => o.customerId === a.id).reduce((s, o) => s + o.totalAmount, 0))[0]; return top.name.split(' ')[0]; })() : '—'} icon="🏆" />
+          <Kpi label={t('Customers')} value={rows.length} icon="" />
+          <Kpi label="Repeat buyers" value={rows.filter(u => ownOrders.filter(o => o.customerId === u.id).length > 1).length} icon="" tone="good" />
+          <Kpi label="Reviews" value={reviews.filter(r => ownMaterials.some(m => m.id === r.materialId)).length} icon="*" />
+          <Kpi label="Top buyer" value={rows.length ? (() => { const top = [...rows].sort((a, b) => ownOrders.filter(o => o.customerId === b.id).reduce((s, o) => s + o.totalAmount, 0) - ownOrders.filter(o => o.customerId === a.id).reduce((s, o) => s + o.totalAmount, 0))[0]; return top.name.split(' ')[0]; })() : '-'} icon="" />
         </KpiGrid>
         <Panel>
           <DataTable rows={rows} columns={columns} searchText={u => `${u.name} ${u.email} ${u.city}`} exportName="my_customers" emptyTitle="No customers yet" />
@@ -929,10 +929,10 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
     const columns: Column<Order>[] = [
       { key: 'invoiceNumber', header: 'Order', value: o => o.invoiceNumber },
       { key: 'destination', header: 'Destination', value: o => o.address },
-      { key: 'transporter', header: 'Transporter', value: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || '—', render: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || <span className="ws-muted">Awaiting claim</span> },
+      { key: 'transporter', header: 'Transporter', value: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || '-', render: o => transporterProfiles.find(p => p.userId === o.transporterId)?.companyName || <span className="ws-muted">Awaiting claim</span> },
       { key: 'status', header: 'Delivery status', value: o => (o.transportStatus ? TRANSPORT_STATUS_LABELS[jobStatus(o)] : 'not requested'), render: o => <StatusPill label={o.transportStatus ? TRANSPORT_STATUS_LABELS[jobStatus(o)] : 'Not requested'} tone={o.transportStatus ? toneFor(o.transportStatus) : 'muted'} /> },
-      { key: 'fee', header: 'Fee', align: 'right', value: o => Math.round(o.transportFee || 0), render: o => (o.transportFee ? money(o.transportFee) : '—') },
-      { key: 'pod', header: 'POD', value: o => (o.transportPod ? 'captured' : '—'), render: o => (o.transportPod ? <StatusPill label={o.transportPod.receivedBy} tone="good" /> : <span className="ws-muted">—</span>) },
+      { key: 'fee', header: 'Fee', align: 'right', value: o => Math.round(o.transportFee || 0), render: o => (o.transportFee ? money(o.transportFee) : '-') },
+      { key: 'pod', header: 'POD', value: o => (o.transportPod ? 'captured' : '-'), render: o => (o.transportPod ? <StatusPill label={o.transportPod.receivedBy} tone="good" /> : <span className="ws-muted">-</span>) },
     ];
     return (
       <>
@@ -942,21 +942,21 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           hint={t('Request transport services, share collection details, coordinate loading and track delivery progress.')}
         />
         <KpiGrid>
-          <Kpi label="Deliveries" value={deliveries.length} icon="🚚" />
-          <Kpi label="Unassigned" value={deliveries.filter(o => !o.transporterId).length} icon="⚠️" tone="warn" />
-          <Kpi label="In transit" value={deliveries.filter(o => o.transportStatus === 'in_transit' || o.transportStatus === 'picked_up').length} icon="🛣️" />
-          <Kpi label={t('Completed')} value={deliveries.filter(o => o.transportStatus === 'delivered').length} icon="🏁" tone="good" />
+          <Kpi label="Deliveries" value={deliveries.length} icon="" />
+          <Kpi label="Unassigned" value={deliveries.filter(o => !o.transporterId).length} icon="[!]" tone="warn" />
+          <Kpi label="In transit" value={deliveries.filter(o => o.transportStatus === 'in_transit' || o.transportStatus === 'picked_up').length} icon="" />
+          <Kpi label={t('Completed')} value={deliveries.filter(o => o.transportStatus === 'delivered').length} icon="" tone="good" />
         </KpiGrid>
         <Panel>
           <DataTable rows={deliveries} columns={columns} searchText={o => `${o.invoiceNumber} ${o.address}`} exportName="deliveries" emptyTitle="No deliveries yet" />
         </Panel>
         <Panel title="Collection & loading" subtitle="Confirmed orders ready for loading">
-          {ownOrders.filter(o => o.status === 'confirmed').length === 0 ? <EmptyState icon="📦" title="Nothing to load" text="Confirmed orders appear here until dispatch." /> : (
+          {ownOrders.filter(o => o.status === 'confirmed').length === 0 ? <EmptyState icon="" title="Nothing to load" text="Confirmed orders appear here until dispatch." /> : (
             <ul className="ws-alert-list">
               {ownOrders.filter(o => o.status === 'confirmed').map(o => (
                 <li key={o.id}>
-                  <span>📦</span>
-                  <div><strong>{o.invoiceNumber}</strong><small>{materialFor(o.materialId)?.name} · {o.quantity} {materialFor(o.materialId)?.unit}</small></div>
+                  <span></span>
+                  <div><strong>{o.invoiceNumber}</strong><small>{materialFor(o.materialId)?.name} - {o.quantity} {materialFor(o.materialId)?.unit}</small></div>
                   <button className="btn btn-primary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'shipped')}>{t('Dispatch')}</button>
                 </li>
               ))}
@@ -973,15 +973,15 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         eyebrow={t('Suppliers')}
         title={t('Sales & Revenue Analytics')}
         hint={t('Review sales volume, revenue, best-selling products, quotation acceptance and customer retention.')}
-        actions={<button className="btn btn-secondary btn-sm" onClick={() => onNavigate('analytics')}>📊 Full analytics</button>}
+        actions={<button className="btn btn-secondary btn-sm" onClick={() => onNavigate('analytics')}> Full analytics</button>}
       />
       <KpiGrid>
-        <Kpi label={t('Revenue')} value={money(revenue)} hint="Delivered orders" icon="💰" tone="accent" />
-        <Kpi label="Units sold" value={analytics.unitsSold.toLocaleString()} icon="📦" />
-        <Kpi label="Orders" value={ownOrders.length} hint={`${ownOrders.filter(o => o.status === 'cancelled').length} cancelled`} icon="📋" />
-        <Kpi label={t('Average order value')} value={money(analytics.avgOrderValue)} icon="📊" />
-        <Kpi label={t('Quotation acceptance')} value={`${ownQuotations.length ? Math.round((ownQuotations.filter(q => q.status === 'accepted').length / ownQuotations.length) * 100) : 0}%`} icon="📝" />
-        <Kpi label="Growth (30d)" value={analytics.growthPct === null ? '—' : `${analytics.growthPct >= 0 ? '+' : ''}${analytics.growthPct.toFixed(1)}%`} icon="📈" tone={(analytics.growthPct || 0) >= 0 ? 'good' : 'bad'} />
+        <Kpi label={t('Revenue')} value={money(revenue)} hint="Delivered orders" icon="" tone="accent" />
+        <Kpi label="Units sold" value={analytics.unitsSold.toLocaleString()} icon="" />
+        <Kpi label="Orders" value={ownOrders.length} hint={`${ownOrders.filter(o => o.status === 'cancelled').length} cancelled`} icon="" />
+        <Kpi label={t('Average order value')} value={money(analytics.avgOrderValue)} icon="" />
+        <Kpi label={t('Quotation acceptance')} value={`${ownQuotations.length ? Math.round((ownQuotations.filter(q => q.status === 'accepted').length / ownQuotations.length) * 100) : 0}%`} icon="" />
+        <Kpi label="Growth (30d)" value={analytics.growthPct === null ? '-' : `${analytics.growthPct >= 0 ? '+' : ''}${analytics.growthPct.toFixed(1)}%`} icon="" tone={(analytics.growthPct || 0) >= 0 ? 'good' : 'bad'} />
       </KpiGrid>
       <div className="ws-grid-2">
         <Panel title="Revenue by month"><BarList items={analytics.monthlyRevenue.map(p => ({ label: p.label, value: p.value }))} format={money} /></Panel>
@@ -990,7 +990,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         <Panel title="Order status"><BarList items={analytics.statuses.map(s => ({ label: t(s.label), value: s.value }))} /></Panel>
       </div>
       <Panel title="Plain-language insights">
-        <ul className="ws-insight-list">{analytics.insights.map((insight, index) => <li key={index}>💡 {insight}</li>)}</ul>
+        <ul className="ws-insight-list">{analytics.insights.map((insight, index) => <li key={index}> {insight}</li>)}</ul>
       </Panel>
     </>
   );
@@ -1006,22 +1006,22 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           eyebrow={t('Suppliers')}
           title={t('AI Business Assistant')}
           hint={t('Receive demand forecasts, stock recommendations, pricing insights and suggestions for potential customers.')}
-          actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('copilot')}>🤖 Ask Copilot</button>}
+          actions={<button className="btn btn-primary btn-sm" onClick={() => onNavigate('copilot')}> Ask Copilot</button>}
         />
         <KpiGrid>
-          <Kpi label="Forecast signals" value={forecasts.length} icon="💹" />
-          <Kpi label="Rising prices" value={forecasts.filter(f => f.forecast.trend === 'up').length} icon="📈" tone="warn" />
-          <Kpi label="Restock now" value={lowStock.length} icon="⚠️" tone={lowStock.length ? 'warn' : 'good'} />
-          <Kpi label="Slow movers" value={slowMovers.length} hint="No orders yet" icon="🐢" />
+          <Kpi label="Forecast signals" value={forecasts.length} icon="" />
+          <Kpi label="Rising prices" value={forecasts.filter(f => f.forecast.trend === 'up').length} icon="" tone="warn" />
+          <Kpi label="Restock now" value={lowStock.length} icon="[!]" tone={lowStock.length ? 'warn' : 'good'} />
+          <Kpi label="Slow movers" value={slowMovers.length} hint="No orders yet" icon="" />
         </KpiGrid>
-        <Panel title="Price guidance" subtitle="Source: your own price history · updated on each price change">
-          {forecasts.length === 0 ? <EmptyState icon="💹" title="Not enough history" text="Update a product price twice to unlock a forecast." /> : (
+        <Panel title="Price guidance" subtitle="Source: your own price history - updated on each price change">
+          {forecasts.length === 0 ? <EmptyState icon="" title="Not enough history" text="Update a product price twice to unlock a forecast." /> : (
             <ul className="ws-forecast-list">
               {forecasts.map(({ material, forecast }) => (
                 <li key={material.id}>
                   <div>
                     <strong>{material.name}</strong>
-                    <small>{money(material.price)} / {material.unit} → {money(forecast.next)} ({forecast.changePct >= 0 ? '+' : ''}{forecast.changePct.toFixed(1)}%)</small>
+                    <small>{money(material.price)} / {material.unit} -> {money(forecast.next)} ({forecast.changePct >= 0 ? '+' : ''}{forecast.changePct.toFixed(1)}%)</small>
                   </div>
                   <button className="btn btn-secondary btn-sm" onClick={() => openPrice(material)}>{t('Edit')}</button>
                 </li>
@@ -1031,11 +1031,11 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         </Panel>
         <div className="ws-grid-2">
           <Panel title="Restock recommendations" subtitle="Stock at or below ten units">
-            {lowStock.length === 0 ? <EmptyState icon="✅" title="Stock is healthy" /> : (
+            {lowStock.length === 0 ? <EmptyState icon="[OK]" title="Stock is healthy" /> : (
               <ul className="ws-alert-list">
                 {lowStock.map(material => (
                   <li key={material.id}>
-                    <span>⚠️</span>
+                    <span>[!]</span>
                     <div><strong>{material.name}</strong><small>{material.quantity} {material.unit} left</small></div>
                     <button className="btn btn-secondary btn-sm" onClick={() => setStockTarget(material)}>Restock</button>
                   </li>
@@ -1048,7 +1048,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           </Panel>
         </div>
         <Panel title="Suggested customers" subtitle="Buyers who ordered most from the platform">
-          <BarList items={analytics.topCustomers.slice(0, 6).map(c => ({ label: c.name, value: Math.round(c.spend), hint: `${c.city} · ${c.orders} orders` }))} format={money} />
+          <BarList items={analytics.topCustomers.slice(0, 6).map(c => ({ label: c.name, value: Math.round(c.spend), hint: `${c.city} - ${c.orders} orders` }))} format={money} />
         </Panel>
       </>
     );
@@ -1071,7 +1071,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
             <div className="ws-form">
               <Field label={t('Buyer')} required>
                 <select value={messageDraft.to} onChange={e => setMessageDraft(prev => ({ ...prev, to: e.target.value }))}>
-                  <option value="">Select a customer…</option>
+                  <option value="">Select a customer...</option>
                   {buyers.map(buyer => <option key={buyer.id} value={buyer.id}>{buyer.name}</option>)}
                 </select>
               </Field>
@@ -1081,15 +1081,15 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
               <Field label={t('Message')} required>
                 <textarea rows={4} value={messageDraft.body} onChange={e => setMessageDraft(prev => ({ ...prev, body: e.target.value }))} maxLength={400} />
               </Field>
-              <button className="btn btn-primary" onClick={sendMessage}>✉️ {t('Send')}</button>
+              <button className="btn btn-primary" onClick={sendMessage}> {t('Send')}</button>
             </div>
           </Panel>
           <Panel title={t('Notifications')} subtitle={`${mine.filter(n => !n.read).length} unread`}>
-            {mine.length === 0 ? <EmptyState icon="🔔" title="No notifications yet" /> : (
+            {mine.length === 0 ? <EmptyState icon="" title="No notifications yet" /> : (
               <ul className="ws-feed">
                 {mine.slice(0, 10).map(item => (
                   <li key={item.id}>
-                    <span className="ws-feed-icon">{item.type === 'order' ? '📦' : item.type === 'payment' ? '💳' : item.type === 'stock' ? '⚠️' : 'ℹ️'}</span>
+                    <span className="ws-feed-icon">{item.type === 'order' ? '' : item.type === 'payment' ? '' : item.type === 'stock' ? '[!]' : ''}</span>
                     <div><strong>{item.title}</strong><small>{item.message}</small></div>
                     <small className="ws-nowrap">{timeAgo(item.createdAt)}</small>
                   </li>
@@ -1114,19 +1114,19 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           hint={t('View customer ratings, fulfilment rates, delivery reliability, quotation response time and verified business status.')}
         />
         <KpiGrid>
-          <Kpi label={t('Average rating')} value={`⭐ ${companyRating.toFixed(1)}`} hint={`${supplierReviews.length} reviews`} icon="⭐" tone="good" />
-          <Kpi label="Fulfilment rate" value={`${ownOrders.length ? Math.round((fulfilled / ownOrders.length) * 100) : 0}%`} hint={`${fulfilled} delivered`} icon="✅" />
-          <Kpi label="RFQ response" value={`${visibleRfqs.length ? Math.round((responded / visibleRfqs.length) * 100) : 0}%`} hint={`${responded} of ${visibleRfqs.length}`} icon="📨" />
-          <Kpi label="Cancelled orders" value={ownOrders.filter(o => o.status === 'cancelled').length} icon="🚫" tone={ownOrders.some(o => o.status === 'cancelled') ? 'warn' : 'good'} />
-          <Kpi label="Deliveries completed" value={ownOrders.filter(o => o.transportStatus === 'delivered').length} icon="🏁" />
-          <Kpi label={t('Verification')} value={t(company.complianceStatus)} icon="🛡️" tone={company.complianceStatus === 'compliant' ? 'good' : 'warn'} />
+          <Kpi label={t('Average rating')} value={`* ${companyRating.toFixed(1)}`} hint={`${supplierReviews.length} reviews`} icon="*" tone="good" />
+          <Kpi label="Fulfilment rate" value={`${ownOrders.length ? Math.round((fulfilled / ownOrders.length) * 100) : 0}%`} hint={`${fulfilled} delivered`} icon="[OK]" />
+          <Kpi label="RFQ response" value={`${visibleRfqs.length ? Math.round((responded / visibleRfqs.length) * 100) : 0}%`} hint={`${responded} of ${visibleRfqs.length}`} icon="" />
+          <Kpi label="Cancelled orders" value={ownOrders.filter(o => o.status === 'cancelled').length} icon="" tone={ownOrders.some(o => o.status === 'cancelled') ? 'warn' : 'good'} />
+          <Kpi label="Deliveries completed" value={ownOrders.filter(o => o.transportStatus === 'delivered').length} icon="" />
+          <Kpi label={t('Verification')} value={t(company.complianceStatus)} icon="" tone={company.complianceStatus === 'compliant' ? 'good' : 'warn'} />
         </KpiGrid>
         <Panel title="Rating breakdown" subtitle="Newest customer reviews">
-          {supplierReviews.length === 0 ? <EmptyState icon="⭐" title="No reviews yet" /> : (
+          {supplierReviews.length === 0 ? <EmptyState icon="*" title="No reviews yet" /> : (
             <ul className="ws-feed">
               {supplierReviews.slice(0, 8).map(review => (
                 <li key={review.id}>
-                  <span className="ws-feed-icon">{'⭐'.repeat(Math.round(review.rating))}</span>
+                  <span className="ws-feed-icon">{'*'.repeat(Math.round(review.rating))}</span>
                   <div><strong>{review.userName}</strong><small>{review.comment || 'No comment'}</small></div>
                   <small className="ws-nowrap">{timeAgo(review.date)}</small>
                 </li>
@@ -1166,12 +1166,12 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
         </Panel>
         <Panel title="Export readiness" subtitle="What buyers look for in a cross-border quote">
           <ul className="ws-checklist">
-            <li className={company.complianceStatus === 'compliant' ? 'done' : ''}><span>{company.complianceStatus === 'compliant' ? '✅' : '⬜'}</span>Verified business</li>
-            <li className={company.tinNumber ? 'done' : ''}><span>{company.tinNumber ? '✅' : '⬜'}</span>TIN registered</li>
-            <li className={company.vatNumber ? 'done' : ''}><span>{company.vatNumber ? '✅' : '⬜'}</span>VAT registered</li>
-            <li className={ownMaterials.length > 0 ? 'done' : ''}><span>{ownMaterials.length ? '✅' : '⬜'}</span>Products published</li>
-            <li className={intl.markets ? 'done' : ''}><span>{intl.markets ? '✅' : '⬜'}</span>Target markets selected</li>
-            <li className={intl.documents ? 'done' : ''}><span>{intl.documents ? '✅' : '⬜'}</span>Commercial documents listed</li>
+            <li className={company.complianceStatus === 'compliant' ? 'done' : ''}><span>{company.complianceStatus === 'compliant' ? '[OK]' : ''}</span>Verified business</li>
+            <li className={company.tinNumber ? 'done' : ''}><span>{company.tinNumber ? '[OK]' : ''}</span>TIN registered</li>
+            <li className={company.vatNumber ? 'done' : ''}><span>{company.vatNumber ? '[OK]' : ''}</span>VAT registered</li>
+            <li className={ownMaterials.length > 0 ? 'done' : ''}><span>{ownMaterials.length ? '[OK]' : ''}</span>Products published</li>
+            <li className={intl.markets ? 'done' : ''}><span>{intl.markets ? '[OK]' : ''}</span>Target markets selected</li>
+            <li className={intl.documents ? 'done' : ''}><span>{intl.documents ? '[OK]' : ''}</span>Commercial documents listed</li>
           </ul>
           <p className="ws-note">Cross-border trade is enabled per country by Administration. Export quotes are prepared with the same quotation tools as domestic requests.</p>
         </Panel>
@@ -1220,7 +1220,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
 
       {priceTarget && (
         <Modal
-          title={`${t('Price')} · ${priceTarget.name}`}
+          title={`${t('Price')} - ${priceTarget.name}`}
           onClose={() => setPriceTarget(null)}
           footer={<><button className="btn btn-secondary" onClick={() => setPriceTarget(null)}>{t('Cancel')}</button><button className="btn btn-primary" onClick={savePrice}>{t('Save')}</button></>}
         >
@@ -1238,13 +1238,13 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
 
       {stockTarget && (
         <Modal
-          title={`${t('Stock')} · ${stockTarget.name}`}
+          title={`${t('Stock')} - ${stockTarget.name}`}
           onClose={() => setStockTarget(null)}
           footer={<><button className="btn btn-secondary" onClick={() => setStockTarget(null)}>{t('Cancel')}</button><button className="btn btn-primary" onClick={saveStock}>{t('Save')}</button></>}
         >
           <div className="ws-form">
             <p className="ws-muted">Current stock: <strong>{stockTarget.quantity.toLocaleString()} {stockTarget.unit}</strong></p>
-            <Field label="Movement (+ received / − removed)" hint="Use a negative number to remove damaged or reserved stock.">
+            <Field label="Movement (+ received /  removed)" hint="Use a negative number to remove damaged or reserved stock.">
               <input type="number" step="1" value={stockDraft.delta} onChange={e => setStockDraft(prev => ({ ...prev, delta: e.target.value }))} />
             </Field>
             <Field label="Reason">
@@ -1259,7 +1259,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
 
       {rfqTarget && (
         <Modal
-          title={`${t('Submit quotation')} · ${rfqTarget.materialName}`}
+          title={`${t('Submit quotation')} - ${rfqTarget.materialName}`}
           onClose={() => setRfqTarget(null)}
           footer={<><button className="btn btn-secondary" onClick={() => setRfqTarget(null)}>{t('Cancel')}</button><button className="btn btn-primary" onClick={submitQuote}>{t('Submit')}</button></>}
         >
@@ -1281,7 +1281,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
               <input type="date" value={quoteDraft.validUntil} onChange={e => setQuoteDraft(prev => ({ ...prev, validUntil: e.target.value }))} />
             </Field>
             <Field label={t('Notes')}>
-              <textarea rows={3} value={quoteDraft.notes} onChange={e => setQuoteDraft(prev => ({ ...prev, notes: e.target.value }))} placeholder="Grade, lead time, payment terms…" />
+              <textarea rows={3} value={quoteDraft.notes} onChange={e => setQuoteDraft(prev => ({ ...prev, notes: e.target.value }))} placeholder="Grade, lead time, payment terms..." />
             </Field>
             <p className="ws-quote">
               Total: <strong>{money((parseFloat(quoteDraft.unitPrice) || 0) * rfqTarget.quantity + (parseFloat(quoteDraft.deliveryFee) || 0))}</strong> before VAT
@@ -1295,14 +1295,14 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
           title={`Invoice ${invoiceTarget.invoiceNumber}`}
           onClose={() => setInvoiceTarget(null)}
           wide
-          footer={<><button className="btn btn-secondary" onClick={() => setInvoiceTarget(null)}>{t('Close')}</button><button className="btn btn-primary" onClick={() => window.print()}>🖨️ Print</button></>}
+          footer={<><button className="btn btn-secondary" onClick={() => setInvoiceTarget(null)}>{t('Close')}</button><button className="btn btn-primary" onClick={() => window.print()}> Print</button></>}
         >
           <div className="ws-invoice">
             <div className="ws-invoice-head">
               <div>
                 <strong>{company.name}</strong>
                 <span>{company.location}, {company.city}</span>
-                <span>TIN {company.tinNumber || '—'} · VAT {company.vatNumber || '—'}</span>
+                <span>TIN {company.tinNumber || '-'} - VAT {company.vatNumber || '-'}</span>
               </div>
               <div>
                 <strong>INVOICE</strong>
@@ -1311,7 +1311,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
               </div>
             </div>
             <div className="ws-invoice-parties">
-              <div><span>Billed to</span><strong>{buyerFor(invoiceTarget.customerId)?.name || '—'}</strong><small>{invoiceTarget.address}</small></div>
+              <div><span>Billed to</span><strong>{buyerFor(invoiceTarget.customerId)?.name || '-'}</strong><small>{invoiceTarget.address}</small></div>
               <div><span>Status</span><strong>{t(invoiceTarget.status)}</strong><small>{t(invoiceTarget.paymentStatus)}</small></div>
             </div>
             <table className="data-table ws-table">
@@ -1331,7 +1331,7 @@ const SupplierWorkspace: React.FC<WorkspaceProps> = props => {
               <li><span>Delivery</span><strong>{money(invoiceTarget.transportCost || 0)}</strong></li>
               <li className="ws-total-row"><span>Total</span><strong>{money(invoiceTarget.totalAmount)}</strong></li>
             </ul>
-            <p className="ws-note">Payment method: {invoiceTarget.paymentMethod || '—'}. This document is generated from the confirmed order.</p>
+            <p className="ws-note">Payment method: {invoiceTarget.paymentMethod || '-'}. This document is generated from the confirmed order.</p>
           </div>
         </Modal>
       )}

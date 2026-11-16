@@ -1,4 +1,4 @@
-# E-SCON 5.0 — Cloud Database (Supabase)
+# E-SCON 5.0 - Cloud Database (Supabase)
 
 E-SCON keeps its data in the browser's `localStorage` so it works offline and
 starts instantly. When Supabase credentials are configured, the cloud module
@@ -20,10 +20,10 @@ limitations to be aware of.
 
 The sync layer lives in two small files:
 
-- [`src/lib/supabaseClient.ts`](../src/lib/supabaseClient.ts) — creates the
+- [`src/lib/supabaseClient.ts`](../src/lib/supabaseClient.ts) - creates the
   Supabase client when `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY`
   are set. Exposes `isCloudEnabled`.
-- [`src/lib/cloudStore.ts`](../src/lib/cloudStore.ts) — the mirror logic.
+- [`src/lib/cloudStore.ts`](../src/lib/cloudStore.ts) - the mirror logic.
 
 **Startup:** `App.tsx` calls `pullCloudToCache()` **before** reading the local
 cache, so a new device (or one that has been offline) starts from the latest
@@ -75,7 +75,7 @@ merge is the exception described above. Two devices editing the *same*
 collection at the exact same moment can still overwrite each other; for real
 high-concurrency editing you would move to per-record tables.
 
-> Realtime is enabled by the `alter publication supabase_realtime …` statement at
+> Realtime is enabled by the `alter publication supabase_realtime ...` statement at
 > the end of [`supabase/schema.sql`](../supabase/schema.sql). If that statement
 > has not been run, the 10-second polling fallback still keeps devices in sync.
 
@@ -84,10 +84,10 @@ high-concurrency editing you would move to per-record tables.
 ## 2. Setting up Supabase
 
 1. Create a free project at <https://supabase.com>.
-2. In the dashboard, open **SQL Editor → New query**, paste the contents of
+2. In the dashboard, open **SQL Editor -> New query**, paste the contents of
    [`supabase/schema.sql`](../supabase/schema.sql) and **Run**. This creates the
    `escon_kv` table, its index and the RLS policies.
-3. **Optional — load the demo dataset.** Open a new SQL query, paste
+3. **Optional - load the demo dataset.** Open a new SQL query, paste
    [`supabase/seed.sql`](../supabase/seed.sql) and **Run**. It upserts the demo
    accounts (including `admin@escon.et` / `admin123`), suppliers, materials,
    orders, wallets, reviews and default settings into `escon_kv`. The script is
@@ -95,9 +95,9 @@ high-concurrency editing you would move to per-record tables.
    not reset data you edit in the app because only a fresh run of the script
    writes those rows. `src/constants.ts` no longer contains any business records,
    so without the seed a new install starts with the admin account only.
-4. Open **Project Settings → API** and copy:
-   - **Project URL** → `REACT_APP_SUPABASE_URL`
-   - **anon public key** → `REACT_APP_SUPABASE_ANON_KEY`
+4. Open **Project Settings -> API** and copy:
+   - **Project URL** -> `REACT_APP_SUPABASE_URL`
+   - **anon public key** -> `REACT_APP_SUPABASE_ANON_KEY`
 5. Copy `.env.example` to `.env.local` and fill it in:
 
    ```env
@@ -118,12 +118,12 @@ high-concurrency editing you would move to per-record tables.
 ### Verify the connection
 
 Sign in, change any shared value (e.g. add a product), then check the
-**Table Editor → `escon_kv`** in Supabase — the `materials` row should appear.
+**Table Editor -> `escon_kv`** in Supabase - the `materials` row should appear.
 Open the app on a second device and confirm the change is visible after reload.
 
 ---
 
-## 3. Security — read this before storing real data
+## 3. Security - read this before storing real data
 
 The shipped `schema.sql` policies grant the **public anon key read *and write*
 access to all app data**:
@@ -144,7 +144,7 @@ and modify every row.** That is acceptable for a demo or a closed pilot, but
 
 1. **Add Supabase Auth** (email/password or phone) and issue signed-in sessions.
 2. **Replace the anon policies** with per-user policies, for example:
-   - a row owned by a user (`owner_id uuid`) → `using (auth.uid() = owner_id)`;
+   - a row owned by a user (`owner_id uuid`) -> `using (auth.uid() = owner_id)`;
    - role-based rules for `materials`, `orders`, etc.
 3. Keep only public catalogue data readable by `anon`.
 4. Move password handling off `localStorage` entirely.
@@ -166,5 +166,5 @@ are mostly swapping the storage calls for authenticated queries.
 - **Offline:** with no network the app keeps working from `localStorage`; pushes
   are dropped (best-effort) until the next change while online.
 - **Disabling cloud:** remove/comment the two `REACT_APP_SUPABASE_*` values in
-  `.env.local` and rebuild — the app goes back to local-only with no code change.
+  `.env.local` and rebuild - the app goes back to local-only with no code change.
 

@@ -415,7 +415,7 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
       return {
         id,
         name: supplier?.name || 'Unknown supplier',
-        city: supplier?.city || '—',
+        city: supplier?.city || '-',
         orders: agg.orders,
         revenue: Math.round(agg.revenue * 100) / 100,
         products: input.materials.filter(m => m.companyId === id).length,
@@ -439,7 +439,7 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
           return {
             id,
             name: customer?.name || 'Customer',
-            city: customer?.city || '—',
+            city: customer?.city || '-',
             orders: agg.orders,
             spend: Math.round(agg.spend * 100) / 100,
           };
@@ -487,56 +487,56 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
 
   if (role === 'admin') {
     kpis.push(
-      { key: 'gmv', icon: '💰', label: 'Gross revenue', value: money(gmv), sub: growthSub, tone: toneFromGrowth },
-      { key: 'orders', icon: '📦', label: 'Orders', value: String(valid.length), sub: `${activeList.length} active · ${cancelledOrders} cancelled` },
-      { key: 'customers', icon: '👥', label: 'Customers', value: String(customerCount), sub: 'Registered buyers' },
-      { key: 'suppliers', icon: '🏢', label: 'Suppliers', value: String(input.companies.length), sub: `${supplierCount} with listings` },
-      { key: 'products', icon: '🧾', label: 'Products', value: String(input.materials.length), sub: `${input.materials.reduce((s, m) => s + (m.quantity || 0), 0)} units in catalogue` },
-      { key: 'delivered', icon: '✅', label: 'Delivered rate', value: `${deliveredRatePct.toFixed(0)}%`, sub: `${deliveredOrders.length} of ${valid.length} orders` },
-      { key: 'delivery', icon: '🚚', label: 'Delivery fees', value: money(deliveryFees), sub: gmv > 0 ? `${((deliveryFees / gmv) * 100).toFixed(1)}% of GMV` : 'No sales yet' },
-      { key: 'vat', icon: '🧮', label: 'VAT collected', value: money(vatCollected), sub: `Rate ${input.settings.vat.rate}%` },
+      { key: 'gmv', icon: '', label: 'Gross revenue', value: money(gmv), sub: growthSub, tone: toneFromGrowth },
+      { key: 'orders', icon: '', label: 'Orders', value: String(valid.length), sub: `${activeList.length} active - ${cancelledOrders} cancelled` },
+      { key: 'customers', icon: '', label: 'Customers', value: String(customerCount), sub: 'Registered buyers' },
+      { key: 'suppliers', icon: '', label: 'Suppliers', value: String(input.companies.length), sub: `${supplierCount} with listings` },
+      { key: 'products', icon: '', label: 'Products', value: String(input.materials.length), sub: `${input.materials.reduce((s, m) => s + (m.quantity || 0), 0)} units in catalogue` },
+      { key: 'delivered', icon: '[OK]', label: 'Delivered rate', value: `${deliveredRatePct.toFixed(0)}%`, sub: `${deliveredOrders.length} of ${valid.length} orders` },
+      { key: 'delivery', icon: '', label: 'Delivery fees', value: money(deliveryFees), sub: gmv > 0 ? `${((deliveryFees / gmv) * 100).toFixed(1)}% of GMV` : 'No sales yet' },
+      { key: 'vat', icon: '', label: 'VAT collected', value: money(vatCollected), sub: `Rate ${input.settings.vat.rate}%` },
     );
   } else if (role === 'company') {
     kpis.push(
-      { key: 'revenue', icon: '💰', label: 'Revenue', value: money(gmv), sub: growthSub, tone: toneFromGrowth },
-      { key: 'orders', icon: '📦', label: 'Orders', value: String(valid.length), sub: `${activeList.length} active · ${cancelledOrders} cancelled` },
-      { key: 'active', icon: '⏳', label: 'Active orders', value: String(activeList.length), sub: money(activeOrderValue) + ' in progress' },
-      { key: 'delivered', icon: '✅', label: 'Delivered', value: String(deliveredOrders.length), sub: `${deliveredRatePct.toFixed(0)}% delivery rate` },
-      { key: 'avg', icon: '📈', label: 'Avg order', value: money(avgOrderValue), sub: `${unitsSold} units sold` },
-      { key: 'products', icon: '🧾', label: 'Products', value: String(productCount), sub: `${input.materials.filter(m => m.companyId === company?.id && (m.quantity || 0) <= 0).length} out of stock` },
-      { key: 'stock', icon: '🏷️', label: 'Stock value', value: money(stockValue), sub: `${stockUnits} units on hand` },
-      { key: 'low', icon: '⚠️', label: 'Restock alerts', value: String(lowStockCount), sub: `${outOfStockCount} out of stock`, tone: lowStockCount + outOfStockCount > 0 ? 'down' : 'up' },
+      { key: 'revenue', icon: '', label: 'Revenue', value: money(gmv), sub: growthSub, tone: toneFromGrowth },
+      { key: 'orders', icon: '', label: 'Orders', value: String(valid.length), sub: `${activeList.length} active - ${cancelledOrders} cancelled` },
+      { key: 'active', icon: '', label: 'Active orders', value: String(activeList.length), sub: money(activeOrderValue) + ' in progress' },
+      { key: 'delivered', icon: '[OK]', label: 'Delivered', value: String(deliveredOrders.length), sub: `${deliveredRatePct.toFixed(0)}% delivery rate` },
+      { key: 'avg', icon: '', label: 'Avg order', value: money(avgOrderValue), sub: `${unitsSold} units sold` },
+      { key: 'products', icon: '', label: 'Products', value: String(productCount), sub: `${input.materials.filter(m => m.companyId === company?.id && (m.quantity || 0) <= 0).length} out of stock` },
+      { key: 'stock', icon: '', label: 'Stock value', value: money(stockValue), sub: `${stockUnits} units on hand` },
+      { key: 'low', icon: '[!]', label: 'Restock alerts', value: String(lowStockCount), sub: `${outOfStockCount} out of stock`, tone: lowStockCount + outOfStockCount > 0 ? 'down' : 'up' },
     );
   } else if (role === 'customer') {
     kpis.push(
-      { key: 'spend', icon: '💳', label: 'Total spend', value: money(gmv), sub: growthSub, tone: toneFromGrowth },
-      { key: 'orders', icon: '📦', label: 'Orders', value: String(valid.length), sub: `${activeList.length} active` },
-      { key: 'delivered', icon: '✅', label: 'Delivered', value: String(deliveredOrders.length), sub: `${deliveredOrders.reduce((s, o) => s + (o.quantity || 0), 0)} units received` },
-      { key: 'avg', icon: '📈', label: 'Avg order', value: money(avgOrderValue), sub: 'Per checkout' },
-      { key: 'delivery', icon: '🚚', label: 'Delivery paid', value: money(deliveryFees), sub: gmv > 0 ? `${((deliveryFees / gmv) * 100).toFixed(1)}% of spend` : 'No orders yet' },
-      { key: 'vat', icon: '🧮', label: 'VAT paid', value: money(vatCollected), sub: `${input.settings.vat.rate}% on goods` },
-      { key: 'suppliers', icon: '🏢', label: 'Suppliers used', value: String(new Set(valid.map(o => o.companyId)).size), sub: `${input.companies.length} on the marketplace` },
-      { key: 'reviews', icon: '⭐', label: 'Reviews written', value: String(scopedReviewList.length), sub: `Catalogue rating ${avgRating.toFixed(1)}/5` },
+      { key: 'spend', icon: '', label: 'Total spend', value: money(gmv), sub: growthSub, tone: toneFromGrowth },
+      { key: 'orders', icon: '', label: 'Orders', value: String(valid.length), sub: `${activeList.length} active` },
+      { key: 'delivered', icon: '[OK]', label: 'Delivered', value: String(deliveredOrders.length), sub: `${deliveredOrders.reduce((s, o) => s + (o.quantity || 0), 0)} units received` },
+      { key: 'avg', icon: '', label: 'Avg order', value: money(avgOrderValue), sub: 'Per checkout' },
+      { key: 'delivery', icon: '', label: 'Delivery paid', value: money(deliveryFees), sub: gmv > 0 ? `${((deliveryFees / gmv) * 100).toFixed(1)}% of spend` : 'No orders yet' },
+      { key: 'vat', icon: '', label: 'VAT paid', value: money(vatCollected), sub: `${input.settings.vat.rate}% on goods` },
+      { key: 'suppliers', icon: '', label: 'Suppliers used', value: String(new Set(valid.map(o => o.companyId)).size), sub: `${input.companies.length} on the marketplace` },
+      { key: 'reviews', icon: '*', label: 'Reviews written', value: String(scopedReviewList.length), sub: `Catalogue rating ${avgRating.toFixed(1)}/5` },
     );
   } else if (role === 'transporter') {
     kpis.push(
-      { key: 'earnings', icon: '💰', label: 'Transport earnings', value: money(transportEarningsTotal), sub: growthSub, tone: toneFromGrowth },
-      { key: 'jobs', icon: '🚚', label: 'Delivery jobs', value: String(valid.length), sub: `${activeList.length} active · ${cancelledOrders} cancelled` },
-      { key: 'active', icon: '⏳', label: 'Active trips', value: String(activeList.length), sub: money(transportActiveValue) + ' in progress' },
-      { key: 'delivered', icon: '✅', label: 'Completed', value: String(deliveredOrders.length), sub: `${deliveredRatePct.toFixed(0)}% completion rate` },
-      { key: 'avg', icon: '📈', label: 'Avg job fee', value: money(transportAvgFee), sub: `${unitsSold} units moved` },
-      { key: 'customers', icon: '👥', label: 'Customers served', value: String(customerCount), sub: `${new Set(valid.map(o => o.companyId)).size} suppliers` },
-      { key: 'value', icon: '📦', label: 'Cargo value moved', value: money(gmv), sub: `${productCount} product lines` },
-      { key: 'vat', icon: '🧮', label: 'VAT on cargo', value: money(vatCollected), sub: `Rate ${input.settings.vat.rate}%` },
+      { key: 'earnings', icon: '', label: 'Transport earnings', value: money(transportEarningsTotal), sub: growthSub, tone: toneFromGrowth },
+      { key: 'jobs', icon: '', label: 'Delivery jobs', value: String(valid.length), sub: `${activeList.length} active - ${cancelledOrders} cancelled` },
+      { key: 'active', icon: '', label: 'Active trips', value: String(activeList.length), sub: money(transportActiveValue) + ' in progress' },
+      { key: 'delivered', icon: '[OK]', label: 'Completed', value: String(deliveredOrders.length), sub: `${deliveredRatePct.toFixed(0)}% completion rate` },
+      { key: 'avg', icon: '', label: 'Avg job fee', value: money(transportAvgFee), sub: `${unitsSold} units moved` },
+      { key: 'customers', icon: '', label: 'Customers served', value: String(customerCount), sub: `${new Set(valid.map(o => o.companyId)).size} suppliers` },
+      { key: 'value', icon: '', label: 'Cargo value moved', value: money(gmv), sub: `${productCount} product lines` },
+      { key: 'vat', icon: '', label: 'VAT on cargo', value: money(vatCollected), sub: `Rate ${input.settings.vat.rate}%` },
     );
   } else {
     kpis.push(
-      { key: 'products', icon: '🧾', label: 'Products', value: String(input.materials.length), sub: `${new Set(input.materials.map(m => m.category)).size} categories` },
-      { key: 'suppliers', icon: '🏢', label: 'Suppliers', value: String(input.companies.length), sub: `${cityCount} cities covered` },
-      { key: 'categories', icon: '🗂️', label: 'Categories', value: String(new Set(input.materials.map(m => m.category)).size), sub: 'Across the marketplace' },
-      { key: 'rating', icon: '⭐', label: 'Avg rating', value: `${avgRating.toFixed(1)}/5`, sub: `${input.reviews.length} reviews` },
-      { key: 'cities', icon: '📍', label: 'Cities', value: String(cityCount), sub: 'Delivery coverage' },
-      { key: 'reviews', icon: '💬', label: 'Reviews', value: String(input.reviews.length), sub: 'Buyer feedback on file' },
+      { key: 'products', icon: '', label: 'Products', value: String(input.materials.length), sub: `${new Set(input.materials.map(m => m.category)).size} categories` },
+      { key: 'suppliers', icon: '', label: 'Suppliers', value: String(input.companies.length), sub: `${cityCount} cities covered` },
+      { key: 'categories', icon: '', label: 'Categories', value: String(new Set(input.materials.map(m => m.category)).size), sub: 'Across the marketplace' },
+      { key: 'rating', icon: '*', label: 'Avg rating', value: `${avgRating.toFixed(1)}/5`, sub: `${input.reviews.length} reviews` },
+      { key: 'cities', icon: '', label: 'Cities', value: String(cityCount), sub: 'Delivery coverage' },
+      { key: 'reviews', icon: '', label: 'Reviews', value: String(input.reviews.length), sub: 'Buyer feedback on file' },
     );
   }
 
@@ -548,11 +548,11 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     insights.push('Sign in to unlock your own orders, spending and forecasts.');
   } else {
     if (growthPct != null) {
-      insights.push(`Revenue is ${growthPct >= 0 ? 'up' : 'down'} ${Math.abs(growthPct).toFixed(1)}% versus the previous ${days}-day period (${money(previousGmv)} → ${money(gmv)}).`);
+      insights.push(`Revenue is ${growthPct >= 0 ? 'up' : 'down'} ${Math.abs(growthPct).toFixed(1)}% versus the previous ${days}-day period (${money(previousGmv)} -> ${money(gmv)}).`);
     } else if (gmv > 0) {
       insights.push(`${periodLabel}: ${money(gmv)} across ${valid.length} orders, averaging ${money(avgOrderValue)} per order.`);
     } else {
-      insights.push(`No sales are recorded for ${periodLabel.toLowerCase()} yet — the catalogue holds ${productCount} products worth ${money(stockValue)}.`);
+      insights.push(`No sales are recorded for ${periodLabel.toLowerCase()} yet - the catalogue holds ${productCount} products worth ${money(stockValue)}.`);
     }
 
     if (category.data.length > 0 && category.data[0].value > 0) {
@@ -572,11 +572,11 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     }
 
     if (activeList.length > 0) {
-      insights.push(`${activeList.length} order${activeList.length === 1 ? '' : 's'} worth ${money(activeOrderValue)} ${activeList.length === 1 ? 'is' : 'are'} still in progress${role === 'company' || role === 'admin' ? ' — confirm or ship them to protect the delivery promise.' : '.'}`);
+      insights.push(`${activeList.length} order${activeList.length === 1 ? '' : 's'} worth ${money(activeOrderValue)} ${activeList.length === 1 ? 'is' : 'are'} still in progress${role === 'company' || role === 'admin' ? ' - confirm or ship them to protect the delivery promise.' : '.'}`);
     }
 
     if ((role === 'company' || role === 'admin') && (lowStockCount > 0 || outOfStockCount > 0)) {
-      insights.push(`${lowStockCount} product${lowStockCount === 1 ? '' : 's'} low on stock and ${outOfStockCount} out of stock — restock before the next demand wave.`);
+      insights.push(`${lowStockCount} product${lowStockCount === 1 ? '' : 's'} low on stock and ${outOfStockCount} out of stock - restock before the next demand wave.`);
     }
 
     if (gmv > 0) {
@@ -586,9 +586,9 @@ export const buildAnalytics = (input: AnalyticsInput): AnalyticsResult => {
     const rising = priceBoard.filter(p => p.forecast && p.forecast.trend === 'up');
     const falling = priceBoard.filter(p => p.forecast && p.forecast.trend === 'down');
     if (rising.length > 0) {
-      insights.push(`Price forecast: ${rising[0].name} may rise ${Math.abs(rising[0].forecast!.changePct).toFixed(1)}% — consider buying or quoting early.`);
+      insights.push(`Price forecast: ${rising[0].name} may rise ${Math.abs(rising[0].forecast!.changePct).toFixed(1)}% - consider buying or quoting early.`);
     } else if (falling.length > 0) {
-      insights.push(`Price forecast: ${falling[0].name} may fall ${Math.abs(falling[0].forecast!.changePct).toFixed(1)}% — a later order could cost less.`);
+      insights.push(`Price forecast: ${falling[0].name} may fall ${Math.abs(falling[0].forecast!.changePct).toFixed(1)}% - a later order could cost less.`);
     }
 
     if (role === 'transporter') {

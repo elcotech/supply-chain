@@ -1,4 +1,4 @@
-# E-SCON — Android Build Guide
+# E-SCON - Android Build Guide
 
 This document explains how the E-SCON web app is packaged as an Android app with
 **Capacitor** and how to produce a **debug APK** and a **signed release AAB** for
@@ -6,7 +6,7 @@ the Google Play Store.
 
 > **Never commit** `android/keystore.jks`, `android/keystore.properties`, the
 > keystore password, or `.env.local`. They are already gitignored. Treat the
-> keystore as permanent — losing it means you can never update the app on Play
+> keystore as permanent - losing it means you can never update the app on Play
 > Store again.
 
 ---
@@ -51,7 +51,7 @@ machine.
 
 > **Disk space:** the C: drive is the constraint. Gradle's build output is
 > redirected off the project drive to `C:\Users\ETHIOMK\escon-build` via an
-> init script, because the project lives on F: which is nearly full. See §5.
+> init script, because the project lives on F: which is nearly full. See 5.
 
 ---
 
@@ -82,7 +82,7 @@ The native app embeds whatever is in `build/`, so **always rebuild the web app
 before syncing**.
 
 ```powershell
-npm run build              # → build/
+npm run build              # -> build/
 npx cap sync android       # copy build/ into the Android project
 ```
 
@@ -112,7 +112,7 @@ $env:JAVA_HOME = "C:\Users\ETHIOMK\escon-tools\jdk17\jdk-17.0.20.1+1"
   `C:\Users\ETHIOMK\escon-build\<module>` so nothing is written to the
   almost-full F: drive. Note the module folder for `:app` is **`_app`**
   (the leading `:` becomes `_`), so outputs live under
-  `C:\Users\ETHIOMK\escon-build\_app\outputs\…`.
+  `C:\Users\ETHIOMK\escon-build\_app\outputs\...`.
 
 ### Install on a connected phone
 
@@ -121,7 +121,7 @@ $env:JAVA_HOME = "C:\Users\ETHIOMK\escon-tools\jdk17\jdk-17.0.20.1+1"
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r "E-SCON-debug.apk"
 ```
 
-> If `adb devices` shows **no device**, enable **Developer Options → USB
+> If `adb devices` shows **no device**, enable **Developer Options -> USB
 > debugging** on the phone and accept the authorization prompt on the device.
 
 ---
@@ -207,14 +207,14 @@ Only do this once; reuse the same keystore forever.
 - [ ] `npx cap sync android` run.
 - [ ] `versionCode` / `versionName` bumped (this release: 26 / "5.0.0").
 - [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.0.0).
-- [ ] Launcher icons still match `public/logo512.png` (§10).
+- [ ] Launcher icons still match `public/logo512.png` (10).
 - [ ] `bundleRelease` succeeds.
 - [ ] `.aab` signature verified.
 - [ ] Upload to Google Play Console (see
       [PLAY_STORE_LISTING.md](./PLAY_STORE_LISTING.md) and
       [PRIVACY_POLICY.md](./PRIVACY_POLICY.md)).
 - [ ] Test the uploaded bundle via an internal-testing track before production
-      (including that screenshots work — §11).
+      (including that screenshots work - 11).
 
 ---
 
@@ -232,7 +232,7 @@ in-app logo are the same mark.
 | Android legacy icon | `android/app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.png` (48 / 72 / 96 / 144 / 192) |
 | Android round icon | same folders, `ic_launcher_round.png` |
 | Android adaptive foreground | same folders, `ic_launcher_foreground.png` (108 / 162 / 216 / 324 / 432; logo inside the 66% safe zone) |
-| Adaptive background | `res/values/ic_launcher_background.xml` → `#FFFFFF` |
+| Adaptive background | `res/values/ic_launcher_background.xml` -> `#FFFFFF` |
 
 `AndroidManifest.xml` wires `android:icon="@mipmap/ic_launcher"` and
 `android:roundIcon="@mipmap/ic_launcher_round"`; the `<adaptive-icon>` XMLs live in
@@ -251,7 +251,7 @@ foreach ($d in @('mdpi:48','hdpi:72','xhdpi:96','xxhdpi:144','xxxhdpi:192')) {
 }
 ```
 
-Rebuild (§5 / §6) after changing any icon, because the icons are compiled into the
+Rebuild (5 / 6) after changing any icon, because the icons are compiled into the
 APK/AAB.
 
 ---
@@ -279,11 +279,11 @@ Notes:
 
 | Symptom | Fix |
 | --- | --- |
-| `Unsupported class file major version` | Wrong JDK — set `JAVA_HOME` to **JDK 17** |
+| `Unsupported class file major version` | Wrong JDK - set `JAVA_HOME` to **JDK 17** |
 | `SDK location not found` | Set `ANDROID_HOME` or create `android/local.properties` with `sdk.dir=...` |
-| Gradle tries to download the distribution | Use the cached `gradle.bat` path directly (§5), and keep `gradle-wrapper.properties` on the official HTTPS URL |
+| Gradle tries to download the distribution | Use the cached `gradle.bat` path directly (5), and keep `gradle-wrapper.properties` on the official HTTPS URL |
 | Out of disk space on F: | Ensure the `--init-script builddir-init.gradle` redirect is used, or free space |
 | Release build is unsigned | `android/keystore.properties` missing or wrong `storeFile` path |
 | `adb devices` empty | Enable USB debugging and authorize the computer on the phone |
-| App icon does not change on the phone | Reinstall (not just update) after `cap sync`; launchers cache icons — §10 |
+| App icon does not change on the phone | Reinstall (not just update) after `cap sync`; launchers cache icons - 10 |
 

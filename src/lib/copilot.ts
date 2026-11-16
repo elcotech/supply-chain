@@ -1,5 +1,5 @@
 // ===== src/lib/copilot.ts =====
-// E-SCON Copilot — an on-device analytics assistant.
+// E-SCON Copilot - an on-device analytics assistant.
 //
 // The assistant is deterministic and privacy-first: it reads the same records
 // the dashboards use, ranks the numbers with the analytics engine, and answers
@@ -153,7 +153,7 @@ const overviewAnswer = (input: AnalyticsInput): CopilotAnswer => {
     metrics: kpiMetrics(a),
     bullets: bullets.slice(0, 6),
     chart: a.monthlyRevenue,
-    chartLabel: 'Revenue — last six months',
+    chartLabel: 'Revenue - last six months',
     followUps: copilotSuggestions(a.role).slice(0, 4),
   };
 };
@@ -178,7 +178,7 @@ const revenueAnswer = (input: AnalyticsInput): CopilotAnswer => {
       { label: a.role === 'customer' ? 'Spend' : 'Revenue', value: money(a.gmv), tone: a.growthPct != null && a.growthPct < 0 ? 'bad' : 'good' },
       { label: 'Orders', value: String(a.orderCount) },
       { label: 'Avg order', value: money(a.avgOrderValue) },
-      { label: 'Growth', value: a.growthPct == null ? '—' : pct(a.growthPct), tone: a.growthPct != null && a.growthPct < 0 ? 'bad' : 'good' },
+      { label: 'Growth', value: a.growthPct == null ? '-' : pct(a.growthPct), tone: a.growthPct != null && a.growthPct < 0 ? 'bad' : 'good' },
     ],
     bullets: bullets.slice(0, 5),
     chart: a.monthlyRevenue,
@@ -194,7 +194,7 @@ const orderAnswer = (input: AnalyticsInput): CopilotAnswer => {
     bullets.push(`${a.activeOrders} order${a.activeOrders === 1 ? '' : 's'} worth ${money(a.activeOrderValue)} are awaiting action.`);
   }
   bullets.push(`${a.deliveredOrders} of ${a.orderCount} orders are delivered (${a.deliveredRatePct.toFixed(0)}%).`);
-  if (a.cancelledOrders > 0) bullets.push(`${a.cancelledOrders} order${a.cancelledOrders === 1 ? '' : 's'} cancelled — review the reasons before the next campaign.`);
+  if (a.cancelledOrders > 0) bullets.push(`${a.cancelledOrders} order${a.cancelledOrders === 1 ? '' : 's'} cancelled - review the reasons before the next campaign.`);
   return {
     title: 'Order & delivery performance',
     summary: a.orderCount === 0
@@ -243,7 +243,7 @@ const stockAnswer = (input: AnalyticsInput): CopilotAnswer => {
     categoryStock.set(m.category || 'Other', (categoryStock.get(m.category || 'Other') || 0) + value);
   });
   const bullets = critical.length > 0
-    ? critical.map(m => `${m.name}: ${m.quantity || 0} ${m.unit || 'units'} left — ${money((m.quantity || 0) * m.price)} value.`)
+    ? critical.map(m => `${m.name}: ${m.quantity || 0} ${m.unit || 'units'} left - ${money((m.quantity || 0) * m.price)} value.`)
     : ['Every product currently has more than 10 units in stock.'];
   bullets.push(`${a.stockUnits} units on hand worth ${money(a.stockValue)}.`);
   bullets.push(`${a.lowStockCount} low-stock and ${a.outOfStockCount} out-of-stock product${a.lowStockCount + a.outOfStockCount === 1 ? '' : 's'} need attention.`);
@@ -280,7 +280,7 @@ const productAnswer = (input: AnalyticsInput): CopilotAnswer => {
         { label: 'Suppliers', value: String(a.supplierCount) },
         { label: 'Avg rating', value: `${a.avgRating.toFixed(1)}/5` },
       ],
-      bullets: a.priceBoard.slice(0, 5).map(p => `${p.name} — ${money(p.price)} · ${p.category}`),
+      bullets: a.priceBoard.slice(0, 5).map(p => `${p.name} - ${money(p.price)} - ${p.category}`),
       chart: a.categoryData,
       chartLabel: a.categoryBasis === 'revenue' ? 'Category revenue' : 'Products per category',
       followUps: ['Which category leads revenue?', 'What should I restock?', 'Give me an executive summary'],
@@ -289,8 +289,8 @@ const productAnswer = (input: AnalyticsInput): CopilotAnswer => {
   const runnerUp = a.topProducts[1];
   const bullets = [
     `${hero.units} units sold across ${hero.orders} orders.`,
-    `Supplier: ${hero.supplierName} · Category: ${hero.category}.`,
-    `Current price ${money(hero.price)} · rating ${hero.rating.toFixed(1)}/5.`,
+    `Supplier: ${hero.supplierName} - Category: ${hero.category}.`,
+    `Current price ${money(hero.price)} - rating ${hero.rating.toFixed(1)}/5.`,
     runnerUp ? `Next best is ${runnerUp.name} at ${money(runnerUp.revenue)}.` : 'It is the only product with recorded sales.',
   ];
   return {
@@ -324,7 +324,7 @@ const supplierAnswer = (input: AnalyticsInput): CopilotAnswer => {
         { label: 'Cities', value: String(a.cityCount) },
         { label: 'Products', value: String(a.productCount) },
       ],
-      bullets: proven.map(c => `${c.name} — ${c.city || '—'} · ${input.materials.filter(m => m.companyId === c.id).length} products · ⭐ ${(c.rating || 0).toFixed(1)}`),
+      bullets: proven.map(c => `${c.name} - ${c.city || '-'} - ${input.materials.filter(m => m.companyId === c.id).length} products - * ${(c.rating || 0).toFixed(1)}`),
       chart: a.cityData,
       chartLabel: a.cityBasis === 'orders' ? 'Order value by city' : 'Suppliers by city',
       followUps: ['What products are trending?', 'Which category is biggest?', 'What can you do?'],
@@ -402,7 +402,7 @@ const priceAnswer = (input: AnalyticsInput): CopilotAnswer => {
   const bullets = a.priceBoard.slice(0, 5).map(p => {
     const f = p.forecast;
     const outlook = f ? `${f.trend === 'flat' ? 'stable' : `${f.trend} ${Math.abs(f.changePct).toFixed(1)}%`}` : 'tracking';
-    return `${p.name}: ${money(p.price)} — ${outlook}${p.marginPct > 0 ? ` · margin ${p.marginPct.toFixed(0)}%` : ''}`;
+    return `${p.name}: ${money(p.price)} - ${outlook}${p.marginPct > 0 ? ` - margin ${p.marginPct.toFixed(0)}%` : ''}`;
   });
   if (rising.length > 0) bullets.push(`${rising.length} product${rising.length === 1 ? '' : 's'} trending up; ${rising[0].name} could rise ${Math.abs(rising[0].forecast!.changePct).toFixed(1)}%.`);
   if (falling.length > 0) bullets.push(`${falling.length} product${falling.length === 1 ? '' : 's'} trending down; ${falling[0].name} could fall ${Math.abs(falling[0].forecast!.changePct).toFixed(1)}%.`);
@@ -440,7 +440,7 @@ const categoryAnswer = (input: AnalyticsInput): CopilotAnswer => {
       ? `${leader.label} is the leading category ${a.categoryBasis === 'revenue' ? `with ${money(leader.value)} (${share.toFixed(0)}%)` : `with ${leader.value} products`}.`
       : 'No category data is available yet.',
     metrics: [
-      { label: 'Leading category', value: leader?.label || '—' },
+      { label: 'Leading category', value: leader?.label || '-' },
       { label: 'Share', value: `${share.toFixed(0)}%` },
       { label: 'Categories', value: String(a.categoryData.length) },
       { label: 'Basis', value: a.categoryBasis === 'revenue' ? 'Sales' : 'Catalogue' },
@@ -487,7 +487,7 @@ const taxAnswer = (input: AnalyticsInput): CopilotAnswer => {
   const share = a.gmv > 0 ? (a.vatCollected / a.gmv) * 100 : 0;
   return {
     title: 'VAT position',
-    summary: `VAT is added once on the net goods subtotal at checkout — ${money(a.vatCollected)} on ${money(a.gmv)} of order value in this workspace.`,
+    summary: `VAT is added once on the net goods subtotal at checkout - ${money(a.vatCollected)} on ${money(a.gmv)} of order value in this workspace.`,
     metrics: [
       { label: 'VAT collected', value: money(a.vatCollected) },
       { label: 'VAT rate', value: `${input.settings.vat.rate}%` },
@@ -552,7 +552,7 @@ const reviewAnswer = (input: AnalyticsInput): CopilotAnswer => {
       { label: 'Catalogue rating', value: `${a.avgRating.toFixed(1)}/5` },
       { label: 'Products', value: String(a.productCount) },
     ],
-    bullets: scopedReviews.slice(0, 4).map(r => `⭐ ${r.rating}/5 — ${r.comment || 'No comment'} (${r.userName || 'Buyer'})`),
+    bullets: scopedReviews.slice(0, 4).map(r => `* ${r.rating}/5 - ${r.comment || 'No comment'} (${r.userName || 'Buyer'})`),
     chart: a.topProducts.slice(0, 6).map(p => ({ label: p.name, value: Math.round(p.rating * 10) / 10 })),
     chartLabel: 'Product ratings (out of 5)',
     followUps: ['What are my top-selling products?', 'Give me an executive summary'],
@@ -576,7 +576,7 @@ const growthAnswer = (input: AnalyticsInput): CopilotAnswer => {
     metrics: [
       { label: 'This month', value: money(thisMonth?.value || 0), tone: delta != null && delta < 0 ? 'bad' : 'good' },
       { label: 'Last month', value: money(lastMonth?.value || 0) },
-      { label: 'MoM', value: delta == null ? '—' : pct(delta), tone: delta != null && delta < 0 ? 'bad' : 'good' },
+      { label: 'MoM', value: delta == null ? '-' : pct(delta), tone: delta != null && delta < 0 ? 'bad' : 'good' },
       { label: 'Rising prices', value: String(rising.length), tone: rising.length > 0 ? 'warn' : 'neutral' },
     ],
     bullets: [
@@ -594,11 +594,11 @@ const recommendationAnswer = (input: AnalyticsInput): CopilotAnswer => {
   const a = buildAnalytics({ ...input, days: 0 });
   const recommendations: string[] = [];
   if (a.role === 'company' || a.role === 'admin') {
-    if (a.activeOrders > 0) recommendations.push(`Clear the ${a.activeOrders} active order${a.activeOrders === 1 ? '' : 's'} worth ${money(a.activeOrderValue)} — fast fulfilment lifts repeat purchases.`);
+    if (a.activeOrders > 0) recommendations.push(`Clear the ${a.activeOrders} active order${a.activeOrders === 1 ? '' : 's'} worth ${money(a.activeOrderValue)} - fast fulfilment lifts repeat purchases.`);
     if (a.lowStockCount + a.outOfStockCount > 0) recommendations.push(`Restock ${a.lowStockCount + a.outOfStockCount} at-risk product${a.lowStockCount + a.outOfStockCount === 1 ? '' : 's'} before demand outruns supply.`);
     if (a.categoryData[0]) recommendations.push(`Double down on ${a.categoryData[0].label}, the current demand leader.`);
     if (a.topProducts[0]) recommendations.push(`Protect ${a.topProducts[0].name} availability and feature it on the marketplace.`);
-    if (a.deliveryFees > 0 && a.gmv > 0) recommendations.push(`Delivery is ${((a.deliveryFees / a.gmv) * 100).toFixed(1)}% of order value — review rates or bundle free delivery above a threshold.`);
+    if (a.deliveryFees > 0 && a.gmv > 0) recommendations.push(`Delivery is ${((a.deliveryFees / a.gmv) * 100).toFixed(1)}% of order value - review rates or bundle free delivery above a threshold.`);
   } else if (a.role === 'customer') {
     recommendations.push('Compare at least two suppliers before ordering to keep the delivered price low.');
     if (a.topSuppliers[0]) recommendations.push(`You buy most from ${a.topSuppliers[0].name}; ask for a volume price on repeat items.`);
@@ -652,7 +652,7 @@ const namedProductAnswer = (input: AnalyticsInput, name: string): CopilotAnswer 
   const sales = a.topProducts.find(p => p.id === material.id);
   const forecast = a.priceBoard.find(p => p.id === material.id)?.forecast || null;
   const bullets = [
-    `${material.category} · listed by ${input.companies.find(c => c.id === material.companyId)?.name || 'a supplier'}.`,
+    `${material.category} - listed by ${input.companies.find(c => c.id === material.companyId)?.name || 'a supplier'}.`,
     `Price ${money(material.price)} per ${material.unit || 'unit'}.`,
     sales ? `${sales.units} units sold for ${money(sales.revenue)} across ${sales.orders} orders.` : 'No sales recorded in this workspace yet.',
     `Rating ${sales?.rating?.toFixed(1) || (material.rating || 0).toFixed(1)}/5.`,
@@ -696,7 +696,7 @@ const namedSupplierAnswer = (input: AnalyticsInput, name: string): CopilotAnswer
       { label: 'Rating', value: `${(company.rating || 0).toFixed(1)}/5` },
     ],
     bullets: [
-      `Location: ${company.location || company.city || '—'}.`,
+      `Location: ${company.location || company.city || '-'}.`,
       `Compliance: ${company.complianceStatus || 'pending'}.`,
       `Top products: ${products.slice(0, 3).map(p => p.name).join(', ') || 'none yet'}.`,
       company.workingHours ? `Working hours: ${company.workingHours}.` : 'Working hours are not published.',
@@ -753,10 +753,10 @@ export const copilotGreeting = (input: AnalyticsInput): CopilotAnswer => {
   const name = input.user?.name?.trim().split(/\s+/)[0];
   return {
     ...overviewAnswer(input),
-    title: name ? `Hello ${name} — here is your snapshot` : 'Hello — ask me about the marketplace',
+    title: name ? `Hello ${name} - here is your snapshot` : 'Hello - ask me about the marketplace',
     summary: a.role === 'guest'
       ? `I can analyse the public catalogue of ${a.productCount} products from ${a.supplierCount} suppliers. Sign in for revenue and order intelligence.`
-      : `${trendText(a)} I am grounded in this device's live E-SCON data — ${a.productCount} products, ${a.supplierCount} suppliers and ${a.orderCount} orders.`,
+      : `${trendText(a)} I am grounded in this device's live E-SCON data - ${a.productCount} products, ${a.supplierCount} suppliers and ${a.orderCount} orders.`,
     bullets: a.insights.slice(0, 4),
     followUps: copilotSuggestions(a.role).slice(0, 4),
   };

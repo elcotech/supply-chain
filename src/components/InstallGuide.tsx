@@ -24,7 +24,7 @@ const STEPS: Record<DeviceKind, { title: string; steps: string[] }> = {
     title: 'Install on Android (Chrome)',
     steps: [
       'Open E-SCON in the Chrome browser.',
-      'Tap the ⋮ menu (top right), then choose "Add to Home screen" or "Install app".',
+      'Tap the  menu (top right), then choose "Add to Home screen" or "Install app".',
       'Tap "Install" / "Add". E-SCON now appears as an app on your home screen.',
     ],
   },
@@ -32,7 +32,7 @@ const STEPS: Record<DeviceKind, { title: string; steps: string[] }> = {
     title: 'Install on iPhone / iPad (Safari)',
     steps: [
       'Open E-SCON in the Safari browser.',
-      'Tap the Share button (square with arrow ⬆️).',
+      'Tap the Share button (square with arrow ).',
       'Scroll and tap "Add to Home Screen".',
       'Tap "Add". E-SCON now appears as an app on your home screen.',
     ],
@@ -41,7 +41,7 @@ const STEPS: Record<DeviceKind, { title: string; steps: string[] }> = {
     title: 'Install on Windows',
     steps: [
       'Open E-SCON in Microsoft Edge or Chrome.',
-      'Click the install icon (➕ or 📥) in the address bar, or open the browser menu → "Apps" → "Install this site as an app".',
+      'Click the install icon ( or ) in the address bar, or open the browser menu -> "Apps" -> "Install this site as an app".',
       'Confirm. E-SCON opens in its own standalone window.',
     ],
   },
@@ -49,7 +49,7 @@ const STEPS: Record<DeviceKind, { title: string; steps: string[] }> = {
     title: 'Install on your device',
     steps: [
       'Use Chrome or Edge for full installation support.',
-      'Look for the install icon in the address bar, or use the browser menu → "Install app".',
+      'Look for the install icon in the address bar, or use the browser menu -> "Install app".',
       'Alternatively add the page to your home screen from the browser share menu.',
     ],
   },
@@ -68,13 +68,13 @@ const InstallGuide: React.FC<InstallGuideProps> = ({ onClose }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content install-guide-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>📲 Install E-SCON</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h2> Install E-SCON</h2>
+          <button className="modal-close" onClick={onClose}></button>
         </div>
         <div className="modal-body">
           <p className="install-guide-intro">
             Install E-SCON as an app for faster access, a standalone window and
-            a home-screen icon. You can keep using the website in your browser —
+            a home-screen icon. You can keep using the website in your browser -
             installation is optional.
           </p>
 
@@ -85,7 +85,7 @@ const InstallGuide: React.FC<InstallGuideProps> = ({ onClose }) => {
                 className={'install-device-tab ' + (device === k ? 'active' : '')}
                 onClick={() => setDevice(k)}
               >
-                {k === 'android' ? '🤖 Android' : k === 'ios' ? '🍎 iPhone' : k === 'windows' ? '🖥️ Windows' : '🌐 Other'}
+                {k === 'android' ? ' Android' : k === 'ios' ? ' iPhone' : k === 'windows' ? ' Windows' : ' Other'}
               </button>
             ))}
           </div>
@@ -100,7 +100,7 @@ const InstallGuide: React.FC<InstallGuideProps> = ({ onClose }) => {
           </div>
 
           <p className="install-guide-note">
-            💡 Some browsers only offer installation over HTTPS. The app remains
+             Some browsers only offer installation over HTTPS. The app remains
             fully functional in the browser on every device.
           </p>
         </div>

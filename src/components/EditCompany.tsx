@@ -55,7 +55,7 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_LOGO_BYTES) {
-      flash('Logo is larger than 1.5 MB — choose a smaller image.', 'danger');
+      flash('Logo is larger than 1.5 MB - choose a smaller image.', 'danger');
       e.target.value = '';
       return;
     }
@@ -74,7 +74,7 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
       location: address.split(',').slice(0, 2).join(',') || address
     }));
     setShowMapPicker(false);
-    flash('📍 Location updated on map!', 'success');
+    flash(' Location updated on map!', 'success');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -134,11 +134,11 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
   const body = (
     <>
       {embedded ? (
-        <h2 className="myb-form-title">🏢 Business profile, location &amp; account</h2>
+        <h2 className="myb-form-title"> Business profile, location &amp; account</h2>
       ) : (
         <div className="modal-header">
-          <h2>{isCreate ? '🏢 Add Supplier Account' : '✏️ Edit Company Profile'}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h2>{isCreate ? ' Add Supplier Account' : ' Edit Company Profile'}</h2>
+          <button className="modal-close" onClick={onClose}></button>
         </div>
       )}
 
@@ -156,19 +156,19 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
 
       <form onSubmit={handleSubmit} className="edit-company-form">
         <div className="form-section">
-          <h3>🏢 Company Information</h3>
+          <h3> Company Information</h3>
           <div className="form-group">
-            <label>🏷️ Company Logo <small className="form-hint">(square image, shown on your storefront)</small></label>
+            <label> Company Logo <small className="form-hint">(square image, shown on your storefront)</small></label>
             <div className="image-uploader">
               <label className="image-upload-btn">
-                🖼️ {logo ? 'Change logo' : 'Upload logo'}
+                 {logo ? 'Change logo' : 'Upload logo'}
                 <input type="file" accept="image/*" onChange={handleLogoChange} />
               </label>
               {logo && (
                 <div className="image-preview-list">
                   <div className="image-preview-item">
                     <img src={logo} alt="Company logo preview" />
-                    <button type="button" className="image-preview-remove" onClick={() => setLogo('')} title="Remove logo">✕</button>
+                    <button type="button" className="image-preview-remove" onClick={() => setLogo('')} title="Remove logo"></button>
                   </div>
                 </div>
               )}
@@ -185,7 +185,7 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
         </div>
 
         <div className="form-section">
-          <h3>📍 Location</h3>
+          <h3> Location</h3>
           <div className="form-group">
             <label>City *</label>
             <select name="city" value={formData.city} onChange={handleChange} required>
@@ -199,15 +199,15 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
             <input type="text" name="location" value={formData.location} onChange={handleChange} />
           </div>
           <button type="button" className="btn-secondary" onClick={() => setShowMapPicker(true)}>
-            🗺️ Select Location on Map
+             Select Location on Map
           </button>
           <div className="location-preview">
-            <small>📍 Lat: {formData.lat.toFixed(6)}, Lng: {formData.lng.toFixed(6)}</small>
+            <small> Lat: {formData.lat.toFixed(6)}, Lng: {formData.lng.toFixed(6)}</small>
           </div>
         </div>
 
         <div className="form-section">
-          <h3>📞 Contact Information</h3>
+          <h3> Contact Information</h3>
           <div className="form-row">
             <div className="form-group">
               <label>Phone</label>
@@ -231,7 +231,7 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
         </div>
 
         <div className="form-section">
-          <h3>📋 Legal & Compliance</h3>
+          <h3> Legal & Compliance</h3>
           <div className="form-row">
             <div className="form-group">
               <label>TIN Number</label>
@@ -255,7 +255,7 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
         </div>
 
         <div className="form-section">
-          <h3>🔐 Account</h3>
+          <h3> Account</h3>
           <div className="form-row">
             <div className="form-group">
               <label>{isCreate ? 'Contact Person *' : 'Full Name'}</label>
@@ -263,13 +263,13 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
             </div>
             <div className="form-group">
               <label>{isCreate ? 'Password *' : 'New Password'} <small className="form-hint">{isCreate ? '(first sign-in password)' : '(leave blank to keep current)'}</small></label>
-              <input type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} placeholder="••••••••" autoComplete="new-password" required={isCreate} minLength={isCreate ? 4 : undefined} />
+              <input type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} placeholder="--------" autoComplete="new-password" required={isCreate} minLength={isCreate ? 4 : undefined} />
             </div>
           </div>
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn-submit">{isCreate ? '✅ Create supplier' : '💾 Save changes'}</button>
+          <button type="submit" className="btn-submit">{isCreate ? '[OK] Create supplier' : ' Save changes'}</button>
           {!embedded && <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>}
         </div>
       </form>

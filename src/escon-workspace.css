@@ -1,5 +1,5 @@
 /* ===== E-SCON 3.0 workspace design system =====
-   Deep navy, professional blue, white and restrained gold (spec §9).
+   Deep navy, professional blue, white and restrained gold (spec 9).
    Every rule is scoped to .ws-* or .m-sheet-menu so the existing screens keep
    their own look. Tablet and phone layouts are handled at the end. */
 
