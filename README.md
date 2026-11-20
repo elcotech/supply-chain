@@ -28,7 +28,8 @@ A single-page React + TypeScript platform connecting Ethiopian suppliers and cus
 - **Supplier/Customer/Guest:** section-ID compatibility fallbacks for new menus; Guest public dashboard and existing Supplier/Customer dashboards retained with E-SCON 5.0 shell/theme.
 - **Search:** added `Nearest` sort option (distance-aware when location available) alongside existing category/city/supplier filters.
 - **Data/compatibility:** extended `AppNotification` (quotation/rfq, category, supplierId/supplierName) and notification broadcast/meta; preserved existing localStorage/Supabase persistence flows.
-- **Build:** production web build succeeds (`npm run build`) and Capacitor Android assets synced (`npx cap sync android`). **APK/AAB binaries were not rebuilt in this environment** because a JDK/Android build toolchain (`JAVA_HOME`/`java`) is not available here; rebuild with Android Studio/Gradle on a configured machine.
+- **Build & artifacts:** production web build and tests pass, Capacitor Android assets are synced, and Android artifacts were rebuilt (`assembleDebug`, `assembleRelease`, `bundleRelease`) and refreshed at the repo root as `E-SCON-debug.apk`, `E-SCON-release.apk`, and `E-SCON-release.aab`.
+- **Readable charts & coordinates:** analytics charts now use clearly labeled X/Y axes with proper units and indexed 90° labels for readability; GPS/coordinate displays show readable WGS84 values with N/S/E/W and degree units in profile, admin, and map views.
 
 
 ## Quick start

@@ -201,9 +201,11 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
           <button type="button" className="btn-secondary" onClick={() => setShowMapPicker(true)}>
              Select Location on Map
           </button>
-          <div className="location-preview">
-            <small> Lat: {formData.lat.toFixed(6)}, Lng: {formData.lng.toFixed(6)}</small>
-          </div>
+            <div className="location-preview">
+              <small>
+                Coordinates (WGS84): Lat {Math.abs(formData.lat).toFixed(6)}° {formData.lat >= 0 ? 'N' : 'S'}, Lng {Math.abs(formData.lng).toFixed(6)}° {formData.lng >= 0 ? 'E' : 'W'}
+              </small>
+            </div>
         </div>
 
         <div className="form-section">

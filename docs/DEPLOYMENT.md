@@ -90,6 +90,7 @@ For a quick internal install, build a debug APK and use `adb install`
 - [ ] `npx tsc --noEmit` clean.
 - [ ] `CI=true npm test -- --watchAll=false` passing.
 - [ ] `npm run build` succeeds.
+- [ ] `npx cap sync android` completed; root `E-SCON-debug.apk`, `E-SCON-release.apk`, `E-SCON-release.aab` rebuilt/refreshed.
 - [ ] `.env.local` is either absent or contains the intended Supabase URL/anon key (never committed); `supabase/schema.sql` has been run so the table and Realtime publication exist.
 - [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.0.0).
 - [ ] Android `versionCode` / `versionName` bumped (for Play uploads; this release is 26 / "5.0.0").

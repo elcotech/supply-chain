@@ -384,14 +384,14 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   <h2>Accounts by role</h2>
                   <span className="escon-badge">{users.length} total</span>
                 </div>
-                <DonutChart data={accountMix} size={142} centerLabel={String(users.length)} />
+                <DonutChart data={accountMix} size={142} centerLabel={String(users.length)} valueUnit="accounts" />
               </section>
               <section className="escon-chart-card">
                 <div className="escon-section-head">
                   <h2>Supplier compliance</h2>
                   <span className="escon-badge">{companies.length} profiles</span>
                 </div>
-                <DonutChart data={complianceMix} size={142} centerLabel={String(companies.length)} />
+                <DonutChart data={complianceMix} size={142} centerLabel={String(companies.length)} valueUnit="suppliers" />
               </section>
             </div>
           </section>
@@ -407,7 +407,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
                 <HorizontalBarChart
                   data={guestData.priceBands}
-                  valueFormatter={value => String(value) + ' products'}
+                  valueFormatter={value => String(value)}
+                  unit="products"
+                  xLabel="Products"
+                  yLabel="Price band"
                   color="#1a6fb5"
                 />
               </section>
@@ -420,6 +423,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   data={guestData.ratingMix}
                   size={150}
                   centerLabel={reviews.length > 0 ? String(reviews.length) : String(materials.length)}
+                  valueUnit={reviews.length > 0 ? 'reviews' : 'products'}
                 />
               </section>
             </div>
@@ -432,7 +436,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
                 <HorizontalBarChart
                   data={analytics.categoryData}
-                  valueFormatter={value => String(value) + ' products'}
+                  valueFormatter={value => String(value)}
+                  unit="products"
+                  xLabel="Products"
+                  yLabel="Category"
                   color="#2ecc71"
                 />
               </section>
@@ -443,7 +450,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
                 <HorizontalBarChart
                   data={analytics.cityData}
-                  valueFormatter={value => String(value) + ' suppliers'}
+                  valueFormatter={value => String(value)}
+                  unit="suppliers"
+                  xLabel="Suppliers"
+                  yLabel="City"
                   color="#e67e22"
                 />
               </section>
@@ -461,6 +471,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   series={[{ label: analytics.role === 'customer' ? 'Spend' : 'Revenue', color: '#1a6fb5', data: analytics.monthlyRevenue }]}
                   height={170}
                   valueFormatter={value => formatCurrency(value)}
+                  unit="ETB"
+                  xLabel="Month"
+                  yLabel={analytics.role === 'customer' ? 'Spend' : 'Revenue'}
                 />
               </section>
               <section className="escon-chart-card">
@@ -472,6 +485,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   data={analytics.statuses}
                   size={150}
                   centerLabel={analytics.orderCount > 0 ? String(analytics.orderCount) : '0'}
+                  valueUnit="orders"
                 />
               </section>
             </div>
@@ -487,6 +501,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   height={170}
                   valueFormatter={value => String(value)}
                   showArea={false}
+                  unit="orders"
+                  xLabel="Month"
+                  yLabel="Orders"
                 />
               </section>
               <section className="escon-chart-card">
@@ -497,6 +514,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 <HorizontalBarChart
                   data={analytics.categoryData}
                   valueFormatter={categoryFormatter}
+                  unit={analytics.categoryBasis === 'revenue' ? 'ETB' : 'products'}
+                  xLabel={analytics.categoryBasis === 'revenue' ? 'Revenue' : 'Products'}
+                  yLabel="Category"
                   color="#2ecc71"
                 />
               </section>
@@ -511,6 +531,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 <HorizontalBarChart
                   data={analytics.cityData}
                   valueFormatter={value => analytics.cityBasis === 'orders' ? formatCurrency(value) : String(value)}
+                  unit={analytics.cityBasis === 'orders' ? 'ETB' : 'suppliers'}
+                  xLabel={analytics.cityBasis === 'orders' ? 'Order value' : 'Suppliers'}
+                  yLabel="City"
                   color="#e67e22"
                 />
               </section>
@@ -523,6 +546,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   data={costMix}
                   size={150}
                   centerLabel={formatCurrency(analytics.gmv)}
+                  valueUnit="ETB"
+                  valueFormatter={value => formatCurrency(value)}
                 />
               </section>
             </div>

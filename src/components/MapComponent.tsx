@@ -318,9 +318,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const uMarker = L.marker([origin.lat, origin.lng], { icon: userIcon })
       .bindPopup(`
         <strong> Your Location</strong><br/>
-        Lat: ${origin.lat.toFixed(6)}<br/>
-        Lng: ${origin.lng.toFixed(6)}<br/>
-        <small>${origin.accuracy > 0 ? `Accuracy: +/-${origin.accuracy.toFixed(0)}m` : 'GPS accuracy pending'}</small>
+        Lat: ${Math.abs(origin.lat).toFixed(6)}° ${origin.lat >= 0 ? 'N' : 'S'}<br/>
+        Lng: ${Math.abs(origin.lng).toFixed(6)}° ${origin.lng >= 0 ? 'E' : 'W'}<br/>
+        <small>${origin.accuracy > 0 ? `Accuracy: ±${origin.accuracy.toFixed(0)} m` : 'GPS accuracy pending'}</small>
       `)
       .addTo(group);
     userMarkerRef.current = uMarker;

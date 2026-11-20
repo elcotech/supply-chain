@@ -113,6 +113,10 @@ $env:JAVA_HOME = "C:\Users\ETHIOMK\escon-tools\jdk17\jdk-17.0.20.1+1"
   almost-full F: drive. Note the module folder for `:app` is **`_app`**
   (the leading `:` becomes `_`), so outputs live under
   `C:\Users\ETHIOMK\escon-build\_app\outputs\...`.
+- **Repo-root artifacts (current):** `E-SCON-debug.apk`, `E-SCON-release.apk`,
+  and `E-SCON-release.aab` at the repository root were refreshed from rebuilt
+  outputs (Nov 20 2026 build). Keep `versionCode`/`versionName` in sync for
+  Play uploads.
 
 ### Install on a connected phone
 

@@ -354,7 +354,12 @@ const AdminSettings: React.FC<AdminSettingsProps> = ({
                   <div className="admin-data-main">
                     <strong>{user.name}</strong>
                     <small>{user.email} - {user.userType}{user.companyName ? ' - ' + user.companyName : ''}</small>
-                    <small> {user.address || 'No address'}, {user.city || 'No city'} - {Number.isFinite(user.lat) && Number.isFinite(user.lng) ? `${Number(user.lat).toFixed(5)}, ${Number(user.lng).toFixed(5)}` : 'location not set'}</small>
+                      <small>
+                        {' '}{user.address || 'No address'}, {user.city || 'No city'} —{' '}
+                        {Number.isFinite(user.lat) && Number.isFinite(user.lng)
+                          ? `Lat ${Math.abs(Number(user.lat)).toFixed(5)}° ${Number(user.lat) >= 0 ? 'N' : 'S'}, Lng ${Math.abs(Number(user.lng)).toFixed(5)}° ${Number(user.lng) >= 0 ? 'E' : 'W'}`
+                          : 'GPS coordinates not set'}
+                      </small>
                   </div>
                   <div className="admin-data-actions">
                     {onUpdateUser && (

@@ -539,15 +539,16 @@
   filter: brightness(1.12) saturate(1.1);
 }
 .chart-bar-label {
-  margin-top: 5px;
+  margin-top: 4px;
+  max-height: 52px;
   overflow: hidden;
   color: #6d89a6;
   font-size: 0.58rem;
-  font-weight: 600;
-  line-height: 1.3;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 700;
+  text-align: left;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  align-self: center;
 }
 .chart-empty {
   display: flex;

@@ -530,7 +530,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             <li><span>{t('Email')}</span><strong>{user.email}</strong></li>
             <li><span>{t('Address')}</span><strong>{user.address || '-'}</strong></li>
             <li><span>{t('City')}</span><strong>{user.city || '-'}</strong></li>
-            <li><span>GPS</span><strong>{user.lat ? `${user.lat.toFixed(4)}, ${user.lng.toFixed(4)}` : 'Not set'}</strong></li>
+            <li><span>GPS coordinates</span><strong>{Number.isFinite(user.lat) && Number.isFinite(user.lng) ? `Lat ${Math.abs(user.lat as number).toFixed(5)}° ${(user.lat as number) >= 0 ? 'N' : 'S'}, Lng ${Math.abs(user.lng as number).toFixed(5)}° ${(user.lng as number) >= 0 ? 'E' : 'W'} (WGS84)` : 'Not set'}</strong></li>
           </ul>
           <button className="btn btn-secondary btn-sm" onClick={onSaveMyLocation}> {t('Save my location')}</button>
         </Panel>
@@ -1283,7 +1283,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
           <ul className="ws-detail-list">
             <li><span>{t('Address')}</span><strong>{user.address || '-'}</strong></li>
             <li><span>{t('City')}</span><strong>{user.city || '-'}</strong></li>
-            <li><span>GPS</span><strong>{user.lat ? `${user.lat.toFixed(4)}, ${user.lng.toFixed(4)}` : 'Not set'}</strong></li>
+            <li><span>GPS coordinates</span><strong>{Number.isFinite(user.lat) && Number.isFinite(user.lng) ? `Lat ${Math.abs(user.lat as number).toFixed(5)}° ${(user.lat as number) >= 0 ? 'N' : 'S'}, Lng ${Math.abs(user.lng as number).toFixed(5)}° ${(user.lng as number) >= 0 ? 'E' : 'W'} (WGS84)` : 'Not set'}</strong></li>
           </ul>
         </Panel>
         <Panel title="Delivery schedule">

@@ -335,8 +335,10 @@ sheet or the Home card.
   - **Transporter** sees only assigned delivery jobs, transport earnings,
     active/completed trips and cargo value.
 - Cards summarise revenue/GMV, orders, average order value, delivery and VAT,
-  stock value and low-stock items. Charts show the six-month trend, order
-  status, category and city mix; tables rank top products, suppliers and
+  stock value and low-stock items. Charts show six-month trends, order status,
+  category and city mix with clearly labeled X/Y axes, indexed categories/periods,
+  90° labels for readability, and explicit units (ETB, orders, products, suppliers,
+  accounts/reviews as applicable). Tables rank top products, suppliers and
   customers; the price board shows each product's current price and forecast.
 - The coloured insight strip explains the most important movement in plain
   language (for example, revenue up or down versus the previous period).
