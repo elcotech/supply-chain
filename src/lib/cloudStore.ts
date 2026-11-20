@@ -56,7 +56,7 @@ const SHARED_KEYS = new Set<string>([
 ]);
 
 // Per-user keys (`cart_<uid>`, `favs_<uid>`) travel with the account.
-const SHARED_PREFIXES = ['cart_', 'favs_'];
+const SHARED_PREFIXES = ['cart_', 'favs_', 'transporter_gps_'];
 
 export const isSharedKey = (key: string): boolean =>
   !LOCAL_ONLY.has(key) &&

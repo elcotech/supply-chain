@@ -24,6 +24,7 @@ import {
   isGenericCoordinate,
   normalizeEmail,
   findLoginUser,
+  generateOrderNumber,
   MAX_QR_LINE_ITEMS,
 } from './utils';
 import { DEFAULT_SETTINGS } from './settings';
@@ -732,5 +733,20 @@ describe('account matching', () => {
     expect(findLoginUser(users, 'OWNER@example.com', 'wrong')?.id).toBe('a1');
     expect(findLoginUser(users, 'missing@example.com', 'anything')).toBeUndefined();
     expect(findLoginUser(users, '   ', 'anything')).toBeUndefined();
+  });
+});
+
+describe('generateOrderNumber', () => {
+  it('produces a readable reference containing the order date', () => {
+    const at = new Date(2026, 10, 20, 9, 30).getTime();
+    expect(generateOrderNumber(0, at)).toMatch(/^ESCON-20261120-[A-Z0-9]+-01$/);
+  });
+
+  it('keeps orders from the same commit distinct', () => {
+    const at = Date.now();
+    const first = generateOrderNumber(0, at);
+    const second = generateOrderNumber(1, at);
+    expect(first).not.toBe(second);
+    expect(second.endsWith('-02')).toBe(true);
   });
 });

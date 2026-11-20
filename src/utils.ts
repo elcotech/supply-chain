@@ -1003,6 +1003,13 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string |
 export const genId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
+/** Human-readable, collision-safe order reference for a submitted basket. */
+export const generateOrderNumber = (sequence = 0, at = Date.now()): string => {
+  const date = new Date(at);
+  const day = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+  return `ESCON-${day}-${at.toString(36).toUpperCase()}-${String(sequence + 1).padStart(2, '0')}`;
+};
+
 export interface ForecastResult {
   next: number;
   change: number;

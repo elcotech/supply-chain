@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Company, User, Material } from '../types';
+import { Company, User, Material, SystemSettings } from '../types';
+import { computeDeliveryFee } from '../utils';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -13,18 +14,18 @@ L.Icon.Default.mergeOptions({
 
 const supplierIcon = L.divIcon({
   className: 'supplier-marker',
-  html: '<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));"></div>',
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -28],
+  html: '<div class="escon-pin escon-pin-supplier"><span>S</span></div>',
+  iconSize: [34, 42],
+  iconAnchor: [17, 42],
+  popupAnchor: [0, -38],
 });
 
 const selectedSupplierIcon = L.divIcon({
   className: 'supplier-marker-selected',
-  html: '<div style="font-size:34px;filter:drop-shadow(0 2px 6px rgba(46,204,113,.6));"></div>',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-  popupAnchor: [0, -34],
+  html: '<div class="escon-pin escon-pin-selected"><span>S</span></div>',
+  iconSize: [40, 48],
+  iconAnchor: [20, 48],
+  popupAnchor: [0, -44],
 });
 
 const userIcon = L.divIcon({
@@ -94,6 +95,8 @@ interface MapComponentProps {
   routeRequestId?: number;
   /** Fired after a route has been drawn, with the supplier it points to. */
   onRouteShown?: (companyId: string) => void;
+  /** Platform delivery rules used when a supplier has not published a rate. */
+  settings?: SystemSettings;
   /**
    * Reports a meaningful GPS fix so the rest of the app measures from the same
    * position the map is drawing from. Called on the first fix and again only
@@ -112,6 +115,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   autoRouteSupplierId,
   routeRequestId = 0,
   onRouteShown,
+  settings,
   onLocationFix,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -122,6 +126,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [isDistanceLoading, setIsDistanceLoading] = useState(false);
   const [companyMaterials, setCompanyMaterials] = useState<Material[]>([]);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
+  const [transportCost, setTransportCost] = useState<number | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [geoLocationStatus, setGeoLocationStatus] = useState<'requesting' | 'granted' | 'denied' | 'error' | 'timeout' | 'unsupported'>('requesting');
   const [locateMeMsg, setLocateMeMsg] = useState<string | null>(null);
@@ -129,6 +134,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // auto-route effect, so routing waits for this flag instead of silently
   // bailing out on a map that does not exist yet.
   const [isMapReady, setIsMapReady] = useState(false);
+  // React 18 StrictMode mounts, unmounts and remounts the map in development.
+  // A monotonically increasing generation makes the auto-route effect run again
+  // against the new Leaflet instance instead of being skipped by its dedupe ref.
+  const [mapGeneration, setMapGeneration] = useState(0);
+  const mapGenerationRef = useRef(0);
 
   // Refs for guaranteed cleanup without stale closures
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
@@ -167,6 +177,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const selectedCompanyRef = useRef<Company | null>(null);
   const hasGpsFixRef = useRef(false);
   const drawnRequestRef = useRef<number>(-1);
+  const drawnGenerationRef = useRef<number>(-1);
+  // Every redraw gets a sequence number. A slow OSRM reply from an older click
+  // can no longer overwrite the line and figures belonging to a newer click.
+  const routeSeqRef = useRef(0);
 
   const getCoords = useCallback((company: Company): { lat: number; lng: number } => {
     if (company.lat && company.lng && company.lat !== 0 && company.lng !== 0) {
@@ -199,6 +213,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     accuracyCircleRef.current = null;
     setRouteInfo(null);
     setDistance(null);
+    setTransportCost(null);
   }, []);
 
   // Browser Geolocation - watches real-time position
@@ -291,36 +306,68 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const map = leafletMap.current;
     if (!map) return;
 
+    const seq = ++routeSeqRef.current;
+    const isCurrent = () =>
+      seq === routeSeqRef.current &&
+      leafletMap.current === map &&
+      overlayGroupRef.current !== null;
+
     setIsRouteLoading(true);
     setIsDistanceLoading(true);
     setLocateMeMsg(null);
 
-    // Step 1: CLEAR ALL previous overlays
+    // Step 1: CLEAR ALL previous overlays, then create the new layer. Both the
+    // old line and its markers disappear before anything new is added.
     clearAllOverlays();
     const group = L.layerGroup().addTo(map);
     overlayGroupRef.current = group;
 
     const origin = getUserPosition();
     const dest = getCoords(company);
+    const hasOrigin = hasOriginRef.current;
 
-    // No saved pin and no GPS fix yet: measure nothing rather than charging from
-    // the Addis default. The watcher redraws automatically on the first fix.
-    if (!hasOriginRef.current) {
-      setIsRouteLoading(false);
-      setIsDistanceLoading(false);
-      setDistance(null);
-      setRouteInfo(null);
-      setLocateMeMsg(' Set your location to measure the road distance (tap Locate Me).');
+    const destinationIcon = L.divIcon({
+      className: 'route-dest-marker',
+      html: '<div class="escon-pin escon-pin-dest"><span>TO</span></div>',
+      iconSize: [36, 44],
+      iconAnchor: [18, 44],
+      popupAnchor: [0, -40],
+    });
+    L.marker([dest.lat, dest.lng], { icon: destinationIcon })
+      .bindPopup(`<strong>${company.name}</strong><br/>Delivery destination`)
+      .addTo(group);
+
+    if (!hasOrigin) {
+      // Keep a visible link between the supplier and the map centre instead of
+      // drawing nothing, but never charge from the Addis default pin.
+      L.polyline([[origin.lat, origin.lng], [dest.lat, dest.lng]], {
+        color: '#94a3b8',
+        weight: 3,
+        opacity: 0.8,
+        dashArray: '6, 8',
+      }).addTo(group);
+      map.fitBounds(L.latLngBounds([[origin.lat, origin.lng], [dest.lat, dest.lng]]), {
+        padding: [60, 60],
+        maxZoom: 14,
+      });
+      if (isCurrent()) {
+        setDistance(null);
+        setRouteInfo(null);
+        setTransportCost(null);
+        setLocateMeMsg('Set your location with Locate Me to measure the road distance and transport cost.');
+        setIsRouteLoading(false);
+        setIsDistanceLoading(false);
+      }
       return;
     }
 
     // Step 2: Add fresh user location marker
     const uMarker = L.marker([origin.lat, origin.lng], { icon: userIcon })
       .bindPopup(`
-        <strong> Your Location</strong><br/>
+        <strong>Delivery destination (your location)</strong><br/>
         Lat: ${Math.abs(origin.lat).toFixed(6)}° ${origin.lat >= 0 ? 'N' : 'S'}<br/>
         Lng: ${Math.abs(origin.lng).toFixed(6)}° ${origin.lng >= 0 ? 'E' : 'W'}<br/>
-        <small>${origin.accuracy > 0 ? `Accuracy: ±${origin.accuracy.toFixed(0)} m` : 'GPS accuracy pending'}</small>
+        <small>${origin.accuracy > 0 ? `Accuracy: ±${origin.accuracy.toFixed(0)} m` : 'Saved location'}</small>
       `)
       .addTo(group);
     userMarkerRef.current = uMarker;
@@ -336,45 +383,39 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
     // Step 4: Fetch OSRM route (road-following, NOT straight line)
     const route = await fetchRoute(origin.lat, origin.lng, dest.lat, dest.lng);
+    if (!isCurrent()) return;
+
+    const bounds = L.latLngBounds([[origin.lat, origin.lng], [dest.lat, dest.lng]]);
 
     if (route) {
-      // Draw green route polyline
+      // A wide pale casing keeps the road line readable over dark map tiles.
       L.polyline(route.coordinates as L.LatLngExpression[], {
-        color: '#22c55e',
-        weight: 5,
-        opacity: 0.85,
+        color: '#ffffff',
+        weight: 9,
+        opacity: 0.55,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false,
+      }).addTo(group);
+      L.polyline(route.coordinates as L.LatLngExpression[], {
+        color: '#16a34a',
+        weight: 6,
+        opacity: 0.95,
         smoothFactor: 1,
         lineCap: 'round',
         lineJoin: 'round',
       }).addTo(group);
-
-      // Destination marker
-      const destIcon = L.divIcon({
-        className: 'route-dest-marker',
-        html: '<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));"></div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 24],
-      });
-      L.marker([dest.lat, dest.lng], { icon: destIcon })
-        .bindPopup(`<strong>${company.name}</strong><br/>Destination`)
-        .addTo(group);
-
-      // Fit map to show both points
-      const bounds = L.latLngBounds([
-        [origin.lat, origin.lng],
-        [dest.lat, dest.lng],
-      ]);
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
-
       setDistance(route.distanceKm);
       setRouteInfo({ distance: route.distanceKm, duration: route.durationMin });
     } else {
-      // OSRM failed - draw dashed fallback line with haversine distance
-      L.polyline(
-        [[origin.lat, origin.lng], [dest.lat, dest.lng]] as L.LatLngExpression[],
-        { color: '#ef4444', weight: 3, opacity: 0.7, dashArray: '8, 8' }
-      ).addTo(group);
-
+      // OSRM failed - draw a clearly labelled straight fallback so the route is
+      // still visible, with an estimated distance instead of a blank map.
+      L.polyline([[origin.lat, origin.lng], [dest.lat, dest.lng]], {
+        color: '#f97316',
+        weight: 4,
+        opacity: 0.9,
+        dashArray: '10, 8',
+      }).addTo(group);
       const R = 6371;
       const dLat = ((dest.lat - origin.lat) * Math.PI) / 180;
       const dLng = ((dest.lng - origin.lng) * Math.PI) / 180;
@@ -384,18 +425,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
           Math.cos((dest.lat * Math.PI) / 180) *
           Math.sin(dLng / 2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const haversineKm = R * c;
-
-      setDistance(haversineKm);
-      setRouteInfo({ distance: haversineKm, duration: haversineKm * 1.2 });
-
-      const bounds = L.latLngBounds([
-        [origin.lat, origin.lng],
-        [dest.lat, dest.lng],
-      ]);
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+      const estimateKm = R * c;
+      setDistance(estimateKm);
+      setRouteInfo({ distance: estimateKm, duration: estimateKm * 1.3 });
+      setLocateMeMsg('Routing service unavailable  showing an approximate straight-line distance.');
     }
 
+    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
     setIsRouteLoading(false);
     setIsDistanceLoading(false);
   }, [clearAllOverlays, fetchRoute, getCoords, getUserPosition]);
@@ -459,12 +495,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
     if (!isMapReady || !autoRouteSupplierId || companies.length === 0) return;
     const company = companies.find((c) => c.id === autoRouteSupplierId);
     if (!company) return;
-    const alreadyDrawn = drawnRequestRef.current === routeRequestId &&
+    const alreadyDrawn = mapGeneration === drawnGenerationRef.current &&
+      drawnRequestRef.current === routeRequestId &&
       company.id === currentCompanyIdRef.current;
     if (alreadyDrawn) return;
+    drawnGenerationRef.current = mapGeneration;
     drawnRequestRef.current = routeRequestId;
-    handleSupplierSelect(company);
-  }, [isMapReady, autoRouteSupplierId, companies, handleSupplierSelect, routeRequestId]);
+    void handleSupplierSelect(company);
+  }, [isMapReady, mapGeneration, autoRouteSupplierId, companies, handleSupplierSelect, routeRequestId]);
 
   // Initialize map once on mount
   useEffect(() => {
@@ -486,6 +524,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }).addTo(map);
 
     leafletMap.current = map;
+    const generation = mapGenerationRef.current + 1;
+    mapGenerationRef.current = generation;
+    setMapGeneration(generation);
     setIsMapReady(true);
     // The modal animates in; let the container reach its final size before
     // Leaflet calculates the tile grid, otherwise the first view is offset.
@@ -542,15 +583,86 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const markers = supplierMarkersRef.current;
 
     return () => {
+      // Invalidate in-flight route responses and all auto-route dedupe keys;
+      // StrictMode's second mount must draw the line again from scratch.
+      routeSeqRef.current += 1;
+      drawnRequestRef.current = -1;
+      drawnGenerationRef.current = -1;
+      currentCompanyIdRef.current = null;
+      selectedCompanyRef.current = null;
+      hasGpsFixRef.current = false;
       map.remove();
       leafletMap.current = null;
       markers.clear();
       overlayGroupRef.current = null;
       userMarkerRef.current = null;
+      accuracyCircleRef.current = null;
       delete (window as any).__selectSupplier;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The detail panel changes the map container width after Leaflet has already
+  // measured it. Without invalidation the polyline can be fitted to a stale
+  // viewport and appear outside the visible area.
+  useEffect(() => {
+    if (!isMapReady || !mapRef.current || !leafletMap.current) return;
+    const map = leafletMap.current;
+    const invalidate = () => map.invalidateSize();
+    const timer = window.setTimeout(invalidate, 80);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(invalidate);
+      observer.observe(mapRef.current);
+    }
+    return () => {
+      window.clearTimeout(timer);
+      observer?.disconnect();
+    };
+  }, [isMapReady, selectedCompany]);
+
+  // Turn the freshly measured distance into the same transport estimate the
+  // cart uses: a supplier's published start/per-km rate wins, otherwise the
+  // platform delivery settings provide the fallback.
+  useEffect(() => {
+    if (distance === null || !selectedCompany) {
+      setTransportCost(null);
+      return;
+    }
+    let cancelled = false;
+    const supplierFees = companyMaterials
+      .map(material => material.delivery)
+      .filter((rate): rate is NonNullable<Material['delivery']> =>
+        Boolean(rate && rate.offered && Number.isFinite(rate.perKm)))
+      .map(rate => (rate.startFee || 0) + (rate.perKm || 0) * distance);
+    if (supplierFees.length > 0) {
+      setTransportCost(Math.round(Math.max(...supplierFees) * 100) / 100);
+      return;
+    }
+    if (!settings) return;
+    const weightTons = Math.max(
+      0.001,
+      companyMaterials.reduce((sum, material) =>
+        sum + Math.max(0, material.specifications?.weightPerUnit || 0) * Math.max(1, material.minOrder || 1), 0) / 1000
+    );
+    const origin = userPositionRef.current;
+    void computeDeliveryFee({
+      supplierLat: getCoords(selectedCompany).lat,
+      supplierLng: getCoords(selectedCompany).lng,
+      customerLat: origin.lat,
+      customerLng: origin.lng,
+      customerCity: currentUser?.city || null,
+      weightTons,
+      orderSubtotal: companyMaterials.reduce((sum, material) => sum + material.price, 0),
+      distanceKm: distance,
+      settings,
+    }).then(fee => {
+      if (!cancelled) setTransportCost(fee);
+    }).catch(() => {
+      if (!cancelled) setTransportCost(null);
+    });
+    return () => { cancelled = true; };
+  }, [distance, selectedCompany, companyMaterials, settings, currentUser?.city, getCoords]);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
@@ -720,11 +832,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 </div>
               ) : null}
 
-              {routeInfo && (
-                <div style={{ background: 'rgba(46,204,113,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #22c55e', fontSize: 13 }}>
-                   <strong>{Math.round(routeInfo.duration)} min</strong> estimated drive
-                </div>
-              )}
+               {routeInfo && (
+                 <div style={{ background: 'rgba(46,204,113,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #22c55e', fontSize: 13 }}>
+                    <strong>{Math.round(routeInfo.duration)} min</strong> estimated drive
+                 </div>
+               )}
+
+               {transportCost !== null && (
+                 <div style={{ background: 'rgba(245,158,11,0.12)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #f59e0b', fontSize: 13 }}>
+                    <strong>{transportCost.toLocaleString()} ETB</strong> estimated transport
+                 </div>
+               )}
 
               {userPositionRef.current.accuracy > 0 && (
                 <div style={{ background: 'rgba(168,85,247,0.1)', padding: '10px 14px', borderRadius: 8, borderLeft: '3px solid #a855f7', fontSize: 13 }}>

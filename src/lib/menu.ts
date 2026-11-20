@@ -81,6 +81,7 @@ export const MENUS: Record<MenuKey, RoleMenu> = {
     page: 'customer-workspace',
     sections: [
       { id: 'dashboard', label: 'Home', icon: '', hint: 'Open RFQs, quotations, orders and total spend overview.' },
+      { id: 'workflow', label: 'Customer Workflow', icon: '', hint: 'Find suppliers, order items, measure delivery, pay and track completion.' },
       { id: 'marketplace', label: 'Marketplace', icon: '', hint: 'Browse materials, categories, prices and availability.', page: 'marketplace' },
       { id: 'search', label: 'Search', icon: '', hint: 'Find by category, department, place or nearest supplier.', page: 'search-materials' },
       { id: 'compare', label: 'Compare Prices', icon: '', hint: 'Compare suppliers, unit prices, quantities and delivery costs.' },

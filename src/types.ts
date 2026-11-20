@@ -118,6 +118,10 @@ export interface Order {
   address: string;
   notes?: string;
   invoiceNumber: string;
+  /** Human-readable unique order reference generated when the order is placed. */
+  orderNumber?: string;
+  /** Exact road distance captured for delivery pricing (km). */
+  deliveryDistanceKm?: number;
   taxAmount: number;
   vatAmount: number;
   paymentMethod: string;
@@ -582,4 +586,43 @@ export interface BackupPayload {
   quotations?: Quotation[];
   complaints?: Complaint[];
   platform?: PlatformProfile;
+}
+
+/** One line selected in the customer order workflow before it is staged. */
+export interface WorkflowSelection {
+  materialId: string;
+  quantity: number;
+  includeDelivery: boolean;
+  distanceKm?: number;
+}
+
+export type WorkflowPaymentMethod = 'wallet' | 'bank' | 'cod';
+
+/** Delivery estimate shared by the GPS and payment stages of the workflow. */
+export interface DeliveryEstimate {
+  distanceKm: number;
+  durationMin: number;
+  transportCost: number;
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+}
+
+/** Confirmation returned by the single authoritative order-commit path. */
+export interface OrderReceipt {
+  orderIds: string[];
+  orderNumbers: string[];
+  total: number;
+  transportCost: number;
+  paymentMethod: WorkflowPaymentMethod;
+  transactionId: string;
+  paid: boolean;
+  createdAt: number;
+}
+
+/** Live vehicle position published by a transporter and read by the buyer. */
+export interface LiveGpsPosition {
+  sharing: boolean;
+  lat: number | null;
+  lng: number | null;
+  updatedAt?: number;
 }

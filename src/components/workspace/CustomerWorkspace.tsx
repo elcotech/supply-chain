@@ -18,6 +18,7 @@ import { useLanguage } from '../../lib/i18n';
 import { jobStatus, TRANSPORT_STATUS_LABELS } from '../../lib/transport';
 import useLocalCollection from '../../hooks/useLocalCollection';
 import { LineChart } from '../Charts';
+import CustomerWorkflow from './CustomerWorkflow';
 import WorkspaceShell from './shell';
 import { WorkspaceProps } from './types';
 import {
@@ -1559,6 +1560,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
 
   const renderSectionBody = () => {
     switch (section) {
+      case 'workflow': return <CustomerWorkflow {...props} />;
       case 'dashboard': case 'home': return renderDashboard();
       case 'profile': return renderProfile();
       case 'projects': return renderProjects();

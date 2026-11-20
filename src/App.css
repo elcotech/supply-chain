@@ -1777,6 +1777,49 @@ body {
   position: relative;
 }
 
+.supplier-marker,
+.supplier-marker-selected,
+.route-dest-marker,
+.user-marker {
+  background: transparent;
+  border: 0;
+}
+
+.escon-pin {
+  position: relative;
+  width: 34px;
+  height: 42px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: #1a4a6f;
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.escon-pin span {
+  transform: rotate(45deg);
+  white-space: nowrap;
+}
+.escon-pin-selected {
+  width: 40px;
+  height: 48px;
+  padding-top: 8px;
+  background: #16a34a;
+  font-size: 13px;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.25), 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+.escon-pin-dest {
+  background: #dc2626;
+  font-size: 10px;
+}
+
 .supplier-detail-panel {
   animation: slideInRight 0.5s ease forwards;
   padding: 16px 20px;

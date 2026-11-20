@@ -25,6 +25,11 @@ import {
   User,
   UserRole,
   WalletTx,
+  WorkflowSelection,
+  WorkflowPaymentMethod,
+  DeliveryEstimate,
+  OrderReceipt,
+  LiveGpsPosition,
 } from '../../types';
 
 export interface WorkspaceProps {
@@ -88,6 +93,23 @@ export interface WorkspaceProps {
   onOpenProduct: (material: Material) => void;
   onCheckout: () => void;
   onAddToCart: (material: Material, quantity: number) => boolean;
+  /** Re-read the catalogue from local cache/cloud before quoting fresh prices. */
+  onRefreshCatalog?: () => Promise<void>;
+  /** Stage exact workflow selections into the authoritative cart. */
+  onPrepareWorkflowOrder?: (selections: WorkflowSelection[]) => Promise<CartItem[] | null>;
+  /** Commit staged lines through App's VAT/delivery/wallet/cloud order path. */
+  onSubmitWorkflowOrder?: (
+    lines: CartItem[],
+    paymentMethod: WorkflowPaymentMethod,
+    origin?: { lat: number; lng: number }
+  ) => Promise<OrderReceipt | null>;
+  /** Measure the road route and transport cost for a supplier. */
+  onEstimateDelivery?: (
+    companyId: string,
+    origin?: { lat: number; lng: number }
+  ) => Promise<DeliveryEstimate | null>;
+  /** Read the latest shared position of an assigned transporter. */
+  onGetLiveGps?: (transporterId: string) => LiveGpsPosition | null;
   onToggleCompare: (materialId: string) => void;
   onSaveMyLocation: () => void;
   onOpenMessages: () => void;

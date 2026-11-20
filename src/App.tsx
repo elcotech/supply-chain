@@ -4,7 +4,7 @@ import './escon-v7.css';
 import './escon-transport.css';
 import './escon-workspace.css';
 import './escon-escon5.css';
-import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload, DeliveryMode, MaterialDelivery, TransporterProfile, TransportProof, Project, Rfq, Quotation, Complaint, AuditEvent, PlatformProfile } from './types';
+import { User, Company, Material, Order, Alert, FormData, SearchResult, CartItem, CartReport, CartSupplier, SystemSettings, ProformaShareData, AppNotification, WalletTx, ProductReview, BackupPayload, DeliveryMode, MaterialDelivery, TransporterProfile, TransportProof, Project, Rfq, Quotation, Complaint, AuditEvent, PlatformProfile, WorkflowSelection, WorkflowPaymentMethod, DeliveryEstimate, OrderReceipt, LiveGpsPosition } from './types';
 import {
   ETHIOPIAN_CITIES, MEASUREMENT_UNITS, DEPARTMENTS
 } from './constants';
@@ -12,9 +12,9 @@ import {
   safeLocalStorage, formatCurrency, formatDate, amountToWords,
   calculateDistance, roundKm, getCurrentCoordinates, isUserLocked, GeoCoordinates,
   exportToCSV, exportOrdersToCSV,
-  geocodeAddress, isGenericCoordinate, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode,
+  geocodeAddress, isGenericCoordinate, computeDeliveryFee, computeLineDeliveryFee, lineDeliveryMode, CITY_CENTERS,
   deliveryBasisLabel, checkMinOrder,
-  decodeProformaPayload, genId, forecastPrice, effectiveRating, applyWalletOp,
+  decodeProformaPayload, genId, generateOrderNumber, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
   stageCartLine, vatOnSubtotal, allocateVat, cartGrandTotal,
   normalizeEmail, findLoginUser
@@ -47,7 +47,7 @@ import {
 } from './lib/transport';
 import CommandPalette, { CommandItem } from './components/CommandPalette';
 import useIsMobile from './hooks/useIsMobile';
-import useLocalCollection from './hooks/useLocalCollection';
+import useLocalCollection, { readCollection } from './hooks/useLocalCollection';
 import { useLanguage } from './lib/i18n';
 import { MENUS, MenuKey, menuForRole } from './lib/menu';
 import { APP_VERSION } from './version';
@@ -2537,7 +2537,7 @@ function App() {
       }
       const placed = await confirmOrder(lines, true, coords);
       if (placed) setShowCartSummary(false);
-      return placed;
+      return Boolean(placed);
     } catch (error) {
       showAlert(
         error instanceof Error ? error.message : 'The order could not be placed. Please try again.',
@@ -2824,13 +2824,16 @@ function App() {
   const confirmOrder = async (
     linesOverride?: CartItem[],
     clearAfter = true,
-    origin?: { lat: number; lng: number }
-  ): Promise<boolean> => {
+    origin?: { lat: number; lng: number },
+    options?: { paymentMethod?: WorkflowPaymentMethod; navigateAfter?: boolean }
+  ): Promise<OrderReceipt | null> => {
     // Normally the whole cart is bought; the product-details Place Order action
     // passes the cart it just staged so it can commit without waiting for a
     // state round-trip.
     const lines = linesOverride || cart;
-    if (lines.length === 0 || isPlacingOrder) return false;
+    const method = options?.paymentMethod || paymentMethod;
+    const navigateAfter = options?.navigateAfter !== false;
+    if (lines.length === 0 || isPlacingOrder) return null;
     // A line with an exact product-page KM does not need a fresh position.
     // Request one only when at least one legacy/unmeasured line still needs it.
     const needsCoordinates = lines.some(item => measuredLineDistance(item) === null);
@@ -2842,7 +2845,7 @@ function App() {
     let buyerOrigin = origin;
     if (needsCoordinates && !buyerOrigin && !hasUserCoordinates(currentUser)) {
       buyerOrigin = (await refreshCurrentLocation()) ?? undefined;
-      if (!buyerOrigin) return false;
+      if (!buyerOrigin) return null;
     }
     const buyer: User | null = currentUser
       ? (buyerOrigin ? { ...currentUser, lat: buyerOrigin.lat, lng: buyerOrigin.lng } : currentUser)
@@ -2854,7 +2857,7 @@ function App() {
     if (!buyer || (needsCoordinates && !hasUserCoordinates(buyer))) {
       showAlert('Your current location is required before placing the order. Enable GPS/location access and press Order again.', 'danger');
       setShowCartSummary(true);
-      return false;
+      return null;
     }
     // Lock immediately: `priceCartItems` flips `isCalculating` back to false in
     // its own finally while this function is still running, so that flag alone
@@ -2869,23 +2872,23 @@ function App() {
     // The fresh origin (when there is one) is the same coordinate set the rows
     // below are recorded from, so summary, delivery fee and order cannot differ.
     const totals = await priceCartItems(lines, true, buyerOrigin);
-    if (!totals) return false;
+    if (!totals) return null;
     // Block submission when the configured minimum-order rule is not met so
     // the customer cannot accidentally create an unfulfillable order.
     if (totals.minOrderEnabled && totals.belowMinOrder) {
       showAlert('This order is below the minimum of ' + formatCurrency(totals.minOrderAmount || 0) + '. Please add more items.', 'danger');
       setShowCartSummary(true);
-      return false;
+      return null;
     }
     // When paying from the E-SCON wallet, validate and reserve the full total once.
     const wholeTotal = totals.total;
-    if (paymentMethod === 'wallet') {
+    if (method === 'wallet') {
       walletPaid = wholeTotal;
       const ok = applyWalletChange(buyer.id, 'payment', wholeTotal, `Payment for cart (${lines.length} item${lines.length > 1 ? 's' : ''})`);
       if (ok === null) {
         showAlert('Insufficient wallet balance. Please top up first.', 'danger');
         setShowCartSummary(true);
-        return false;
+        return null;
       }
       pushNotification(buyer.id, 'payment', 'Wallet payment successful',
         `ETB ${wholeTotal.toLocaleString()} paid with your wallet. Balance is now ${formatCurrency(ok)}.`);
@@ -2896,6 +2899,7 @@ function App() {
     const netByLine = lines.map(item => item.basePrice * (1 + item.profitMargin) * item.quantity);
     const vatByLine = allocateVat(netByLine, totals.vatAmount);
     const createdOrders: Order[] = [];
+    const committedAt = Date.now();
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const item = lines[lineIndex];
       // The material may have been deleted since the line was added; the order
@@ -2934,11 +2938,13 @@ function App() {
         address: currentUser?.address || '',
         notes: 'Order from cart - ' + lines.length + ' items total',
         invoiceNumber: 'INV-' + new Date().getFullYear() + '-' + (orders.length + 1000 + createdOrders.length),
+        orderNumber: generateOrderNumber(createdOrders.length, committedAt),
+        deliveryDistanceKm: distanceKm,
         taxAmount: 0,
         vatAmount: vatAmountItem,
-        paymentMethod: paymentMethod === 'wallet' ? 'E-SCON Wallet' : paymentMethod === 'cod' ? 'Cash on Delivery' : 'Bank Transfer',
-        paymentStatus: paymentMethod === 'wallet' ? 'paid' : 'pending',
-        walletPayment: paymentMethod === 'wallet',
+        paymentMethod: method === 'wallet' ? 'E-SCON Wallet' : method === 'cod' ? 'Cash on Delivery' : 'Bank Transfer',
+        paymentStatus: method === 'wallet' ? 'paid' : 'pending',
+        walletPayment: method === 'wallet',
         deliveryIncluded: deliveryMode !== 'none',
         revenueCredited: false
       };
@@ -2946,7 +2952,7 @@ function App() {
       notifyOrderParties(newOrder, `New order ${newOrder.invoiceNumber}`,
         `${currentUser!.name} ordered ${item.quantity} ${materialUnit} of ${materialName}  ETA ${deliveryEta(distanceKm)}.`);
       const buyerCompany = materialName;
-      if (paymentMethod === 'wallet') {
+      if (method === 'wallet') {
         pushNotification(currentUser!.id, 'order', 'Order confirmed on the platform',
           `${buyerCompany} purchased and is already marked paid from your wallet.`);
       }
@@ -2978,13 +2984,25 @@ function App() {
     if (walletPaid > 0) {
       pushNotification(currentUser!.id, 'order', 'Wallet orders placed',
         `${createdOrders.length} order(s) totalling ${formatCurrency(walletPaid)} were paid instantly from your wallet.`);
+    } else {
+      pushNotification(currentUser!.id, 'payment', 'Payment confirmation',
+        `${createdOrders.length} order(s) totalling ${formatCurrency(totals.total)} were submitted with ${method === 'cod' ? 'Cash on Delivery' : 'Bank Transfer'}. Awaiting settlement.`);
     }
     showAlert('Order placed successfully!  Total: ' + formatCurrency(totals.total), 'success');
     if (clearAfter) clearCart(true);
     setShowCartSummary(false);
-    setCurrentPage('orders');
-    setPaymentMethod('bank');
-    return true;
+    if (navigateAfter) setCurrentPage('orders');
+    if (!options?.paymentMethod) setPaymentMethod('bank');
+    return {
+      orderIds: placedOrders.map(order => order.id),
+      orderNumbers: placedOrders.map(order => order.orderNumber || order.invoiceNumber),
+      total: totals.total,
+      transportCost: totals.transportCost,
+      paymentMethod: method,
+      transactionId: genId('txn'),
+      paid: method === 'wallet',
+      createdAt: committedAt,
+    };
     } catch (error) {
       // If the wallet was charged but no order was committed, return the money
       // instead of leaving the customer with a silent failure.
@@ -2996,7 +3014,7 @@ function App() {
       console.error('Order failed', error);
       showAlert(error instanceof Error ? error.message : 'The order could not be placed. Please try again.', 'danger');
       setShowCartSummary(true);
-      return false;
+      return null;
     } finally {
       setIsCalculating(false);
       setIsPlacingOrder(false);
@@ -4096,6 +4114,128 @@ function App() {
     );
   };
 
+  // ---------- Customer workflow support ----------
+  const refreshCatalog = async () => {
+    try {
+      const rows = await fetchCloudChanges();
+      rows.forEach(row => applyCloudRow(row.key, row.data));
+    } catch (error) {
+      console.warn('Catalogue refresh could not reach the cloud', error);
+    }
+    setMaterials(readCollection<Material[]>('materials', materials));
+    setCompanies(readCollection<Company[]>('companies', companies));
+  };
+
+  const estimateWorkflowDelivery = async (
+    companyId: string,
+    origin?: { lat: number; lng: number }
+  ): Promise<DeliveryEstimate | null> => {
+    const company = getCompanyById(companyId);
+    if (!company) return null;
+    let buyerOrigin = origin;
+    if (!buyerOrigin && !hasUserCoordinates(currentUser)) {
+      buyerOrigin = (await refreshCurrentLocation()) ?? undefined;
+    }
+    const buyerForEstimate = buyerOrigin && currentUser
+      ? { ...currentUser, lat: buyerOrigin.lat, lng: buyerOrigin.lng }
+      : currentUser;
+    if (!buyerForEstimate || !hasUserCoordinates(buyerForEstimate)) return null;
+    const buyerCoords = buyerOrigin!;
+    let supplierPoint: { lat: number; lng: number } | null =
+      Number.isFinite(company.lat) && Number.isFinite(company.lng) && (company.lat !== 0 || company.lng !== 0)
+        ? { lat: company.lat as number, lng: company.lng as number }
+        : null;
+    if (!supplierPoint) {
+      supplierPoint = await geocodeAddress(company.location || '', company.city);
+    }
+    if (!supplierPoint) {
+      const center = CITY_CENTERS[company.city] || CITY_CENTERS['Addis Ababa'];
+      supplierPoint = center ? { lat: center.lat, lng: center.lng } : null;
+    }
+    if (!supplierPoint) return null;
+    try {
+      const distanceKm = roundKm(await calculateDistance(
+        supplierPoint.lat, supplierPoint.lng, buyerCoords.lat, buyerCoords.lng
+      ));
+      const supplierRates = materials
+        .filter(material => material.companyId === companyId && material.delivery?.offered)
+        .map(material => material.delivery as MaterialDelivery);
+      const supplierFee = supplierRates.length > 0
+        ? Math.max(...supplierRates.map(rate => (rate.startFee || 0) + (rate.perKm || 0) * distanceKm))
+        : null;
+      const platformFee = supplierFee === null
+        ? await computeDeliveryFee({
+            supplierLat: supplierPoint.lat,
+            supplierLng: supplierPoint.lng,
+            customerLat: buyerCoords.lat,
+            customerLng: buyerCoords.lng,
+            customerCity: currentUser?.city || null,
+            weightTons: 0.001,
+            orderSubtotal: 0,
+            distanceKm,
+            settings: systemSettings,
+          })
+        : 0;
+      return {
+        distanceKm,
+        durationMin: Math.max(10, Math.round((distanceKm / 35) * 60)),
+        transportCost: Math.round((supplierFee ?? platformFee) * 100) / 100,
+        origin: { lat: buyerCoords.lat, lng: buyerCoords.lng },
+        destination: supplierPoint,
+      };
+    } catch (error) {
+      console.warn('Workflow delivery estimate failed', error);
+      return null;
+    }
+  };
+
+  const prepareWorkflowOrder = async (selections: WorkflowSelection[]): Promise<CartItem[] | null> => {
+    if (!currentUser || currentUser.userType !== 'customer') {
+      showAlert('Please login as a customer to place an order.', 'danger');
+      return null;
+    }
+    let staged: CartItem[] = [];
+    for (const selection of selections) {
+      const material = getMaterialById(selection.materialId);
+      const company = material ? getCompanyById(material.companyId) : null;
+      if (!material || !company) {
+        showAlert('One of the selected items is no longer available.', 'danger');
+        return null;
+      }
+      let distanceKm = selection.distanceKm;
+      if (distanceKm === undefined && hasUserCoordinates(currentUser)) {
+        try {
+          distanceKm = roundKm(await calculateDistance(
+            company.lat, company.lng, currentUser.lat, currentUser.lng
+          ));
+        } catch {
+          distanceKm = undefined;
+        }
+      }
+      const next = stageCartLine(
+        staged, material, selection.quantity, selection.includeDelivery,
+        company.name, 'set', distanceKm
+      );
+      if (!next) {
+        showAlert('All items in one order must come from the same supplier.', 'danger');
+        return null;
+      }
+      staged = next;
+    }
+    setCart(staged);
+    repricedCart.current = '';
+    return staged;
+  };
+
+  const submitWorkflowOrder = async (
+    lines: CartItem[],
+    method: WorkflowPaymentMethod
+  ): Promise<OrderReceipt | null> =>
+    confirmOrder(lines, true, undefined, { paymentMethod: method, navigateAfter: false });
+
+  const getLiveGpsPosition = (transporterId: string): LiveGpsPosition | null =>
+    readCollection<LiveGpsPosition | null>(`transporter_gps_${transporterId}`, null);
+
   // ---------- v7 role workspaces (spec 2-4) ----------
   // Shared props: every workspace gets the same platform data and the same
   // handlers, so a mutation from any menu goes through the existing single
@@ -4150,6 +4290,11 @@ function App() {
     onOpenProduct: setSelectedMaterial,
     onCheckout: handleCheckout,
     onAddToCart: (material: Material, quantity: number) => addToCart(material, quantity, true),
+    onRefreshCatalog: refreshCatalog,
+    onPrepareWorkflowOrder: prepareWorkflowOrder,
+    onSubmitWorkflowOrder: submitWorkflowOrder,
+    onEstimateDelivery: estimateWorkflowDelivery,
+    onGetLiveGps: getLiveGpsPosition,
     onToggleCompare: toggleCompare,
     onSaveMyLocation: () => setShowMyLocationPicker(true),
     onOpenMessages: () => setShowNotifications(true),
@@ -4638,6 +4783,7 @@ function App() {
           autoRouteSupplierId={routeId}
           routeRequestId={routeRequestId}
           onRouteShown={(companyId) => setAutoRouteSupplierId(companyId)}
+          settings={systemSettings}
           onLocationFix={(fix) => {
             if (!currentUser) return;
             if (hasUserCoordinates(currentUser) &&
