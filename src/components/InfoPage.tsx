@@ -15,10 +15,10 @@ export interface InfoPageProps {
 }
 
 const TABS: { id: InfoTab; label: string; icon: string }[] = [
-  { id: 'about', label: 'About E-SCON', icon: '' },
-  { id: 'how', label: 'How it works', icon: '' },
-  { id: 'transport', label: 'Transport services', icon: '' },
-  { id: 'help', label: 'Help & support', icon: '' },
+  { id: 'about', label: 'About E-SCON', icon: 'ℹ️' },
+  { id: 'how', label: 'How it works', icon: '🧭' },
+  { id: 'transport', label: 'Transport services', icon: '🚚' },
+  { id: 'help', label: 'Help & support', icon: '🆘' },
 ];
 
 const STEPS = [

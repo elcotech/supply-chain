@@ -13,10 +13,10 @@ interface OrderTimelineProps {
 }
 
 const STEPS = [
-  { key: 'pending', label: 'Ordered', icon: '' },
-  { key: 'confirmed', label: 'Confirmed', icon: '[OK]' },
-  { key: 'shipped', label: 'In Transit', icon: '' },
-  { key: 'delivered', label: 'Delivered', icon: '' },
+  { key: 'pending', label: 'Ordered', icon: '🧾' },
+  { key: 'confirmed', label: 'Confirmed', icon: '✅' },
+  { key: 'shipped', label: 'In Transit', icon: '🚚' },
+  { key: 'delivered', label: 'Delivered', icon: '🏁' },
 ];
 
 const stepIndex = (status: string): number =>

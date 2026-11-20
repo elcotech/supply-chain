@@ -82,18 +82,18 @@ export interface TransporterDashboardProps {
 
 // Order and labels follow the specification's transporter menu exactly.
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'overview', label: 'Dashboard', icon: '' },
-  { id: 'profile', label: 'Company Profile', icon: '' },
-  { id: 'vehicles', label: 'Vehicle Management', icon: '' },
-  { id: 'drivers', label: 'Driver Management', icon: '' },
-  { id: 'requests', label: 'Delivery Requests', icon: '' },
-  { id: 'pricing', label: 'Transport Pricing', icon: '' },
-  { id: 'routes', label: 'Route Management', icon: '' },
-  { id: 'gps', label: 'GPS Tracking', icon: '' },
-  { id: 'dispatch', label: 'Dispatch', icon: '' },
-  { id: 'pod', label: 'Proof of Delivery', icon: '' },
-  { id: 'earnings', label: 'Financial Records', icon: '' },
-  { id: 'analytics', label: 'Performance Analytics', icon: '' },
+  { id: 'overview', label: 'Dashboard', icon: '📊' },
+  { id: 'profile', label: 'Company Profile', icon: '🏢' },
+  { id: 'vehicles', label: 'Vehicle Management', icon: '🚛' },
+  { id: 'drivers', label: 'Driver Management', icon: '👷' },
+  { id: 'requests', label: 'Delivery Requests', icon: '📨' },
+  { id: 'pricing', label: 'Transport Pricing', icon: '💰' },
+  { id: 'routes', label: 'Route Management', icon: '🗺️' },
+  { id: 'gps', label: 'GPS Tracking', icon: '📍' },
+  { id: 'dispatch', label: 'Dispatch', icon: '🚚' },
+  { id: 'pod', label: 'Proof of Delivery', icon: '✅' },
+  { id: 'earnings', label: 'Financial Records', icon: '💳' },
+  { id: 'analytics', label: 'Performance Analytics', icon: '📈' },
 ];
 
 const statusTone = (order: Order): string => {

@@ -53,6 +53,29 @@ import { MENUS, MenuKey, menuForRole } from './lib/menu';
 import { APP_VERSION } from './version';
 
 const THEME_KEY = 'escon_theme';
+const ESCON_LOGO = process.env.PUBLIC_URL + '/logo512.png';
+const PRODUCT_CATEGORY_EMOJIS: Record<string, string> = {
+  'Construction': '🏗️',
+  'Transport': '🚚',
+  'Health': '🏥',
+  'Education': '📚',
+  'Agriculture': '🌾',
+  'Manufacturing': '🏭',
+  'Energy': '⚡',
+  'Mining': '⛏️',
+  'Technology': '💻',
+  'Retail': '🛍️',
+  'Services': '🛠️',
+  'Hospitality': '🏨',
+  'Logistics': '📦',
+  'Pharmaceutical': '💊',
+  'Automotive': '🚗',
+  'Environmental': '🌱',
+  'Water': '💧',
+  'Telecom': '📡',
+  'Food & Beverage': '🍽️',
+};
+const productCategoryEmoji = (category: string) => PRODUCT_CATEGORY_EMOJIS[category] || '📦';
 
 // Live date & time shown on the shopping cart. The cart is a transient view so
 // a ticking clock here is desirable (unlike the proforma, which freezes a
@@ -3256,14 +3279,7 @@ function App() {
   // Render product image (or a category-based placeholder when none uploaded)
   const renderProductImage = (images: string[] | undefined, category: string, size = 'md') => {
     const src = images && images.length > 0 ? images[0] : null;
-    const emojiMap: Record<string, string> = {
-      'Construction': '-', 'Transport': '', 'Health': '', 'Education': '',
-      'Agriculture': '3/4', 'Manufacturing': '', 'Energy': '', 'Mining': '',
-      'Technology': '', 'Retail': '', 'Services': ' ', 'Hospitality': '',
-      'Logistics': '', 'Pharmaceutical': '', 'Automotive': '-', 'Environmental': '+/-',
-      'Water': '', 'Telecom': '', 'Food & Beverage': ''
-    };
-    const emoji = emojiMap[category] || '';
+    const emoji = productCategoryEmoji(category);
     if (src) {
       return <img className={'product-img product-img-' + size} src={src} alt="Product" loading="lazy" />;
     }
@@ -3303,7 +3319,7 @@ function App() {
   const renderSplash = () => (
     <div className="splash-screen">
       <div className="splash-content">
-        <div className="splash-logo">-</div>
+        <img className="splash-logo" src={ESCON_LOGO} alt="E-SCON logo" />
         <h1 className="splash-title">E-SCON</h1>
         <p className="splash-subtitle">Ethio-Supply Chain Optimization Network</p>
         <div className="splash-loader"><div className="loader-bar"></div></div>
@@ -3318,7 +3334,7 @@ function App() {
       <header className="header">
         <div className="header-content">
           <div className="logo" onClick={() => navigateTo('home')}>
-            <div className="logo-icon">-</div>
+            <img className="logo-icon" src={ESCON_LOGO} alt="E-SCON logo" />
             <div className="logo-text">
               <h1>E-SCON <span>{APP_VERSION.split('.').slice(0, 2).join('.')}</span></h1>
               <small>Build Smarter. Source Better.</small>
@@ -3412,12 +3428,12 @@ function App() {
       <NavMore
         active={['search-materials', 'supplier-map', 'login', 'register', 'info', 'language'].includes(currentPage)}
         items={[
-          { label: 'Find Products', icon: '', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
-          { label: 'Supplier Map', icon: '', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
-          { label: t('Language Settings'), icon: '', active: currentPage === 'language', onClick: () => navigateTo('language') },
-          { label: 'About & Help', icon: '', active: currentPage === 'info', onClick: () => openInfo('about') },
-          { label: 'Login', icon: '', active: currentPage === 'login', onClick: () => navigateTo('login') },
-          { label: 'Create Account', icon: '', active: currentPage === 'register', onClick: () => navigateTo('register') },
+          { label: 'Find Products', icon: '🔎', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
+          { label: 'Supplier Map', icon: '🗺️', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+          { label: t('Language Settings'), icon: '🌐', active: currentPage === 'language', onClick: () => navigateTo('language') },
+          { label: 'About & Help', icon: 'ℹ️', active: currentPage === 'info', onClick: () => openInfo('about') },
+          { label: 'Login', icon: '🔑', active: currentPage === 'login', onClick: () => navigateTo('login') },
+          { label: 'Create Account', icon: '📝', active: currentPage === 'register', onClick: () => navigateTo('register') },
         ]}
       />
     </>
@@ -3432,16 +3448,16 @@ function App() {
     const dashboardLabel = t(MENUS[menuKey].title);
     const inWorkspace = Object.values(MENUS).some(menu => menu.page === currentPage) || currentPage === 'customer-workspace' || currentPage === 'supplier-workspace' || currentPage === 'admin-workspace';
     const secondary = [
-      { label: 'Find Products', icon: '', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
-      { label: 'Supplier Map', icon: '', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
-      { label: 'About & Help', icon: '', active: currentPage === 'info', onClick: () => openInfo('about') },
+      { label: 'Find Products', icon: '🔎', active: currentPage === 'search-materials', onClick: () => navigateTo('search-materials') },
+      { label: 'Supplier Map', icon: '🗺️', active: currentPage === 'supplier-map', onClick: () => setShowSupplierMap(true) },
+      { label: 'About & Help', icon: 'ℹ️', active: currentPage === 'info', onClick: () => openInfo('about') },
       ...(isCompany ? [
         { label: 'Add Product', icon: '+', active: currentPage === 'add-material', onClick: () => navigateTo('add-material') },
-        { label: 'Company Profile', icon: '', active: currentPage === 'edit-company', onClick: handleEditCompany },
+        { label: 'Company Profile', icon: '🏢', active: currentPage === 'edit-company', onClick: handleEditCompany },
       ] : []),
       ...(isAdmin ? [
-        { label: 'Add Supplier', icon: '', active: false, onClick: handleAdminAddSupplier },
-        { label: 'Platform Settings', icon: '', active: currentPage === 'settings', onClick: () => navigateTo('settings') },
+        { label: 'Add Supplier', icon: '➕', active: false, onClick: handleAdminAddSupplier },
+        { label: 'Platform Settings', icon: '⚙️', active: currentPage === 'settings', onClick: () => navigateTo('settings') },
       ] : []),
     ];
     return (
@@ -3454,10 +3470,10 @@ function App() {
         <NavMore
           active={['search-materials', 'supplier-map', 'add-material', 'edit-company', 'settings', 'company-dashboard', 'customer-dashboard', 'transporter-dashboard', 'info', 'language'].includes(currentPage)}
           items={[
-            { label: dashboardLabel, icon: '', active: currentPage === dashboardPage, onClick: () => openWorkspace(menuKey) },
+            { label: dashboardLabel, icon: '📊', active: currentPage === dashboardPage, onClick: () => openWorkspace(menuKey) },
             ...secondary,
-            { label: t('Supplier Directory'), icon: '', active: currentPage === 'supplier-directory', onClick: () => navigateTo('supplier-directory') },
-            { label: t('Language Settings'), icon: '', active: currentPage === 'language', onClick: () => navigateTo('language') },
+            { label: t('Supplier Directory'), icon: '🏢', active: currentPage === 'supplier-directory', onClick: () => navigateTo('supplier-directory') },
+            { label: t('Language Settings'), icon: '🌐', active: currentPage === 'language', onClick: () => navigateTo('language') },
           ]}
         />
         <div className="user-info">
@@ -4526,53 +4542,60 @@ function App() {
     return (
       <main className="main-content">
         <div className="search-hero glass">
-          <h1> {welcomeTitle('Find Products')}</h1>
-          <p>Compare prices from verified suppliers</p>
+          <div className="search-hero-heading">
+            <img className="search-hero-logo" src={ESCON_LOGO} alt="E-SCON logo" />
+            <div className="search-hero-heading-copy">
+              <span className="search-hero-eyebrow">🏪 E-SCON Marketplace</span>
+              <h1>{welcomeTitle('Find Products')}</h1>
+              <p>🔎 Compare verified supplier prices, stock and road distance.</p>
+            </div>
+          </div>
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-input-group">
-              <input type="text" className="search-input-large" placeholder="Search products..." name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} />
-              <button type="submit" className="search-btn"></button>
+              <input type="text" className="search-input-large" placeholder="🔎 Search products, suppliers or brands..." aria-label="Search products" name="searchQuery" value={formData.searchQuery} onChange={handleInputChange} />
+              <button type="submit" className="search-btn">🔎 Search</button>
             </div>
             <div className="search-filters">
-              <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange}>
-                <option value="all">Dept</option>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+              <select className="filter-select" name="searchCategory" value={formData.searchCategory} onChange={handleInputChange} aria-label="Filter by department">
+                <option value="all">🏷️ All departments</option>
+                {DEPARTMENTS.map(d => <option key={d} value={d}>{productCategoryEmoji(d)} {d}</option>)}
               </select>
               <select className="filter-select" name="searchSupplier" value={formData.searchSupplier} onChange={handleInputChange} aria-label="Filter by supplier">
-                <option value="all">Supplier</option>
+                <option value="all">🏢 All suppliers</option>
                 {supplierOptions.map(company => (
-                  <option key={company.id} value={company.id}>{company.name}  {company.city}</option>
+                  <option key={company.id} value={company.id}>🏢 {company.name} - {company.city}</option>
                 ))}
               </select>
-              <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange}>
-                <option value="all">City</option>
-                {ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+              <select className="filter-select" name="searchCity" value={formData.searchCity} onChange={handleInputChange} aria-label="Filter by city">
+                <option value="all">📍 All cities</option>
+                {ETHIOPIAN_CITIES.map(c => <option key={c} value={c}>📍 {c}</option>)}
               </select>
-              <input type="number" className="filter-input" placeholder="Max Price" name="searchMaxPrice" value={formData.searchMaxPrice} onChange={handleInputChange} />
-              <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange}>
-                <option value="price_asc">Price </option>
-                <option value="price_desc">Price </option>
-                <option value="rating_desc">Rating</option>
-                <option value="newest">Newest</option>
-                <option value="nearest">Nearest</option>
+              <input type="number" className="filter-input" placeholder="💰 Max price" aria-label="Maximum price" name="searchMaxPrice" value={formData.searchMaxPrice} onChange={handleInputChange} />
+              <select className="filter-select" name="searchSortBy" value={formData.searchSortBy} onChange={handleInputChange} aria-label="Sort products">
+                <option value="price_asc">💰 Price: low to high</option>
+                <option value="price_desc">💰 Price: high to low</option>
+                <option value="rating_desc">⭐ Top rated</option>
+                <option value="newest">🆕 Newest</option>
+                <option value="nearest">📍 Nearest</option>
               </select>
-              <button type="button" className="filter-clear" onClick={clearFilters}>-</button>
+              <button type="button" className="filter-clear" onClick={clearFilters}>🧹 Clear filters</button>
             </div>
           </form>
         </div>
         <div className="search-results">
           <div className="results-header">
             <h2>
-              {isSearchPerformed 
-                ? ` Results (${displayMaterials.length})` 
-                : ' All Products'}
-              {activeSupplierName ? ` -  ${activeSupplierName}` : ''}
+              {isSearchPerformed
+                ? `🔎 Search results (${displayMaterials.length})`
+                : '📦 All products'}
+              {activeSupplierName ? ` - 🏢 ${activeSupplierName}` : ''}
             </h2>
           </div>
           {displayMaterials.length === 0 ? (
             <div className="no-results glass">
-              <p> No products found matching your criteria.</p>
-              <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Try adjusting your filters or search terms.</p>
+              <p>🔍 No products found matching your criteria.</p>
+              <p style={{ fontSize: '0.9rem', marginTop: '8px' }}>Try another search term or clear your filters.</p>
+              <button type="button" className="btn btn-secondary" onClick={clearFilters}>🧹 Clear filters and start again</button>
             </div>
           ) : isMobile ? (
             <div className="m-search-grid">
@@ -4597,12 +4620,12 @@ function App() {
           ) : (
             <ScrollableTable minWidth="1000px">
               <table className="data-table">
-                <thead><tr><th className="th-sticky">Product</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th>{canSeeStock && <th>Stock</th>}<th>Rating</th><th>Distance</th><th>Actions</th></tr></thead>
+                <thead><tr><th className="th-sticky">Product</th><th>Supplier</th><th>City</th><th>Price</th><th>Unit</th>{canSeeStock && <th>Stock</th>}<th>Rating</th><th>Distance</th><th>🛠️ Actions</th></tr></thead>
                 <tbody>
                   {(displayMaterials as SearchResult[]).map(item => {
                     const company = getCompanyById(item.companyId);
                     return (
-                      <tr 
+                      <tr
                         key={item.id}
                         className="product-row"
                         onClick={() => {
@@ -4615,33 +4638,32 @@ function App() {
                       >
                         <td className="product-cell td-sticky">
                           {renderProductImage(item.images, item.category, 'sm')}
-                          <div className="product-cell-info"><strong>{item.name}</strong>{item.brand && <small>{item.brand}</small>}</div>
+                          <div className="product-cell-info"><strong>{productCategoryEmoji(item.category)} {item.name}</strong>{item.brand && <small>{item.brand}</small>}</div>
                         </td>
-                        <td className="supplier-cell">{company?.name || 'Unknown'}</td>
-                        <td>{company?.city || 'N/A'}</td>
-                        <td className="price-cell">{formatCurrency(item.price)}</td>
+                        <td className="supplier-cell">🏢 {company?.name || 'Unknown'}</td>
+                        <td>📍 {company?.city || 'N/A'}</td>
+                        <td className="price-cell">💰 {formatCurrency(item.price)}</td>
                         <td>{item.unit}</td>
                         {canSeeStock && (
-                          <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? item.quantity : 'Out'}</td>
+                          <td className={item.quantity > 0 ? 'in-stock' : 'out-stock'}>{item.quantity > 0 ? `📦 ${item.quantity}` : '🚫 Out'}</td>
                         )}
-                        <td> {item.rating || 'N/A'}</td>
+                        <td>⭐ {item.rating || 'N/A'}</td>
                         <td className="distance-cell">
                           <span className="distance-badge" title={hasUserCoordinates(currentUser) ? 'Road distance from your current location' : 'Set your location to see the road distance'}>
-                            - {item.distance != null ? item.distance.toFixed(1) + ' km' : ''}
+                            📍 {item.distance != null ? `${item.distance.toFixed(1)} km away` : 'Add location'}
                           </span>
                         </td>
                         <td>
-                          <button className={'btn-icon ' + (favorites.includes(item.id) ? 'fav-active' : '')} title="Toggle favorite" onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}>{favorites.includes(item.id) ? '' : ''}</button>
-                          <button className={'btn-icon ' + (compareItems.includes(item.id) ? 'compare-active' : '')} title="Compare" onClick={(e) => { e.stopPropagation(); toggleCompare(item.id); }}>-</button>
-                          <button className="btn-icon map" title="View route on map" onClick={(e) => { e.stopPropagation(); if (company) handleOpenMapWithRoute(company.id); }}>-</button>
-                          <button className="btn-icon" title="View details" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}></button>
-                          <button className="btn-icon contact" title="Call supplier" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}></button>
-                          {currentUser?.userType === 'customer' && (
-                            // Quantity  and whether the line includes delivery  is
-                            // chosen in the product details, never from this row. The
-                            // cart itself is reached from the header button.
-                            <button className="btn-icon add-to-cart" title="View product & choose quantity" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}></button>
-                          )}
+                          <div className="product-actions">
+                            <button className={'btn-icon product-action ' + (favorites.includes(item.id) ? 'fav-active' : '')} title={favorites.includes(item.id) ? 'Remove from saved items' : 'Save for later'} aria-label={favorites.includes(item.id) ? 'Remove from saved items' : 'Save for later'} onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}>{favorites.includes(item.id) ? '❤️ Saved' : '🤍 Save'}</button>
+                            <button className={'btn-icon product-action ' + (compareItems.includes(item.id) ? 'compare-active' : '')} title={compareItems.includes(item.id) ? 'Remove from comparison' : 'Compare this product'} aria-label={compareItems.includes(item.id) ? 'Remove from comparison' : 'Compare this product'} onClick={(e) => { e.stopPropagation(); toggleCompare(item.id); }}>{compareItems.includes(item.id) ? '✅ Comparing' : '⚖️ Compare'}</button>
+                            <button className="btn-icon product-action map" title="View supplier route on map" aria-label="View supplier route on map" disabled={!company} onClick={(e) => { e.stopPropagation(); if (company) handleOpenMapWithRoute(company.id); }}>🗺️ Route</button>
+                            <button className="btn-icon product-action" title="View product details" aria-label="View product details" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>📄 Details</button>
+                            <button className="btn-icon product-action contact" title="Call supplier" aria-label="Call supplier" onClick={(e) => { e.stopPropagation(); handleContactSupplier(item.id); }}>📞 Call</button>
+                            {currentUser?.userType === 'customer' && (
+                              <button className="btn-icon product-action add-to-cart" title="Open product to choose quantity and order" aria-label="Open product to choose quantity and order" onClick={(e) => { e.stopPropagation(); setSelectedMaterial(item); }}>🛒 Order</button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -5264,7 +5286,7 @@ function App() {
     return (
       <header className="mobile-topbar">
         <div className="mobile-topbar-brand" onClick={() => navigateTo('home')}>
-          <span className="mobile-topbar-logo">-</span>
+          <img className="mobile-topbar-logo" src={ESCON_LOGO} alt="E-SCON logo" />
           <span className="mobile-topbar-title">{mobilePageTitle()}</span>
         </div>
         <div className="mobile-topbar-actions">
@@ -5504,38 +5526,35 @@ function App() {
         <button className="m-pc-img" onClick={onOpen} aria-label={'View details of ' + material.name}>
           {renderProductImage(material.images, material.category, 'md')}
           <span className="m-pc-view-hint" aria-hidden="true">
-            <span className="m-pc-view-icon"></span>
+            <span className="m-pc-view-icon">👁️</span>
             <span className="m-pc-view-text">View details</span>
           </span>
         </button>
         {!isFav && (
-          <button className="m-pc-fav" onClick={onToggleFav} aria-label="Save for later"></button>
+          <button className="m-pc-fav" onClick={onToggleFav} aria-label="Save for later">🤍</button>
         )}
         <div className="m-pc-body">
-          <button className="m-pc-name" onClick={onOpen}>{material.name}</button>
-          {material.brand && <div className="m-pc-brand">{material.brand}</div>}
-          <div className="m-pc-supplier">{company?.name || 'Unknown'}{company?.city ? ' - ' + company.city : ''}</div>
-          {distanceKm != null && <div className="m-pc-distance">- {distanceKm.toFixed(1)} km</div>}
+          <button className="m-pc-name" onClick={onOpen}>{productCategoryEmoji(material.category)} {material.name}</button>
+          {material.brand && <div className="m-pc-brand">🏷️ {material.brand}</div>}
+          <div className="m-pc-supplier">🏢 {company?.name || 'Unknown'}{company?.city ? ' - ' + company.city : ''}</div>
+          {distanceKm != null && <div className="m-pc-distance">📍 {distanceKm.toFixed(1)} km away</div>}
           <div className="m-pc-price-row">
-            <div className="m-pc-price">{formatCurrency(material.price)}<span className="m-pc-unit"> / {material.unit}</span></div>
+            <div className="m-pc-price">💰 {formatCurrency(material.price)}<span className="m-pc-unit"> / {material.unit}</span></div>
             {canSeeStock && (
-              <span className={outOfStock ? 'm-pc-stock out' : 'm-pc-stock'}>{outOfStock ? 'Out' : 'In stock'}</span>
+              <span className={outOfStock ? 'm-pc-stock out' : 'm-pc-stock'}>{outOfStock ? '🚫 Out' : '📦 In stock'}</span>
             )}
           </div>
           {currentUser?.userType === 'customer' && (
             <div className="m-pc-buy">
-              {/* GPS and Order sit side by side below the Find button: one opens
-                  the supplier's route on the map, the other opens the order
-                  stepper. Tapping the card itself still opens product details. */}
               <button
                 type="button"
                 className="m-pc-map-btn"
                 onClick={() => company && handleOpenMapWithRoute(company.id)}
                 disabled={!company}
                 aria-label={'Open GPS route to ' + (company?.name || 'supplier')}
-              >- GPS</button>
+              >🗺️ Route</button>
               <button className={'m-pc-add-btn' + (isInCart ? ' ordered' : '')} onClick={onOpen}>
-                {isInCart ? ' Ordered  edit' : ' Order'}
+                {isInCart ? '🛒 Edit order' : '🛒 Order now'}
               </button>
             </div>
           )}
@@ -6100,15 +6119,15 @@ function App() {
   };
 
   const commandItems: CommandItem[] = [
-    { id: 'nav-home', group: 'Navigate', label: 'Home', hint: 'Dashboard, trends and quick actions', icon: ' ', keywords: 'start overview dashboard', run: () => navigateTo('home') },
-    { id: 'nav-market', group: 'Navigate', label: 'Marketplace', hint: 'Browse, compare and order verified materials', icon: '', keywords: 'shop catalogue products store', run: () => navigateTo('marketplace') },
-    { id: 'nav-search', group: 'Navigate', label: 'Find Products', hint: 'Search by material, supplier, city or price', icon: '', keywords: 'search filter catalogue', run: () => navigateTo('search-materials') },
-    { id: 'nav-analytics', group: 'Navigate', label: 'Analytics & Insights', hint: 'Role-scoped KPIs, charts and reports', icon: '', keywords: 'insights reports charts analytics', run: () => navigateTo('analytics') },
-    { id: 'nav-copilot', group: 'Navigate', label: 'Copilot AI', hint: 'Ask questions about your live supply-chain data', icon: '-', keywords: 'ai assistant ask forecast', run: () => openCopilot() },
-    { id: 'nav-map', group: 'Navigate', label: 'Supplier Map', hint: 'Explore suppliers, pins and delivery routes', icon: '-', keywords: 'gps route location map', run: () => setShowSupplierMap(true) },
-    { id: 'nav-info', group: 'Navigate', label: 'About & Help', hint: 'How E-SCON works, transport services and support', icon: '1', keywords: 'about help faq how it works transport support', run: () => openInfo('about') },
-    { id: 'nav-install', group: 'Navigate', label: 'Install App', hint: 'Add E-SCON to your home screen', icon: '2', keywords: 'pwa offline home screen', run: () => setShowInstallGuide(true) },
-    { id: 'pref-theme', group: 'Preferences', label: darkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme', hint: 'Theme is saved on this device', icon: darkMode ? '' : '', keywords: 'appearance dark light mode', run: () => setDarkMode(value => !value) },
+    { id: 'nav-home', group: 'Navigate', label: 'Home', hint: 'Dashboard, trends and quick actions', icon: '🏠', keywords: 'start overview dashboard', run: () => navigateTo('home') },
+    { id: 'nav-market', group: 'Navigate', label: 'Marketplace', hint: 'Browse, compare and order verified materials', icon: '🛍️', keywords: 'shop catalogue products store', run: () => navigateTo('marketplace') },
+    { id: 'nav-search', group: 'Navigate', label: 'Find Products', hint: 'Search by material, supplier, city or price', icon: '🔎', keywords: 'search filter catalogue', run: () => navigateTo('search-materials') },
+    { id: 'nav-analytics', group: 'Navigate', label: 'Analytics & Insights', hint: 'Role-scoped KPIs, charts and reports', icon: '📊', keywords: 'insights reports charts analytics', run: () => navigateTo('analytics') },
+    { id: 'nav-copilot', group: 'Navigate', label: 'Copilot AI', hint: 'Ask questions about your live supply-chain data', icon: '🤖', keywords: 'ai assistant ask forecast', run: () => openCopilot() },
+    { id: 'nav-map', group: 'Navigate', label: 'Supplier Map', hint: 'Explore suppliers, pins and delivery routes', icon: '🗺️', keywords: 'gps route location map', run: () => setShowSupplierMap(true) },
+    { id: 'nav-info', group: 'Navigate', label: 'About & Help', hint: 'How E-SCON works, transport services and support', icon: 'ℹ️', keywords: 'about help faq how it works transport support', run: () => openInfo('about') },
+    { id: 'nav-install', group: 'Navigate', label: 'Install App', hint: 'Add E-SCON to your home screen', icon: '📲', keywords: 'pwa offline home screen', run: () => setShowInstallGuide(true) },
+    { id: 'pref-theme', group: 'Preferences', label: darkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme', hint: 'Theme is saved on this device', icon: darkMode ? '☀️' : '🌙', keywords: 'appearance dark light mode', run: () => setDarkMode(value => !value) },
   ];
   if (currentUser) {
     const menuKey = menuForRole(currentUser.userType);
@@ -6116,43 +6135,43 @@ function App() {
       {
         id: 'nav-workspace', group: 'Navigate', label: MENUS[menuKey].title + ' Workspace',
         hint: 'Open the role menu: ' + MENUS[menuKey].subtitle,
-        icon: '-', keywords: 'workspace dashboard menu ' + menuKey,
+        icon: '🧭', keywords: 'workspace dashboard menu ' + menuKey,
         run: () => openWorkspace(menuKey),
       },
-      { id: 'nav-directory', group: 'Navigate', label: 'Supplier Directory', hint: 'Browse approved supplier businesses', icon: '', keywords: 'suppliers directory companies', run: () => navigateTo('supplier-directory') },
-      { id: 'nav-language', group: 'Preferences', label: 'Language Settings', hint: 'English and Amharic', icon: '', keywords: 'language amharic english translation', run: () => navigateTo('language') },
-      { id: 'nav-orders', group: 'Navigate', label: 'Orders', hint: 'Track, inspect and manage orders', icon: '', keywords: 'purchase delivery status', run: () => navigateTo('orders') },
-      { id: 'nav-wallet', group: 'Account', label: 'E-SCON Wallet', hint: `Balance ${formatCurrency(walletBalance(currentUser.id))}`, icon: '3', keywords: 'money balance payment', run: () => setShowWallet(true) },
-      { id: 'nav-notifications', group: 'Account', label: 'Notifications', hint: unreadNotifications() > 0 ? `${unreadNotifications()} unread` : 'All caught up', icon: '', keywords: 'alerts messages inbox', run: () => setShowNotifications(true) },
-      { id: 'nav-data', group: 'Account', label: 'Data Center', hint: 'Back up or restore your data', icon: '', keywords: 'backup restore export json', run: () => setShowDataCenter(true) }
+      { id: 'nav-directory', group: 'Navigate', label: 'Supplier Directory', hint: 'Browse approved supplier businesses', icon: '🏢', keywords: 'suppliers directory companies', run: () => navigateTo('supplier-directory') },
+      { id: 'nav-language', group: 'Preferences', label: 'Language Settings', hint: 'English and Amharic', icon: '🌐', keywords: 'language amharic english translation', run: () => navigateTo('language') },
+      { id: 'nav-orders', group: 'Navigate', label: 'Orders', hint: 'Track, inspect and manage orders', icon: '🧾', keywords: 'purchase delivery status', run: () => navigateTo('orders') },
+      { id: 'nav-wallet', group: 'Account', label: 'E-SCON Wallet', hint: `Balance ${formatCurrency(walletBalance(currentUser.id))}`, icon: '💳', keywords: 'money balance payment', run: () => setShowWallet(true) },
+      { id: 'nav-notifications', group: 'Account', label: 'Notifications', hint: unreadNotifications() > 0 ? `${unreadNotifications()} unread` : 'All caught up', icon: '🔔', keywords: 'alerts messages inbox', run: () => setShowNotifications(true) },
+      { id: 'nav-data', group: 'Account', label: 'Data Center', hint: 'Back up or restore your data', icon: '🗄️', keywords: 'backup restore export json', run: () => setShowDataCenter(true) }
     );
   }
   if (currentUser?.userType === 'customer') {
-    commandItems.push({ id: 'nav-cart', group: 'Account', label: 'Open Cart', hint: 'Review delivery, VAT and your proforma', icon: '', keywords: 'basket checkout order', run: () => handleCheckout() });
+    commandItems.push({ id: 'nav-cart', group: 'Account', label: 'Open Cart', hint: 'Review delivery, VAT and your proforma', icon: '🛒', keywords: 'basket checkout order', run: () => handleCheckout() });
   }
   if (currentUser?.userType === 'company') {
     commandItems.push(
-      { id: 'nav-add-product', group: 'Supplier', label: 'Add Product', hint: 'List a new material for buyers', icon: '-', keywords: 'new listing material', run: () => navigateTo('add-material') },
-      { id: 'nav-company', group: 'Supplier', label: 'Company Profile', hint: 'Update your supplier profile and location', icon: '', keywords: 'supplier profile company edit', run: () => handleEditCompany() }
+      { id: 'nav-add-product', group: 'Supplier', label: 'Add Product', hint: 'List a new material for buyers', icon: '➕', keywords: 'new listing material', run: () => navigateTo('add-material') },
+      { id: 'nav-company', group: 'Supplier', label: 'Company Profile', hint: 'Update your supplier profile and location', icon: '🏢', keywords: 'supplier profile company edit', run: () => handleEditCompany() }
     );
   }
   if (currentUser?.userType === 'transporter') {
     commandItems.push(
-      { id: 'nav-transporter', group: 'Transport', label: 'Transporter Dashboard', hint: 'Delivery requests, dispatch, fleet and earnings', icon: '', keywords: 'transport delivery jobs dispatch fleet driver earnings', run: () => navigateTo('transporter-dashboard') },
-      { id: 'nav-transport-info', group: 'Transport', label: 'Transport Services', hint: 'How delivery matching and pricing work', icon: '', keywords: 'transport services coverage rates truck', run: () => openInfo('transport') }
+      { id: 'nav-transporter', group: 'Transport', label: 'Transporter Dashboard', hint: 'Delivery requests, dispatch, fleet and earnings', icon: '🚛', keywords: 'transport delivery jobs dispatch fleet driver earnings', run: () => navigateTo('transporter-dashboard') },
+      { id: 'nav-transport-info', group: 'Transport', label: 'Transport Services', hint: 'How delivery matching and pricing work', icon: '🚚', keywords: 'transport services coverage rates truck', run: () => openInfo('transport') }
     );
   }
   if (currentUser?.userType === 'admin') {
     commandItems.push(
-      { id: 'nav-dashboard', group: 'Admin', label: 'Admin Control Room', hint: 'Platform health, compliance and accounts', icon: '', keywords: 'dashboard overview admin analytics', run: () => navigateTo('analytics') },
-      { id: 'admin-add-supplier', group: 'Admin', label: 'Add Supplier', hint: 'Create a supplier login and company profile', icon: '', keywords: 'supplier vendor onboard create account', run: handleAdminAddSupplier },
-      { id: 'nav-settings', group: 'Admin', label: 'Platform Settings', hint: 'Delivery, VAT, users and catalogue controls', icon: '', keywords: 'configuration admin delivery vat', run: () => navigateTo('settings') }
+      { id: 'nav-dashboard', group: 'Admin', label: 'Admin Control Room', hint: 'Platform health, compliance and accounts', icon: '🛠️', keywords: 'dashboard overview admin analytics', run: () => navigateTo('analytics') },
+      { id: 'admin-add-supplier', group: 'Admin', label: 'Add Supplier', hint: 'Create a supplier login and company profile', icon: '🏢', keywords: 'supplier vendor onboard create account', run: handleAdminAddSupplier },
+      { id: 'nav-settings', group: 'Admin', label: 'Platform Settings', hint: 'Delivery, VAT, users and catalogue controls', icon: '⚙️', keywords: 'configuration admin delivery vat', run: () => navigateTo('settings') }
     );
   }
   if (!currentUser) {
     commandItems.push(
-      { id: 'auth-login', group: 'Account', label: 'Login', hint: 'Sign in to your E-SCON account', icon: '', keywords: 'sign in account', run: () => navigateTo('login') },
-      { id: 'auth-register', group: 'Account', label: 'Create Account', hint: 'Register as a buyer, supplier or transporter', icon: '', keywords: 'register sign up new transporter supplier buyer', run: () => navigateTo('register') }
+      { id: 'auth-login', group: 'Account', label: 'Login', hint: 'Sign in to your E-SCON account', icon: '🔑', keywords: 'sign in account', run: () => navigateTo('login') },
+      { id: 'auth-register', group: 'Account', label: 'Create Account', hint: 'Register as a buyer, supplier or transporter', icon: '📝', keywords: 'register sign up new transporter supplier buyer', run: () => navigateTo('register') }
     );
   }
   materials.forEach(material => {
@@ -6162,7 +6181,7 @@ function App() {
       group: 'Products',
       label: material.name,
       hint: `${company?.name || 'Supplier'}${company?.city ? ' - ' + company.city : ''} - ${formatCurrency(material.price)} / ${material.unit}`,
-      icon: '',
+      icon: productCategoryEmoji(material.category),
       keywords: `${material.category} ${material.brand || ''} ${company?.name || ''} ${company?.city || ''}`,
       run: () => setSelectedMaterial(material),
     });

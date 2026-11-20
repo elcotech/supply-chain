@@ -107,12 +107,12 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <Panel title="Services of E-SCON" subtitle="Core platform services">
         <div className="ws-quick-grid">
           {[
-            { icon: '', t: 'Digital Marketplace', d: 'Browse verified construction materials with advertised prices and supplier details.', id: 'products' },
-            { icon: '', t: 'RFQ & Quotations', d: 'Request, receive, compare and manage supplier quotations as recorded ledgers.', id: 'rfqs' },
-            { icon: '', t: 'Orders & Proformas', d: 'Place orders, generate proformas and track detailed buyersupplier transactions.', id: 'orders' },
-            { icon: '', t: 'Logistics & Delivery', d: 'Coordinate transport, delivery progress and fulfillment status.', id: 'logistics' },
-            { icon: '', t: 'Market Intelligence', d: 'Price trends, demand insights and geographic comparisons.', id: 'ai' },
-            { icon: '...', t: 'Verification & Trust', d: 'Verification of suppliers, vehicles, licenses and compliance.', id: 'suppliers' },
+            { icon: '🛒', t: 'Digital Marketplace', d: 'Browse verified construction materials with advertised prices and supplier details.', id: 'products' },
+            { icon: '📨', t: 'RFQ & Quotations', d: 'Request, receive, compare and manage supplier quotations as recorded ledgers.', id: 'rfqs' },
+            { icon: '🧾', t: 'Orders & Proformas', d: 'Place orders, generate proformas and track detailed buyersupplier transactions.', id: 'orders' },
+            { icon: '🚚', t: 'Logistics & Delivery', d: 'Coordinate transport, delivery progress and fulfillment status.', id: 'logistics' },
+            { icon: '📈', t: 'Market Intelligence', d: 'Price trends, demand insights and geographic comparisons.', id: 'ai' },
+            { icon: '🛡️', t: 'Verification & Trust', d: 'Verification of suppliers, vehicles, licenses and compliance.', id: 'suppliers' },
           ].map(s => (
             <button key={s.t} type="button" className="ws-card" style={{ padding: 14, textAlign: 'left', cursor: 'pointer' }} onClick={() => onSection(s.id)}>
               <div style={{ fontSize: 22 }}>{s.icon}</div>
@@ -183,10 +183,10 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       { key: 'action', header: '', noExport: true, render: c => <button className="btn btn-secondary btn-sm" onClick={() => onSection('suppliers')}>{c.complianceStatus === 'compliant' ? 'View' : 'Review'}</button> },
     ];
     const queues = [
-      { label: 'User Verification Queue', value: users.filter(u => isUserLocked(u)).length, hint: 'Attention required', id: 'users', icon: '' },
-      { label: 'Supplier Verification Queue', value: companies.filter(c => c.complianceStatus !== 'compliant').length, hint: 'Applications to review', id: 'suppliers', icon: '' },
-      { label: 'Transport Verification Queue', value: transporterProfiles.filter(p => !p.verified).length, hint: 'Vehicles and operators', id: 'transporters', icon: '' },
-      { label: 'Product Statistics', value: materials.length, hint: `${materials.filter(m => m.quantity <= 0).length} out of stock`, id: 'products', icon: '' },
+      { label: 'User Verification Queue', value: users.filter(u => isUserLocked(u)).length, hint: 'Attention required', id: 'users', icon: '👥' },
+      { label: 'Supplier Verification Queue', value: companies.filter(c => c.complianceStatus !== 'compliant').length, hint: 'Applications to review', id: 'suppliers', icon: '🏢' },
+      { label: 'Transport Verification Queue', value: transporterProfiles.filter(p => !p.verified).length, hint: 'Vehicles and operators', id: 'transporters', icon: '🚛' },
+      { label: 'Product Statistics', value: materials.length, hint: `${materials.filter(m => m.quantity <= 0).length} out of stock`, id: 'products', icon: '📦' },
     ];
     return (
       <>
