@@ -1,4 +1,4 @@
-# E-SCON 5.0 - Ethio-Supply Chain Optimization Network
+# E-SCON 5.0.1 - Ethio-Supply Chain Optimization Network
 
 > **AI-Powered Integrated Supply Chain Network** - Mobile App + Web Platform + Global Network
 >
@@ -20,15 +20,18 @@ A single-page React + TypeScript platform connecting Ethiopian suppliers and cus
 
 
 
-## E-SCON 5.0 update (this workspace)
+## E-SCON 5.0.1 update (this workspace)
 
+- **Map-first supplier locations:** creating or editing a supplier now opens a prominent **Pick on map** / **Use my current location** card; the picker supports click/drag pins, place search, GPS, reverse-geocoded address and city, and a required pin before saving (`src/components/EditCompany.tsx`, `src/components/MapPicker.tsx`).
+- **PDF receipts:** the admin per-order **Download summary (CSV)** button was replaced with **Receipt (PDF)**, which opens a receipt-style document to print or save as PDF (`src/lib/receipt.ts`). Bulk reports remain CSV.
+- **Python analytics:** `analytics/analyze.py` reads E-SCON CSV exports with pandas and generates PNG charts (revenue/orders by month, status, top suppliers, categories, average prices and supplier cities) with matplotlib.
 - **E-SCON 5.0 UI/theme:** dark navy + gold visual identity (`src/escon-escon5.css`), foldable/responsive workspace shell (collapsible sidebar, mobile drawer, horizontal chips/details nav) with `E-SCON 5.0 - Ethiopia and Beyond` branding.
 - **Role menus (spec-aligned):** rewritten `src/lib/menu.ts` section IDs/labels for Administration, Supplier, Customer/Contractor, Guest/Public (transporter retained).
-- **Administration workspace:** Home (Vision/Mission/Services/Advertisements/Graphics), Dashboard KPIs (Active Users, Registered Suppliers, Verified Vehicles, RFQs, Total Orders), Platform-wide real-time analytics, Supplier License Approvals/progress, Verification Queue; plus Users, Supplier/Transport verification, Products, RFQ management, Market Intelligence, Finance, Reports (CSV), Complaints, **Notifications ledger** (recorded/grouped by category and supplier with broadcast meta), **Quotations ledger** (separate, by supplier/status, exportable), Orders with detailed buyer-supplier transactions and per-order summary download, Settings/audit.
+- **Administration workspace:** Home (Vision/Mission/Services/Advertisements/Graphics), Dashboard KPIs (Active Users, Registered Suppliers, Verified Vehicles, RFQs, Total Orders), Platform-wide real-time analytics, Supplier License Approvals/progress, Verification Queue; plus Users, Supplier/Transport verification, Products, RFQ management, Market Intelligence, Finance, Reports (CSV), Complaints, **Notifications ledger** (recorded/grouped by category and supplier with broadcast meta), **Quotations ledger** (separate, by supplier/status, exportable), Orders with detailed buyer-supplier transactions and per-order PDF receipts, Settings/audit.
 - **Supplier/Customer/Guest:** section-ID compatibility fallbacks for new menus; Guest public dashboard and existing Supplier/Customer dashboards retained with E-SCON 5.0 shell/theme.
 - **Search:** added `Nearest` sort option (distance-aware when location available) alongside existing category/city/supplier filters.
 - **Data/compatibility:** extended `AppNotification` (quotation/rfq, category, supplierId/supplierName) and notification broadcast/meta; preserved existing localStorage/Supabase persistence flows.
-- **Build & artifacts:** production web build and tests pass, Capacitor Android assets are synced, and Android artifacts were rebuilt (`assembleDebug`, `assembleRelease`, `bundleRelease`) and refreshed at the repo root as `E-SCON-debug.apk`, `E-SCON-release.apk`, and `E-SCON-release.aab`.
+- **Build & artifacts:** production web build and all 115 tests pass, Capacitor Android assets are synced, and Android artifacts were rebuilt (`versionCode 29`, `versionName 5.0.1`, service worker `e-scon-v5.0.3`) and refreshed at the repo root as `E-SCON-debug.apk`, `E-SCON-release.apk`, and `E-SCON-release.aab`.
 - **Readable charts & coordinates:** analytics charts now use clearly labeled X/Y axes with proper units and indexed 90° labels for readability; GPS/coordinate displays show readable WGS84 values with N/S/E/W and degree units in profile, admin, and map views.
 
 
@@ -40,6 +43,17 @@ npm start        # http://localhost:3000
 npm test         # test runner
 npm run build    # production build  to  ./build
 ```
+
+### Python chart analysis
+
+Export the app data as CSV (Orders, Products, Suppliers), then:
+
+```bash
+pip install -r analytics/requirements.txt
+python analytics/analyze.py --orders orders_export.csv --products products.csv --companies suppliers.csv --output charts
+```
+
+The script prints summary figures and writes PNG charts into `charts/`.
 
 ### Demo login
 
@@ -74,7 +88,7 @@ The **Admin** account configures the delivery-fee model, delivery zones, free-de
 -  **One KM everywhere (v6.15)** - search results, the product page, the cart, the proforma and the placed order all measure from the buyer's current pin and round to the same 0.1 km. The map now reports its real GPS fix back to the app, the cart re-measures saved lines when that pin moves (including after a reload), and the proforma no longer prints a separate delivery breakdown: the **Delivery Cost** row is the single, consistent total.
 -  **Centred A4-width cart on desktop (v6.16)** - on computers and tablets the cart is presented as a centred 794px A4-width sheet that hugs its content instead of stretching edge to edge, with the wasted padding removed and the clock on its own line. The supplier map now measures from the same saved buyer pin as search and the product page (before and after a refresh), never from a hidden Addis default. Phones keep their full-screen cart unchanged.
 -  **Marketplace (v6.17)** - a storefront view of the same catalogue: hero search, category/city chips, price/rating/newest sorting, supplier storefront profiles, route shortcuts, favourites, compare and one-tap cart. Adding an item uses the existing cart and pricing path, so there is no duplicate data.
--  **Analytics & Insights (v6.17, guest-safe in v6.19, transporter-aware in v6.20)** - role-scoped KPIs and charts for admins (whole platform), suppliers (own company), transporters (assigned delivery jobs, earnings and average job fee) and customers (own orders): 30/90/365-day and all-time periods, growth vs the previous period, revenue/GMV, active and delivered orders, delivery and VAT, stock value and low-stock counts, six-month trends, status/category/city charts, top products/suppliers/customers, price forecasts and plain-language insights. Guests see only public catalogue data (products, suppliers, cities, ratings and price ranges) - no revenue, orders, customers, margin, stock, forecasts, CSV export or Copilot. Suppliers and admins can export CSV.
+-  **Analytics & Insights (v6.17, guest-safe in v6.19, transporter-aware in v6.20)** - role-scoped KPIs and charts for admins (whole platform), suppliers (own company), transporters (assigned delivery jobs, earnings and average job fee) and customers (own orders): 30/90/365-day and all-time periods, growth vs the previous period, revenue/GMV, active and delivered orders, delivery and VAT, stock value and low-stock counts, six-month trends, status/category/city charts, top products/suppliers/customers, price forecasts and plain-language insights. Guests see only public catalogue data (products, suppliers, cities, ratings and price ranges) - no revenue, orders, customers, margin, stock, forecasts, CSV export or Copilot. Suppliers and admins can export CSV and feed those exports into the Python chart generator in `analytics/`.
 -  **Copilot AI (v6.17)** - ask questions in natural language ("How is revenue this month?", "What should I restock?") and get answers built only from your own role-scoped analytics. It is deterministic and on-device (no API key, no data leaves the phone), renders metric cards and mini-charts, suggests follow-ups and keeps a per-tab conversation history.
 -  **Quick Search command palette (v6.18)** - press **Ctrl/ + K**, the  header button, or **More  to  Quick Search** on a phone to jump to any page, action or product. It learns your most-used commands, ranks by relevance, supports ^/v/Enter/Esc, and adds a one-tap **Search all products for "..."** hand-off to the catalogue.
 -  **Online/offline awareness (v6.18)** - a clear banner appears while the device is offline, explaining that saved data stays available and cloud sync resumes on reconnect. The theme choice now persists and updates the mobile browser theme colour.

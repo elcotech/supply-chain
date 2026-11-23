@@ -1,4 +1,4 @@
-# E-SCON 5.0 - User Guide
+# E-SCON 5.0.1 - User Guide
 
 **E-SCON** (Ethio-Supply Chain Optimization Network) connects **suppliers** with
 **customers** in Ethiopia. You can search for products, see suppliers on a map,
@@ -37,7 +37,9 @@ A **Guest / Public View** lets anyone browse featured materials, public prices, 
    - **Customers:** **Dashboard  to  My Location  to  Edit / use current location**, then
      drag the pin or press **Locate Me**.
    - **Suppliers:** **Profile  to  Edit Company Profile** (or **Edit Company Profile**
-     on the dashboard) and click/drag the marker.
+     on the dashboard). The location form is map-first: press **Pick on map** or
+     **Use my current location**, then click the map or drag the pin. The address
+     and city are filled for you, and a real pin is required before you can save.
    Buyers use that saved pin for search previews; pressing **Place Order** on a
    product refreshes it with the device's current GPS position before pricing
    delivery. Admins can also
@@ -280,8 +282,10 @@ on the Supplier Dashboard (also available in the phone's **More** menu). One for
 edits:
 
 - your company **logo** (upload/replace/remove), name and description;
-- **city, address and exact map location** (click or drag the marker, with
-  reverse geocoding);
+- **city, address and exact map location** - press **Pick on map** or **Use my
+   current location**, then click or drag the pin; reverse geocoding fills the
+   address and city;
+
 - contact details (phone, email, website, working hours);
 - legal & compliance fields (TIN, business license, VAT, trade licence expiry);
 - your **account** - full name and, optionally, a new password (leave the
@@ -344,6 +348,13 @@ sheet or the Home card.
   language (for example, revenue up or down versus the previous period).
 - **Export CSV** is available to suppliers and admins. Customers do not export
   data.
+- For deeper reporting, those CSV exports can be analysed with the included
+  Python tool (on a computer with Python installed): install
+  `analytics/requirements.txt`, then run
+  `python analytics/analyze.py --orders orders_export.csv --products products.csv --companies suppliers.csv --output charts`.
+  It prints summary figures and saves PNG charts for monthly value and orders,
+  order status, top suppliers, product categories, average prices and supplier
+  cities. The analysis stays on your computer.
 
 ### Transporter dashboard
 
@@ -407,6 +418,17 @@ configure, without any code changes:
 
 Only admins can see this page. The system re-creates the admin account
 automatically if it is ever removed.
+
+### Admin order receipts
+
+In **Admin workspace  to  Order Management**, each detailed buyer/supplier
+transaction has a **Receipt (PDF)** button. It opens a receipt-style document with
+the supplier, buyer, item, VAT, delivery, total and signature lines. Use your
+browser's **Print** action and choose **Save as PDF**. Bulk Reports and ledgers
+are still available as CSV.
+
+If the receipt window does not open, allow pop-ups for E-SCON and press the button
+again.
 
 ---
 

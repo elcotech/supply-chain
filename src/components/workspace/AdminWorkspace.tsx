@@ -3,6 +3,7 @@ import { AuditEvent, Company, Complaint, Material, Order, Quotation, Rfq, Transp
 import { formatCurrency, formatDate, timeAgo, isUserLocked } from '../../utils';
 import { monthlyTrend } from '../../lib/analytics';
 import { isCloudEnabled } from '../../lib/supabaseClient';
+import { printOrderReceipt } from '../../lib/receipt';
 import { LANGUAGES, useLanguage } from '../../lib/i18n';
 import { APP_VERSION } from '../../version';
 import { LineChart } from '../Charts';
@@ -431,7 +432,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
     const ordered = [...orders].sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
     return (
       <>
-        <SectionHeader eyebrow={t('Administration')} title="Order Management" hint="All orders with detailed buyersupplier transactions, summaries and export." />
+        <SectionHeader eyebrow={t('Administration')} title="Order Management" hint="All orders with detailed buyer-supplier transactions and printable PDF receipts." />
         <KpiGrid>
           <Kpi label="Orders" value={orders.length} icon="" />
           <Kpi label="Pending" value={orders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
@@ -439,7 +440,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           <Kpi label="GMV" value={money(gmv)} icon="" />
         </KpiGrid>
         <Panel title="All transactions"><DataTable rows={ordered} columns={cols} searchText={o => `${o.invoiceNumber} ${userById(o.customerId)?.name || ''} ${companyById(o.companyId)?.name || ''} ${o.status}`} exportName="orders_transactions" pageSize={12} /></Panel>
-        <Panel title="Detailed buyer & supplier transactions" subtitle="Preview and download per-order summaries">
+        <Panel title="Detailed buyer & supplier transactions" subtitle="Preview each order and print or save its receipt as PDF">
           <div style={{ display: 'grid', gap: 10 }}>
             {ordered.slice(0, 20).map(o => {
               const buyer = userById(o.customerId);
@@ -458,7 +459,15 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
                     <div><span className="ws-muted">Total</span><div><strong>{money(o.totalAmount)}</strong></div></div>
                   </div>
                   <div className="ws-row-actions" style={{ marginTop: 8 }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => exportCsv(`${o.invoiceNumber}-summary.csv`, [{ invoice: o.invoiceNumber, date: o.orderDate, buyer: buyer?.name || '', buyer_phone: buyer?.phone || '', supplier: sup?.name || '', item: mat?.name || o.materialId, quantity: o.quantity, unit_price: o.unitPrice, total: o.totalAmount, payment: o.paymentStatus, status: o.status, delivery_address: (o as any).address || (o as any).deliveryAddress || '' }])}>Download summary</button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        const opened = printOrderReceipt(o, buyer, sup, mat);
+                        if (!opened) onNotify('Allow pop-ups to print the receipt.', 'warning');
+                      }}
+                    >
+                      Receipt (PDF)
+                    </button>
                   </div>
                 </div>
               );

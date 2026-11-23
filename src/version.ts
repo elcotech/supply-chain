@@ -2,7 +2,7 @@
 // release notes. Kept in its own module so every workspace can import it
 // without pulling in the whole App component.
 
-export const APP_VERSION = '5.0.0';
-export const APP_RELEASE_NAME = 'Public Marketplace Dashboards';
+export const APP_VERSION = '5.0.1';
+export const APP_RELEASE_NAME = 'Map-first supplier locations, PDF receipts and Python analytics';
 
 export default APP_VERSION;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Company, User } from '../types';
 import { ETHIOPIAN_CITIES } from '../constants';
+import { isGenericCoordinate } from '../utils';
 import MapPicker from './MapPicker';
 
 interface EditCompanyProps {
@@ -39,6 +40,10 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
 
   const [logo, setLogo] = useState<string>(company.logo || '');
   const [showMapPicker, setShowMapPicker] = useState(false);
+  const [mapAutoLocate, setMapAutoLocate] = useState(false);
+  const [locationPinned, setLocationPinned] = useState(
+    !isCreate && !isGenericCoordinate(company.lat, company.lng, company.location, company.city)
+  );
   const [alert, setAlert] = useState<{ message: string; type: string } | null>(null);
 
   const flash = (message: string, type: string) => {
@@ -66,19 +71,30 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
     e.target.value = '';
   };
 
-  const handleLocationSelect = (lat: number, lng: number, address: string) => {
+  const handleLocationSelect = (lat: number, lng: number, address: string, city?: string) => {
+    const shortAddress = address.split(',').slice(0, 2).join(',') || address;
+    const matchedCity = city || ETHIOPIAN_CITIES.find(item => address.toLowerCase().includes(item.toLowerCase()));
     setFormData(prev => ({
       ...prev,
       lat,
       lng,
-      location: address.split(',').slice(0, 2).join(',') || address
+      location: shortAddress,
+      city: matchedCity || prev.city
     }));
+    setLocationPinned(true);
     setShowMapPicker(false);
-    flash(' Location updated on map!', 'success');
+    flash('Supplier location pinned on the map.', 'success');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!locationPinned) {
+      flash('Pick the supplier location on the map before saving.', 'danger');
+      setMapAutoLocate(false);
+      setShowMapPicker(true);
+      return;
+    }
 
     const name = formData.name.trim();
     const email = formData.email.trim().toLowerCase();
@@ -186,6 +202,25 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
 
         <div className="form-section">
           <h3> Location</h3>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, background: 'var(--bg)', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <strong>{locationPinned ? 'Map pin set' : 'Pin the warehouse on the map'}</strong>
+                <div className="form-hint" style={{ marginTop: 4 }}>
+                  One tap opens the map. Click a point or use your current location; the address and city fill in automatically.
+                </div>
+              </div>
+              <span className="escon-badge">{locationPinned ? 'Ready' : 'Required'}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <button type="button" className="btn btn-primary" onClick={() => { setMapAutoLocate(false); setShowMapPicker(true); }}>
+                Pick on map
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setMapAutoLocate(true); setShowMapPicker(true); }}>
+                Use my current location
+              </button>
+            </div>
+          </div>
           <div className="form-group">
             <label>City *</label>
             <select name="city" value={formData.city} onChange={handleChange} required>
@@ -195,17 +230,14 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
             </select>
           </div>
           <div className="form-group">
-            <label>Address / Location</label>
+            <label>Address / Location <small className="form-hint">(filled from the map)</small></label>
             <input type="text" name="location" value={formData.location} onChange={handleChange} />
           </div>
-          <button type="button" className="btn-secondary" onClick={() => setShowMapPicker(true)}>
-             Select Location on Map
-          </button>
-            <div className="location-preview">
-              <small>
-                Coordinates (WGS84): Lat {Math.abs(formData.lat).toFixed(6)}° {formData.lat >= 0 ? 'N' : 'S'}, Lng {Math.abs(formData.lng).toFixed(6)}° {formData.lng >= 0 ? 'E' : 'W'}
-              </small>
-            </div>
+          <div className="location-preview">
+            <small>
+              Coordinates (WGS84): Lat {Math.abs(formData.lat).toFixed(6)}° {formData.lat >= 0 ? 'N' : 'S'}, Lng {Math.abs(formData.lng).toFixed(6)}° {formData.lng >= 0 ? 'E' : 'W'}
+            </small>
+          </div>
         </div>
 
         <div className="form-section">
@@ -278,10 +310,13 @@ const EditCompany: React.FC<EditCompanyProps> = ({ company, user, onSave, onClos
 
       {showMapPicker && (
         <MapPicker
+          key={mapAutoLocate ? 'auto' : 'manual'}
           onLocationSelect={handleLocationSelect}
           onClose={() => setShowMapPicker(false)}
           initialLat={formData.lat}
           initialLng={formData.lng}
+          initialAddress={formData.location}
+          autoLocate={mapAutoLocate}
         />
       )}
     </>

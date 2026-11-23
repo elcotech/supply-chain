@@ -2,7 +2,8 @@
 
 ##  Technical Documentation
 
-> **Version:** 5.0.0 (reference dashboard release: Administration, Supplier, Customer and Guest public dashboards, live charts, supplier-licence approvals, marketplace/RFQ comparison, GPS delivery tracking, deep navy/professional blue/white/restrained gold, English+Amharic language hooks, all-device cross-compatibility)
+> **Version:** 5.0.1 (map-first supplier locations, receipt-style PDF order documents and Python CSV chart analysis; plus the reference dashboard release: Administration, Supplier, Customer and Guest public dashboards, live charts, supplier-licence approvals, marketplace/RFQ comparison, GPS delivery tracking, deep navy/professional blue/white/restrained gold, English+Amharic language hooks, all-device cross-compatibility)
+> **Previous:** 5.0.0 (reference dashboards and E-SCON 5.0 shell)
 > **Previous:** 6.20 (dedicated Transporter role, dispatch/fleet/POD dashboard, public information pages and all-device responsive polish)
 > **Previous:** 6.17 (Marketplace, role-aware Analytics & Insights, and data-grounded Copilot AI - all presented in the same Sample-Layout document shell on desktop, tablet and phone), 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart), 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page - matches Sample Layout.jpg on all devices), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
 > **Previous:** 6.10 (cart-first ordering, location requested by the cart, reliable repricing), 6.9 (order without a saved location), 6.8 (Sample Layout product page, cloud-first order commit)
@@ -22,7 +23,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) - including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65), plus [10.27 Cart-first ordering](#1027-cart-first-ordering-v610), [10.30 Marketplace](#1030-marketplace-v617), [10.31 Analytics & Insights](#1031-analytics--insights-v617) and [10.32 Copilot AI](#1032-copilot-ai-v617)
+10. [Key Features & How They Work](#10-key-features--how-they-work) - including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65), plus [10.27 Cart-first ordering](#1027-cart-first-ordering-v610), [10.30 Marketplace](#1030-marketplace-v617), [10.31 Analytics & Insights](#1031-analytics--insights-v617), [10.32 Copilot AI](#1032-copilot-ai-v617) and [10.34 Map-first locations, PDF receipts & Python analytics](#1034-map-first-locations-pdf-receipts--python-analytics-v501)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -47,7 +48,8 @@
 - **Editable data** - no business records are hard-coded in `src/constants.ts`. A fresh install starts with the admin account only; demo accounts, suppliers, materials and orders are loaded with [`supabase/seed.sql`](../supabase/seed.sql) (an idempotent upsert). Every saved record, including an empty collection, is respected after refresh. Admins can edit/delete accounts, suppliers and every product field from **Settings**, including any account's saved location.
 - **Proforma invoices** - **one proforma for the whole cart** (any number of items and suppliers), scannable QR fixed in the header, print-ready.
 - **Compliance** data capture (TIN, business license, VAT).
-- CSV **export** and **printable reports** - **suppliers and admins only**; customers have no export surface at all (10.5).
+- CSV **export** and **printable reports** - **suppliers and admins only**; customers have no export surface at all (10.5). Individual admin order summaries are now **receipt-style PDFs** via the browser print dialog, not CSV.
+- **Python chart analysis** - `analytics/analyze.py` turns exported CSVs into PNG charts and printed summary figures without sending data anywhere.
 - **Product photos** (base64 uploads stored locally).
 - A **live global date/time widget** with invert-color & transparency toggles, shown on every screen.
 
@@ -67,6 +69,7 @@
 | Map tiles        | CARTO basemaps (`light_all`)                   |
 | Styling          | Plain CSS with CSS custom properties (variables) |
 | Fonts            | Inter (Google Fonts)                          |
+| Offline analysis | Python 3.11 + pandas + matplotlib (`analytics/analyze.py`) |
 
 > No CSS framework (Tailwind/Bootstrap) is used - all styling lives in `src/App.css`.
 
@@ -156,12 +159,14 @@ supply-chain1/
     constants.ts        # City/unit/department reference lists (business data lives in Supabase / seed.sql)
     settings.ts         # Runtime-configurable platform settings (delivery fee, min order, zones, admin)
     utils.ts            # Helpers: current GPS position, distance, fees, per-line delivery pricing, formatting
-    lib/
-       cloudStore.ts   # Supabase sync module (only settings pushes in v6.0)
-       analytics.ts    # Pure role-aware BI engine (KPIs, trends, forecasts, insights)
-       copilot.ts      # Deterministic, on-device Q&A over the analytics engine
-       commandSearch.ts # Pure ranking/recent-list helpers for Quick Search (v6.18)
-       supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
+     lib/
+        cloudStore.ts   # Supabase sync module (only settings pushes in v6.0)
+        analytics.ts    # Pure role-aware BI engine (KPIs, trends, forecasts, insights)
+        receipt.ts      # Receipt-style HTML for browser print / Save as PDF (v5.0.1)
+        copilot.ts      # Deterministic, on-device Q&A over the analytics engine
+        commandSearch.ts # Pure ranking/recent-list helpers for Quick Search (v6.18)
+        supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
+
     hooks/
        useIsMobile.ts  # Reactive isMobile flag from matchMedia("(max-width: 900px)...")
     components/
@@ -170,7 +175,11 @@ supply-chain1/
        CommandPalette.tsx (v6.18), InstallGuide.tsx, OrderTimeline.tsx,
        MapComponent.tsx (lazy) ... see 10
     *.test.ts           # Jest unit tests (fees, formatting, settings, QR payloads)
- android/                # Capacitor Android project (see docs/ANDROID_BUILD.md)
+  analytics/
+     analyze.py          # pandas/matplotlib CSV chart generator (v5.0.1)
+     requirements.txt    # pandas + matplotlib
+  android/                # Capacitor Android project (see docs/ANDROID_BUILD.md)
+
     app/src/main/
         java/et/escon/supplychain/MainActivity.java   # Screenshots allowed (no FLAG_SECURE)
         res/mipmap-*/   # Launcher icons generated from public/logo512.png
@@ -967,6 +976,42 @@ exports `ADMIN_USERS`, `ADMIN_EMAILS`, `isBuiltInAdminEmail`,
 owner e-mail in place and re-seeds missing built-in admins without overwriting
 saved passwords.
 
+### 10.34 Map-first locations, PDF receipts & Python analytics (v5.0.1)
+
+**Supplier location.** `EditCompany` now leads the Location section with a
+**Pick on map** / **Use my current location** card for both `mode="create"` and
+`mode="edit"`. A pin is required before saving; existing companies are accepted
+only when `isGenericCoordinate` says their saved point is a real location.
+`MapPicker` was improved with a controlled place search (Nominatim), one-tap
+browser GPS with every permission outcome handled, click-to-place, draggable pin,
+reverse-geocoded address/city, live WGS84 readout, a confirm fallback to the map
+centre, and proper Leaflet teardown. `handleLocationSelect` fills the address,
+shortens it for the form and matches the detected city against
+`ETHIOPIAN_CITIES`.
+
+**PDF receipts.** `AdminWorkspace` no longer exports a per-order CSV summary.
+The **Receipt (PDF)** action calls `printOrderReceipt` in
+[`src/lib/receipt.ts`](../src/lib/receipt.ts), which opens a same-origin print
+window containing a self-contained, escaped, receipt-like document (branding,
+reference, buyer/supplier, item, VAT/delivery/total, signatures). The browser's
+**Save as PDF** produces the PDF; bulk Reports/ledgers remain CSV. Pop-up
+blocking is reported through `onNotify`.
+
+**Python analysis.** [`analytics/analyze.py`](../analytics/analyze.py) is an
+offline post-processing tool for exported CSVs. It normalises column names,
+accepts both `orders_export.csv` and `orders_transactions.csv` shapes, coerces
+currency strings to numbers, and writes PNG charts with pandas/matplotlib:
+
+```bash
+pip install -r analytics/requirements.txt
+python analytics/analyze.py --orders orders_export.csv --products products.csv --companies suppliers.csv --output charts
+```
+
+Charts cover monthly value/orders, order status, top suppliers by value,
+products by category, average price by category and suppliers by city. The script
+prints order/product/supplier counts and total order value. It never connects to
+the app or to Supabase.
+
 ---
 
 ## 11. Third-Party Integrations
@@ -1210,7 +1255,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build - version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v5.0.0` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build - version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v5.0.3` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow - that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1285,7 +1330,9 @@ npm test
 | `src/lib/transport.test.ts` | Transport fees, service-area matching, job scoping, claim/advance guards, proof of delivery and transporter profile creation |
 | `src/utils.test.ts`    | `formatCurrency` (ETB, never ETH), `checkMinOrder`, **`findOtherCartSupplier` / `cartHasOtherSupplier`** (empty cart, same-supplier add, second supplier refused and the holder identified, re-ordering an existing material allowed, legacy mixed cart blocked from either side), `computeDeliveryFee` (fixed / zone / free-threshold / distance mode with mocked OSRM), **`computeLineDeliveryFee`** (box unticked = free, supplier start fee + per km, start fee alone, free offer, platform fallback, `offered: false` treated as no rate, negative fee clamped, `NaN`/negative distance = 0 km), **`lineDeliveryMode`**, **`deliveryBasisLabel`**, QR payload encode to decode round-trip, tampered token rejection, scannable URL format, **`buildProformaShareData`** (multi-item + multi-supplier payload, per-item delivery flag, legacy delivery data, `MAX_QR_LINE_ITEMS` truncation with `tc`, and a round-trip that survives truncation), **`roundKm`** (0.1 km rounding used by every buyer-facing view and by `stageCartLine`) |
 
-41 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
+115 unit tests, all passing. `setupTests.ts` intentionally does **not** import `@testing-library/jest-dom` (not installed in this project).
+
+The Python chart generator is verified separately with `python -m py_compile analytics/analyze.py` and a sample run over small CSV exports; its dependencies live in `analytics/requirements.txt` and are not part of the Node test suite.
 
 The single-supplier rule is a **pure** function in `utils.ts` precisely so it can be tested: `App.tsx` calls `findOtherCartSupplier` in both the pre-flight check and the `setCart` updater, so the UI and the tests cannot disagree. If you ever inline the `supplierId !==` comparison back into `App.tsx`, these five tests stop covering the real code path.
 
@@ -1337,7 +1384,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 - six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't - one cart, one supplier (10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v5.0.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data - accounts, products and orders are in `localStorage` and are never part of that purge (16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v5.0.3`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data - accounts, products and orders are in `localStorage` and are never part of that purge (16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none - any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in  Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1889,10 +1936,20 @@ this release changed an existing feature or its behaviour.
 
 - **Theme/shell:** Added `src/escon-escon5.css` (dark navy/gold E-SCON 5.0 tokens and responsive overrides) imported by `src/App.tsx`. Rewrote `src/components/workspace/shell.tsx` with E-SCON 5.0 branding, collapsible desktop sidebar, mobile drawer/backdrop, top strip and foldable horizontal chip/details quick navigation.
 - **Role menus/sections:** Rewrote `src/lib/menu.ts` to spec-aligned E-SCON 5.0 section IDs for Administration, Supplier, Customer/Contractor and Guest/Public (Transporter retained). Workspace components include compatibility fallbacks for legacy/new section IDs where applicable.
-- **Administration workspace:** Reimplemented `src/components/workspace/AdminWorkspace.tsx` with spec-aligned sections: **Home** (Vision/Mission/Services, advertisements, graphics/highlights), **Dashboard** (KPIs: Active Users, Registered Suppliers, Verified Vehicles, RFQs, Total Orders; platform-wide real-time analytics chart; Supplier License Approvals with progress; Verification Queue), User Management, Supplier Verification, Transport Verification, Product Management, RFQ Management, **Order Management** (status control, detailed buyer-supplier transaction cards, per-order CSV summary download), Market Intelligence, Financial Management, Reports (CSV exports), Complaints workflow, **Notifications** (announcement broadcast with role/category/supplier meta; history ledger grouped/listed by category and by supplier), **Quotations Ledger** (separate records, status, totals, grouped by supplier, CSV export), and System Settings/audit.
+- **Administration workspace:** Reimplemented `src/components/workspace/AdminWorkspace.tsx` with spec-aligned sections: **Home** (Vision/Mission/Services, advertisements, graphics/highlights), **Dashboard** (KPIs: Active Users, Registered Suppliers, Verified Vehicles, RFQs, Total Orders; platform-wide real-time analytics chart; Supplier License Approvals with progress; Verification Queue), User Management, Supplier Verification, Transport Verification, Product Management, RFQ Management, **Order Management** (status control, detailed buyer-supplier transaction cards, per-order PDF receipts), Market Intelligence, Financial Management, Reports (CSV exports), Complaints workflow, **Notifications** (announcement broadcast with role/category/supplier meta; history ledger grouped/listed by category and by supplier), **Quotations Ledger** (separate records, status, totals, grouped by supplier, CSV export), and System Settings/audit.
 - **Data model/state:** Extended `AppNotification` in `src/types.ts` with `quotation|rfq` type and optional `category`, `supplierId`, `supplierName`; extended `pushNotification`/`broadcastNotification` in `src/App.tsx` to store metadata and retain longer notification history; updated notification drawer to display category/supplier context. `WorkspaceProps.onBroadcast` updated for optional meta.
 - **Search:** Added `Nearest` sort option in product search (distance-aware ordering when distance is available) alongside existing filters.
-- **Build/artifacts:** `npm test` (113 tests), `npx tsc --noEmit`, and `npm run build` succeeded; `npx cap sync android` completed; Android `assembleDebug`, `assembleRelease`, and `bundleRelease` were rebuilt and copied to root `E-SCON-debug.apk`, `E-SCON-release.apk`, and `E-SCON-release.aab`.
+- **Build/artifacts:** `npm test` (115 tests), `npx tsc --noEmit`, and `npm run build` succeeded; `npx cap sync android` completed; Android `assembleDebug`, `assembleRelease`, and `bundleRelease` were rebuilt as `versionCode 29` / `versionName 5.0.1` and copied to root `E-SCON-debug.apk`, `E-SCON-release.apk`, and `E-SCON-release.aab`.
 - **Charts & coordinates readability:** chart components/pages now render clearer X/Y axis labels with explicit units, indexed categories/periods, and 90° rotated labels for legibility; donut charts show unit totals/segment units; GPS coordinates are formatted as readable WGS84 values with degree and N/S/E/W units (and meters for map accuracy where shown).
 - **Cleanup:** Temporary tracking/backup files from this session were removed before finalization.
+
+---
+
+## E-SCON 5.0.1 (current release)
+
+- **Supplier location:** `EditCompany` now makes the map the primary location control in both create and edit modes, with one-tap GPS, click/drag pinning, place search, reverse-geocoded address/city, a WGS84 readout and a required real pin; `MapPicker` was also given proper Leaflet cleanup.
+- **PDF receipts:** the admin order summary CSV download was replaced by a self-contained receipt-style document in `src/lib/receipt.ts`; **Receipt (PDF)** opens the browser print dialog for printing or saving as PDF. Bulk reports remain CSV.
+- **Python analytics:** added `analytics/analyze.py` and `analytics/requirements.txt`; the script turns exported CSVs into seven PNG charts plus printed summary figures using pandas/matplotlib.
+- **Versioning/artifacts:** web app, package and Android build bumped to `5.0.1` / `versionCode 29`; service worker cache bumped to `e-scon-v5.0.3`; debug APK, signed release APK and signed AAB rebuilt, signature-verified and refreshed at the repo root.
+- **Verification:** `npx tsc --noEmit`, `npm run build`, 115 Jest tests, Python compile check and a sample Python chart run all passed.
 

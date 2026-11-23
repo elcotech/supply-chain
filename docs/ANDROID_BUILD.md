@@ -115,8 +115,9 @@ $env:JAVA_HOME = "C:\Users\ETHIOMK\escon-tools\jdk17\jdk-17.0.20.1+1"
   `C:\Users\ETHIOMK\escon-build\_app\outputs\...`.
 - **Repo-root artifacts (current):** `E-SCON-debug.apk`, `E-SCON-release.apk`,
   and `E-SCON-release.aab` at the repository root were refreshed from rebuilt
-  outputs (Nov 20 2026 build). Keep `versionCode`/`versionName` in sync for
-  Play uploads.
+  outputs (Nov 23 2026 build, `versionCode 29` / `versionName 5.0.1`). The
+  release APK and AAB signature checks and the AAB `jarsigner` verification
+  passed. Keep `versionCode`/`versionName` in sync for Play uploads.
 
 ### Install on a connected phone
 
@@ -174,17 +175,17 @@ An **Android App Bundle** (`.aab`) is what Google Play requires.
 
 ## 7. Versioning
 
-The shipped build is currently **`versionCode 28` / `versionName "5.0.0"`**
+The shipped build is currently **`versionCode 29` / `versionName "5.0.1"`**
 (`android/app/build.gradle`). Before each Play Store upload, bump both:
 
 ```gradle
-versionCode 28         // integer, must increase every upload
-versionName "5.0.0"   // human-readable
+versionCode 29         // integer, must increase every upload
+versionName "5.0.1"   // human-readable
 ```
 
 Also bump `VERSION` at the top of [`public/sw.js`](../public/sw.js) so installed
 PWA clients purge their cached assets (this does **not** touch user data). Current
-value: `e-scon-v5.0.2`.
+value: `e-scon-v5.0.3`.
 
 ---
 
@@ -209,8 +210,8 @@ Only do this once; reuse the same keystore forever.
 
 - [ ] `npm run build` succeeds (`.env.local` is optional; without it the app stays local-only).
 - [ ] `npx cap sync android` run.
-- [ ] `versionCode` / `versionName` bumped (this release: 26 / "5.0.0").
-- [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.0.0).
+- [ ] `versionCode` / `versionName` bumped (this release: 29 / "5.0.1").
+- [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.0.3).
 - [ ] Launcher icons still match `public/logo512.png` (10).
 - [ ] `bundleRelease` succeeds.
 - [ ] `.aab` signature verified.
