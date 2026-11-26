@@ -1196,6 +1196,16 @@
 .market-store-row-info strong { font-size: 0.74rem; color: #12314f; }
 .market-store-row-info small { font-size: 0.64rem; color: #7d97b0; }
 
+.market-store-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; font-size: 0.76rem; color: #12314f; }
+.market-store-picker-head > div { display: flex; gap: 12px; }
+.market-store-row.selected { border-color: #c9a227; background: #fffaf0; }
+.market-store-check input { width: 17px; height: 17px; accent-color: #0f4c81; cursor: pointer; }
+.market-store-qty { display: flex; align-items: center; gap: 5px; font-size: 0.64rem; color: #4a6b8a; }
+.market-store-qty input { width: 58px; min-height: 30px; padding: 3px 5px; border: 1px solid #b9d7f2; border-radius: 6px; background: #fff; color: #12314f; font-size: 0.74rem; }
+.market-store-qty input:disabled { background: #edf3f9; cursor: not-allowed; }
+.market-store-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid #dbe8f4; background: #f4f9ff; font-size: 0.72rem; color: #4a6b8a; }
+.market-store-order-hint { font-size: 0.68rem; color: #7d97b0; }
+
 /* ---------- Copilot ---------- */
 .copilot-sheet { padding-bottom: 14px; }
 .copilot-live {
@@ -1577,5 +1587,16 @@
   .chart-hbar-track { grid-column: 1 / -1; grid-row: 2; }
   .chart-hbar-label { font-size: 0.8rem; }
   .chart-hbar-value { font-size: 0.78rem; }
+}
+
+.python-report-overlay { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(6, 24, 42, 0.72); }
+.python-report-modal { display: flex; flex-direction: column; width: min(1080px, 100%); max-height: 92vh; overflow: hidden; border-radius: 14px; background: #fff; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); }
+.python-report-modal .modal-header { flex: 0 0 auto; }
+.python-report-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #eef4fa; }
+.python-report-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid #dbe8f4; color: #6d89a6; font-size: 0.72rem; }
+@media (max-width: 600px) {
+  .python-report-overlay { padding: 6px; }
+  .python-report-modal { max-height: 96vh; }
+  .python-report-foot { font-size: 0.66rem; }
   .escon-table { min-width: 520px; }
 }

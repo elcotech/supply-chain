@@ -11,7 +11,7 @@
  * orders, carts, wallets, reviews and notifications live in localStorage and
  * are never removed here, so no user data is lost.
  */
-const VERSION = 'e-scon-v5.0.3';
+const VERSION = 'e-scon-v5.1.0';
 const SHELL_CACHE = VERSION + '-shell';
 const RUNTIME_CACHE = VERSION + '-runtime';
 
@@ -22,6 +22,7 @@ const PRECACHE_URLS = [
   './favicon.ico',
   './logo192.png',
   './logo512.png',
+  './python-analytics.html',
 ];
 
 self.addEventListener('install', (event) => {

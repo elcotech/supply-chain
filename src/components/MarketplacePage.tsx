@@ -17,6 +17,7 @@ export interface MarketplacePageProps {
   canSeeStock: boolean;
   onOpenProduct: (material: Material) => void;
   onAddToCart: (material: Material) => void;
+  onAddItemsToCart: (items: { material: Material; quantity: number }[]) => boolean;
   onToggleFavorite: (materialId: string) => void;
   onToggleCompare: (materialId: string) => void;
   onOpenMap: (companyId: string) => void;
@@ -56,6 +57,7 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
   canSeeStock,
   onOpenProduct,
   onAddToCart,
+  onAddItemsToCart,
   onToggleFavorite,
   onToggleCompare,
   onOpenMap,
@@ -67,9 +69,11 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
   const [city, setCity] = useState('all');
   const [sort, setSort] = useState('featured');
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [storeSelection, setStoreSelection] = useState<Record<string, number>>({});
   const [limit, setLimit] = useState(18);
 
   useEffect(() => { setLimit(18); }, [query, category, city, sort]);
+  useEffect(() => { setStoreSelection({}); }, [storeId]);
 
   const companyMap = useMemo(() => new Map(companies.map(c => [c.id, c])), [companies]);
   const reviewCount = useMemo(() => {
@@ -151,6 +155,29 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
   const canOrder = isCustomer || !currentUser;
 
   const storeSupplier = storeId ? supplierSummaries.find(summary => summary.company.id === storeId) : undefined;
+  const availableStoreProducts = storeSupplier
+    ? storeSupplier.products.filter(material => !canSeeStock || (material.quantity || 0) > 0)
+    : [];
+  const selectedStoreItems = availableStoreProducts
+    .filter(material => Number(storeSelection[material.id]) > 0)
+    .map(material => ({ material, quantity: Math.floor(Number(storeSelection[material.id])) }));
+  const selectedStoreTotal = selectedStoreItems.reduce(
+    (sum, item) => sum + item.material.price * item.quantity, 0
+  );
+
+  const toggleStoreItem = (material: Material, quantity: number): void => {
+    setStoreSelection(prev => {
+      const next = { ...prev };
+      if (quantity < 1) delete next[material.id];
+      else next[material.id] = quantity;
+      return next;
+    });
+  };
+
+  const addStoreSelection = (): void => {
+    if (selectedStoreItems.length === 0) return;
+    if (onAddItemsToCart(selectedStoreItems)) setStoreId(null);
+  };
 
   const productCard = (material: Material) => {
     const company = companyMap.get(material.companyId);
@@ -407,18 +434,77 @@ const MarketplacePage: React.FC<MarketplacePageProps> = ({
                 </div>
                 <button type="button" className="escon-btn" onClick={() => onOpenMap(storeSupplier.company.id)}> Map & route</button>
               </div>
-              <div className="market-store-products">
-                {storeSupplier.products.map(material => (
-                  <div key={material.id} className="market-store-row">
-                    <ProductThumb material={material} size="sm" />
-                    <div className="market-store-row-info">
-                      <strong>{material.name}</strong>
-                      <small>{material.category} - {formatCurrency(material.price)} / {material.unit || 'unit'}</small>
-                    </div>
-                    <button type="button" className="escon-btn ghost" onClick={() => { setStoreId(null); onOpenProduct(material); }}>View</button>
-                  </div>
-                ))}
+              <div className="market-store-picker-head">
+                <strong>Select items from this supplier</strong>
+                <div>
+                  <button
+                    type="button"
+                    className="escon-link"
+                    onClick={() => setStoreSelection(Object.fromEntries(availableStoreProducts.map(material => [material.id, 1])))}
+                    disabled={availableStoreProducts.length === 0}
+                  >Select all</button>
+                  <button
+                    type="button"
+                    className="escon-link"
+                    onClick={() => setStoreSelection({})}
+                    disabled={selectedStoreItems.length === 0}
+                  >Clear</button>
+                </div>
               </div>
+              <div className="market-store-products">
+                {storeSupplier.products.map(material => {
+                  const outOfStock = canSeeStock && (material.quantity || 0) <= 0;
+                  const quantity = Number(storeSelection[material.id]) || 0;
+                  return (
+                    <div key={material.id} className={'market-store-row' + (quantity > 0 ? ' selected' : '')}>
+                      <label className="market-store-check">
+                        <input
+                          type="checkbox"
+                          checked={quantity > 0}
+                          disabled={outOfStock || !canOrder}
+                          onChange={event => toggleStoreItem(material, event.target.checked ? 1 : 0)}
+                          aria-label={'Select ' + material.name}
+                        />
+                      </label>
+                      <ProductThumb material={material} size="sm" />
+                      <div className="market-store-row-info">
+                        <strong>{material.name}</strong>
+                        <small>{material.category} - {formatCurrency(material.price)} / {material.unit || 'unit'}{outOfStock ? ' - Out of stock' : ''}</small>
+                      </div>
+                      <label className="market-store-qty">
+                        <span>Qty</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={canSeeStock && (material.quantity || 0) > 0 ? material.quantity : undefined}
+                          value={quantity || 1}
+                          disabled={outOfStock || !canOrder || quantity === 0}
+                          onChange={event => toggleStoreItem(material, Math.floor(Number(event.target.value)))}
+                          aria-label={'Quantity of ' + material.name}
+                        />
+                      </label>
+                      <button type="button" className="escon-btn ghost" onClick={() => { setStoreId(null); onOpenProduct(material); }}>View</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="market-store-selection-bar">
+              <span>
+                {selectedStoreItems.length > 0
+                  ? `${selectedStoreItems.reduce((sum, item) => sum + item.quantity, 0)} unit(s) in ${selectedStoreItems.length} item(s) - ${formatCurrency(selectedStoreTotal)}`
+                  : 'Tick the items you want, then add them together to the cart.'}
+              </span>
+              {canOrder ? (
+                <button
+                  type="button"
+                  className="escon-btn"
+                  disabled={selectedStoreItems.length === 0}
+                  onClick={addStoreSelection}
+                > Add selected to cart</button>
+              ) : (
+                <span className="market-store-order-hint">Sign in as a customer to order from this supplier.</span>
+              )}
             </div>
           </div>
         </div>

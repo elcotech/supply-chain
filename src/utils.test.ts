@@ -12,6 +12,7 @@ import {
   findOtherCartSupplier,
   cartHasOtherSupplier,
   stageCartLine,
+  stageCartSelections,
   addedVat,
   addedVatRate,
   cartGrandTotal,
@@ -304,6 +305,90 @@ describe('stageCartLine (one source of truth for a cart line)', () => {
     const lines = stageCartLine(cart, material({ id: 'm2', name: 'Steel' }), 7, true, 'Nati Building Supplies');
     expect(lines).toHaveLength(2);
     expect(lines!.map(l => l.materialId)).toEqual(['m1', 'm2']);
+  });
+
+  it('gives every line in a batch its own id', () => {
+    const lines = stageCartSelections([], [
+      { material: material(), quantity: 2, includeDelivery: false, supplierName: 'S' },
+      { material: material({ id: 'm2', name: 'Steel' }), quantity: 3, includeDelivery: false, supplierName: 'S' },
+    ]);
+    expect(lines).toHaveLength(2);
+    expect(lines![0].id).not.toBe(lines![1].id);
+  });
+});
+
+describe('stageCartSelections (multi-item supplier basket)', () => {
+  const material = (id: string, companyId = 'c1') => ({
+    id,
+    companyId,
+    name: 'Item ' + id,
+    category: 'Construction',
+    basePrice: 100,
+    profitMargin: 0,
+    price: 100,
+    quantity: 100,
+    unit: 'pcs',
+    minOrder: 1,
+    description: '',
+    transportCost: 0,
+    rating: 0,
+    images: [],
+    taxIncluded: false,
+    vatPercentage: 15,
+    lastUpdated: '2026-01-01',
+  }) as any;
+
+  it('stages every selected product from one supplier in a single call', () => {
+    const result = stageCartSelections([], [
+      { material: material('m1'), quantity: 2, includeDelivery: true, supplierName: 'Nati' },
+      { material: material('m2'), quantity: 4, includeDelivery: true, supplierName: 'Nati' },
+      { material: material('m3'), quantity: 1, includeDelivery: true, supplierName: 'Nati' },
+    ]);
+    expect(result).toHaveLength(3);
+    expect(result!.map(line => line.quantity)).toEqual([2, 4, 1]);
+    expect(result!.every(line => line.supplierId === 'c1')).toBe(true);
+  });
+
+  it('replaces quantities already in the cart with set mode', () => {
+    const current = [stageCartLine([], material('m1'), 1, true, 'Nati', 'set')![0]];
+    const result = stageCartSelections(current, [
+      { material: material('m1'), quantity: 6, includeDelivery: false, supplierName: 'Nati' },
+      { material: material('m2'), quantity: 3, includeDelivery: false, supplierName: 'Nati' },
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result![0].quantity).toBe(6);
+    expect(result![1].quantity).toBe(3);
+  });
+
+  it('rejects a mixed-supplier selection without changing the cart', () => {
+    const current = [stageCartLine([], material('m1'), 1, true, 'Nati', 'set')![0]];
+    const result = stageCartSelections(current, [
+      { material: material('m2'), quantity: 2, includeDelivery: true, supplierName: 'Nati' },
+      { material: material('m3', 'c2'), quantity: 2, includeDelivery: true, supplierName: 'Other' },
+    ]);
+    expect(result).toBeNull();
+    expect(current).toHaveLength(1);
+  });
+
+  it('refuses a basket when the existing cart belongs to another supplier', () => {
+    const current = [stageCartLine([], material('m9', 'c2'), 1, true, 'Other', 'set')![0]];
+    const result = stageCartSelections(current, [
+      { material: material('m1'), quantity: 2, includeDelivery: true, supplierName: 'Nati' },
+    ]);
+    expect(result).toBeNull();
+    expect(current[0].supplierId).toBe('c2');
+  });
+
+  it('ignores unchecked lines and rejects an empty selection', () => {
+    expect(stageCartSelections([], [
+      { material: material('m1'), quantity: 0, includeDelivery: true, supplierName: 'Nati' },
+    ])).toBeNull();
+    const result = stageCartSelections([], [
+      { material: material('m1'), quantity: 0, includeDelivery: true, supplierName: 'Nati' },
+      { material: material('m2'), quantity: 2, includeDelivery: true, supplierName: 'Nati' },
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result![0].materialId).toBe('m2');
   });
 });
 

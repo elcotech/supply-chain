@@ -1,6 +1,6 @@
 {
   "name": "ethiosupply-ai",
-  "version": "5.0.1",
+  "version": "5.1.0",
   "private": true,
   "dependencies": {
     "@capacitor/android": "^6.2.2",

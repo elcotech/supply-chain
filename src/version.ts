@@ -2,7 +2,7 @@
 // release notes. Kept in its own module so every workspace can import it
 // without pulling in the whole App component.
 
-export const APP_VERSION = '5.0.1';
-export const APP_RELEASE_NAME = 'Map-first supplier locations, PDF receipts and Python analytics';
+export const APP_VERSION = '5.1.0';
+export const APP_RELEASE_NAME = 'Multi-item supplier carts and Python chart reports';
 
 export default APP_VERSION;

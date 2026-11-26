@@ -490,7 +490,7 @@ export const stageCartLine = (
       : item);
   }
   const line: CartItem = {
-    id: Date.now().toString(),
+    id: genId('cart'),
     materialId: material.id,
     materialName: material.name,
     supplierId: material.companyId,
@@ -509,6 +509,42 @@ export const stageCartLine = (
     distanceKm: measured
   };
   return [...current, line];
+};
+
+/** One product line chosen together in a supplier storefront. */
+export interface CartSelectionLine {
+  material: Material;
+  quantity: number;
+  includeDelivery: boolean;
+  supplierName: string;
+  distanceKm?: number;
+}
+
+/**
+ * Stage a whole supplier basket in one atomic operation. All lines come from
+ * one supplier, so the single-supplier cart rule is checked before anything is
+ * written; a mixed selection or a cart held by another supplier returns null
+ * and the caller leaves the cart untouched.
+ */
+export const stageCartSelections = (
+  current: CartItem[],
+  lines: CartSelectionLine[],
+  mode: 'increment' | 'set' = 'set'
+): CartItem[] | null => {
+  const valid = lines.filter(line => Number.isFinite(line.quantity) && line.quantity >= 1);
+  if (valid.length === 0) return null;
+  const supplierId = valid[0].material.companyId;
+  if (valid.some(line => line.material.companyId !== supplierId)) return null;
+  let staged = current;
+  for (const line of valid) {
+    const next = stageCartLine(
+      staged, line.material, Math.floor(line.quantity), line.includeDelivery,
+      line.supplierName, mode, line.distanceKm
+    );
+    if (!next) return null;
+    staged = next;
+  }
+  return staged;
 };
 
 // ---------- QR / share payload for proformas & orders ----------

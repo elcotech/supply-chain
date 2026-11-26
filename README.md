@@ -1,4 +1,4 @@
-# E-SCON 5.0.1 - Ethio-Supply Chain Optimization Network
+# E-SCON 5.1.0 - Ethio-Supply Chain Optimization Network
 
 > **AI-Powered Integrated Supply Chain Network** - Mobile App + Web Platform + Global Network
 >
@@ -20,18 +20,20 @@ A single-page React + TypeScript platform connecting Ethiopian suppliers and cus
 
 
 
-## E-SCON 5.0.1 update (this workspace)
+## E-SCON 5.1.0 update (this workspace)
 
+- **Multi-item supplier cart:** a supplier storefront now lets customers tick several products, set each quantity, see a running goods total and add the whole basket to the cart in one action. `stageCartSelections` stages every line atomically and keeps the existing one-supplier-per-cart rule; cart lines now get unique ids so a batch can be edited line by line.
+- **Python chart report in the app:** `analytics/analyze.py` now also accepts the JSON exported from the Analytics page and writes a self-contained `public/python-analytics.html` with 11 embedded pandas/matplotlib charts. The **Python charts** button opens that report inside the app (and offline in the APK); **Export Python data** writes the live records in the format the script expects.
 - **Map-first supplier locations:** creating or editing a supplier now opens a prominent **Pick on map** / **Use my current location** card; the picker supports click/drag pins, place search, GPS, reverse-geocoded address and city, and a required pin before saving (`src/components/EditCompany.tsx`, `src/components/MapPicker.tsx`).
 - **PDF receipts:** the admin per-order **Download summary (CSV)** button was replaced with **Receipt (PDF)**, which opens a receipt-style document to print or save as PDF (`src/lib/receipt.ts`). Bulk reports remain CSV.
-- **Python analytics:** `analytics/analyze.py` reads E-SCON CSV exports with pandas and generates PNG charts (revenue/orders by month, status, top suppliers, categories, average prices and supplier cities) with matplotlib.
+- **Python analytics:** `analytics/analyze.py` reads E-SCON CSV or JSON exports with pandas and generates PNG charts and a bundled HTML report (revenue/orders by month, status, payment, top suppliers/products, demand by city, categories, average prices and supplier cities).
 - **E-SCON 5.0 UI/theme:** dark navy + gold visual identity (`src/escon-escon5.css`), foldable/responsive workspace shell (collapsible sidebar, mobile drawer, horizontal chips/details nav) with `E-SCON 5.0 - Ethiopia and Beyond` branding.
 - **Role menus (spec-aligned):** rewritten `src/lib/menu.ts` section IDs/labels for Administration, Supplier, Customer/Contractor, Guest/Public (transporter retained).
 - **Administration workspace:** Home (Vision/Mission/Services/Advertisements/Graphics), Dashboard KPIs (Active Users, Registered Suppliers, Verified Vehicles, RFQs, Total Orders), Platform-wide real-time analytics, Supplier License Approvals/progress, Verification Queue; plus Users, Supplier/Transport verification, Products, RFQ management, Market Intelligence, Finance, Reports (CSV), Complaints, **Notifications ledger** (recorded/grouped by category and supplier with broadcast meta), **Quotations ledger** (separate, by supplier/status, exportable), Orders with detailed buyer-supplier transactions and per-order PDF receipts, Settings/audit.
 - **Supplier/Customer/Guest:** section-ID compatibility fallbacks for new menus; Guest public dashboard and existing Supplier/Customer dashboards retained with E-SCON 5.0 shell/theme.
 - **Search:** added `Nearest` sort option (distance-aware when location available) alongside existing category/city/supplier filters.
 - **Data/compatibility:** extended `AppNotification` (quotation/rfq, category, supplierId/supplierName) and notification broadcast/meta; preserved existing localStorage/Supabase persistence flows.
-- **Build & artifacts:** production web build and all 115 tests pass, Capacitor Android assets are synced, and Android artifacts were rebuilt (`versionCode 29`, `versionName 5.0.1`, service worker `e-scon-v5.0.3`) and refreshed at the repo root as `E-SCON-debug.apk`, `E-SCON-release.apk`, and `E-SCON-release.aab`.
+- **Build & artifacts:** production web build and all 121 tests pass, Capacitor Android assets are synced, and Android artifacts were rebuilt (`versionCode 30`, `versionName 5.1.0`, service worker `e-scon-v5.1.0`) and refreshed at the repo root as `E-SCON-debug.apk`, `E-SCON-release.apk`, and `E-SCON-release.aab`.
 - **Readable charts & coordinates:** analytics charts now use clearly labeled X/Y axes with proper units and indexed 90° labels for readability; GPS/coordinate displays show readable WGS84 values with N/S/E/W and degree units in profile, admin, and map views.
 
 
@@ -46,14 +48,20 @@ npm run build    # production build  to  ./build
 
 ### Python chart analysis
 
-Export the app data as CSV (Orders, Products, Suppliers), then:
+The Analytics page has **Export Python data** (JSON) and **Python charts** buttons. The bundled report in the app is generated from `analytics/sample_data.json`; regenerate it from live data with:
 
 ```bash
 pip install -r analytics/requirements.txt
-python analytics/analyze.py --orders orders_export.csv --products products.csv --companies suppliers.csv --output charts
+python analytics/analyze.py --data escon-python-data-YYYY-MM-DD.json --output analytics_charts --html public/python-analytics.html
 ```
 
-The script prints summary figures and writes PNG charts into `charts/`.
+CSV exports are still supported:
+
+```bash
+python analytics/analyze.py --orders orders_export.csv --products materials_export.csv --companies suppliers.csv --output charts
+```
+
+The script prints summary figures, writes PNG charts into `charts/`, and (with `--html`) a single portable HTML report that also works offline inside the Android app.
 
 ### Demo login
 

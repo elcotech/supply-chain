@@ -16,7 +16,7 @@ import {
   deliveryBasisLabel, checkMinOrder,
   decodeProformaPayload, genId, generateOrderNumber, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
-  stageCartLine, vatOnSubtotal, allocateVat, cartGrandTotal,
+  stageCartLine, stageCartSelections, CartSelectionLine, vatOnSubtotal, allocateVat, cartGrandTotal,
   normalizeEmail, findLoginUser
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USERS, ADMIN_EMAIL, LEGACY_ADMIN_EMAILS } from './settings';
@@ -2264,6 +2264,37 @@ function App() {
     const alreadyInCart = cart.some(i => i.materialId === material.id);
     setCart(prev => stageCartLine(prev, material, quantity, includeDelivery, company.name, 'increment', distanceKm) || prev);
     showAlert(alreadyInCart ? 'Updated ' + material.name + ' quantity in cart' : 'Added ' + material.name + ' to cart', 'success');
+    return true;
+  };
+
+  // One action for a whole supplier basket, used by the storefront's multi-item
+  // selector. `stageCartSelections` applies every line or none, so a rejected
+  // supplier change can never leave a half-filled cart behind.
+  const addItemsToCart = (selections: CartSelectionLine[]): boolean => {
+    if (!currentUser) { showAlert('Please login to add items to cart', 'danger'); setCurrentPage('login'); return false; }
+    if (currentUser.userType !== 'customer') { showAlert('Only customers can add items to cart', 'danger'); return false; }
+    if (selections.length === 0) { showAlert('Select at least one item first.', 'warning'); return false; }
+    const supplier = getCompanyById(selections[0].material.companyId);
+    const foreign = otherSupplierInCart(selections[0].material.companyId);
+    if (foreign) {
+      showAlert(
+        'Your cart can only contain items from one supplier. It currently holds ' +
+        foreign.supplierName + '. Remove those items or clear the cart before ordering from ' +
+        (supplier?.name || 'this supplier') + '.',
+        'warning'
+      );
+      return false;
+    }
+    const next = stageCartSelections(cart, selections, 'set');
+    if (!next) {
+      showAlert('All items in one cart must come from the same supplier.', 'warning');
+      return false;
+    }
+    setCart(next);
+    repricedCart.current = '';
+    setCartPriceFailed(false);
+    setShowCartSummary(true);
+    showAlert(`Added ${selections.length} item${selections.length === 1 ? '' : 's'} from ${supplier?.name || 'the supplier'} to cart`, 'success');
     return true;
   };
 
@@ -6054,6 +6085,11 @@ function App() {
           canSeeStock={canSeeStock}
           onOpenProduct={setSelectedMaterial}
           onAddToCart={material => { addToCart(material, material.minOrder || 1, false); }}
+          onAddItemsToCart={items => addItemsToCart(items.map(item => ({
+            ...item,
+            includeDelivery: true,
+            supplierName: getCompanyById(item.material.companyId)?.name || '',
+          })))}
           onToggleFavorite={toggleFavorite}
           onToggleCompare={toggleCompare}
           onOpenMap={handleOpenMapWithRoute}

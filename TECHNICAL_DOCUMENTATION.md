@@ -2,7 +2,7 @@
 
 ##  Technical Documentation
 
-> **Version:** 5.0.1 (map-first supplier locations, receipt-style PDF order documents and Python CSV chart analysis; plus the reference dashboard release: Administration, Supplier, Customer and Guest public dashboards, live charts, supplier-licence approvals, marketplace/RFQ comparison, GPS delivery tracking, deep navy/professional blue/white/restrained gold, English+Amharic language hooks, all-device cross-compatibility)
+> **Version:** 5.1.0 (multi-item supplier carts and in-app Python chart reports; map-first supplier locations, receipt-style PDF order documents and Python CSV/JSON chart analysis; plus the reference dashboard release: Administration, Supplier, Customer and Guest public dashboards, live charts, supplier-licence approvals, marketplace/RFQ comparison, GPS delivery tracking, deep navy/professional blue/white/restrained gold, English+Amharic language hooks, all-device cross-compatibility)
 > **Previous:** 5.0.0 (reference dashboards and E-SCON 5.0 shell)
 > **Previous:** 6.20 (dedicated Transporter role, dispatch/fleet/POD dashboard, public information pages and all-device responsive polish)
 > **Previous:** 6.17 (Marketplace, role-aware Analytics & Insights, and data-grounded Copilot AI - all presented in the same Sample-Layout document shell on desktop, tablet and phone), 6.16 (centred A4-width cart on desktop; the map measures from the same buyer pin as search, product page and cart), 6.15 (one consistent 0.1 km everywhere, map GPS fix shared with the app), 6.14 (responsive Sample Layout cart & product page - matches Sample Layout.jpg on all devices), 6.13 (accurate map pins and live cart delivery), 6.12 (Sample Layout cart UI)
@@ -162,7 +162,7 @@ supply-chain1/
      lib/
         cloudStore.ts   # Supabase sync module (only settings pushes in v6.0)
         analytics.ts    # Pure role-aware BI engine (KPIs, trends, forecasts, insights)
-        receipt.ts      # Receipt-style HTML for browser print / Save as PDF (v5.0.1)
+        receipt.ts      # Receipt-style HTML for browser print / Save as PDF (v5.1.0)
         copilot.ts      # Deterministic, on-device Q&A over the analytics engine
         commandSearch.ts # Pure ranking/recent-list helpers for Quick Search (v6.18)
         supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
@@ -176,7 +176,7 @@ supply-chain1/
        MapComponent.tsx (lazy) ... see 10
     *.test.ts           # Jest unit tests (fees, formatting, settings, QR payloads)
   analytics/
-     analyze.py          # pandas/matplotlib CSV chart generator (v5.0.1)
+      analyze.py          # pandas/matplotlib CSV/JSON chart + HTML report generator (v5.1.0)
      requirements.txt    # pandas + matplotlib
   android/                # Capacitor Android project (see docs/ANDROID_BUILD.md)
 
@@ -1255,7 +1255,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build - version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v5.0.3` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build - version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v5.1.0` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow - that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1384,7 +1384,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 - six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't - one cart, one supplier (10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v5.0.3`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data - accounts, products and orders are in `localStorage` and are never part of that purge (16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v5.1.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data - accounts, products and orders are in `localStorage` and are never part of that purge (16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none - any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in  Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1945,7 +1945,15 @@ this release changed an existing feature or its behaviour.
 
 ---
 
-## E-SCON 5.0.1 (current release)
+## E-SCON 5.1.0 (current release)
+
+- **Multi-item supplier cart:** `MarketplacePage` storefront rows now support checkbox selection and per-line quantities; `Add selected to cart` sends every selected product through `addItemsToCart` in `src/App.tsx`. `stageCartSelections` in `src/utils.ts` stages all lines atomically, preserves the one-supplier-per-cart rule and uses `genId('cart')` so batch items have distinct IDs. Covered by `src/utils.test.ts`.
+- **Python chart report:** `analytics/analyze.py` accepts `--data` JSON exports from the Analytics page and writes a self-contained `public/python-analytics.html` with 11 base64-embedded pandas/matplotlib charts. `AnalyticsPage` exposes **Python charts** (iframe modal) and **Export Python data**; the report is pre-cached by `public/sw.js` for offline APK use.
+- **Versioning/artifacts:** web app, package and Android build bumped to `5.1.0` / `versionCode 30`; service worker cache bumped to `e-scon-v5.1.0`; debug APK, signed release APK and signed AAB rebuilt and refreshed at the repo root.
+
+---
+
+## E-SCON 5.0.1 (previous release)
 
 - **Supplier location:** `EditCompany` now makes the map the primary location control in both create and edit modes, with one-tap GPS, click/drag pinning, place search, reverse-geocoded address/city, a WGS84 readout and a required real pin; `MapPicker` was also given proper Leaflet cleanup.
 - **PDF receipts:** the admin order summary CSV download was replaced by a self-contained receipt-style document in `src/lib/receipt.ts`; **Receipt (PDF)** opens the browser print dialog for printing or saving as PDF. Bulk reports remain CSV.

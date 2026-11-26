@@ -1,0 +1,43 @@
+{
+  "generatedAt": "2026-11-26T00:00:00.000Z",
+  "note": "Demo snapshot used to build the bundled Python analytics report. Replace it by exporting JSON from the Analytics page.",
+  "companies": [
+    { "id": "c1", "name": "Nati Building Supplies", "city": "Addis Ababa", "rating": 4.6, "complianceStatus": "compliant" },
+    { "id": "c2", "name": "3MG Construction", "city": "Addis Ababa", "rating": 4.3, "complianceStatus": "compliant" },
+    { "id": "c3", "name": "Bahir Dar Metals", "city": "Bahir Dar", "rating": 4.1, "complianceStatus": "pending" }
+  ],
+  "products": [
+    { "id": "m1", "name": "Portland Cement", "companyId": "c1", "category": "Construction", "price": 720, "quantity": 400 },
+    { "id": "m2", "name": "Rebar 12mm", "companyId": "c1", "category": "Construction", "price": 950, "quantity": 250 },
+    { "id": "m3", "name": "Steel Sheet", "companyId": "c1", "category": "Manufacturing", "price": 1450, "quantity": 120 },
+    { "id": "m4", "name": "Safety Helmet", "companyId": "c2", "category": "Construction", "price": 380, "quantity": 300 },
+    { "id": "m5", "name": "Timber Board", "companyId": "c2", "category": "Construction", "price": 610, "quantity": 180 },
+    { "id": "m6", "name": "Galvanised Wire", "companyId": "c3", "category": "Manufacturing", "price": 515, "quantity": 220 }
+  ],
+  "orders": [
+    { "id": "o001", "companyId": "c1", "materialId": "m1", "orderDate": "2026-06-11", "quantity": 40, "totalAmount": 28800, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o002", "companyId": "c1", "materialId": "m2", "orderDate": "2026-06-19", "quantity": 25, "totalAmount": 23750, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o003", "companyId": "c2", "materialId": "m4", "orderDate": "2026-06-25", "quantity": 60, "totalAmount": 22800, "status": "confirmed", "paymentStatus": "pending" },
+    { "id": "o004", "companyId": "c3", "materialId": "m6", "orderDate": "2026-07-03", "quantity": 80, "totalAmount": 41200, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o005", "companyId": "c1", "materialId": "m1", "orderDate": "2026-07-08", "quantity": 55, "totalAmount": 39600, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o006", "companyId": "c1", "materialId": "m3", "orderDate": "2026-07-14", "quantity": 18, "totalAmount": 26100, "status": "shipped", "paymentStatus": "paid" },
+    { "id": "o007", "companyId": "c2", "materialId": "m5", "orderDate": "2026-07-22", "quantity": 45, "totalAmount": 27450, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o008", "companyId": "c2", "materialId": "m4", "orderDate": "2026-08-02", "quantity": 35, "totalAmount": 13300, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o009", "companyId": "c1", "materialId": "m2", "orderDate": "2026-08-09", "quantity": 30, "totalAmount": 28500, "status": "delivered", "paymentStatus": "refunded" },
+    { "id": "o010", "companyId": "c3", "materialId": "m6", "orderDate": "2026-08-15", "quantity": 100, "totalAmount": 51500, "status": "confirmed", "paymentStatus": "pending" },
+    { "id": "o011", "companyId": "c1", "materialId": "m1", "orderDate": "2026-08-21", "quantity": 65, "totalAmount": 46800, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o012", "companyId": "c2", "materialId": "m5", "orderDate": "2026-09-04", "quantity": 50, "totalAmount": 30500, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o013", "companyId": "c1", "materialId": "m3", "orderDate": "2026-09-10", "quantity": 22, "totalAmount": 31900, "status": "cancelled", "paymentStatus": "failed" },
+    { "id": "o014", "companyId": "c2", "materialId": "m4", "orderDate": "2026-09-17", "quantity": 70, "totalAmount": 26600, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o015", "companyId": "c3", "materialId": "m6", "orderDate": "2026-09-23", "quantity": 95, "totalAmount": 48925, "status": "shipped", "paymentStatus": "paid" },
+    { "id": "o016", "companyId": "c1", "materialId": "m2", "orderDate": "2026-10-01", "quantity": 40, "totalAmount": 38000, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o017", "companyId": "c1", "materialId": "m1", "orderDate": "2026-10-07", "quantity": 80, "totalAmount": 57600, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o018", "companyId": "c2", "materialId": "m5", "orderDate": "2026-10-13", "quantity": 38, "totalAmount": 23180, "status": "confirmed", "paymentStatus": "pending" },
+    { "id": "o019", "companyId": "c3", "materialId": "m6", "orderDate": "2026-10-20", "quantity": 120, "totalAmount": 61800, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o020", "companyId": "c1", "materialId": "m3", "orderDate": "2026-10-28", "quantity": 26, "totalAmount": 37700, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o021", "companyId": "c2", "materialId": "m4", "orderDate": "2026-11-03", "quantity": 90, "totalAmount": 34200, "status": "delivered", "paymentStatus": "paid" },
+    { "id": "o022", "companyId": "c1", "materialId": "m1", "orderDate": "2026-11-09", "quantity": 72, "totalAmount": 51840, "status": "shipped", "paymentStatus": "paid" },
+    { "id": "o023", "companyId": "c1", "materialId": "m2", "orderDate": "2026-11-15", "quantity": 48, "totalAmount": 45600, "status": "pending", "paymentStatus": "pending" },
+    { "id": "o024", "companyId": "c3", "materialId": "m6", "orderDate": "2026-11-20", "quantity": 110, "totalAmount": 56650, "status": "delivered", "paymentStatus": "paid" }
+  ]
+}
