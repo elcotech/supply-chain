@@ -235,7 +235,7 @@ const MapPicker: React.FC<MapPickerProps> = ({ onLocationSelect, initialLat, ini
         )}
 
         <div className="map-picker-container">
-          <div ref={mapRef} style={{ height: '400px', width: '100%' }}></div>
+          <div ref={mapRef} style={{ height: 'clamp(200px, 42vh, 400px)', width: '100%' }}></div>
         </div>
 
         <div className="map-picker-info">

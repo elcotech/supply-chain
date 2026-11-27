@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, MaterialDelivery, DeliveryMode, CartItem, Material } from './types';
+import { SystemSettings, ProformaShareData, PricePoint, ProductReview, BackupPayload, MaterialDelivery, DeliveryMode, CartItem, Material, Company, User } from './types';
 
 export const safeLocalStorage = {
   getItem: (key: string) => localStorage.getItem(key),
@@ -545,6 +545,34 @@ export const stageCartSelections = (
     staged = next;
   }
   return staged;
+};
+
+// ---------- Supplier edit permissions ----------
+// Suppliers own their catalogue, prices, stock and business location. Admins may
+// act on any record; every other role is read-only. Keeping these checks pure
+// makes the dashboard, workspace and admin screens agree on who may edit what.
+
+/** The company profile owned by `user`, if any. */
+export const ownedCompany = (user: User | null, companies: Company[]): Company | undefined =>
+  user?.userType === 'company' ? companies.find(company => company.userId === user.id) : undefined;
+
+/** May `user` change this supplier's business profile / GPS pin? */
+export const canEditCompany = (company: Company, user: User | null): boolean => {
+  if (!user) return false;
+  if (user.userType === 'admin') return true;
+  return user.userType === 'company' && company.userId === user.id;
+};
+
+/** May `user` change this product (including its price, stock and delivery terms)? */
+export const canEditMaterial = (
+  material: Material,
+  user: User | null,
+  companies: Company[]
+): boolean => {
+  if (!user) return false;
+  if (user.userType === 'admin') return true;
+  const company = ownedCompany(user, companies);
+  return !!company && material.companyId === company.id;
 };
 
 // ---------- QR / share payload for proformas & orders ----------

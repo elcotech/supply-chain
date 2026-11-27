@@ -41,6 +41,7 @@ print or share.
 FOR CUSTOMERS
 - Browse the Marketplace or search the catalogue with live filtering by department, supplier, city and price.
 - See each supplier on a map with the driving route, distance and delivery cost.
+- Tick several products on the map, set each quantity and add them all to the cart in one go.
 - Compare up to four products side by side.
 - Save favourites and reorder past purchases in one tap.
 - Build a cart, choose delivery per item, and check out with VAT and delivery added to the net price.
@@ -49,11 +50,11 @@ FOR CUSTOMERS
 FOR SUPPLIERS
 - See role-scoped Analytics: revenue, orders, growth, stock value, low-stock alerts, top products and customers, and price forecasts.
 - Ask the on-device Copilot questions such as "What should I restock?" and get answers from your own data.
-- List your products with up to six photos each.
+- List your products with up to six photos each and edit your own products, prices, stock and delivery rates.
 - Manage your stock with units on hand, stock value and low-stock alerts.
 - Set your own delivery rate (price per km plus a starting fee) and let buyers choose it per item.
 - Confirm and manage incoming orders.
-- Pick your exact business location on the map.
+- Pick your exact business location on the map and edit it any time from your profile or your own map marker.
 
 FOR TRANSPORTERS
 - Register your transport company with a business licence and service areas.
@@ -89,8 +90,8 @@ Prepare and upload in the Play Console:
 | Phone screenshots | 2-8 images, min 320 px, aspect ratio 16:9 or 9:16 |
 | (Optional) 7-inch / 10-inch tablet screenshots | as required by the Console |
 
-> In-app screenshots are **allowed** in the v6.1 Android build. Capture the
-> six suggested shots directly from a debug or release install. See
+> In-app screenshots are **allowed** in the current Android build. Capture the
+> suggested shots directly from a debug or release install. See
 > [ANDROID_BUILD.md 11](./ANDROID_BUILD.md#11-screenshots).
 >
 > **E-SCON 5.0 brand**: Deep navy, professional blue, white and restrained gold. Clean, modern, professional and consistent across all devices.
@@ -98,12 +99,13 @@ Prepare and upload in the Play Console:
 Suggested screenshots:
 
 1. Home / hero screen.
-2. Search results with the map route and distance badge open.
-3. Product details with quantity and "With delivery" choice.
-4. Cart with the three order steps.
-5. Proforma invoice (header QR visible).
-6. Supplier dashboard "My stock" panel.
-7. Mobile order cards with the shipment progress stepper.
+2. Search results with the map route and compact distance badge open.
+3. Supplier map with **Available Products** checkboxes, quantity steppers and **Add selected to cart**.
+4. Product details with quantity and "With delivery" choice.
+5. Cart with the three order steps.
+6. Proforma invoice (header QR visible).
+7. Supplier dashboard "My stock" panel.
+8. Mobile order cards with the shipment progress stepper.
 
 ---
 
@@ -155,7 +157,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current build: **30 / "5.1.0"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **31 / "5.2.0"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console

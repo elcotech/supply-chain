@@ -133,7 +133,7 @@ body {
 }
 .ws-topstrip-title { flex: 1; min-width: 0; }
 .ws-topstrip-title strong { display: block; font-size: 15px; color: var(--es-text-strong); }
-.ws-topstrip-title span { display: block; font-size: 11.5px; color: var(--es-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-topstrip-title span { display: block; font-size: 11.5px; color: var(--es-muted); white-space: normal; overflow: visible; overflow-wrap: anywhere; }
 .ws-topstrip-meta { color: var(--es-gold-ink); font-weight: 700; font-size: 12px; }
 .ws-menu-toggle {
   display: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--es-border);

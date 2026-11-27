@@ -1,4 +1,4 @@
-# E-SCON 5.1.0 - User Guide
+# E-SCON 5.2.0 - User Guide
 
 **E-SCON** (Ethio-Supply Chain Optimization Network) connects **suppliers** with
 **customers** in Ethiopia. You can search for products, see suppliers on a map,
@@ -88,6 +88,26 @@ On the **Search** page:
 - The search box itself spans the **full width of the screen**, so there is more
   room to type.
 - Use the  **Locate Me** button on any map to centre it on your real position.
+- The distance badge beside each product is deliberately small, so the name and
+  price stay readable on a phone.
+
+### Ordering several products from the map
+
+When you open a supplier on the map, the **Available Products** list lets you
+order more than one item at a time:
+
+1. Tick the checkbox beside each product you want (or press **Select all**).
+2. Use the `-` and `+` buttons beside a row to change its amount, or type into the
+   number box. One unit is selected by default; the amount cannot exceed stock.
+3. The footer shows how many units and items you chose and their goods total.
+   Press **Add selected to cart** to stage the whole basket at once with the
+   driving distance shown on the map, then review it in the cart.
+4. **Clear** unticks everything. **View All Products** opens the supplier's full
+   catalogue in Search instead of adding to the cart.
+
+Only customers can order: if you are browsing without signing in, **Add selected
+to cart** takes you to the login page. Suppliers see the same list as a catalogue
+preview and can manage their goods in the supplier workspace.
 
 ### Compare products
 
@@ -256,6 +276,11 @@ The **Supplier Dashboard** leads with your company name and shows:
 - An **Add Product** button and view/edit/delete on every product.
 - An **Edit Company Profile** button that opens the business profile, location
   and account form described below.
+- **You own your records.** You can edit your own products (including price,
+  stock and delivery rate) and your own business profile and map pin; you cannot
+  edit another supplier's products or profile. Administrators can maintain any
+  supplier record. On the supplier map, press **Edit my business** on your own
+  marker to jump straight to the profile/location form.
 
 ### Adding or editing a product
 
@@ -315,9 +340,10 @@ admins see everything.
 Open **Marketplace** from the top navigation, the footer, the mobile bottom bar
 (**Market**) or the **New in E-SCON** card on Home.
 
-- Search the whole catalogue in the hero box, then narrow it with **category**
-  and **city** chips and the **sort** list (relevance, price up/down, rating,
-  newest).
+- Search the whole catalogue in the hero box, then narrow it with the compact
+  **category** and **city** chips and the **sort** list (relevance, price
+  up/down, rating, newest). Distance badges are smaller as well, so more of each
+  product row fits on the screen.
 - Tap a **supplier storefront** to see their city, rating, catalogue size,
   delivery-rate summary and a **View route** button that opens the same map and
   distance used by Search, product details and the cart.

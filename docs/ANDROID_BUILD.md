@@ -115,9 +115,14 @@ $env:JAVA_HOME = "C:\Users\ETHIOMK\escon-tools\jdk17\jdk-17.0.20.1+1"
   `C:\Users\ETHIOMK\escon-build\_app\outputs\...`.
 - **Repo-root artifacts (current):** `E-SCON-debug.apk`, `E-SCON-release.apk`,
   and `E-SCON-release.aab` at the repository root were refreshed from rebuilt
-  outputs (Nov 26 2026 build, `versionCode 30` / `versionName 5.1.0`). The
-  release APK and AAB signature checks and the AAB `jarsigner` verification
-  passed. Keep `versionCode`/`versionName` in sync for Play uploads.
+  outputs after the final responsive pass (Nov 27 2026 build,
+  `versionCode 31` / `versionName 5.2.0`). The release APK and AAB signature
+  checks and the AAB `jarsigner` verification passed. Keep
+  `versionCode`/`versionName` in sync for Play uploads.
+- **SHA-256 (repo-root artifacts):**
+  - `E-SCON-debug.apk` - `61ac6dfab900d66a4576eb1732c085e4c0b6b0686b3b9abdd10f44a3814f1c18`
+  - `E-SCON-release.apk` - `b5a70f092b8ab93ff2010b63a375a11e4e785ac7762498fad7a4afca5cf70682`
+  - `E-SCON-release.aab` - `f9643a7f92268c7cffb5038b2feba7d26a316de89e7ed39eeff6aef82ec2b11a`
 
 ### Install on a connected phone
 
@@ -175,17 +180,17 @@ An **Android App Bundle** (`.aab`) is what Google Play requires.
 
 ## 7. Versioning
 
-The shipped build is currently **`versionCode 30` / `versionName "5.1.0"`**
+The shipped build is currently **`versionCode 31` / `versionName "5.2.0"`**
 (`android/app/build.gradle`). Before each Play Store upload, bump both:
 
 ```gradle
-versionCode 30         // integer, must increase every upload
-versionName "5.1.0"   // human-readable
+versionCode 31         // integer, must increase every upload
+versionName "5.2.0"   // human-readable
 ```
 
 Also bump `VERSION` at the top of [`public/sw.js`](../public/sw.js) so installed
 PWA clients purge their cached assets (this does **not** touch user data). Current
-value: `e-scon-v5.1.0`.
+value: `e-scon-v5.2.0`.
 
 ---
 
@@ -210,8 +215,8 @@ Only do this once; reuse the same keystore forever.
 
 - [ ] `npm run build` succeeds (`.env.local` is optional; without it the app stays local-only).
 - [ ] `npx cap sync android` run.
-- [ ] `versionCode` / `versionName` bumped (this release: 30 / "5.1.0").
-- [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.1.0).
+- [ ] `versionCode` / `versionName` bumped (this release: 31 / "5.2.0").
+- [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.2.0).
 - [ ] Launcher icons still match `public/logo512.png` (10).
 - [ ] `bundleRelease` succeeds.
 - [ ] `.aab` signature verified.

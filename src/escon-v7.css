@@ -8,6 +8,7 @@
 /* ---------- Shared document sheet (matches the cart/Proforma layout) ---------- */
 .escon-sheet {
   width: 100%;
+  min-width: 0;
   max-width: 1180px;
   margin: 0 auto;
   padding: 26px 30px 18px;
@@ -212,7 +213,7 @@
 }
 .escon-badge.warn { background: #fff7e6; border-color: #f6d5a8; color: #9a4b00; }
 
-.escon-section { margin-top: 22px; }
+.escon-section { margin-top: 22px; min-width: 0; }
 .escon-section-head {
   display: flex;
   align-items: center;
@@ -291,17 +292,17 @@
   color: #12314f;
   cursor: pointer;
   position: relative;
-  overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 .home-module::after {
   content: '';
   position: absolute;
-  inset: auto -30px -50px auto;
-  width: 130px;
-  height: 130px;
+  inset: auto 0 0 auto;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   background: rgba(26, 111, 181, 0.08);
+  pointer-events: none;
 }
 .home-module:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(15, 76, 129, 0.16); }
 .home-module.analytics { background: linear-gradient(135deg, #f4fbff, #e8f4ff); }
@@ -680,12 +681,12 @@
   min-width: 0;
 }
 .chart-hbar-label {
-  overflow: hidden;
+  overflow: visible;
   color: #4a6b8a;
   font-size: 0.7rem;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .chart-hbar-track {
   height: 9px;
@@ -737,7 +738,7 @@
   transform: scale(1.08);
 }
 
-.escon-table-wrap { overflow-x: auto; border: 1px solid #dbe8f4; border-radius: 10px; }
+.escon-table-wrap { max-width: 100%; min-width: 0; overflow-x: auto; border: 1px solid #dbe8f4; border-radius: 10px; }
 .escon-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; min-width: 660px; }
 .escon-table th {
   text-align: left;
@@ -785,6 +786,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
+.analytics-two-col > * { min-width: 0; }
 .escon-list { border: 1px solid #dbe8f4; border-radius: 10px; overflow: hidden; }
 .escon-list-row {
   display: flex;
@@ -796,7 +798,7 @@
 .escon-list-row:last-child { border-bottom: none; }
 .escon-list-row:hover { background: #f8fbff; }
 .escon-list-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.escon-list-main strong { font-size: 0.74rem; color: #12314f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.escon-list-main strong { font-size: 0.74rem; color: #12314f; white-space: normal; overflow-wrap: anywhere; }
 .escon-list-main small { font-size: 0.64rem; color: #7d97b0; }
 .escon-list-figure { display: flex; flex-direction: column; align-items: flex-end; }
 .escon-list-figure strong { font-size: 0.74rem; color: #0f4c81; }
@@ -1018,8 +1020,8 @@
 }
 .supplier-spot-avatar.large { width: 54px; height: 54px; flex-basis: 54px; font-size: 1.2rem; border-radius: 14px; }
 .supplier-spot-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.supplier-spot-info strong { font-size: 0.74rem; color: #12314f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.supplier-spot-info small { font-size: 0.62rem; color: #7d97b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.supplier-spot-info strong { font-size: 0.74rem; color: #12314f; white-space: normal; overflow-wrap: anywhere; }
+.supplier-spot-info small { font-size: 0.62rem; color: #7d97b0; white-space: normal; overflow-wrap: anywhere; }
 .supplier-spot-rating { font-size: 0.62rem; color: #b26a00; font-weight: 700; }
 .supplier-spot-badge {
   font-size: 0.56rem;
@@ -1040,6 +1042,7 @@
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 12px;
 }
+.market-grid > *, .supplier-spotlight > * { min-width: 0; }
 .market-card {
   display: flex;
   flex-direction: column;
@@ -1109,11 +1112,9 @@
   line-height: 1.35;
   color: #12314f;
   cursor: pointer;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 2.1em;
+  display: block;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 .market-card-name:hover { color: #1a6fb5; }
 .market-card-supplier {
@@ -1124,27 +1125,28 @@
   font-size: 0.64rem;
   color: #6d89a6;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 .market-card-supplier:hover { color: #1a6fb5; text-decoration: underline; }
-.market-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 2px 0; }
+.market-card-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin: 2px 0; }
 .market-cat-chip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  max-width: 100%;
   font-size: 0.56rem;
   font-weight: 700;
   color: #4a6b8a;
   background: #eef4fa;
   border-radius: 999px;
   padding: 1px 7px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
-.market-rating { font-size: 0.62rem; font-weight: 700; color: #b26a00; white-space: nowrap; }
+.market-rating { font-size: 0.62rem; font-weight: 700; color: #b26a00; white-space: normal; }
 .market-rating small { color: #9ab0c5; font-weight: 500; }
 .market-card-price-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-top: auto; }
 .market-card-price { font-size: 0.94rem; font-weight: 800; color: #0f4c81; line-height: 1.2; }
@@ -1175,9 +1177,9 @@
   font-size: 0.66rem;
   font-weight: 800;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 .market-add-btn:hover { background: #1a6fb5; }
 .market-add-btn.in-cart { background: #e9f9f0; color: #147a4b; border-color: #b7e8ce; }
@@ -1473,7 +1475,7 @@
 }
 
 /* ---------- Responsive: phones ---------- */
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .escon-sheet {
     border: none;
     border-radius: 0;
@@ -1565,7 +1567,7 @@
 .kpi-label { font-size: 0.69rem; }
 .kpi-sub { font-size: 0.69rem; }
 
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .escon-toolbar-note { flex-basis: 100%; width: 100%; font-size: 0.8rem; }
   .escon-toolbar-actions { width: 100%; }
   .escon-table { min-width: 560px; font-size: 0.8rem; }

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Company, User, Material, SystemSettings } from '../types';
-import { computeDeliveryFee } from '../utils';
+import { computeDeliveryFee, CartSelectionLine } from '../utils';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -84,8 +84,10 @@ interface MapComponentProps {
   currentUser: User | null;
   onClose: () => void;
   onSelectSupplier?: (company: Company) => void;
-  /** Add a listed product to the cart, carrying the measured route distance. */
-  onSelectProduct?: (material: Material, distanceKm: number | null) => void;
+  /** Lets the supplier who owns this marker edit their profile, location and pin. */
+  onEditCompany?: (company: Company) => void;
+  /** Add several listed products to the cart in one atomic, single-supplier add. */
+  onSelectProducts?: (items: CartSelectionLine[], distanceKm: number | null) => void;
   autoRouteSupplierId?: string | null;
   /**
    * Bumped by the parent every time a route is explicitly requested. It lets the
@@ -111,7 +113,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   currentUser,
   onClose,
   onSelectSupplier,
-  onSelectProduct,
+  onEditCompany,
+  onSelectProducts,
   autoRouteSupplierId,
   routeRequestId = 0,
   onRouteShown,
@@ -125,6 +128,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const [distance, setDistance] = useState<number | null>(null);
   const [isDistanceLoading, setIsDistanceLoading] = useState(false);
   const [companyMaterials, setCompanyMaterials] = useState<Material[]>([]);
+  /** Material id -> quantity chosen in the supplier's Available Products list. */
+  const [productSelection, setProductSelection] = useState<Record<string, number>>({});
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [transportCost, setTransportCost] = useState<number | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
@@ -448,6 +453,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
     selectedCompanyRef.current = company;
     setSelectedCompany(company);
     setCompanyMaterials(materials.filter((m) => m.companyId === company.id));
+    setProductSelection({});
 
     // Draw fresh route (clears everything first)
     await drawRouteForSupplier(company);
@@ -671,6 +677,37 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   };
 
+  // Guests may still tick items: the parent turns that into a sign-in prompt,
+  // exactly as the old single-product "Add to cart" button did.
+  const canOrder = !currentUser || currentUser.userType === 'customer';
+  const availableMaterials = companyMaterials.filter(m => (m.quantity || 0) > 0);
+  const selectedItems: CartSelectionLine[] = availableMaterials
+    .filter(m => (productSelection[m.id] || 0) > 0)
+    .map(m => ({
+      material: m,
+      quantity: Math.min(productSelection[m.id], m.quantity),
+      includeDelivery: true,
+      supplierName: selectedCompany?.name || '',
+      distanceKm: distance ?? undefined,
+    }));
+  const selectedUnits = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+  const selectedTotal = selectedItems.reduce((sum, item) => sum + item.quantity * item.material.price, 0);
+
+  const setProductQuantity = (material: Material, quantity: number) => {
+    setProductSelection(prev => {
+      const next = { ...prev };
+      const capped = Math.min(Math.max(0, Math.floor(quantity) || 0), Math.max(0, material.quantity || 0));
+      if (capped === 0) delete next[material.id];
+      else next[material.id] = capped;
+      return next;
+    });
+  };
+
+  const handleAddSelected = () => {
+    if (!onSelectProducts || selectedItems.length === 0) return;
+    onSelectProducts(selectedItems, distance);
+  };
+
   const handleRefreshRoute = async () => {
     if (!selectedCompany) return;
     await drawRouteForSupplier(selectedCompany);
@@ -793,7 +830,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
         {selectedCompany && (
           <div className="supplier-detail-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
               <div>
                 <h3 style={{ margin: 0 }}>{selectedCompany.name}</h3>
                 <p style={{ margin: '2px 0 0', opacity: 0.6, fontSize: 13 }}>
@@ -815,11 +852,30 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   fontSize: 12,
                   whiteSpace: 'nowrap',
                 }}
-                title="Recalculate route from your current location"
-              >
-                 Refresh Route
-              </button>
-            </div>
+                 title="Recalculate route from your current location"
+               >
+                  Refresh Route
+               </button>
+               {onEditCompany && currentUser?.userType === 'company' && selectedCompany.userId === currentUser.id && (
+                 <button
+                   type="button"
+                   style={{
+                     background: 'rgba(59,130,246,0.15)',
+                     border: '1px solid rgba(59,130,246,0.3)',
+                     color: '#93c5fd',
+                     padding: '4px 10px',
+                     borderRadius: 6,
+                     cursor: 'pointer',
+                     fontSize: 12,
+                     whiteSpace: 'nowrap',
+                   }}
+                   title="Edit your business profile, address and GPS location"
+                   onClick={() => onEditCompany(selectedCompany)}
+                 >
+                   Edit my business
+                 </button>
+               )}
+             </div>
 
             <div style={{ marginTop: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {isDistanceLoading ? (
@@ -852,36 +908,102 @@ const MapComponent: React.FC<MapComponentProps> = ({
             </div>
 
             {companyMaterials.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <strong style={{ fontSize: 13 }}>Available Products:</strong>
-                <ul className="map-product-list">
-                  {companyMaterials.slice(0, 6).map((m) => (
-                    <li key={m.id}>
-                      <button
-                        type="button"
-                        className="map-product-link"
-                        disabled={isDistanceLoading}
-                        onClick={() => {
-                          onSelectProduct?.(m, distance);
-                          onClose();
-                        }}
-                        title={'Add ' + m.name + ' to cart' + (distance !== null ? ' with ' + distance.toFixed(1) + ' km delivery' : '')}
-                      >
-                        <span className="map-product-name">{m.name}</span>
+              <div className="map-product-picker">
+                <div className="map-product-picker-head">
+                  <strong>Available Products</strong>
+                  <div>
+                    <button
+                      type="button"
+                      className="map-product-action"
+                      disabled={!canOrder || availableMaterials.length === 0}
+                      onClick={() => setProductSelection(Object.fromEntries(availableMaterials.map(m => [m.id, 1])))}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="map-product-action"
+                      disabled={selectedItems.length === 0}
+                      onClick={() => setProductSelection({})}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="map-product-list">
+                  {companyMaterials.map(m => {
+                    const quantity = productSelection[m.id] || 0;
+                    const outOfStock = (m.quantity || 0) <= 0;
+                    const disabled = outOfStock || !canOrder;
+                    return (
+                      <div key={m.id} className={'map-product-row' + (quantity > 0 ? ' selected' : '')}>
+                        <label className="map-product-check">
+                          <input
+                            type="checkbox"
+                            checked={quantity > 0}
+                            disabled={disabled}
+                            onChange={event => setProductQuantity(m, event.target.checked ? 1 : 0)}
+                            aria-label={'Select ' + m.name}
+                          />
+                        </label>
+                        <div className="map-product-info">
+                          <span className="map-product-name">{m.name}</span>
+                          <span className="map-product-price">
+                            {m.price.toLocaleString()} ETB/{m.unit}
+                            {outOfStock ? ' - Out of stock' : ''}
+                          </span>
+                        </div>
                         <span className="map-product-distance">
-                          {distance !== null ? distance.toFixed(1) + ' km' : isDistanceLoading ? 'Measuring...' : 'Add to cart'}
+                          {distance !== null
+                            ? distance.toFixed(1) + ' km'
+                            : isDistanceLoading ? 'Measuring...' : 'Delivery'}
                         </span>
-                        <span className="map-product-price">
-                          {m.price.toLocaleString()} ETB/{m.unit}
-                          <span aria-hidden="true"></span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                  {companyMaterials.length > 6 && (
-                    <li className="map-product-more">+{companyMaterials.length - 6} more products</li>
-                  )}
-                </ul>
+                        <div className="map-product-qty">
+                          <button
+                            type="button"
+                            disabled={disabled || quantity === 0}
+                            onClick={() => setProductQuantity(m, quantity - 1)}
+                            aria-label={'Decrease quantity of ' + m.name}
+                          >-</button>
+                          <input
+                            type="number"
+                            min={1}
+                            max={Math.max(1, m.quantity || 0)}
+                            value={quantity || 1}
+                            disabled={disabled || quantity === 0}
+                            onChange={event => setProductQuantity(m, Math.floor(Number(event.target.value)))}
+                            aria-label={'Quantity of ' + m.name}
+                          />
+                          <button
+                            type="button"
+                            disabled={disabled || quantity === 0 || quantity >= (m.quantity || 0)}
+                            onClick={() => setProductQuantity(m, quantity + 1)}
+                            aria-label={'Increase quantity of ' + m.name}
+                          >+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="map-product-picker-foot">
+                  <span>
+                    {selectedItems.length > 0
+                      ? `${selectedUnits} unit(s) in ${selectedItems.length} item(s) - ${selectedTotal.toLocaleString()} ETB`
+                      : canOrder
+                        ? 'Tick the products you want, then add them together to the cart.'
+                        : currentUser?.userType === 'company'
+                          ? 'Manage products, prices and stock in your supplier workspace.'
+                          : 'Sign in as a customer to order from this supplier.'}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={!canOrder || selectedItems.length === 0}
+                    onClick={handleAddSelected}
+                  >
+                    Add selected to cart
+                  </button>
+                </div>
               </div>
             )}
 
@@ -895,6 +1017,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   clearAllOverlays();
                   setSelectedCompany(null);
                   setCompanyMaterials([]);
+                  setProductSelection({});
                   currentCompanyIdRef.current = null;
                   supplierMarkersRef.current.forEach((marker) => marker.setIcon(supplierIcon));
                 }}

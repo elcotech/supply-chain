@@ -17,7 +17,7 @@ import {
   decodeProformaPayload, genId, generateOrderNumber, forecastPrice, effectiveRating, applyWalletOp,
   deliveryEta, timeAgo, validateBackup, downloadJson, findOtherCartSupplier,
   stageCartLine, stageCartSelections, CartSelectionLine, vatOnSubtotal, allocateVat, cartGrandTotal,
-  normalizeEmail, findLoginUser
+  canEditCompany, canEditMaterial, normalizeEmail, findLoginUser
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USERS, ADMIN_EMAIL, LEGACY_ADMIN_EMAILS } from './settings';
 import { cloudPush, cloudPushNow, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
@@ -1636,6 +1636,10 @@ function App() {
       return;
     }
     const existing = getCompanyByUserId(currentUser.id);
+    if (existing && !canEditCompany(existing, currentUser)) {
+      showAlert('You can only edit your own supplier profile', 'danger');
+      return;
+    }
     // Never block a supplier from their own profile: rebuild it from the
     // account and open the editor immediately.
     const company = existing || companyFromUser(currentUser);
@@ -1659,6 +1663,10 @@ function App() {
   };
 
   const handleSaveCompany = (updatedCompany: Company, updatedUser: User, successMessage = 'Company profile updated successfully! ...') => {
+    if (!canEditCompany(updatedCompany, currentUser)) {
+      showAlert('You can only save your own supplier profile', 'danger');
+      return;
+    }
     const nextCompanies = companies.some(c => c.id === updatedCompany.id)
       ? companies.map(c => c.id === updatedCompany.id ? updatedCompany : c)
       : [...companies, updatedCompany];
@@ -2001,6 +2009,10 @@ function App() {
   };
 
   const handleEditMaterial = (material: Material) => {
+    if (!canEditMaterial(material, currentUser, companies)) {
+      showAlert('You can only edit products belonging to your own supplier account.', 'danger');
+      return;
+    }
     setEditingMaterial(material);
     setFormData(prev => ({
       ...prev,
@@ -2044,6 +2056,10 @@ function App() {
   const handleUpdateMaterial = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!editingMaterial) return;
+    if (!canEditMaterial(editingMaterial, currentUser, companies)) {
+      showAlert('You can only update products belonging to your own supplier account.', 'danger');
+      return;
+    }
     const basePrice = Math.max(0, parseFloat(formData.materialPrice) || 0);
     const profitMargin = Math.max(0, parseFloat(formData.materialProfitMargin) || 0) / 100;
     const transportCost = Math.max(0, parseFloat(formData.materialTransportCost) || 0);
@@ -2099,6 +2115,11 @@ function App() {
   };
 
   const handleDeleteMaterial = (id: string): void => {
+    const material = materials.find(m => m.id === id);
+    if (!material || !canEditMaterial(material, currentUser, companies)) {
+      showAlert('You can only delete products belonging to your own supplier account.', 'danger');
+      return;
+    }
     if (window.confirm('Are you sure you want to delete this product?')) {
       setMaterials(prev => prev.filter(m => m.id !== id));
       showAlert('Product deleted successfully -', 'success');
@@ -4326,7 +4347,13 @@ function App() {
     onUpdateCompany: (company: Company) => setCompanies(prev => prev.map(item => (item.id === company.id ? company : item))),
     onUpdateTransporterProfile: (profile: TransporterProfile) => handleSaveTransporterProfile(profile),
     onDeleteCompany: handleAdminDeleteCompany,
-    onUpdateMaterial: (material: Material) => setMaterials(prev => prev.map(item => (item.id === material.id ? material : item))),
+    onUpdateMaterial: (material: Material) => {
+      if (!canEditMaterial(material, currentUser, companies)) {
+        showAlert('You can only update products belonging to your own supplier account.', 'danger');
+        return;
+      }
+      setMaterials(prev => prev.map(item => (item.id === material.id ? material : item)));
+    },
     onDeleteMaterial: handleDeleteMaterial,
     onEditMaterial: handleAdminEditMaterial,
     onAdminEditCompany: handleAdminEditCompany,
@@ -4766,11 +4793,11 @@ function App() {
     }));
   };
 
-  // A product clicked on the supplier map goes straight into the cart with the
-  // exact road distance shown by the map, so the cart summary and later checkout
-  // price the same delivery result the buyer just saw.
-  const handleMapProductToCart = async (
-    material: Material,
+  // Products ticked in the map's Available Products list go into the cart in
+  // one atomic add, carrying the exact road distance shown by the map so the
+  // cart and later checkout price the same delivery result the buyer just saw.
+  const handleMapProductsToCart = async (
+    items: CartSelectionLine[],
     routeKm: number | null,
   ): Promise<void> => {
     setShowSupplierMap(false);
@@ -4780,43 +4807,33 @@ function App() {
       return;
     }
     if (currentUser.userType !== 'customer') {
-      setSelectedMaterial(material);
+      showAlert('Only customers can add items to cart', 'danger');
       return;
     }
-    if (material.quantity <= 0) {
-      showAlert('This product is currently unavailable.', 'danger');
-      return;
-    }
-    const company = getCompanyById(material.companyId);
+    if (items.length === 0) return;
+    const company = getCompanyById(items[0].material.companyId);
     if (!company) {
-      showAlert('The supplier for this product is unavailable.', 'danger');
+      showAlert('The supplier for these products is unavailable.', 'danger');
+      return;
+    }
+    const unavailable = items.find(item => (item.material.quantity || 0) <= 0);
+    if (unavailable) {
+      showAlert(unavailable.material.name + ' is currently unavailable.', 'danger');
       return;
     }
     const measuredKm = routeKm !== null && Number.isFinite(routeKm) && routeKm > 0
       ? roundKm(routeKm)
-      : await measureDistanceForMaterial(material);
-    const lines = stageCartLine(cart, material, 1, true, company.name, 'set', measuredKm);
-    if (!lines) {
-      const foreign = otherSupplierInCart(material.companyId, material.id);
-      showAlert(
-        'Your cart can only contain items from one supplier. It currently holds ' +
-        (foreign ? foreign.supplierName : 'another supplier') +
-        '  clear the cart before adding ' + material.name + '.',
-        'warning'
-      );
-      return;
-    }
-    setCart(lines);
+      : await measureDistanceForMaterial(items[0].material);
+    const selections = items.map(item => ({
+      ...item,
+      includeDelivery: true,
+      supplierName: company.name,
+      distanceKm: measuredKm ?? item.distanceKm,
+    }));
     if (measuredKm !== undefined && Number.isFinite(measuredKm)) {
       setDistanceToSelected(measuredKm);
     }
-    setSelectedMaterial(null);
-    setShowCartSummary(true);
-    showAlert(
-      material.name + ' added to cart' +
-      (measuredKm !== undefined ? ' with ' + measuredKm.toFixed(1) + ' km delivery' : ''),
-      'success'
-    );
+    addItemsToCart(selections);
   };
 
   const renderSupplierMap = () => {
@@ -4832,7 +4849,8 @@ function App() {
           currentUser={currentUser}
           onClose={() => setShowSupplierMap(false)}
           onSelectSupplier={handleMapSupplierProducts}
-          onSelectProduct={(material, distanceKm) => { void handleMapProductToCart(material, distanceKm); }}
+          onEditCompany={() => { setShowSupplierMap(false); handleEditCompany(); }}
+          onSelectProducts={(items, distanceKm) => { void handleMapProductsToCart(items, distanceKm); }}
           autoRouteSupplierId={routeId}
           routeRequestId={routeRequestId}
           onRouteShown={(companyId) => setAutoRouteSupplierId(companyId)}
@@ -6032,8 +6050,12 @@ function App() {
       // back to the previous page, which looked like "profile not found".
       const company = user ? (getCompanyByUserId(user.id) || companyFromUser(user)) : null;
       if (company && user) {
+        if (!canEditCompany(company, user)) {
+          return <main className="main-content"><div className="alert alert-danger">  Access denied. You can only edit your own supplier profile.</div></main>;
+        }
         return <EditCompany company={company} user={user} onSave={handleSaveCompany} onClose={() => setShowEditCompany(false)} />;
       }
+      return <main className="main-content"><div className="alert alert-danger">  Access denied. Sign in to edit a supplier profile.</div></main>;
     }
     if (adminCompanyTarget) {
       return (

@@ -13,6 +13,8 @@ import {
   cartHasOtherSupplier,
   stageCartLine,
   stageCartSelections,
+  canEditCompany,
+  canEditMaterial,
   addedVat,
   addedVatRate,
   cartGrandTotal,
@@ -833,5 +835,36 @@ describe('generateOrderNumber', () => {
     const second = generateOrderNumber(1, at);
     expect(first).not.toBe(second);
     expect(second.endsWith('-02')).toBe(true);
+  });
+});
+
+describe('supplier edit permissions', () => {
+  const supplier = { id: 'u1', userType: 'company' } as any;
+  const buyer = { id: 'u2', userType: 'customer' } as any;
+  const admin = { id: 'u3', userType: 'admin' } as any;
+  const otherSupplier = { id: 'u4', userType: 'company' } as any;
+  const companies = [
+    { id: 'c1', userId: 'u1' },
+    { id: 'c2', userId: 'u4' },
+  ] as any;
+  const ownMaterial = { id: 'm1', companyId: 'c1' } as any;
+  const foreignMaterial = { id: 'm2', companyId: 'c2' } as any;
+
+  it('lets a supplier edit its own profile, products, prices, stock and location', () => {
+    expect(canEditCompany(companies[0], supplier)).toBe(true);
+    expect(canEditMaterial(ownMaterial, supplier, companies)).toBe(true);
+  });
+
+  it('stops a supplier from editing another supplier or a customer/admin account', () => {
+    expect(canEditCompany(companies[1], supplier)).toBe(false);
+    expect(canEditMaterial(foreignMaterial, supplier, companies)).toBe(false);
+    expect(canEditMaterial(ownMaterial, otherSupplier, companies)).toBe(false);
+    expect(canEditMaterial(ownMaterial, buyer, companies)).toBe(false);
+    expect(canEditCompany(companies[0], null)).toBe(false);
+  });
+
+  it('allows administrators to maintain any supplier record', () => {
+    expect(canEditCompany(companies[1], admin)).toBe(true);
+    expect(canEditMaterial(foreignMaterial, admin, companies)).toBe(true);
   });
 });

@@ -976,7 +976,9 @@ body {
   max-width: 900px;
   width: 100%;
   max-height: 90vh;
-  overflow: hidden;
+  max-height: calc(100dvh - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   animation: scaleInModal 0.3s ease;
@@ -994,10 +996,12 @@ body {
 }
 .map-picker-search form {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .map-picker-search input {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 0;
   padding: 10px 16px;
   border: 1.5px solid var(--border);
   border-radius: 30px;
@@ -1876,12 +1880,12 @@ body {
 }
 .map-product-distance {
   flex: 0 0 auto;
-  padding: 2px 7px;
+  padding: 1px 5px;
   border-radius: 999px;
   background: rgba(26, 111, 181, 0.1);
   color: var(--primary-text);
-  font-size: 10px;
-  font-weight: 800;
+  font-size: 9px;
+  font-weight: 700;
   white-space: nowrap;
 }
 .map-product-link:disabled {
@@ -1901,6 +1905,88 @@ body {
   padding: 2px 4px;
   color: var(--text-muted);
   font-size: 11px;
+}
+.map-product-picker {
+  margin-top: 12px;
+}
+.map-product-picker-head,
+.map-product-picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.map-product-picker-head strong { font-size: 12px; }
+.map-product-picker-head > div { display: flex; gap: 8px; }
+.map-product-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary-text);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.map-product-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.map-product-picker .map-product-list {
+  max-height: 210px;
+  overflow-y: auto;
+  gap: 3px;
+}
+.map-product-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.map-product-row.selected { border-color: var(--primary-light); background: var(--surface-alt); }
+.map-product-check { display: inline-flex; align-items: center; }
+.map-product-check input { width: 14px; height: 14px; margin: 0; cursor: pointer; }
+.map-product-info { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.map-product-row .map-product-name { font-size: 11px; }
+.map-product-row .map-product-price { font-size: 10px; font-weight: 600; }
+.map-product-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.map-product-qty button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.map-product-qty button:disabled { opacity: 0.35; cursor: not-allowed; }
+.map-product-qty input {
+  width: 32px;
+  height: 18px;
+  padding: 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 10px;
+  text-align: center;
+}
+.map-product-picker-foot {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-light);
+}
+.map-product-picker-foot .btn-primary {
+  padding: 5px 9px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .route-actions {
   display: flex;
@@ -2088,10 +2174,10 @@ body {
     grid-template-columns: 1fr;
   }
   .map-picker-content {
-    max-height: 95vh;
+    max-height: calc(100dvh - 16px);
   }
   .map-picker-container {
-    min-height: 300px;
+    min-height: 220px;
   }
   .map-picker-actions {
     flex-direction: column;
@@ -2219,8 +2305,10 @@ body {
   display: flex;
   flex-direction: column;
   max-height: 90vh;
-  height: 90vh;
-  overflow: hidden;
+  max-height: calc(100dvh - 24px);
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
   border-radius: var(--radius);
@@ -2232,8 +2320,9 @@ body {
 }
 
 .map-container-inner {
-  flex: 0 0 55%; /* 55% of modal height for map */
-  min-height: 300px;
+  flex: 0 0 auto;
+  height: min(55vh, 480px);
+  min-height: 220px;
   position: relative;
   overflow: hidden;
 }
@@ -2244,8 +2333,8 @@ body {
 }
 
 .supplier-detail-panel {
-  flex: 1 1 45%; /* remaining 45% for details */
-  overflow-y: auto;
+  flex: 0 0 auto;
+  overflow: visible;
   padding: 16px 20px;
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
@@ -2255,17 +2344,17 @@ body {
 }
 
 /* On smaller screens, adjust ratio */
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .map-modal-content {
-    height: 95vh;
-    max-height: 95vh;
+    height: auto;
+    max-height: calc(100dvh - 12px);
   }
   .map-container-inner {
-    flex: 0 0 45%;
-    min-height: 200px;
+    height: min(45vh, 320px);
+    min-height: 180px;
   }
   .supplier-detail-panel {
-    flex: 1 1 55%;
+    flex: 0 0 auto;
     padding: 12px 16px;
     font-size: 0.85rem;
   }
@@ -2273,11 +2362,11 @@ body {
 
 @media (max-width: 480px) {
   .map-container-inner {
-    flex: 0 0 40%;
-    min-height: 180px;
+    height: min(40vh, 260px);
+    min-height: 160px;
   }
   .supplier-detail-panel {
-    flex: 1 1 60%;
+    flex: 0 0 auto;
     padding: 10px 14px;
     font-size: 0.8rem;
   }
@@ -2496,13 +2585,13 @@ body {
 .distance-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   background: rgba(46, 204, 113, 0.12);
   color: #0e9f5a;
   border: 1px solid rgba(46, 204, 113, 0.35);
-  padding: 4px 10px;
+  padding: 2px 6px;
   border-radius: 30px;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -3246,7 +3335,7 @@ a:focus-visible {
   background: var(--primary-light);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .mobile-menu-toggle {
     display: flex;
   }
@@ -3312,7 +3401,7 @@ a:focus-visible {
 /* =====================================================================
    Enhanced Mobile Responsiveness
    ===================================================================== */
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .app-container {
     padding: 6px 8px 70px;
   }
@@ -3615,7 +3704,7 @@ a:focus-visible {
   font-size: 0.76rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .nav-more,
   .nav-more-panel {
     width: 100%;
@@ -4051,14 +4140,12 @@ a:focus-visible {
   max-width: 220px;
 }
 .td-sticky .product-cell-info {
-  overflow: hidden;
+  overflow: visible;
 }
 .td-sticky .product-cell-info strong {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block;
+  overflow: visible;
+  overflow-wrap: anywhere;
   line-height: 1.3;
 }
 .data-table td {
@@ -4412,7 +4499,7 @@ a:focus-visible {
     opacity: 1;
     transform: none;
   }
-  .splash-screen { animation: none; opacity: 0; visibility: hidden; }
+  .splash-screen { animation: none; opacity: 1; visibility: visible; }
 }
 
 /* =====================================================================
@@ -4673,9 +4760,9 @@ a:focus-visible {
 
 /* =====================================================================
    MOBILE UX - banking-app style (desktop untouched).
-   All rules below apply ONLY under 768px viewports.
+   All rules below apply ONLY on mobile viewports (<=900px or short coarse-pointer landscape).
    ===================================================================== */
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .app-container {
     max-width: 100%;
     padding: 0;
@@ -4927,7 +5014,7 @@ a:focus-visible {
   }
   .m-sheet-user { flex: 1; min-width: 0; }
   .m-sheet-user strong { display: block; font-size: 0.95rem; }
-  .m-sheet-user small { color: var(--text-light); font-size: 0.72rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-sheet-user small { color: var(--text-light); font-size: 0.72rem; display: block; overflow: visible; overflow-wrap: anywhere; white-space: normal; }
   .m-sheet-logout {
     background: rgba(231, 76, 60, 0.14);
     color: var(--danger);
@@ -4997,7 +5084,7 @@ a:focus-visible {
 /* =====================================================================
    MOBILE UX - components (still inside the 768px breakpoint later)
    ===================================================================== */
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .mobile-home { display: flex; flex-direction: column; gap: 14px; padding: 12px 12px 84px; }
 
   .m-hero {
@@ -5007,17 +5094,17 @@ a:focus-visible {
     color: #fff;
     box-shadow: 0 14px 34px rgba(15, 43, 61, 0.35);
     position: relative;
-    overflow: hidden;
   }
   .m-hero::after {
     content: '';
     position: absolute;
-    right: -40px;
-    top: -40px;
-    width: 140px;
-    height: 140px;
+    right: 0;
+    top: 0;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     background: rgba(230, 126, 34, 0.35);
+    pointer-events: none;
   }
   .m-hero-top { display: flex; align-items: flex-start; justify-content: space-between; position: relative; z-index: 1; }
   .m-hero-greeting { font-size: 1.05rem; font-weight: 800; }
@@ -5160,10 +5247,10 @@ a:focus-visible {
     line-height: 1.25;
   }
   .m-pc-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .m-pc-chip { background: rgba(52, 152, 219, 0.16); color: var(--info); font-size: 0.78rem; font-weight: 800; padding: 4px 10px; border-radius: 10px; letter-spacing: 0.2px; }
+  .m-pc-chip { background: rgba(52, 152, 219, 0.16); color: var(--info); font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 8px; letter-spacing: 0.2px; }
   .m-pc-brand { font-size: 0.66rem; color: var(--text-light); }
-  .m-pc-supplier { font-size: 0.68rem; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-pc-distance { font-size: 0.66rem; color: var(--info); font-weight: 600; }
+  .m-pc-supplier { font-size: 0.68rem; color: var(--text-light); white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .m-pc-distance { background: rgba(52, 152, 219, 0.1); padding: 1px 5px; border-radius: 8px; font-size: 0.6rem; color: var(--info); font-weight: 600; }
   .m-pc-price-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .m-pc-price { font-size: 0.95rem; font-weight: 800; color: var(--text); }
   .m-pc-unit { font-size: 0.62rem; font-weight: 500; color: var(--text-light); }
@@ -5260,7 +5347,7 @@ a:focus-visible {
   .m-recent-order-icon { font-size: 1.3rem; width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; background: rgba(128, 128, 128, 0.08); border-radius: 10px; flex: 0 0 auto; }
   .m-recent-order-icon img, .m-recent-order img { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; flex: 0 0 auto; }
   .m-recent-order-info { flex: 1; min-width: 0; }
-  .m-recent-order-info strong { display: block; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-recent-order-info strong { display: block; font-size: 0.8rem; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
   .m-recent-order-info small { color: var(--text-light); font-size: 0.66rem; }
   .m-status-pill {
     flex: 0 0 auto;
@@ -5342,9 +5429,9 @@ a:focus-visible {
     font-size: 0.55rem;
     color: var(--text-light);
     text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
     max-width: 100%;
     font-weight: 600;
   }
@@ -5402,7 +5489,7 @@ a:focus-visible {
   }
   .m-dash-row img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex: 0 0 auto; }
   .m-dash-row-info { flex: 1; min-width: 0; }
-  .m-dash-row-info strong { display: block; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-dash-row-info strong { display: block; font-size: 0.8rem; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
   .m-dash-row-info small { color: var(--text-light); font-size: 0.66rem; }
   .m-dash-row-price { font-size: 0.82rem; }
 
@@ -5495,9 +5582,9 @@ a:focus-visible {
   font-size: 0.78rem;
   font-weight: 700;
   color: #064b91;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 .pf-tagline {
   margin: 5px 0 0;
@@ -6326,7 +6413,7 @@ a:focus-visible {
 }
 .qty-unit { font-size: 0.68rem; font-weight: 600; color: var(--text-light); padding-right: 2px; }
 
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .order-box { padding: 12px 12px 14px; }
   .order-box-row { gap: 8px; }
   .qty-stepper button { width: 44px; height: 44px; }
@@ -6354,7 +6441,7 @@ a:focus-visible {
    The product image opens the description view, so it must look tappable: the
    button scales on press and carries a pulsing "View details" pill. Used by the
    trending-products carousel and the mobile search grid. */
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .m-pc-img { position: relative; transition: transform 0.15s ease; }
   .m-pc-img:active { transform: scale(0.97); }
   .m-pc-view-hint {
@@ -6491,7 +6578,7 @@ a:focus-visible {
   filter: brightness(1.08);
   transform: translateY(-1px);
 }
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .form-input, .form-select, .form-textarea { font-size: 16px; min-height: 46px; }
   .form-textarea { min-height: 110px; }
   .btn-submit { min-height: 46px; }
@@ -6573,7 +6660,7 @@ a:focus-visible {
   width: 100%;
   margin-top: 4px;
 }
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   /* A long create-account form must not fight the vertical centering. */
   .auth-container { min-height: auto; padding: 14px; }
   .auth-card { padding: 20px 16px; }
@@ -6622,7 +6709,7 @@ a:focus-visible {
   border-color: var(--primary);
   color: #ffffff;
 }
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .cart-qty-btn { width: 38px; height: 38px; }
   .cart-item-quantity input { min-height: 38px; font-size: 0.95rem; }
 }
@@ -6763,7 +6850,7 @@ a:focus-visible {
   text-align: center;
   word-break: break-word;
 }
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .dashboard-supplier-name { font-size: 1.02rem; }
 }
 
@@ -6851,7 +6938,7 @@ a:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .cart-order-step.is-returned { animation: none; outline: 2px solid rgba(255, 255, 255, 0.85); outline-offset: -4px; }
 }
-@media (max-width: 768px) {
+@media (max-width: 900px), (max-height: 520px) and (pointer: coarse) {
   .cart-order-steps { gap: 6px; }
   .cart-order-step { min-height: 58px; font-size: 0.72rem; }
   .cart-order-step .cart-step-label { font-size: 0.7rem; }
@@ -7296,9 +7383,9 @@ a:focus-visible {
   border-radius: 999px;
   padding: 4px 10px;
   max-width: 45%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .pd-route-line {
   flex: 1;
@@ -8826,20 +8913,20 @@ body {
 }
 
 .command-item-label {
-  overflow: hidden;
+  overflow: visible;
   font-size: 0.86rem;
   font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .command-item-hint {
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-light, #6d89a6);
   font-size: 0.68rem;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .command-item-enter {
@@ -9036,12 +9123,31 @@ body {
     font-size: 13px;
   }
   .map-product-distance {
-    font-size: 11px;
-    padding: 3px 8px;
+    font-size: 9px;
+    padding: 1px 5px;
   }
   .map-product-price {
     margin-left: auto;
     font-size: 12px;
+  }
+  .map-product-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 8px 9px;
+  }
+  .map-product-row .map-product-info {
+    flex: 1 1 calc(100% - 24px);
+  }
+  .map-product-qty {
+    margin-left: auto;
+  }
+  .map-product-picker-head,
+  .map-product-picker-foot {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .map-product-picker-foot .btn-primary {
+    width: 100%;
   }
 }
 

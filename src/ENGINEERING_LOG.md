@@ -123,3 +123,40 @@
 // - CI=false npm run build: compiled with warnings (resolved to none)
 // - npm test: 113 passed (5 suites)
 // - Capacitor sync + Gradle assembleDebug/assembleRelease/bundleRelease: BUILD SUCCESSFUL
+//
+// ===== v5.2.0 - Map multi-item carts, compact chips and supplier edit rights =====
+// Released: 2026-11-27
+// versionCode 31 / versionName "5.2.0" / sw.js VERSION "e-scon-v5.2.0"
+//
+// Delivered
+// - src/components/MapComponent.tsx: Available Products rows have checkboxes,
+//   `-`/number/`+` steppers, select all/clear, running totals and a single
+//   `Add selected to cart` action through `onSelectProducts(items, distanceKm)`.
+// - src/App.tsx: `handleMapProductsToCart` validates buyer/stock, reuses or
+//   measures km, sets `distanceToSelected` and stages all lines atomically via
+//   `stageCartSelections`; supplier edit actions are role-scoped.
+// - src/utils.ts: `ownedCompany`, `canEditCompany`, `canEditMaterial` define
+//   supplier-owned edit rights; admins keep full maintenance access.
+// - src/App.css: compact `.map-product-distance`, `.distance-badge`,
+//   `.m-pc-chip`, `.m-pc-distance` and map product picker styles.
+// - README.md, TECHNICAL_DOCUMENTATION.md and docs/* updated for the three
+//   changes and the 5.2.0 / versionCode 31 / sw.js v5.2.0 release.
+// - Final responsive pass: matching 900px/coarse-landscape breakpoint, scrollable
+//   map picker/detail, wrapped touch toolbars, and no ellipsis/line-clamp on
+//   visible text across desktop, mobile portrait and mobile landscape.
+//
+// Verification (all passed)
+// - `npx tsc --noEmit`
+// - `$env:CI='true'; npm test -- --watchAll=false`: 5 suites, 124 tests
+// - `npm run build`: compiled successfully
+// - `npx cap sync android`
+// - Gradle 8.2.1 assembleDebug assembleRelease bundleRelease with JDK 17 and
+//   `C:\Users\ETHIOMK\escon-tools\builddir-init.gradle`: BUILD SUCCESSFUL
+// - `jarsigner -verify E-SCON-release.aab`: jar verified
+// - apksigner verified signed release APK and debug APK
+// - `aapt dump badging E-SCON-release.apk`: versionCode 31, versionName 5.2.0
+//
+// Artifact SHA-256
+// - E-SCON-debug.apk   61ac6dfab900d66a4576eb1732c085e4c0b6b0686b3b9abdd10f44a3814f1c18
+// - E-SCON-release.apk  b5a70f092b8ab93ff2010b63a375a11e4e785ac7762498fad7a4afca5cf70682
+// - E-SCON-release.aab  f9643a7f92268c7cffb5038b2feba7d26a316de89e7ed39eeff6aef82ec2b11a
