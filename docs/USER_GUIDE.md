@@ -1,4 +1,4 @@
-# E-SCON 5.2.0 - User Guide
+# E-SCON 5.3.0 - User Guide
 
 **E-SCON** (Ethio-Supply Chain Optimization Network) connects **suppliers** with
 **customers** in Ethiopia. You can search for products, see suppliers on a map,
@@ -109,6 +109,16 @@ Only customers can order: if you are browsing without signing in, **Add selected
 to cart** takes you to the login page. Suppliers see the same list as a catalogue
 preview and can manage their goods in the supplier workspace.
 
+### Map planning tools
+
+The supplier map also supports:
+
+- **Material search** by name, category or description, and a **Nearby radius** filter.
+- Explicit **Warehouse locations** pins and popups; untick the option to hide them.
+- **Set project location** - turn it on, then click the map to drop your customer/project pin. Clear it when you are done.
+- Straight-line distance measured from your project pin, your saved location or the map centre (the active origin is shown in the map toolbar). The driving route line, road distance and automatic transport cost still work as before.
+- **Compare nearby suppliers** - tick up to 3 suppliers to see product count, average price and a transport estimate side by side.
+
 ### Compare products
 
 Tap the  button on up to **4 products** to open a side-by-side comparison
@@ -192,6 +202,7 @@ stays full-screen.
 
 In the cart you can:
 
+- Tick or untick a line in **Order Items**. The header shows the selected count and selected subtotal; **To Purchase** submits only selected lines (at least one must be selected).
 - Change the quantity of any line (number field with `-` / `+`).
 - Tick or untick **"With delivery"** per line.
 - Toggle a manual delivery-fee override where offered.
@@ -256,10 +267,17 @@ every item**.
 
 ## 5. Your orders (customers)
 
-The **Orders** page and the **customer dashboard** show your past orders, with a
-**shipment progress stepper** (Ordered  to  Confirmed  to  In Transit  to  Delivered).
+The **Orders** page and the **customer dashboard** show your past orders with a
+10-step timeline: **Submitted**, **Supplier reviewing**, **Supplier quotation
+received**, **Customer approves proforma**, **Payment confirmed or agreed terms**,
+**Supplier prepares materials**, **Transporter assigned**, **Delivery in transit**,
+**Customer confirms receipt**, **Order completed** (cancelled orders are labelled
+separately). An **Advance: ...** button appears only when the next step is yours;
+admins can advance any step. Older pending/confirmed/shipped/delivered labels are
+shown as their matching workflow step.
 
-- On mobile, orders appear as cards with the same progress stepper.
+- On mobile, orders appear as cards with the same 10-step timeline and role-aware **Advance** action. Supplier, admin and transporter order views use it too.
+- Tracking shows the unique order number, status, transport cost, live transporter GPS and receipt/proof-of-delivery details; payment shows item totals, transport, grand total and the chosen payment method.
 - Use the  **quick reorder** button on a past order to jump back to search with
   that product pre-filled.
 

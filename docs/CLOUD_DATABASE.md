@@ -1,4 +1,4 @@
-# E-SCON 5.2.0 - Cloud Database (Supabase)
+# E-SCON 5.3.0 - Cloud Database (Supabase)
 
 E-SCON keeps its data in the browser's `localStorage` so it works offline and
 starts instantly. When Supabase credentials are configured, the cloud module
@@ -52,7 +52,9 @@ enabled (or the socket is unavailable).
 | `users`, `companies`, `materials`, `orders`, `notifications`, `wallets`, `wallet_transactions`, `reviews`, `system_settings` | `cart_<userId>`, `favs_<userId>` | `currentUser`, `pwa_install_dismissed`, `escon_cloud_merge_v2` |
 
 The full list is in `cloudStore.ts` (`SHARED_KEYS`, `SHARED_PREFIXES`,
-`LOCAL_ONLY`).
+`LOCAL_ONLY`). Since 5.3.0 the canonical `Order.workflowStatus` and unique
+`orderNumber` travel inside the existing `orders` document; the mirrored legacy
+`status` value keeps older rows and clients compatible.
 
 ### Storage shape
 

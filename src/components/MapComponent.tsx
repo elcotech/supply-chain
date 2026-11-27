@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Company, User, Material, SystemSettings } from '../types';
 import { computeDeliveryFee, CartSelectionLine } from '../utils';
 import L from 'leaflet';
@@ -34,6 +34,14 @@ const userIcon = L.divIcon({
   iconSize: [22, 22],
   iconAnchor: [11, 11],
   popupAnchor: [0, -14],
+});
+
+const projectIcon = L.divIcon({
+  className: 'project-location-marker',
+  html: '<div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:#7c3aed;color:#fff;border:3px solid #fff;border-radius:8px;box-shadow:0 0 0 4px rgba(124,58,237,.3),0 3px 10px rgba(0,0,0,.4);font-size:12px;font-weight:800;">P</div>',
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
+  popupAnchor: [0, -18],
 });
 
 const accuracyCircleOptions: L.CircleOptions = {
@@ -76,6 +84,16 @@ interface RouteResult {
   distanceKm: number;
   durationMin: number;
   coordinates: [number, number][];
+}
+
+interface SupplierMapRow {
+  company: Company;
+  coords: { lat: number; lng: number };
+  distanceKm: number;
+  materials: Material[];
+  matchingMaterials: Material[];
+  matchesMaterial: boolean;
+  inRadius: boolean;
 }
 
 interface MapComponentProps {
@@ -144,12 +162,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // against the new Leaflet instance instead of being skipped by its dedupe ref.
   const [mapGeneration, setMapGeneration] = useState(0);
   const mapGenerationRef = useRef(0);
+  const [materialQuery, setMaterialQuery] = useState('');
+  const [radiusKm, setRadiusKm] = useState<number | 'all'>('all');
+  const [showWarehouses, setShowWarehouses] = useState(true);
+  const [isSettingProject, setIsSettingProject] = useState(false);
+  const [projectLocation, setProjectLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 9.0320, lng: 38.7469 });
+  const [comparedIds, setComparedIds] = useState<string[]>([]);
+  const [compareFees, setCompareFees] = useState<Record<string, number | null>>({});
 
   // Refs for guaranteed cleanup without stale closures
   const overlayGroupRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const accuracyCircleRef = useRef<L.Circle | null>(null);
   const supplierMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const projectMarkerRef = useRef<L.Marker | null>(null);
+  const isSettingProjectRef = useRef(false);
   // True only once the map has a trustworthy origin: the saved buyer pin or a
   // live GPS fix. Without it we refuse to invent an Addis distance, because the
   // search list and product page show "-" instead of that fake measurement.
@@ -198,9 +226,80 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const getUserPosition = useCallback(() => ({ ...userPositionRef.current }), []);
 
+  const straightLineKm = useCallback((a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const raw = Math.sin(dLat / 2) ** 2 +
+      Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    const h = Math.min(1, Math.max(0, raw));
+    return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }, []);
+
+  const savedOrigin = hasRealPosition(currentUser) ? { lat: currentUser.lat, lng: currentUser.lng } : null;
+  const hasSavedOrigin = savedOrigin !== null;
+  const distanceOrigin = projectLocation || savedOrigin || mapCenter;
+  const originLabel = projectLocation ? 'Project location' : savedOrigin ? 'Saved location' : 'Map centre';
+
+  const supplierRows = useMemo<SupplierMapRow[]>(() => {
+    const query = materialQuery.trim().toLowerCase();
+    return companies.map((company) => {
+      const coords = getCoords(company);
+      const companyMaterials = materials.filter((m) => m.companyId === company.id);
+      const matchingMaterials = query
+        ? companyMaterials.filter((m) =>
+            [m.name, m.category, m.description].some((value) => (value || '').toLowerCase().includes(query)))
+        : companyMaterials;
+      const distanceKm = straightLineKm(distanceOrigin, coords);
+      return {
+        company,
+        coords,
+        distanceKm,
+        materials: companyMaterials,
+        matchingMaterials,
+        matchesMaterial: !query || matchingMaterials.length > 0,
+        inRadius: radiusKm === 'all' || distanceKm <= radiusKm,
+      };
+    });
+  }, [companies, materials, materialQuery, radiusKm, distanceOrigin, getCoords, straightLineKm]);
+
+  const visibleSupplierRows = useMemo(
+    () => supplierRows.filter((row) => row.matchesMaterial && row.inRadius),
+    [supplierRows]
+  );
+
+  const visibleComparedRows = useMemo(
+    () => visibleSupplierRows.filter((row) => comparedIds.includes(row.company.id)).slice(0, 3),
+    [visibleSupplierRows, comparedIds]
+  );
+
+  const buildSupplierPopup = (row: SupplierMapRow) => `
+    <div style="min-width:200px;font-family:system-ui,sans-serif;line-height:1.5;">
+      <strong style="font-size:15px;color:#1a4a6f;">${row.company.name}</strong><br/>
+      Warehouse: ${row.company.location || row.company.city}<br/>
+      Distance: ${row.distanceKm.toFixed(1)} km (straight line)<br/>
+      * ${row.company.rating || 'N/A'}/5 &nbsp;|&nbsp;  ${row.materials.length} products<br/>
+      ${row.company.tinNumber ? '[OK] Verified' : '... Pending'}<br/>
+      <button onclick="window.__selectSupplier('${row.company.id}')"
+        style="margin-top:8px;padding:6px 14px;background:#1a4a6f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">
+         Show Route
+      </button>
+    </div>
+  `;
+
+  const averagePriceForRow = (row: SupplierMapRow) => row.materials.length === 0
+    ? null
+    : row.materials.reduce((sum, m) => sum + m.price, 0) / row.materials.length;
+
   useEffect(() => {
     onLocationFixRef.current = onLocationFix;
   }, [onLocationFix]);
+
+  useEffect(() => {
+    isSettingProjectRef.current = isSettingProject;
+    const container = leafletMap.current?.getContainer();
+    if (container) container.style.cursor = isSettingProject ? 'crosshair' : '';
+  }, [isSettingProject, isMapReady]);
 
   // Remove ALL overlays from map - no stale closure issues
   const clearAllOverlays = useCallback(() => {
@@ -494,6 +593,28 @@ const MapComponent: React.FC<MapComponentProps> = ({
     selectSupplierRef.current = (company: Company) => { handleSupplierSelect(company); };
   }, [handleSupplierSelect]);
 
+  const toggleCompare = (id: string) => {
+    setComparedIds((prev) => {
+      const visible = prev.filter((pid) => visibleSupplierRows.some((row) => row.company.id === pid)).slice(0, 3);
+      if (visible.includes(id)) return visible.filter((pid) => pid !== id);
+      if (visible.length >= 3) return visible;
+      return [...visible, id];
+    });
+  };
+
+  const handleSupplierRowSelect = (row: SupplierMapRow) => {
+    const map = leafletMap.current;
+    const marker = supplierMarkersRef.current.get(row.company.id);
+    if (marker && map && !map.hasLayer(marker)) marker.addTo(map);
+    marker?.openPopup();
+    selectSupplierRef.current(row.company);
+  };
+
+  const clearProjectLocation = () => {
+    setProjectLocation(null);
+    setIsSettingProject(false);
+  };
+
   // Auto-route whenever a destination is requested (product row click, the map
   // being opened, or a new request for the supplier already shown). Re-running
   // always redraws from scratch, so the previous route is never left behind.
@@ -530,6 +651,16 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }).addTo(map);
 
     leafletMap.current = map;
+    const initialCenter = map.getCenter();
+    setMapCenter({ lat: initialCenter.lat, lng: initialCenter.lng });
+    map.on('moveend', () => {
+      const center = map.getCenter();
+      setMapCenter({ lat: center.lat, lng: center.lng });
+    });
+    map.on('click', (event: L.LeafletMouseEvent) => {
+      if (!isSettingProjectRef.current) return;
+      setProjectLocation({ lat: event.latlng.lat, lng: event.latlng.lng });
+    });
     const generation = mapGenerationRef.current + 1;
     mapGenerationRef.current = generation;
     setMapGeneration(generation);
@@ -544,20 +675,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     companies.forEach((company) => {
       const { lat, lng } = getCoords(company);
       const marker = L.marker([lat, lng], { icon: supplierIcon }).addTo(map);
-      const productCount = materials.filter((m) => m.companyId === company.id).length;
+      const initialRow = supplierRows.find((row) => row.company.id === company.id);
 
-      marker.bindPopup(`
-        <div style="min-width:200px;font-family:system-ui,sans-serif;line-height:1.5;">
-          <strong style="font-size:15px;color:#1a4a6f;">${company.name}</strong><br/>
-           ${company.location || company.city}<br/>
-          * ${company.rating || 'N/A'}/5 &nbsp;|&nbsp;  ${productCount} products<br/>
-          ${company.tinNumber ? '[OK] Verified' : '... Pending'}<br/>
-          <button onclick="window.__selectSupplier('${company.id}')"
-            style="margin-top:8px;padding:6px 14px;background:#1a4a6f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">
-             Show Route
-          </button>
-        </div>
-      `);
+      marker.bindPopup(initialRow
+        ? buildSupplierPopup(initialRow)
+        : `<strong>${company.name}</strong><br/>Warehouse: ${company.location || company.city}`);
 
       marker.on('click', () => {
         selectSupplierRef.current(company);
@@ -597,6 +719,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
       currentCompanyIdRef.current = null;
       selectedCompanyRef.current = null;
       hasGpsFixRef.current = false;
+      if (projectMarkerRef.current) {
+        map.removeLayer(projectMarkerRef.current);
+        projectMarkerRef.current = null;
+      }
       map.remove();
       leafletMap.current = null;
       markers.clear();
@@ -607,6 +733,38 @@ const MapComponent: React.FC<MapComponentProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const map = leafletMap.current;
+    if (!isMapReady || !map) return;
+    supplierRows.forEach((row) => {
+      supplierMarkersRef.current.get(row.company.id)?.setPopupContent(buildSupplierPopup(row));
+    });
+    const visibleIds = new Set(visibleSupplierRows.map((row) => row.company.id));
+    supplierMarkersRef.current.forEach((marker, id) => {
+      const shouldShow = showWarehouses && visibleIds.has(id);
+      if (shouldShow && !map.hasLayer(marker)) marker.addTo(map);
+      if (!shouldShow && map.hasLayer(marker)) map.removeLayer(marker);
+    });
+  }, [isMapReady, supplierRows, visibleSupplierRows, showWarehouses]);
+
+  useEffect(() => {
+    const map = leafletMap.current;
+    if (!isMapReady || !map) return;
+    if (projectMarkerRef.current) {
+      map.removeLayer(projectMarkerRef.current);
+      projectMarkerRef.current = null;
+    }
+    if (!projectLocation) return;
+    const marker = L.marker([projectLocation.lat, projectLocation.lng], { icon: projectIcon })
+      .bindPopup(`
+        <strong>Project location</strong><br/>
+        Lat: ${projectLocation.lat.toFixed(6)}<br/>
+        Lng: ${projectLocation.lng.toFixed(6)}
+      `)
+      .addTo(map);
+    projectMarkerRef.current = marker;
+  }, [isMapReady, projectLocation]);
 
   // The detail panel changes the map container width after Leaflet has already
   // measured it. Without invalidation the polyline can be fitted to a stale
@@ -669,6 +827,56 @@ const MapComponent: React.FC<MapComponentProps> = ({
     });
     return () => { cancelled = true; };
   }, [distance, selectedCompany, companyMaterials, settings, currentUser?.city, getCoords]);
+
+  useEffect(() => {
+    if (visibleComparedRows.length === 0) {
+      setCompareFees({});
+      return;
+    }
+    let cancelled = false;
+    const next: Record<string, number | null> = {};
+    const jobs = visibleComparedRows.map(async (row) => {
+      const supplierFees = row.materials
+        .map(material => material.delivery)
+        .filter((rate): rate is NonNullable<Material['delivery']> =>
+          Boolean(rate && rate.offered && Number.isFinite(rate.perKm)))
+        .map(rate => (rate.startFee || 0) + (rate.perKm || 0) * row.distanceKm);
+      if (supplierFees.length > 0) {
+        next[row.company.id] = Math.round(Math.max(...supplierFees) * 100) / 100;
+        return;
+      }
+      if (!settings) {
+        next[row.company.id] = null;
+        return;
+      }
+      const weightTons = Math.max(
+        0.001,
+        row.materials.reduce((sum, material) =>
+          sum + Math.max(0, material.specifications?.weightPerUnit || 0) * Math.max(1, material.minOrder || 1), 0) / 1000
+      );
+      const orderSubtotal = row.materials.reduce((sum, material) => sum + material.price, 0);
+      try {
+        const fee = await computeDeliveryFee({
+          supplierLat: row.coords.lat,
+          supplierLng: row.coords.lng,
+          customerLat: distanceOrigin.lat,
+          customerLng: distanceOrigin.lng,
+          customerCity: projectLocation || !hasSavedOrigin ? null : (currentUser?.city || null),
+          weightTons,
+          orderSubtotal,
+          distanceKm: row.distanceKm,
+          settings,
+        });
+        next[row.company.id] = fee;
+      } catch {
+        next[row.company.id] = null;
+      }
+    });
+    void Promise.all(jobs).then(() => {
+      if (!cancelled) setCompareFees(next);
+    });
+    return () => { cancelled = true; };
+  }, [visibleComparedRows, settings, distanceOrigin.lat, distanceOrigin.lng, projectLocation, hasSavedOrigin, currentUser?.city]);
 
   const handleViewProducts = () => {
     if (selectedCompany && onSelectSupplier) {
@@ -777,6 +985,166 @@ const MapComponent: React.FC<MapComponentProps> = ({
                Locate Me
             </button>
             <button className="map-modal-close" onClick={onClose}>[X]</button>
+          </div>
+        </div>
+
+        <div className="map-product-picker" style={{ margin: 0, padding: '10px 14px', borderBottom: '1px solid var(--glass-border)' }}>
+          <div className="map-product-picker-head" style={{ flexWrap: 'wrap' }}>
+            <strong>Map tools</strong>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="map-product-action"
+                aria-pressed={isSettingProject}
+                onClick={() => setIsSettingProject((active) => !active)}
+                style={{ color: isSettingProject ? '#c4b5fd' : undefined, fontWeight: isSettingProject ? 700 : undefined }}
+              >
+                {isSettingProject ? 'Click map to set project' : 'Set project location'}
+              </button>
+              <button
+                type="button"
+                className="map-product-action"
+                onClick={clearProjectLocation}
+                disabled={!projectLocation}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            <input
+              type="text"
+              value={materialQuery}
+              onChange={(event) => setMaterialQuery(event.target.value)}
+              placeholder="Search material by name, category or description"
+              aria-label="Search materials on the map"
+              style={{
+                flex: '1 1 180px',
+                minWidth: 0,
+                boxSizing: 'border-box',
+                padding: '5px 8px',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                fontSize: 12,
+              }}
+            />
+            <select
+              value={radiusKm}
+              onChange={(event) => setRadiusKm(event.target.value === 'all' ? 'all' : Number(event.target.value))}
+              aria-label="Nearby radius"
+              style={{
+                flex: '0 0 104px',
+                padding: '5px 6px',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                fontSize: 12,
+              }}
+            >
+              <option value="all">All</option>
+              <option value={10}>10 km</option>
+              <option value={25}>25 km</option>
+              <option value={50}>50 km</option>
+              <option value={100}>100 km</option>
+            </select>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showWarehouses}
+                onChange={(event) => setShowWarehouses(event.target.checked)}
+                aria-label="Warehouse locations"
+              />
+              Warehouse locations
+            </label>
+          </div>
+          <div style={{ fontSize: 10, opacity: 0.75, marginTop: 4 }}>
+            Origin: {originLabel}
+            {projectLocation ? ` - ${projectLocation.lat.toFixed(5)}, ${projectLocation.lng.toFixed(5)}` : ''}
+            {showWarehouses ? ' - Supplier pins are warehouse locations' : ' - Warehouse pins hidden'}
+          </div>
+          <div className="map-product-list" style={{ maxHeight: 130, overflowY: 'auto', marginTop: 8 }}>
+            {visibleSupplierRows.length === 0 ? (
+              <div style={{ padding: 8, fontSize: 11, opacity: 0.7 }}>No suppliers match this material and radius.</div>
+            ) : visibleSupplierRows.map((row) => (
+              <div key={row.company.id} className="map-product-row">
+                <label className="map-product-check">
+                  <input
+                    type="checkbox"
+                    checked={comparedIds.includes(row.company.id)}
+                    disabled={!comparedIds.includes(row.company.id) && visibleComparedRows.length >= 3}
+                    onChange={() => toggleCompare(row.company.id)}
+                    aria-label={`Compare ${row.company.name}`}
+                  />
+                </label>
+                <div className="map-product-info">
+                  <span className="map-product-name">{row.company.name}</span>
+                  <span className="map-product-price" style={{ whiteSpace: 'normal', fontWeight: 400 }}>
+                    Warehouse: {row.company.location || row.company.city}
+                  </span>
+                </div>
+                <span className="map-product-distance">{row.distanceKm.toFixed(1)} km</span>
+                <button
+                  type="button"
+                  className="map-product-action"
+                  onClick={() => handleSupplierRowSelect(row)}
+                >
+                  Show route
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div className="map-product-picker-head">
+              <strong>Compare nearby suppliers</strong>
+              <span style={{ fontSize: 10, opacity: 0.7 }}>Tick up to 3</span>
+            </div>
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 460, borderCollapse: 'collapse', fontSize: 11, marginTop: 4 }}>
+                <thead>
+                  <tr style={{ textAlign: 'left' }}>
+                    <th style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Supplier</th>
+                    <th style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Warehouse</th>
+                    <th style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Distance</th>
+                    <th style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Products</th>
+                    <th style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Avg price</th>
+                    <th style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>Transport</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleComparedRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: 6, opacity: 0.7 }}>Tick suppliers above to compare.</td>
+                    </tr>
+                  ) : visibleComparedRows.map((row) => {
+                    const fee = compareFees[row.company.id];
+                    const averagePrice = averagePriceForRow(row);
+                    return (
+                      <tr key={row.company.id}>
+                        <td style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>{row.company.name}</td>
+                        <td style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>
+                          {row.company.location || row.company.city}
+                        </td>
+                        <td style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>
+                          {row.distanceKm.toFixed(1)} km
+                        </td>
+                        <td style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>
+                          {row.materials.length}
+                        </td>
+                        <td style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>
+                          {averagePrice === null ? '-' : `${Math.round(averagePrice).toLocaleString()} ETB`}
+                        </td>
+                        <td style={{ padding: '4px 6px', borderBottom: '1px solid var(--border)' }}>
+                          {fee === null || fee === undefined ? '-' : `${fee.toLocaleString()} ETB`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

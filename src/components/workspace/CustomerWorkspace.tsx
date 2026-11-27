@@ -16,6 +16,7 @@ import {
 import { buildAnalytics, monthlyTrend } from '../../lib/analytics';
 import { useLanguage } from '../../lib/i18n';
 import { jobStatus, TRANSPORT_STATUS_LABELS } from '../../lib/transport';
+import { ORDER_WORKFLOW_STATUSES, nextWorkflowStatusForRole, workflowStatusIndex, workflowStatusLabel, workflowStatusOf } from '../../lib/orderWorkflow';
 import useLocalCollection from '../../hooks/useLocalCollection';
 import { LineChart } from '../Charts';
 import CustomerWorkflow from './CustomerWorkflow';
@@ -347,8 +348,8 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
         <KpiGrid>
           <Kpi label={t('Open RFQs')} value={myRfqs.filter(r => r.status === 'open').length} hint={`${myQuotes.length} quotations received`} icon="" tone="warn" />
           <Kpi label={t('New Quotations')} value={pendingQuotes.length} hint={t('awaiting your decision')} icon="" />
-          <Kpi label={t('Pending Orders')} value={myOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length} hint={`${myOrders.filter(o => o.status === 'shipped').length} shipped`} icon="" tone="warn" />
-          <Kpi label={t('Completed Orders')} value={myOrders.filter(o => o.status === 'delivered').length} hint={t('delivered to site')} icon="[OK]" tone="good" />
+          <Kpi label="Orders in progress" value={myOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length} hint={`${myOrders.filter(o => o.status === 'shipped').length} in transit`} icon="" tone="warn" />
+          <Kpi label="Completed orders" value={myOrders.filter(o => o.status === 'delivered').length} hint="Order completed" icon="[OK]" tone="good" />
           <Kpi label={t('Total Spend')} value={money(spend)} hint={`${cart.length} ${t('items in cart')}`} icon="" tone="accent" />
         </KpiGrid>
 
@@ -1131,7 +1132,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
       <KpiGrid>
         <Kpi label={t('Orders')} value={myOrders.length} icon="" />
         <Kpi label="Awaiting supplier" value={myOrders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
-        <Kpi label={t('Confirmed')} value={myOrders.filter(o => o.status === 'confirmed').length} icon="[OK]" tone="good" />
+        <Kpi label="Quotation to preparation" value={myOrders.filter(o => o.status === 'confirmed').length} icon="[OK]" tone="good" />
         <Kpi label="Order value" value={money(myOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.totalAmount, 0))} icon="" tone="accent" />
       </KpiGrid>
       <Panel>
@@ -1144,16 +1145,20 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             { key: 'quantity', header: 'Qty', align: 'right', value: o => o.quantity },
             { key: 'totalAmount', header: 'Total', align: 'right', value: o => Math.round(o.totalAmount), render: o => money(o.totalAmount) },
             { key: 'paymentStatus', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
-            { key: 'status', header: 'Status', value: o => o.status, render: o => <StatusPill label={t(o.status)} tone={toneFor(o.status)} /> },
+            { key: 'status', header: 'Status', value: o => workflowStatusOf(o), render: o => <StatusPill label={workflowStatusLabel(workflowStatusOf(o))} tone={toneFor(o.status)} /> },
             {
               key: 'actions', header: 'Actions', align: 'right', noExport: true,
-              render: o => (
-                <div className="ws-row-actions">
-                  <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order: o, kind: 'proforma' })}>Proforma</button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order: o, kind: 'invoice' })}></button>
-                  {o.status === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'cancelled')}>{t('Cancel')}</button>}
-                </div>
-              ),
+              render: o => {
+                const nextStatus = nextWorkflowStatusForRole(workflowStatusOf(o), user.userType);
+                return (
+                  <div className="ws-row-actions">
+                    <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order: o, kind: 'proforma' })}>Proforma</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setDocTarget({ order: o, kind: 'invoice' })}></button>
+                    {nextStatus && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, nextStatus)}>Advance: {workflowStatusLabel(nextStatus)}</button>}
+                    {o.status === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => onUpdateOrderStatus(o.id, 'cancelled')}>{t('Cancel')}</button>}
+                  </div>
+                );
+              },
             },
           ]}
           searchText={o => `${o.invoiceNumber} ${supplierFor(o.companyId)?.name || ''}`}
@@ -1232,20 +1237,20 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
       {myOrders.length === 0 ? <Panel><EmptyState icon="" title="No orders to track" /></Panel> : (
         <div className="ws-track-list">
           {[...myOrders].sort((a, b) => Date.parse(b.orderDate) - Date.parse(a.orderDate)).map(order => {
-            const steps = ['pending', 'confirmed', 'shipped', 'delivered'];
-            const index = steps.indexOf(order.status);
+            const steps = ORDER_WORKFLOW_STATUSES;
+            const index = workflowStatusIndex(workflowStatusOf(order));
             const transporter = transporterProfiles.find(p => p.userId === order.transporterId);
             return (
               <div key={order.id} className="ws-track">
                 <div className="ws-track-head">
                   <div><strong>{order.invoiceNumber}</strong><small>{materialFor(order.materialId)?.name} - {order.quantity} {materialFor(order.materialId)?.unit} - {supplierFor(order.companyId)?.name}</small></div>
-                  <StatusPill label={t(order.status)} tone={toneFor(order.status)} />
+                  <StatusPill label={workflowStatusLabel(workflowStatusOf(order))} tone={toneFor(order.status)} />
                 </div>
                 <div className="ws-timeline">
                   {steps.map((step, stepIndex) => (
                     <div key={step} className={'ws-step' + (stepIndex <= index ? ' done' : '')}>
                       <span>{stepIndex <= index ? '*' : 'o'}</span>
-                      {t(step.charAt(0).toUpperCase() + step.slice(1))}
+                      {workflowStatusLabel(step)}
                     </div>
                   ))}
                 </div>
@@ -1368,7 +1373,7 @@ const CustomerWorkspace: React.FC<WorkspaceProps> = props => {
             </div>
             <div className="ws-invoice-parties">
               <div><span>Supplier</span><strong>{supplierFor(docTarget.order.companyId)?.name || '-'}</strong><small>{supplierFor(docTarget.order.companyId)?.location}</small></div>
-              <div><span>Deliver to</span><strong>{docTarget.order.address}</strong><small>{t(docTarget.order.status)}</small></div>
+              <div><span>Deliver to</span><strong>{docTarget.order.address}</strong><small>{workflowStatusLabel(workflowStatusOf(docTarget.order))}</small></div>
             </div>
             <table className="data-table ws-table">
               <thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Amount</th></tr></thead>

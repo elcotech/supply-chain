@@ -6,6 +6,7 @@ import { isCloudEnabled } from '../../lib/supabaseClient';
 import { printOrderReceipt } from '../../lib/receipt';
 import { LANGUAGES, useLanguage } from '../../lib/i18n';
 import { APP_VERSION } from '../../version';
+import { ORDER_WORKFLOW_STATUSES, nextWorkflowStatusForRole, workflowStatusLabel, workflowStatusOf } from '../../lib/orderWorkflow';
 import { LineChart } from '../Charts';
 import WorkspaceShell from './shell';
 import { WorkspaceProps } from './types';
@@ -16,7 +17,7 @@ const money = (v: number) => formatCurrency(Math.round((v || 0) * 100) / 100);
 
 const AdminWorkspace: React.FC<WorkspaceProps> = props => {
   const {
-    users, companies, materials, orders, notifications, transactions, transporterProfiles, settings,
+    user, users, companies, materials, orders, notifications, transactions, transporterProfiles, settings,
     rfqs, quotations, complaints, setComplaints, platform, setPlatform, audit, logEvent,
     section, onSection, onNotify, onBroadcast, onUpdateOrderStatus, onUpdateUser, onDeleteUser,
     onUpdateCompany, onDeleteMaterial, onEditMaterial, onAdminEditCompany, onAddSupplier,
@@ -322,9 +323,14 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
 
   const renderLogistics = () => {
     const inTransit = orders.filter(o => o.status === 'shipped').length;
-    const pipeline = ['pending', 'confirmed', 'shipped', 'delivered'].map(status => ({
-      label: status,
-      value: orders.filter(o => o.status === status).length,
+    const pipeline = [
+      { label: 'Submitted / reviewing', status: 'pending' },
+      { label: 'Quotation to preparation', status: 'confirmed' },
+      { label: 'Assigned / in transit', status: 'shipped' },
+      { label: 'Completed', status: 'delivered' },
+    ].map(item => ({
+      label: item.label,
+      value: orders.filter(o => o.status === item.status).length,
     }));
     const cols: Column<TransporterProfile>[] = [
       { key: 'company', header: 'Transport partner', value: p => p.companyName, render: p => <div className="ws-cell-stack"><strong>{p.companyName}</strong><small>{p.licenseNumber || p.tinNumber || 'No license'}</small></div> },
@@ -342,7 +348,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           <Kpi label="Transport partners" value={transporterProfiles.length} icon="" />
           <Kpi label="Verified" value={transporterProfiles.filter(p => p.verified).length} icon="" tone="good" />
           <Kpi label="Fleet size" value={transporterProfiles.reduce((s, p) => s + (p.vehicles?.length || 0), 0)} icon="" />
-          <Kpi label="In transit" value={inTransit} icon="" tone="warn" />
+          <Kpi label="Assigned / in transit" value={inTransit} icon="" tone="warn" />
         </KpiGrid>
         <div className="ws-grid-2">
           <Panel title="Fleet by partner"><BarList items={transporterProfiles.map(p => ({ label: p.companyName, value: p.vehicles?.length || 0 })).sort((a, b) => b.value - a.value).slice(0, 10)} /></Panel>
@@ -427,7 +433,20 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       { key: 'supplier', header: 'Supplier', value: o => companyById(o.companyId)?.name || '' },
       { key: 'total', header: 'Total', align: 'right', value: o => o.totalAmount, render: o => <strong>{money(o.totalAmount)}</strong> },
       { key: 'payment', header: 'Payment', value: o => o.paymentStatus, render: o => <StatusPill label={t(o.paymentStatus)} tone={toneFor(o.paymentStatus)} /> },
-      { key: 'status', header: 'Status', value: o => o.status, render: o => <select className="ws-status-select" value={o.status} onChange={e => setOrderStatus(o, e.target.value)}>{['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].map(s => <option key={s} value={s}>{t(s)}</option>)}</select> },
+      {
+        key: 'status', header: 'Status', value: o => workflowStatusOf(o),
+        render: o => {
+          const nextStatus = nextWorkflowStatusForRole(workflowStatusOf(o), user.userType);
+          return (
+            <span className="ws-pill-stack">
+              <select className="ws-status-select" value={workflowStatusOf(o)} onChange={e => setOrderStatus(o, e.target.value)}>
+                {[...ORDER_WORKFLOW_STATUSES, 'cancelled' as const].map(status => <option key={status} value={status}>{workflowStatusLabel(status)}</option>)}
+              </select>
+              {nextStatus && <button className="btn btn-secondary btn-sm" onClick={() => setOrderStatus(o, nextStatus)}>Advance: {workflowStatusLabel(nextStatus)}</button>}
+            </span>
+          );
+        },
+      },
     ];
     const ordered = [...orders].sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || ''));
     return (
@@ -435,11 +454,11 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
         <SectionHeader eyebrow={t('Administration')} title="Order Management" hint="All orders with detailed buyer-supplier transactions and printable PDF receipts." />
         <KpiGrid>
           <Kpi label="Orders" value={orders.length} icon="" />
-          <Kpi label="Pending" value={orders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
-          <Kpi label="Delivered" value={orders.filter(o => o.status === 'delivered').length} icon="" tone="good" />
+          <Kpi label="Submitted / reviewing" value={orders.filter(o => o.status === 'pending').length} icon="" tone="warn" />
+          <Kpi label="Completed" value={orders.filter(o => o.status === 'delivered').length} icon="" tone="good" />
           <Kpi label="GMV" value={money(gmv)} icon="" />
         </KpiGrid>
-        <Panel title="All transactions"><DataTable rows={ordered} columns={cols} searchText={o => `${o.invoiceNumber} ${userById(o.customerId)?.name || ''} ${companyById(o.companyId)?.name || ''} ${o.status}`} exportName="orders_transactions" pageSize={12} /></Panel>
+        <Panel title="All transactions"><DataTable rows={ordered} columns={cols} searchText={o => `${o.invoiceNumber} ${userById(o.customerId)?.name || ''} ${companyById(o.companyId)?.name || ''} ${o.status} ${workflowStatusLabel(workflowStatusOf(o))}`} exportName="orders_transactions" pageSize={12} /></Panel>
         <Panel title="Detailed buyer & supplier transactions" subtitle="Preview each order and print or save its receipt as PDF">
           <div style={{ display: 'grid', gap: 10 }}>
             {ordered.slice(0, 20).map(o => {
@@ -449,7 +468,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
               return (
                 <div key={o.id} className="ws-card" style={{ padding: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div><strong>{o.invoiceNumber}</strong> <StatusPill label={o.status} tone={toneFor(o.status)} /> <StatusPill label={o.paymentStatus} tone={toneFor(o.paymentStatus)} /></div>
+                    <div><strong>{o.invoiceNumber}</strong> <StatusPill label={workflowStatusLabel(workflowStatusOf(o))} tone={toneFor(o.status)} /> <StatusPill label={o.paymentStatus} tone={toneFor(o.paymentStatus)} /></div>
                     <div className="ws-muted">{formatDate(o.orderDate)}</div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8, marginTop: 8, fontSize: 13 }}>
@@ -553,7 +572,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
       <SectionHeader eyebrow={t('Administration')} title="Financial Management" hint="Transactions, payments and platform financial summaries." actions={<button className="btn btn-secondary btn-sm" onClick={() => exportCsv('financial_transactions.csv', transactions.map(t => ({ date: new Date(t.date).toISOString(), user: userById(t.userId)?.name || t.userId, type: t.kind, amount: t.amount, note: t.note })))}>Export</button>} />
       <KpiGrid>
         <Kpi label="GMV" value={money(gmv)} icon="" />
-        <Kpi label="Delivered revenue" value={money(deliveredRevenue)} icon="" tone="good" />
+        <Kpi label="Completed order revenue" value={money(deliveredRevenue)} icon="" tone="good" />
         <Kpi label="Est. commission" value={money(deliveredRevenue * COMMISSION_RATE)} icon="" />
         <Kpi label="Wallet transactions" value={transactions.length} icon="" />
       </KpiGrid>
@@ -571,7 +590,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
 
   const renderReports = () => (
     <>
-      <SectionHeader eyebrow={t('Administration')} title="Reports" hint="Platform reports with downloadable summaries." actions={<div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('orders_report.csv', orders.map(o => ({ invoice: o.invoiceNumber, buyer: userById(o.customerId)?.name || '', supplier: companyById(o.companyId)?.name || '', total: o.totalAmount, status: o.status, payment: o.paymentStatus, date: o.orderDate })))}>Orders CSV</button><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('quotations_report.csv', quotations.map(q => ({ id: q.id, supplier: q.supplierName, rfq: q.rfqId, unit_price: q.unitPrice, quantity: q.quantity, total: q.unitPrice * q.quantity + q.deliveryFee, status: q.status })))}>Quotations CSV</button></div>} />
+      <SectionHeader eyebrow={t('Administration')} title="Reports" hint="Platform reports with downloadable summaries." actions={<div className="ws-row-actions"><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('orders_report.csv', orders.map(o => ({ invoice: o.invoiceNumber, buyer: userById(o.customerId)?.name || '', supplier: companyById(o.companyId)?.name || '', total: o.totalAmount, status: workflowStatusLabel(workflowStatusOf(o)), payment: o.paymentStatus, date: o.orderDate })))}>Orders CSV</button><button className="btn btn-secondary btn-sm" onClick={() => exportCsv('quotations_report.csv', quotations.map(q => ({ id: q.id, supplier: q.supplierName, rfq: q.rfqId, unit_price: q.unitPrice, quantity: q.quantity, total: q.unitPrice * q.quantity + q.deliveryFee, status: q.status })))}>Quotations CSV</button></div>} />
       <KpiGrid>
         <Kpi label="Users" value={users.length} icon="" />
         <Kpi label="Suppliers" value={companies.length} icon="" />
@@ -752,7 +771,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           <Kpi label="Cloud sync" value={isCloudEnabled ? 'Configured' : 'Local only'} icon="" tone={isCloudEnabled ? 'good' : 'warn'} />
           <Kpi label="Audit records" value={audit.length} icon="" />
           <Kpi label="Unread notifications" value={unread} icon="" tone={unread > 0 ? 'warn' : 'good'} />
-          <Kpi label="Pending orders" value={pendingOrders} icon="" tone={pendingOrders > 0 ? 'warn' : 'good'} />
+          <Kpi label="Submitted / reviewing orders" value={pendingOrders} icon="" tone={pendingOrders > 0 ? 'warn' : 'good'} />
         </KpiGrid>
         <div className="ws-grid-2">
           <Panel title="Service health">
@@ -765,7 +784,7 @@ const AdminWorkspace: React.FC<WorkspaceProps> = props => {
           </Panel>
           <Panel title="Operational queues">
             <BarList items={[
-              { label: 'Pending orders', value: pendingOrders },
+              { label: 'Submitted / reviewing orders', value: pendingOrders },
               { label: 'Open complaints', value: complaints.filter(c => c.status === 'open').length },
               { label: 'Supplier reviews', value: companies.filter(c => c.complianceStatus !== 'compliant').length },
               { label: 'Transport reviews', value: transporterProfiles.filter(p => !p.verified).length },

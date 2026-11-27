@@ -1,8 +1,9 @@
-# E-SCON 5.2.0 - Ethio-Supply Chain Optimization Network
+# E-SCON 5.3.0 - Ethio-Supply Chain Optimization Network
 
 ##  Technical Documentation
 
-> **Version:** 5.2.0 (map multi-item cart with checkboxes/quantity steppers, compact distance and city chips, and explicit supplier edit permissions for their own profile, location, products, prices and stock; plus in-app Python chart reports, map-first supplier locations, receipt-style PDF order documents and Python CSV/JSON chart analysis, all-device cross-compatibility and the reference dashboards)
+> **Version:** 5.3.0 (canonical 10-step order workflow with role-aware Advance actions and timelines, GPS map search/radius/warehouse/project/compare tools, selected-line cart submission, and itemised payment/tracking dashboards)
+> **Previous:** 5.2.0 (map multi-item cart with checkboxes/quantity steppers, compact distance and city chips, and explicit supplier edit permissions for their own profile, location, products, prices and stock; plus in-app Python chart reports, map-first supplier locations, receipt-style PDF order documents and Python CSV/JSON chart analysis, all-device cross-compatibility and the reference dashboards)
 > **Previous:** 5.1.0 (multi-item supplier storefront carts and in-app Python chart reports)
 > **Previous:** 5.0.0 (reference dashboards and E-SCON 5.0 shell)
 > **Previous:** 6.20 (dedicated Transporter role, dispatch/fleet/POD dashboard, public information pages and all-device responsive polish)
@@ -24,7 +25,7 @@
 7. [Data Models](#7-data-models)
 8. [State Management](#8-state-management)
 9. [Persistence (localStorage)](#9-persistence-localstorage)
-10. [Key Features & How They Work](#10-key-features--how-they-work) - including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65), plus [10.27 Cart-first ordering](#1027-cart-first-ordering-v610), [10.30 Marketplace](#1030-marketplace-v617), [10.31 Analytics & Insights](#1031-analytics--insights-v617), [10.32 Copilot AI](#1032-copilot-ai-v617) and [10.34 Map-first locations, PDF receipts & Python analytics](#1034-map-first-locations-pdf-receipts--python-analytics-v501)
+10. [Key Features & How They Work](#10-key-features--how-they-work) - including [10.5 Cart & checkout](#105-cart--checkout), [10.7 Proforma invoice](#107-proforma-invoice-new), [10.21 Whole-cart proforma](#1021-whole-cart-proforma-invoice-new-in-v52-single-supplier-again-from-v56), [10.22 Per-line delivery pricing](#1022-per-line-delivery-pricing-new-in-v52), [10.23 Single-supplier cart](#1023-single-supplier-cart-v56), [10.24 Branding, screenshots & search polish](#1024-branding-screenshots--search-polish-v58v60) and [10.26 Cart/order UX, locations & one-page proforma](#1026-cartorder-ux-locations--one-page-proforma-v65), plus [10.27 Cart-first ordering](#1027-cart-first-ordering-v610), [10.30 Marketplace](#1030-marketplace-v617), [10.31 Analytics & Insights](#1031-analytics--insights-v617), [10.32 Copilot AI](#1032-copilot-ai-v617), [10.34 Map-first locations, PDF receipts & Python analytics](#1034-map-first-locations-pdf-receipts--python-analytics-v501) and [10.35 Order workflow, GPS map tools & order management](#1035-order-workflow-gps-map-tools--order-management-v530)
 11. [Third-Party Integrations](#11-third-party-integrations)
 12. [Styling System & Themes](#12-styling-system--themes)
 13. [Responsive / Mobile / Touch Design](#13-responsive--mobile--touch-design)
@@ -164,17 +165,19 @@ supply-chain1/
         cloudStore.ts   # Supabase sync module (only settings pushes in v6.0)
         analytics.ts    # Pure role-aware BI engine (KPIs, trends, forecasts, insights)
         receipt.ts      # Receipt-style HTML for browser print / Save as PDF (v5.1.0)
-        copilot.ts      # Deterministic, on-device Q&A over the analytics engine
-        commandSearch.ts # Pure ranking/recent-list helpers for Quick Search (v6.18)
-        supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
+         copilot.ts      # Deterministic, on-device Q&A over the analytics engine
+         commandSearch.ts # Pure ranking/recent-list helpers for Quick Search (v6.18)
+         orderWorkflow.ts # Canonical 10-step order lifecycle, role transitions and legacy mirroring (v5.3.0)
+         orderWorkflow.test.ts # Workflow status/role/legacy mapping tests (v5.3.0)
+         supabaseClient.ts  # Supabase client, built from .env.local (disabled if unset)
 
     hooks/
        useIsMobile.ts  # Reactive isMobile flag from matchMedia("(max-width: 900px)...")
     components/
        ProformaInvoice.tsx, PublicProforma.tsx, AdminSettings.tsx,
        AnalyticsPage.tsx, MarketplacePage.tsx, CopilotPage.tsx (v6.17),
-       CommandPalette.tsx (v6.18), InstallGuide.tsx, OrderTimeline.tsx,
-       MapComponent.tsx (lazy) ... see 10
+       CommandPalette.tsx (v6.18), InstallGuide.tsx, OrderTimeline.tsx (10 steps in v5.3.0),
+       MapComponent.tsx (lazy; material search/radius/warehouse/project/compare in v5.3.0) ... see 10
     *.test.ts           # Jest unit tests (fees, formatting, settings, QR payloads)
   analytics/
       analyze.py          # pandas/matplotlib CSV/JSON chart + HTML report generator (v5.1.0)
@@ -287,11 +290,17 @@ alter a cart the buyer already priced.
 ### Order
 ```ts
 { id, customerId, companyId, materialId, quantity, unitPrice,
-  transportCost, totalAmount, status: 'pending'|'confirmed'|'shipped'|'delivered'|'cancelled',
+  transportCost, totalAmount,
+  status: 'pending'|'confirmed'|'shipped'|'delivered'|'cancelled', // legacy mirror
+  workflowStatus?: WorkflowOrderStatus, // NEW v5.3: canonical 10-step status
+  orderNumber?: string,                  // NEW v5.3: unique human-readable reference
   orderDate, deliveryDate?, address, notes?, invoiceNumber,
   taxAmount, vatAmount, paymentMethod, paymentStatus,
   deliveryIncluded: boolean } //  NEW v5.2: did the buyer pay for delivery?
 ```
+
+Since v5.3 the workflow status is canonical; `status` remains a mirrored legacy
+value so existing dashboards, exports and cloud rows keep working.
 
 ### Other types
 `Alert`, `FormData` (all form fields, incl. `materialImages: string[]` and the three delivery fields `materialDeliveryOffered` / `materialDeliveryPerKm` / `materialDeliveryStartFee`), `SearchResult` (Material + computed `distance`, `totalCost`, `estimatedTransport`, `company`).
@@ -1017,6 +1026,41 @@ products by category, average price by category and suppliers by city. The scrip
 prints order/product/supplier counts and total order value. It never connects to
 the app or to Supabase.
 
+### 10.35 Order workflow, GPS map tools & order management (v5.3.0)
+
+**Canonical workflow.** [`src/lib/orderWorkflow.ts`](../src/lib/orderWorkflow.ts)
+defines the ten steps in order: `submitted`, `supplier_reviewing`,
+`supplier_quotation_received`, `proforma_approved`, `payment_confirmed`,
+`materials_preparing`, `transporter_assigned`, `delivery_in_transit`,
+`customer_confirmed_receipt`, `order_completed`. `workflowStatusOf` prefers
+`Order.workflowStatus` and maps legacy values (`pending` to `submitted`,
+`confirmed` to `supplier_quotation_received`, `shipped` to
+`delivery_in_transit`, `delivered` to `order_completed`); `legacyOrderStatusOf`
+mirrors the workflow back to `status` for compatibility. `nextWorkflowStatusForRole`
+and `canAdvanceWorkflowStatus` expose only the next step allowed for the signed-in
+role (admin can advance every step), and [`OrderTimeline`](../src/components/OrderTimeline.tsx)
+renders all ten steps. Customer, supplier, admin, transporter and mobile order
+views show the timeline and, where allowed, an **Advance: ...** button.
+`src/lib/orderWorkflow.test.ts` covers status order, labels, progress, legacy
+mapping and role transitions.
+
+**GPS map tools.** `MapComponent` adds case-insensitive material search, a nearby
+radius filter, explicit warehouse pins/popups, and a **Set project location**
+mode that drops a customer pin on map click. Straight-line distance uses the
+project pin when set, then the saved buyer pin, then the map centre; the origin
+is labelled accordingly. **Compare nearby suppliers** accepts up to three
+visible suppliers and shows product count, average price and a transport estimate
+(supplier published rate or settings-driven `computeDeliveryFee`). The existing
+OSRM route line, road distance and automatic transport cost calculation are
+unchanged.
+
+**Cart and order dashboards.** The cart's Order Items table has a per-line
+checkbox, `-` / `+` quantity steppers, a selected-item count and a selected
+subtotal; `confirmOrder` submits only lines whose checkbox was not unticked.
+Customer workflow payment/tracking panels show selected items total, transport
+cost, grand total, payment method, unique `orderNumber`, status, live transporter
+GPS and receipt/proof-of-delivery confirmation.
+
 ---
 
 ## 11. Third-Party Integrations
@@ -1260,7 +1304,7 @@ For the install prompt to work:
 - `public/manifest.json` must define `name`, `short_name`, `start_url`, `display: 'standalone'`, `background_color`, and `theme_color`.
 - `public/index.html` must include `<link rel="manifest">` and `<meta name="apple-mobile-web-app-capable" content="yes">`.
 - The app must be served over **HTTPS** (Vercel/Netlify provide this by default).
-- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build - version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v5.2.0` (bumped with every release so every installed PWA drops the old assets).
+- `public/sw.js` is a **custom service worker** registered in `src/index.tsx` only when `process.env.NODE_ENV === 'production'`. It pre-caches the app shell and enables offline navigation. There is **no auto-updating CRA Workbox** build - version bumps in `VERSION` at the top of `sw.js` force              refresh. Current value: `e-scon-v5.3.0` (bumped with every release so every installed PWA drops the old assets).
 - **Clearing the cache for every user without touching their data (v5.5):** bump `VERSION` in `public/sw.js` and ship. On `activate` the worker deletes every Cache Storage bucket whose name is not the current `<VERSION>-shell` / `<VERSION>-runtime` pair, and `install` calls `skipWaiting()` + `activate` calls `clients.claim()`, so every open client drops its stale JS/CSS, pre-cached shell and map tiles and re-fetches the new build on its next load. **This is asset-only:** accounts, companies, products, orders, per-user carts, favourites, wallets, reviews, notifications and `system_settings` live in `localStorage`, which the service worker never reads or writes. Never add a `localStorage.clear()` (or a `caches`-touching data wipe) to that flow - that is what would destroy real data. A client that never opens the app again keeps its old cache until it does; that is expected.
 
 > **Installing is always optional.** The app works identically in a normal browser tab; the Install Guide modal explains each device's steps.
@@ -1389,7 +1433,7 @@ Read this before touching any code. It prevents the most common mistakes.
 - **"Add a search filter":** see the *Search filters* bullet in 19.2 - six touch points, and reuse the existing filter classes so the frame does not change.
 - **"Let a customer order from two suppliers at once":** you don't - one cart, one supplier (10.23). `findOtherCartSupplier` refuses the second add and leaves the cart alone. Do **not** relax this by clearing or replacing the cart on the buyer's behalf, and do not re-add the v5.1 supplier picker to the proforma; if a buyer genuinely needs two suppliers, they clear the cart and order twice.
 - **"Push a PWA update":** bump `VERSION` in `public/sw.js` so old caches are purged in `activate`.
-- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v5.2.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data - accounts, products and orders are in `localStorage` and are never part of that purge (16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
+- **"Users are seeing an old/stale version of the app":** bump `VERSION` in `public/sw.js` (currently   `e-scon-v5.3.0`) and push. Every client purges its asset + tile caches on the next load and keeps all of its data - accounts, products and orders are in `localStorage` and are never part of that purge (16). If a single user is still stuck, they have to reload once; an unopened app cannot be reached.
 - **"A customer asks how much stock is left":** they cannot see it anywhere in the UI by design (13.1). Suppliers see it on the company dashboard, the mobile dashboard and the product details page; add a `canSeeStock` block if you need a new stock surface.
 - **"A customer asks about the minimum order for one product":** there is none - any quantity of 1 or more is allowed. The per-product `minOrder` is reference data for the supplier and appears in the comparison view and the supplier-side forms. The admin-configured cart minimum in  Settings is the only threshold a customer can hit.
 - **"The map opens without a route":** check `isMapReady`, the `routeRequestId` nonce and the sticky `autoRouteSupplierId` (10.2), then confirm the destination is in the `companies` list passed to the map.
@@ -1411,6 +1455,25 @@ The app's user-facing labels are unchanged; the Android build carries `versionCo
 (integer, must increase for every Play upload) and `versionName` in
 [`android/app/build.gradle`](../android/app/build.gradle). The PWA's cache-bust
 switch is `VERSION` at the top of [`public/sw.js`](../public/sw.js).
+
+### v5.3.0 - Order workflow, GPS planning tools and order management (current)
+- **Canonical order workflow.** Ten statuses from submission to completion, with
+  role-aware **Advance** actions and 10-step timelines in customer, supplier,
+  admin, transporter and mobile views. Legacy pending/confirmed/shipped/delivered
+  values are mirrored for compatibility; see `src/lib/orderWorkflow.ts` and 10.35.
+- **GPS map planning.** Material search, nearby radius, explicit warehouse pins,
+  customer project pin, straight-line distance from the saved/project/map-centre
+  origin, and up-to-three-supplier comparison with product count, average price
+  and transport estimate. OSRM route/distance/cost behaviour stays intact.
+- **Cart & dashboards.** Per-line cart checkboxes and quantity steppers with
+  selected count/subtotal (only selected lines submit); payment/tracking panels
+  show item totals, transport, grand total, payment method, unique order number,
+  status, live GPS and receipt confirmation.
+- **Verification & release.** `npx tsc --noEmit`, 6 Jest suites / 130 tests,
+  `npm run build`, `npx cap sync android`, Android debug/release/AAB builds,
+  `aapt` (`versionCode 32` / `versionName 5.3.0`), AAB `jarsigner`, APK
+  `apksigner` and the desktop/portrait/landscape browser audit all passed;
+  `sw.js` `VERSION` is `e-scon-v5.3.0`.
 
 ### v5.0.0 - Reference role dashboards, live analytics and guest public view
 - **Administration dashboard.** Rebuilt around five platform KPIs, a
@@ -1950,7 +2013,16 @@ this release changed an existing feature or its behaviour.
 
 ---
 
-## E-SCON 5.2.0 (current release)
+## E-SCON 5.3.0 (current release)
+
+- **Canonical 10-step workflow:** `submitted`  to  `order_completed`, with role-aware **Advance** buttons and 10-step `OrderTimeline` views for customers, suppliers, admins, transporters and mobile orders. Legacy pending/confirmed/shipped/delivered statuses are mirrored; the pure rules live in `src/lib/orderWorkflow.ts` with tests in `src/lib/orderWorkflow.test.ts`.
+- **GPS map tools:** material search, nearby radius, explicit warehouse pins/popups, a customer project pin on map click, straight-line distance from the saved/project/map-centre origin, and nearby supplier comparison of up to 3 suppliers (product count, average price, transport estimate). The OSRM route line, road distance and auto transport cost remain.
+- **Cart & order management:** per-line checkboxes, quantity steppers, selected-item count and selected subtotal; only selected cart lines are submitted. Payment and tracking dashboards show item totals, transport cost, grand total, payment method, unique order number, status, live GPS and receipt confirmation.
+- **Versioning/artifacts:** `versionCode 32` / `versionName 5.3.0`, service worker `e-scon-v5.3.0`; debug APK, signed release APK and signed AAB refreshed at the repo root. Verification: typecheck, 6 suites / 130 tests, production build, `cap sync`, Android debug/release/AAB builds, `aapt`, `jarsigner`, `apksigner` and a no-overflow browser audit at desktop, mobile portrait and mobile landscape.
+
+---
+
+## E-SCON 5.2.0 (previous release)
 
 - **Map multi-item cart:** `MapComponent` replaces the single-product row buttons in **Available Products** with checkboxes and `-` / `+` amount steppers, **Select all** / **Clear**, a running units/items/goods summary and **Add selected to cart**. `onSelectProducts(items, distanceKm)` calls `handleMapProductsToCart` in `src/App.tsx`, which validates buyer/stock, reuses the measured road km (or measures it on demand), sets `distanceToSelected` and hands every line to `addItemsToCart`. `stageCartSelections` stages the basket atomically, keeping the one-supplier-per-cart rule; guests are still redirected to login and non-customers cannot order.
 - **Compact location chips:** `.map-product-distance`, `.distance-badge`, `.m-pc-chip` and `.m-pc-distance` in `src/App.css` use smaller padding/font sizes (including the 560px breakpoint), leaving more room for product names and prices.

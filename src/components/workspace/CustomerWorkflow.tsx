@@ -8,6 +8,14 @@ import {
   WorkflowSelection,
 } from '../../types';
 import { formatCurrency, formatDate } from '../../utils';
+import {
+  ORDER_WORKFLOW_STATUSES,
+  nextWorkflowStatusForRole,
+  workflowProgress,
+  workflowStatusIndex,
+  workflowStatusLabel,
+  workflowStatusOf,
+} from '../../lib/orderWorkflow';
 import { jobStatus, TRANSPORT_STATUS_LABELS } from '../../lib/transport';
 import useLocalCollection from '../../hooks/useLocalCollection';
 import {
@@ -525,7 +533,18 @@ const CustomerWorkflow: React.FC<WorkspaceProps> = props => {
   );
 
   const renderTracking = () => {
-    const steps = ['pending', 'confirmed', 'shipped', 'delivered'];
+    const shortLabels: Record<string, string> = {
+      submitted: 'Submitted',
+      supplier_reviewing: 'Review',
+      supplier_quotation_received: 'Quotation',
+      proforma_approved: 'Proforma',
+      payment_confirmed: 'Payment',
+      materials_preparing: 'Preparing',
+      transporter_assigned: 'Assigned',
+      delivery_in_transit: 'In transit',
+      customer_confirmed_receipt: 'Receipt',
+      order_completed: 'Completed',
+    };
     return (
       <>
         <SectionHeader
@@ -538,8 +557,11 @@ const CustomerWorkflow: React.FC<WorkspaceProps> = props => {
         ) : (
           <div className="ws-track-list">
             {myOrders.slice(0, 8).map(order => {
-              const index = Math.max(0, steps.indexOf(order.status));
-              const progress = [10, 35, 75, 100][index];
+              const currentStatus = workflowStatusOf(order);
+              const index = workflowStatusIndex(currentStatus);
+              const progress = workflowProgress(currentStatus);
+              const nextStatus = nextWorkflowStatusForRole(currentStatus, user?.userType);
+              const orderSupplier = companies.find(company => company.id === order.companyId);
               const transporter = transporterProfiles.find(profile => profile.userId === order.transporterId);
               const position = order.transporterId ? liveGps : null;
               return (
@@ -547,21 +569,21 @@ const CustomerWorkflow: React.FC<WorkspaceProps> = props => {
                   <div className="ws-track-head">
                     <div>
                       <strong>{order.orderNumber || order.invoiceNumber}</strong>
-                      <small>{materials.find(material => material.id === order.materialId)?.name || 'Order'} - {order.quantity} units - {supplier?.name || companies.find(company => company.id === order.companyId)?.name || 'Supplier'}</small>
+                      <small>{materials.find(material => material.id === order.materialId)?.name || 'Order'} - {order.quantity} units - {orderSupplier?.name || 'Supplier'}</small>
                     </div>
-                    <StatusPill label={order.status} tone={toneFor(order.status)} />
+                    <StatusPill label={workflowStatusLabel(currentStatus)} tone={toneFor(order.status)} />
                   </div>
                   <div className="ws-timeline">
-                    {steps.map((step, stepIndex) => (
+                    {ORDER_WORKFLOW_STATUSES.map((step, stepIndex) => (
                       <div key={step} className={'ws-step' + (stepIndex <= index ? ' done' : '')}>
-                        <span>{stepIndex <= index ? '*' : 'o'}</span>
-                        {step.charAt(0).toUpperCase() + step.slice(1)}
+                        <span>{stepIndex + 1}</span>
+                        {shortLabels[step]}
                       </div>
                     ))}
                   </div>
-                  <ProgressBar value={progress} tone={order.status === 'delivered' ? 'good' : 'blue'} />
+                  <ProgressBar value={progress} tone={currentStatus === 'order_completed' ? 'good' : 'blue'} />
                   <ul className="ws-detail-list ws-workflow-totals">
-                    <li><span>Order status</span><strong>{order.status}</strong></li>
+                    <li><span>Order status</span><strong>{workflowStatusLabel(currentStatus)}</strong></li>
                     <li><span>Delivery status</span><strong>{order.transportStatus ? TRANSPORT_STATUS_LABELS[jobStatus(order)] : 'Not assigned'}</strong></li>
                     <li><span>Transporter</span><strong>{transporter?.companyName || 'Not assigned'}</strong></li>
                     <li><span>Transport cost</span><strong>{money(order.transportCost || 0)}</strong></li>
@@ -577,11 +599,13 @@ const CustomerWorkflow: React.FC<WorkspaceProps> = props => {
                     {order.transportPod && <li><span>Received by</span><strong>{order.transportPod.receivedBy}</strong></li>}
                   </ul>
                   <div className="ws-workflow-inline-actions">
-                    {supplier && <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenMap(supplier.id)}>Delivery route map</button>}
-                    {order.status !== 'delivered' && (
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => onUpdateOrderStatus(order.id, 'delivered')}>Confirm successful delivery</button>
+                    {orderSupplier && <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenMap(orderSupplier.id)}>Delivery route map</button>}
+                    {nextStatus && (
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => onUpdateOrderStatus(order.id, nextStatus)}>
+                        Advance: {workflowStatusLabel(nextStatus)}
+                      </button>
                     )}
-                    {order.status === 'delivered' && <StatusPill label="Order completed" tone="good" />}
+                    {currentStatus === 'order_completed' && <StatusPill label="Order completed" tone="good" />}
                   </div>
                 </div>
               );

@@ -20,6 +20,13 @@ import {
   canEditCompany, canEditMaterial, normalizeEmail, findLoginUser
 } from './utils';
 import { loadSettings, saveSettings, ADMIN_USERS, ADMIN_EMAIL, LEGACY_ADMIN_EMAILS } from './settings';
+import {
+  legacyOrderStatusOf,
+  nextWorkflowStatusForRole,
+  workflowStatusIndex,
+  workflowStatusLabel,
+  workflowStatusOf,
+} from './lib/orderWorkflow';
 import { cloudPush, cloudPushNow, fetchCloudChanges, pullCloudToCache, subscribeToCloud } from './lib/cloudStore';
 import EditCompany from './components/EditCompany';
 import MapPicker from './components/MapPicker';
@@ -372,6 +379,7 @@ function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartSummary, setShowCartSummary] = useState(false);
   const [cartDetails, setCartDetails] = useState<CartReport | null>(null);
+  const [selectedCartItemIds, setSelectedCartItemIds] = useState<Record<string, boolean>>({});
   // Optional buyer-set delivery fee. null = use the automatic fee computed from
   // system settings; a number overrides it everywhere (cart, proforma, orders).
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState<number | null>(null);
@@ -2905,10 +2913,17 @@ function App() {
     // Normally the whole cart is bought; the product-details Place Order action
     // passes the cart it just staged so it can commit without waiting for a
     // state round-trip.
-    const lines = linesOverride || cart;
+    const candidateLines = linesOverride || cart;
+    const lines = linesOverride
+      ? candidateLines
+      : candidateLines.filter(item => selectedCartItemIds[item.id] !== false);
     const method = options?.paymentMethod || paymentMethod;
     const navigateAfter = options?.navigateAfter !== false;
-    if (lines.length === 0 || isPlacingOrder) return null;
+    if (lines.length === 0) {
+      showAlert('Select at least one cart item before placing the order.', 'warning');
+      return null;
+    }
+    if (isPlacingOrder) return null;
     // A line with an exact product-page KM does not need a fresh position.
     // Request one only when at least one legacy/unmeasured line still needs it.
     const needsCoordinates = lines.some(item => measuredLineDistance(item) === null);
@@ -3009,6 +3024,7 @@ function App() {
         transportCost: transportCostItem,
         totalAmount: totalAmount,
         status: 'pending',
+        workflowStatus: options?.paymentMethod ? 'payment_confirmed' : 'submitted',
         orderDate: new Date().toISOString().split('T')[0],
         address: currentUser?.address || '',
         notes: 'Order from cart - ' + lines.length + ' items total',
@@ -3117,12 +3133,26 @@ function App() {
   const handleUpdateOrderStatus = (orderId: string, status: string) => {
     const existing = orders.find(o => o.id === orderId);
     if (!existing) return;
-    const updated: Order = { ...existing, status: status as Order['status'] };
+    const currentStatus = workflowStatusOf(existing);
+    const targetStatus = workflowStatusOf(status);
+    const currentIndex = workflowStatusIndex(currentStatus);
+    const targetIndex = workflowStatusIndex(targetStatus);
+    if (currentStatus === targetStatus && existing.status === legacyOrderStatusOf(targetStatus)) return;
+    if (currentStatus !== 'cancelled' && targetIndex >= 0 && targetIndex < currentIndex && currentUser?.userType !== 'admin') {
+      showAlert('An order cannot move backwards in the delivery workflow.', 'warning');
+      return;
+    }
+    const updated: Order = { ...existing, status: legacyOrderStatusOf(targetStatus) };
+    if (targetStatus === 'cancelled') delete updated.workflowStatus;
+    else updated.workflowStatus = targetStatus;
     const supplierCompany = getCompanyById(existing.companyId);
     const supplierUser = supplierCompany ? getUserById(supplierCompany.userId) : undefined;
 
-    if (status === 'confirmed') {
-      // Reduce supplier stock on confirmation and alert on low stock.
+    if (targetStatus === 'supplier_reviewing' && currentIndex < targetIndex) {
+      pushNotification(existing.customerId, 'order', 'Supplier reviewing your order',
+        `${existing.invoiceNumber} is now being reviewed by ${supplierCompany?.name || 'the supplier'}.`);
+    }
+    if (targetStatus === 'supplier_quotation_received' && currentIndex < targetIndex) {
       setMaterials(prev => prev.map(m => m.id === existing.materialId
         ? { ...m, quantity: Math.max(0, m.quantity - existing.quantity) } : m));
       const material = getMaterialById(existing.materialId);
@@ -3133,48 +3163,71 @@ function App() {
             `${material.name} now has ${remaining} ${material.unit || 'units'} left  consider restocking.`);
         }
       }
-      // Wallet orders already went through walletToInvoice; supplier income is
-      // credited on delivery below to avoid crediting before the goods ship.
-      pushNotification(existing.customerId, 'order', 'Order confirmed ...',
-        `${existing.invoiceNumber} (${formatCurrency(existing.totalAmount)}) was confirmed by ${supplierCompany?.name || 'the supplier'}.`);
+      pushNotification(existing.customerId, 'order', 'Supplier quotation received',
+        `${existing.invoiceNumber} (${formatCurrency(existing.totalAmount)}) was quoted by ${supplierCompany?.name || 'the supplier'}.`);
     }
-    if (status === 'shipped') {
+    if (targetStatus === 'proforma_approved' && currentIndex < targetIndex && supplierUser) {
+      pushNotification(supplierUser.id, 'order', 'Proforma approved',
+        `${existing.invoiceNumber} was approved by the customer.`);
+    }
+    if (targetStatus === 'payment_confirmed' && currentIndex < targetIndex && supplierUser) {
+      pushNotification(supplierUser.id, 'payment', 'Payment confirmed or agreed terms',
+        `${existing.invoiceNumber} is ready for preparation.`);
+    }
+    if (targetStatus === 'materials_preparing' && currentIndex < targetIndex) {
+      pushNotification(existing.customerId, 'order', 'Supplier preparing materials',
+        `${existing.invoiceNumber} is being prepared by ${supplierCompany?.name || 'the supplier'}.`);
+    }
+    if (targetStatus === 'transporter_assigned' && currentIndex < targetIndex) {
+      if (existing.transporterId) {
+        pushNotification(existing.transporterId, 'order', 'Delivery job assigned',
+          `You were assigned to deliver ${existing.invoiceNumber}.`);
+      }
+      pushNotification(existing.customerId, 'order', 'Transporter assigned',
+        `A transporter has been assigned to ${existing.invoiceNumber}.`);
+    }
+    if (targetStatus === 'delivery_in_transit' && currentIndex < targetIndex) {
       updated.deliveryDate = new Date().toISOString().split('T')[0];
-      pushNotification(existing.customerId, 'order', 'Order shipped ',
+      pushNotification(existing.customerId, 'order', 'Delivery in transit',
         `${existing.invoiceNumber} is on its way from ${supplierCompany?.city || 'the supplier'}.`);
       if (supplierUser) {
         pushNotification(supplierUser.id, 'order', 'Shipment confirmed',
-          `${existing.invoiceNumber} marked as shipped.`);
+          `${existing.invoiceNumber} is in transit.`);
       }
     }
-    if (status === 'delivered') {
-      updated.deliveryDate = new Date().toISOString().split('T')[0];
+    if (targetStatus === 'customer_confirmed_receipt' && currentIndex < targetIndex) {
+      updated.deliveryDate = updated.deliveryDate || new Date().toISOString().split('T')[0];
+      if (supplierUser) {
+        pushNotification(supplierUser.id, 'order', 'Receipt confirmed',
+          `The customer confirmed receipt of ${existing.invoiceNumber}.`);
+      }
+    }
+    if (targetStatus === 'order_completed' && currentIndex < targetIndex) {
+      updated.deliveryDate = updated.deliveryDate || new Date().toISOString().split('T')[0];
       updated.paymentStatus = 'paid';
       updated.revenueCredited = true;
-      // Credit the supplier's wallet (net of an 8% platform commission).
-      if (supplierUser) {
+      if (supplierUser && !existing.revenueCredited) {
         const gross = existing.totalAmount;
         const commission = Math.round(gross * 0.08 * 100) / 100;
         const net = gross - commission;
         applyWalletChange(supplierUser.id, 'income', net,
-          `Invoice ${existing.invoiceNumber} delivered  net of 8% platform fee (${formatCurrency(commission)})`);
+          `Invoice ${existing.invoiceNumber} completed  net of 8% platform fee (${formatCurrency(commission)})`);
         pushNotification(supplierUser.id, 'payment', 'Payment received',
           `You earned ${formatCurrency(net)} (after 8% platform fee) for ${existing.invoiceNumber}.`);
       }
-      pushNotification(existing.customerId, 'order', 'Order delivered ',
-        `${existing.invoiceNumber} was delivered  you can now rate the product.`);
+      pushNotification(existing.customerId, 'order', 'Order completed',
+        `${existing.invoiceNumber} is complete  you can now rate the product.`);
     }
-    if (status === 'cancelled') {
+    if (targetStatus === 'cancelled' && existing.status !== 'cancelled') {
       updated.paymentStatus = 'refunded';
-      // Refund the buyer's wallet when they originally paid with it.
       if (existing.walletPayment && existing.paymentStatus === 'paid') {
         const refunded = applyWalletChange(existing.customerId, 'refund', existing.totalAmount,
           `Refund for cancelled ${existing.invoiceNumber}`);
-        pushNotification(existing.customerId, 'payment', 'Refund issued 3',
+        pushNotification(existing.customerId, 'payment', 'Refund issued',
           `ETB ${existing.totalAmount.toLocaleString()} returned to your wallet${refunded !== null ? '  new balance ' + formatCurrency(refunded) : ''}.`);
       } else {
         pushNotification(existing.customerId, 'order', 'Order cancelled',
-          `${existing.invoiceNumber} was cancelled by the supplier.`);
+          `${existing.invoiceNumber} was cancelled.`);
       }
       if (supplierUser) {
         pushNotification(supplierUser.id, 'order', 'Order cancelled',
@@ -3182,8 +3235,10 @@ function App() {
       }
     }
     setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
-    showAlert('Order status updated to ' + status + ' ', 'success');
+    showAlert('Order status updated to ' + workflowStatusLabel(targetStatus) + ' ', 'success');
   };
+
+  const orderWorkflowLabel = (order: Order): string => workflowStatusLabel(workflowStatusOf(order));
 
   const handleContactSupplier = (materialId: string) => {
     const material = getMaterialById(materialId);
@@ -3625,6 +3680,8 @@ function App() {
       );
     }
     const supplierGroups = cartDetails.suppliers || [];
+    const selectedCartLines = cart.filter(item => selectedCartItemIds[item.id] !== false);
+    const selectedSubtotal = selectedCartLines.reduce((sum, item) => sum + item.price * item.quantity, 0);
     // The cart shows goods + delivery only. VAT is applied at order time, so the
     // wallet check has to look at the VAT-inclusive amount the buyer will pay.
     const expectedVat = vatOnSubtotal(cartDetails.subtotal, cartDetails.vatRate ?? 0, systemSettings.vat.enabled);
@@ -3782,12 +3839,15 @@ function App() {
                 <div className="cart-new-items-section">
                   <div className="cart-new-items-head">
                     <span> Order Items</span>
-                    <span>{cart.length} item{cart.length === 1 ? '' : 's'}</span>
+                    <span>
+                      {selectedCartLines.length} of {cart.length} selected - subtotal {formatCurrency(selectedSubtotal)}
+                    </span>
                   </div>
                   <div className="cart-new-table-wrap">
                     <table className="cart-new-table">
                       <thead>
                         <tr>
+                          <th>Select</th>
                           <th>No.</th>
                           <th>Item Name</th>
                           <th>Description</th>
@@ -3799,18 +3859,26 @@ function App() {
                       <tbody>
                         {cart.map((item, idx) => (
                           <tr key={item.id}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={selectedCartItemIds[item.id] !== false}
+                                onChange={() => setSelectedCartItemIds(prev => ({ ...prev, [item.id]: prev[item.id] === false }))}
+                                aria-label={`Select ${item.materialName}`}
+                              />
+                            </td>
                             <td>{idx + 1}</td>
                             <td>{item.materialName}</td>
-                            <td>{getMaterialById(item.materialId)?.description?.substring(0,40) || item.materialName}</td>
+                            <td>{getMaterialById(item.materialId)?.description || item.materialName}</td>
                             <td>{item.unit}</td>
                             <td>
                               <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
-                                <button onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity-1))} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}></button>
+                                <button onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity-1))} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}>-</button>
                                 <span>{item.quantity}</span>
                                 <button onClick={() => updateCartQuantity(item.id, item.quantity+1)} style={{borderRadius:'50%',width:'18px',height:'18px',border:'1px solid #005baa',background:'#e6f2ff',color:'#005baa'}}>+</button>
                               </div>
                             </td>
-                            <td>ETB {item.price.toFixed(2)}</td>
+                            <td>{formatCurrency(item.price)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -4487,7 +4555,7 @@ function App() {
                     <td>{m?.name}</td>
                     <td>{order.quantity}</td>
                     <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
-                    <td>{order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}</td>
+                    <td>{orderWorkflowLabel(order)}</td>
                     <td>{formatDate(order.orderDate)}</td>
                   </tr>
                 );
@@ -4762,13 +4830,22 @@ function App() {
                     <td className="price-cell">{formatCurrency(order.unitPrice)}</td>
                     <td className="price-cell">{formatCurrency(order.transportCost)}</td>
                     <td className="price-cell">{formatCurrency(order.totalAmount)}</td>
-                    <td>{order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}</td>
+                    <td>{orderWorkflowLabel(order)}</td>
                     <td>{formatDate(order.orderDate)}</td>
                     {!canManage && (
                       <td><button className="btn-icon" title="Quick Reorder" onClick={() => handleQuickReorder(order.materialId)}></button></td>
                     )}
                     {canManage && (
-                      <td>{order.status === 'pending' ? <button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>... Confirm</button> : ''}</td>
+                      <td>
+                        {(() => {
+                          const nextStatus = nextWorkflowStatusForRole(workflowStatusOf(order), currentUser?.userType);
+                          return nextStatus ? (
+                            <button className="btn-icon success" onClick={() => handleUpdateOrderStatus(order.id, nextStatus)}>
+                              Advance: {workflowStatusLabel(nextStatus)}
+                            </button>
+                          ) : '';
+                        })()}
+                      </td>
                     )}
                   </tr>
                 );
@@ -5771,7 +5848,7 @@ function App() {
                       <strong>{m?.name || order.materialId}</strong>
                       <small>{order.quantity} {m?.unit || ''} - {formatCurrency(order.totalAmount)}</small>
                     </div>
-                    <span className={'m-status-pill ' + order.status}>{order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}</span>
+                    <span className={'m-status-pill ' + order.status}>{orderWorkflowLabel(order)}</span>
                   </div>
                 );
               })}
@@ -5832,10 +5909,10 @@ function App() {
                       </div>
                     </div>
                     <span className={'m-status-pill ' + order.status}>
-                      {order.status === 'delivered' ? '...' : order.status === 'pending' ? '3' : ''} {order.status}
+                      {orderWorkflowLabel(order)}
                     </span>
                   </div>
-                  <OrderTimeline status={order.status} size="sm" />
+                  <OrderTimeline status={workflowStatusOf(order)} size="sm" />
                   {canManage && customer && (
                     <div className="m-order-customer"> {customer.name} -  {customer.city}</div>
                   )}
@@ -5855,19 +5932,21 @@ function App() {
                     {!canManage && (
                       <button className="m-order-btn" onClick={() => handleQuickReorder(order.materialId)}> Reorder</button>
                     )}
-                    {!canManage && order.status === 'delivered' && m && (
+                    {!canManage && workflowStatusOf(order) === 'order_completed' && m && (
                       <button className="m-order-btn primary" onClick={() => setSelectedMaterial(m)}> Rate product</button>
                     )}
-                    {canManage && order.status === 'pending' && (
-                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}>... Confirm</button>
-                    )}
-                    {canManage && order.status === 'confirmed' && (
-                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'shipped')}> Ship</button>
-                    )}
-                    {canManage && order.status === 'shipped' && (
-                      <button className="m-order-btn primary" onClick={() => handleUpdateOrderStatus(order.id, 'delivered')}> Delivered</button>
-                    )}
-                    {canManage && (order.status === 'pending' || order.status === 'confirmed') && (
+                    {(() => {
+                      const nextStatus = nextWorkflowStatusForRole(workflowStatusOf(order), currentUser?.userType);
+                      return nextStatus ? (
+                        <button
+                          className="m-order-btn primary"
+                          onClick={() => handleUpdateOrderStatus(order.id, nextStatus)}
+                        >
+                          Advance: {workflowStatusLabel(nextStatus)}
+                        </button>
+                      ) : null;
+                    })()}
+                    {canManage && ['submitted', 'supplier_reviewing', 'supplier_quotation_received'].includes(workflowStatusOf(order)) && (
                       <button className="m-order-btn danger" onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}> Cancel</button>
                     )}
                     {canManage && <button className="m-order-btn" onClick={handleExportOrders}> Export</button>}

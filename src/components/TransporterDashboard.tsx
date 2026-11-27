@@ -26,6 +26,7 @@ import {
   transportJobFee,
   transporterJobs,
 } from '../lib/transport';
+import { nextWorkflowStatusForRole, workflowStatusLabel, workflowStatusOf } from '../lib/orderWorkflow';
 import { formatCurrency, formatDate, genId } from '../utils';
 import useLocalCollection from '../hooks/useLocalCollection';
 import { StarRatingDisplay } from './Charts';
@@ -344,7 +345,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
           <small>{formatDate(order.orderDate)} - {order.address}</small>
         </div>
         <div className="transport-badges">
-          <span className="stock-chip stock-chip-low">Open request</span>
+          <span className="stock-chip stock-chip-low">Open request - {workflowStatusLabel(workflowStatusOf(order))}</span>
           <span className={'transport-match ' + (requestMatchesArea(order) ? 'in' : 'out')}>
             {requestMatchesArea(order) ? '[OK] In your service area' : 'Outside service area'}
           </span>
@@ -370,6 +371,8 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
   const renderDispatchCard = (order: Order) => {
     const status = jobStatus(order);
     const next = nextTransportStatus(status);
+    const workflowStatus = workflowStatusOf(order);
+    const workflowNextStatus = nextWorkflowStatusForRole(workflowStatus, user.userType);
     const vehicleId = order.assignedVehicleId || '';
     const driverId = order.assignedDriverId || '';
     const material = materialById.get(order.materialId);
@@ -384,7 +387,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
             <strong>Order {order.invoiceNumber}</strong>
             <small>{formatDate(order.orderDate)} - {order.address}</small>
           </div>
-          <span className={statusTone(order)}>{TRANSPORT_STATUS_LABELS[status]}</span>
+          <span className={statusTone(order)}>{TRANSPORT_STATUS_LABELS[status]} - {workflowStatusLabel(workflowStatus)}</span>
         </div>
         {renderOrderMeta(order)}
         {order.transportPod && (
@@ -441,7 +444,7 @@ const TransporterDashboard: React.FC<TransporterDashboardProps> = ({
           </button>
           {next && next !== 'delivered' && canAdvanceTransportJob(order, user.id) && (
             <button type="button" className="btn btn-primary btn-sm" onClick={() => onAdvanceJob(order.id)}>
-              {next === 'picked_up' ? ' Mark picked up' : ' Start delivery'}
+              {workflowNextStatus ? `Advance: ${workflowStatusLabel(workflowNextStatus)}` : (next === 'picked_up' ? ' Mark picked up' : ' Start delivery')}
             </button>
           )}
           {status === 'in_transit' && canAdvanceTransportJob(order, user.id) && (

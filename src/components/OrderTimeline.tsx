@@ -1,31 +1,52 @@
-// ===== src/components/OrderTimeline.tsx =====
-// Visual shipment progress tracker (banking-app style stepper) for the
-// standard supply-chain order lifecycle:
-//   Ordered  to  Confirmed  to  In Transit  to  Delivered
-// Cancelled orders render a distinct failed state.
 import React from 'react';
+import {
+  ORDER_WORKFLOW_STATUSES,
+  DisplayOrderStatus,
+  workflowStatusIndex,
+  workflowStatusLabel,
+  workflowStatusOf,
+} from '../lib/orderWorkflow';
 
-export type OrderProgressStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderProgressStatus = DisplayOrderStatus | string;
 
 interface OrderTimelineProps {
-  status: OrderProgressStatus | string;
+  status: OrderProgressStatus;
   size?: 'sm' | 'md';
 }
 
-const STEPS = [
-  { key: 'pending', label: 'Ordered', icon: '🧾' },
-  { key: 'confirmed', label: 'Confirmed', icon: '✅' },
-  { key: 'shipped', label: 'In Transit', icon: '🚚' },
-  { key: 'delivered', label: 'Delivered', icon: '🏁' },
-];
+const SHORT_LABELS: Record<DisplayOrderStatus, string> = {
+  submitted: 'Submitted',
+  supplier_reviewing: 'Reviewing',
+  supplier_quotation_received: 'Quotation',
+  proforma_approved: 'Proforma',
+  payment_confirmed: 'Payment',
+  materials_preparing: 'Preparing',
+  transporter_assigned: 'Assigned',
+  delivery_in_transit: 'In transit',
+  customer_confirmed_receipt: 'Receipt',
+  order_completed: 'Completed',
+  cancelled: 'Cancelled',
+};
 
-const stepIndex = (status: string): number =>
-  status === 'pending' ? 0 : status === 'confirmed' ? 1 : status === 'shipped' ? 2 : status === 'delivered' ? 3 : -1;
+const NOTES: Record<DisplayOrderStatus, string> = {
+  submitted: 'Order submitted - awaiting supplier review.',
+  supplier_reviewing: 'Supplier is reviewing the requested materials.',
+  supplier_quotation_received: 'Quotation received - awaiting proforma approval.',
+  proforma_approved: 'Proforma approved - waiting for payment confirmation.',
+  payment_confirmed: 'Payment confirmed or agreed terms - supplier is preparing materials.',
+  materials_preparing: 'Supplier is preparing the ordered materials.',
+  transporter_assigned: 'Transporter assigned - delivery being arranged.',
+  delivery_in_transit: 'Delivery in transit - on its way to your project location.',
+  customer_confirmed_receipt: 'Receipt confirmed - order is ready for completion.',
+  order_completed: 'Order completed - thank you for buying with E-SCON.',
+  cancelled: 'Order cancelled - no delivery in progress.',
+};
 
 const OrderTimeline: React.FC<OrderTimelineProps> = ({ status, size = 'md' }) => {
-  const cancelled = status === 'cancelled';
-  const idx = stepIndex(status);
-  const current = cancelled ? -1 : idx;
+  const currentStatus = workflowStatusOf(status);
+  const current = workflowStatusIndex(currentStatus);
+  const cancelled = currentStatus === 'cancelled';
+  const position = current < 0 ? 0 : current + 1;
 
   return (
     <div className={'m-progress m-progress-' + size}>
@@ -37,36 +58,31 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status, size = 'md' }) =>
       ) : (
         <>
           <div className="m-progress-track">
-            {STEPS.map((step, i) => {
+            {ORDER_WORKFLOW_STATUSES.map((step, i) => {
               const reached = i <= current;
               const active = i === current;
               return (
                 <div
-                  key={step.key}
+                  key={step}
                   className={
                     'm-progress-step' +
                     (reached ? ' reached' : '') +
                     (active ? ' active' : '') +
-                    (i === STEPS.length - 1 ? ' last' : '')
+                    (i === ORDER_WORKFLOW_STATUSES.length - 1 ? ' last' : '')
                   }
                 >
                   <div className="m-progress-dot">
-                    <span className="m-progress-icon">{reached ? step.icon : '-'}</span>
+                    <span className="m-progress-icon">{reached ? String(i + 1) : '-'}</span>
                   </div>
-                  <span className="m-progress-label">{step.label}</span>
-                  {i < STEPS.length - 1 && <span className="m-progress-line" />}
+                  {size === 'md' && <span className="m-progress-label">{SHORT_LABELS[step]}</span>}
+                  {i < ORDER_WORKFLOW_STATUSES.length - 1 && <span className="m-progress-line" />}
                 </div>
               );
             })}
           </div>
-          {size === 'md' && current >= 0 && (
-            <div className="m-progress-note">
-              {current === 0 && ' Order placed - awaiting supplier confirmation.'}
-              {current === 1 && '[OK] Supplier confirmed - goods are being prepared.'}
-              {current === 2 && ' In transit - on its way to your delivery address.'}
-              {current === 3 && ' Delivered - thank you for buying with E-SCON!'}
-            </div>
-          )}
+          <div className="m-progress-note">
+            Step {position} of {ORDER_WORKFLOW_STATUSES.length}: {workflowStatusLabel(currentStatus)}. {NOTES[currentStatus]}
+          </div>
         </>
       )}
     </div>

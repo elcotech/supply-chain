@@ -44,7 +44,7 @@ path-based request, configure a single-page-app fallback to `index.html`.
 `public/sw.js` is a **custom** service worker. To push a new version to every
 installed user without touching their data:
 
-1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v5.2.0` after this release).
+1. Bump `VERSION` at the top of `public/sw.js` (currently `e-scon-v5.3.0` after this release).
 2. Deploy the new `build/`.
 
 On `activate` the worker deletes old cache buckets, and `skipWaiting()` /
@@ -64,7 +64,7 @@ Summary:
 ```powershell
 npm run build
 npx cap sync android
-# bump versionCode/versionName + sw.js VERSION, then (current release targets versionCode 31 / 5.2.0 + sw.js e-scon-v5.2.0):
+# bump versionCode/versionName + sw.js VERSION, then (current release targets versionCode 32 / 5.3.0 + sw.js e-scon-v5.3.0):
 gradle bundleRelease --no-daemon --init-script "...\builddir-init.gradle"
 ```
 
@@ -92,11 +92,18 @@ For a quick internal install, build a debug APK and use `adb install`
 - [ ] `npm run build` succeeds.
 - [ ] `npx cap sync android` completed; root `E-SCON-debug.apk`, `E-SCON-release.apk`, `E-SCON-release.aab` rebuilt/refreshed.
 - [ ] `.env.local` is either absent or contains the intended Supabase URL/anon key (never committed); `supabase/schema.sql` has been run so the table and Realtime publication exist.
-- [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.2.0).
-- [ ] Android `versionCode` / `versionName` bumped (for Play uploads; this release is 31 / "5.2.0").
+- [ ] `public/sw.js` `VERSION` bumped (e-scon-v5.3.0).
+- [ ] Android `versionCode` / `versionName` bumped (for Play uploads; this release is 32 / "5.3.0").
 - [ ] Web `build/` deployed over HTTPS.
 - [ ] Signed `.aab` uploaded and tested on the internal track.
 - [ ] Privacy policy URL live and pasted into the Play Console.
+
+For 5.3.0, verification passed for `npx tsc --noEmit`, 6 Jest suites / 130 tests,
+`npm run build`, `npx cap sync android`, Android `assembleDebug`,
+`assembleRelease` and `bundleRelease`, `aapt` (`versionCode 32` /
+`versionName 5.3.0`), AAB `jarsigner`, both APKs with `apksigner`, and a browser
+audit at desktop, mobile portrait and mobile landscape with no document
+horizontal overflow.
 
 ---
 

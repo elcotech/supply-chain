@@ -103,6 +103,22 @@ export interface PricePoint {
   price: number;
 }
 
+export type WorkflowOrderStatus =
+  | 'submitted'
+  | 'supplier_reviewing'
+  | 'supplier_quotation_received'
+  | 'proforma_approved'
+  | 'payment_confirmed'
+  | 'materials_preparing'
+  | 'transporter_assigned'
+  | 'delivery_in_transit'
+  | 'customer_confirmed_receipt'
+  | 'order_completed';
+
+export type LegacyOrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+
+export type OrderStatus = WorkflowOrderStatus | LegacyOrderStatus;
+
 export interface Order {
   id: string;
   customerId: string;
@@ -112,7 +128,8 @@ export interface Order {
   unitPrice: number;
   transportCost: number;
   totalAmount: number;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  status: OrderStatus;
+  workflowStatus?: WorkflowOrderStatus;
   orderDate: string;
   deliveryDate?: string;
   address: string;

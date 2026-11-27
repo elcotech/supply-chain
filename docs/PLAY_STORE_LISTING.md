@@ -44,7 +44,8 @@ FOR CUSTOMERS
 - Tick several products on the map, set each quantity and add them all to the cart in one go.
 - Compare up to four products side by side.
 - Save favourites and reorder past purchases in one tap.
-- Build a cart, choose delivery per item, and check out with VAT and delivery added to the net price.
+- Build a cart, choose delivery per item, select the lines you want to submit, and check out with VAT and delivery added to the net price.
+- Follow a 10-stage order workflow with clear status timelines and role-aware actions.
 - Print or preview a professional proforma invoice - or scan its QR code to open a mobile-friendly view.
 
 FOR SUPPLIERS
@@ -60,9 +61,12 @@ FOR TRANSPORTERS
 - Register your transport company with a business licence and service areas.
 - Claim confirmed delivery requests that match your coverage and fleet capacity.
 - Dispatch vehicles and drivers, advance job status, and capture proof of delivery.
+- Advance assigned orders through the 10-stage workflow with role-aware controls.
 - Track transport earnings, average job fee and completed deliveries in Analytics.
 
 FOR EVERYONE
+- GPS map tools: material search, nearby radius, warehouse pins, a customer project pin and up-to-three-supplier comparison with distance, average price and transport estimate.
+- Payment and tracking dashboards with item totals, transport cost, grand total, payment method, unique order number, status, live GPS and receipt confirmation.
 - A filterable Marketplace with supplier storefronts, favourites, compare and one-tap cart.
 - A data-grounded Copilot that works offline and never sends your business data to a server.
 - A clean, fast, touch-friendly interface with light-blue themes.
@@ -105,7 +109,7 @@ Suggested screenshots:
 5. Cart with the three order steps.
 6. Proforma invoice (header QR visible).
 7. Supplier dashboard "My stock" panel.
-8. Mobile order cards with the shipment progress stepper.
+8. Mobile order cards with the 10-step order timeline and tracking details.
 
 ---
 
@@ -157,7 +161,7 @@ requested.
 
 - [ ] Signed **AAB** built and signature verified
       ([ANDROID_BUILD.md](./ANDROID_BUILD.md#6-building-a-signed-release-aab-play-store)).
-- [ ] `versionCode` increased, `versionName` set (current build: **31 / "5.2.0"**).
+- [ ] `versionCode` increased, `versionName` set (current build: **32 / "5.3.0"**).
 - [ ] App name, short and full descriptions entered.
 - [ ] Icon, feature graphic and screenshots uploaded.
 - [ ] **Privacy Policy URL** live and entered in the Console

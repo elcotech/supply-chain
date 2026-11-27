@@ -160,3 +160,43 @@
 // - E-SCON-debug.apk   61ac6dfab900d66a4576eb1732c085e4c0b6b0686b3b9abdd10f44a3814f1c18
 // - E-SCON-release.apk  b5a70f092b8ab93ff2010b63a375a11e4e785ac7762498fad7a4afca5cf70682
 // - E-SCON-release.aab  f9643a7f92268c7cffb5038b2feba7d26a316de89e7ed39eeff6aef82ec2b11a
+//
+// ===== v5.3.0 - Canonical order workflow, GPS planning & order management =====
+// Released: 2026-11-27 (current release)
+// versionCode 32 / versionName "5.3.0" / sw.js VERSION "e-scon-v5.3.0"
+// Source of truth: "ESCON WEB & App Design & Feature.doc".
+//
+// Delivered
+// - src/lib/orderWorkflow.ts (+ .test.ts): ten canonical statuses, labels,
+//   progress, next-step role transition guards and legacy status mirroring.
+// - src/components/OrderTimeline.tsx: expanded to the ten workflow steps.
+// - Customer, supplier, admin, transporter and mobile order views: 10-step
+//   timelines and role-aware `Advance: ...` buttons.
+// - MapComponent: material search, nearby radius, explicit warehouse pins/popups,
+//   customer project pin on map click, straight-line distance from the saved /
+//   project / map-centre origin, and comparison of up to three nearby suppliers
+//   (product count, average price, transport estimate). OSRM route/road km/auto
+//   transport cost retained.
+// - Cart: per-item checkboxes, quantity steppers, selected count/subtotal; only
+//   selected lines submit.
+// - Payment/tracking dashboards: item totals, transport, grand total, payment
+//   method, unique order number, status, live GPS and receipt confirmation.
+// - Documentation updated: README.md, TECHNICAL_DOCUMENTATION.md and docs/*
+//   (user guide, Play listing, deployment, Android build, cloud database).
+//
+// Verification (all passed; docs-only follow-up ran no tests)
+// - npx tsc --noEmit
+// - 6 Jest suites, 130 tests
+// - npm run build: compiled successfully
+// - npx cap sync android
+// - Gradle assembleDebug, assembleRelease and bundleRelease
+// - aapt dump badging: versionCode 32, versionName 5.3.0
+// - jarsigner -verify E-SCON-release.aab: jar verified
+// - apksigner verify: debug and release APKs verified
+// - Browser audit at desktop, mobile portrait and mobile landscape: no document
+//   horizontal overflow
+//
+// Artifact SHA-256
+// - E-SCON-debug.apk   9c5dcde9275f672b122c2248882a98e4b74581037b2abe1a918ea5252742a4de
+// - E-SCON-release.apk 3729dd47e7a5bb6151e610e6e4bdec99257e46e53440b2a31390d62480fdf028
+// - E-SCON-release.aab 58789620fa1d002cf7ff5f569a39a506b5d9f7a64456fe8103221bf058db8649

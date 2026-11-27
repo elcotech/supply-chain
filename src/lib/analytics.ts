@@ -141,6 +141,16 @@ const STATUS_COLORS: Record<Order['status'], string> = {
   shipped: '#e67e22',
   delivered: '#2ecc71',
   cancelled: '#e74c3c',
+  submitted: '#f1c40f',
+  supplier_reviewing: '#f39c12',
+  supplier_quotation_received: '#3498db',
+  proforma_approved: '#3498db',
+  payment_confirmed: '#9b59b6',
+  materials_preparing: '#3498db',
+  transporter_assigned: '#e67e22',
+  delivery_in_transit: '#e67e22',
+  customer_confirmed_receipt: '#2ecc71',
+  order_completed: '#2ecc71',
 };
 
 const money = (value: number): string => formatCurrency(Math.round(value * 100) / 100);

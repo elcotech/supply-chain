@@ -1,10 +1,10 @@
-# E-SCON 5.2.0 - Ethio-Supply Chain Optimization Network
+# E-SCON 5.3.0 - Ethio-Supply Chain Optimization Network
 
 > **AI-Powered Integrated Supply Chain Network** - Mobile App + Web Platform + Global Network
 >
 > Brand: Deep navy, professional blue, white and restrained gold. Clean, modern, professional and consistent across all devices.
 
-A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, a filterable marketplace, GIS supplier mapping with driving routes, distance & transport-cost calculation, VAT-exclusive product pricing with one configurable VAT calculated on the whole cart at checkout, role-aware analytics, a data-grounded on-device Copilot, editable demo data, an admin data manager, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
+A single-page React + TypeScript platform connecting Ethiopian suppliers and customers: live product search, a filterable marketplace, GIS supplier mapping with driving routes, distance & transport-cost calculation, a canonical 10-step order workflow with role-aware tracking, VAT-exclusive product pricing with one configurable VAT calculated on the whole cart at checkout, role-aware analytics, a data-grounded on-device Copilot, editable demo data, an admin data manager, supplier & customer dashboards, product photos, CSV exports for suppliers and admins, and a global live date/time widget with invert-color & transparency toggles.
 
 ##  Documentation
 
@@ -20,7 +20,16 @@ A single-page React + TypeScript platform connecting Ethiopian suppliers and cus
 
 
 
-## E-SCON 5.2.0 update (this workspace)
+## E-SCON 5.3.0 update (current release)
+
+- **Canonical 10-step order workflow:** submitted, supplier reviewing, supplier quotation received, customer approves proforma, payment confirmed or agreed terms, supplier prepares materials, transporter assigned, delivery in transit, customer confirms receipt, order completed. Legacy `pending` / `confirmed` / `shipped` / `delivered` statuses are mirrored for compatibility. Customer, supplier, admin, transporter and mobile order views now show role-aware **Advance** buttons and 10-step timelines.
+- **GPS map tools:** material search, nearby radius filter, explicit warehouse location pins/popups, a customer project-location pin on map click, straight-line distance from a saved/project/map-centre origin, and nearby supplier comparison of up to 3 suppliers with product count, average price and transport estimate. The existing OSRM route line, road distance and automatic transport cost remain.
+- **Cart order management:** per-item checkbox selection, quantity steppers, selected-item count and selected subtotal; only selected cart lines are submitted.
+- **Payment & tracking dashboards:** item totals, transport cost, grand total, payment method, unique order number, status, live GPS and completion/receipt confirmation.
+- **Code & tests:** added `src/lib/orderWorkflow.ts` / `src/lib/orderWorkflow.test.ts`; `OrderTimeline` now renders 10 steps.
+- **Verification:** `npx tsc --noEmit` passed; 6 Jest suites / 130 tests passed; `npm run build` compiled successfully; `npx cap sync android` passed; Android `assembleDebug`, `assembleRelease` and `bundleRelease` passed; debug/release APK and AAB copied to the repo root. `aapt` confirms `versionCode 32` / `versionName 5.3.0`; `jarsigner` verified the AAB and `apksigner` verified both APKs. A browser audit at desktop, mobile portrait and mobile landscape reported no document horizontal overflow.
+
+## E-SCON 5.2.0 update (previous release)
 
 - **Map basket:** the supplier map's **Available Products** list now has a checkbox and a `-` / number / `+` stepper on every row, plus **Select all**, **Clear**, a running unit/item/goods total and **Add selected to cart**. `onSelectProducts` hands all lines to `addItemsToCart` in one atomic `stageCartSelections` call, carrying the map's measured road distance and preserving the one-supplier-per-cart rule.
 - **Smaller location chips:** the distance badge on map/search rows and the mobile category/city chips are more compact, so more of each product row stays visible on phones.
